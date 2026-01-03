@@ -1,0 +1,162 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Vercel Tabs
+   Vercel風のスムーズなタブアニメーション
+   ============================================================ */
+
+/* ============================================================
+   CONTAINER
+   ============================================================ */
+.n3-vercel-tabs {
+  position: relative;
+}
+
+/* ============================================================
+   NAVIGATION
+   ============================================================ */
+.n3-vercel-tabs__nav {
+  display: flex;
+  align-items: center;
+  position: relative;
+  height: 100%;
+}
+
+/* ============================================================
+   HOVER BACKGROUND - Vercel風スライドアニメーション
+   ============================================================ */
+.n3-vercel-tabs__hover-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: var(--highlight);
+  border-radius: 0;
+  pointer-events: none;
+  z-index: 0;
+  /* 滑らかなトランジション */
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ============================================================
+   ACTIVE BACKGROUND
+   ============================================================ */
+.n3-vercel-tabs__active-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: var(--accent);
+  pointer-events: none;
+  z-index: 0;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ============================================================
+   TAB BUTTON
+   ============================================================ */
+.n3-vercel-tabs__tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 16px;
+  height: 100%;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: var(--n3-font, 13px);
+  font-weight: 500;
+  cursor: pointer;
+  position: relative;
+  z-index: 1;
+  transition: color 0.15s ease;
+  white-space: nowrap;
+}
+
+.n3-vercel-tabs__tab:hover {
+  color: var(--text);
+}
+
+.n3-vercel-tabs__tab.active {
+  color: var(--accent-text, #fff);
+}
+
+.n3-vercel-tabs__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.n3-vercel-tabs__icon svg {
+  width: var(--n3-icon, 14px);
+  height: var(--n3-icon, 14px);
+}
+
+.n3-vercel-tabs__label {
+  /* label styles */
+}
+
+/* ============================================================
+   PANEL WRAPPER - 展開アニメーション
+   ============================================================ */
+.n3-vercel-tabs__panel-wrapper {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: 
+    grid-template-rows 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.2s ease;
+  overflow: hidden;
+}
+
+.n3-vercel-tabs__panel-wrapper.open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.n3-vercel-tabs__panel {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ============================================================
+   STYLE THEME OVERRIDES
+   ============================================================ */
+
+/* Glass */
+[data-style="glass"] .n3-vercel-tabs__hover-bg {
+  background: rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(4px);
+}
+
+[data-style="glass"] .n3-vercel-tabs__active-bg {
+  background: rgba(99, 102, 241, 0.8);
+  backdrop-filter: blur(4px);
+}
+
+/* Neumorphism */
+[data-style="neumorphism"] .n3-vercel-tabs__hover-bg {
+  background: var(--panel);
+  box-shadow: 
+    inset 2px 2px 4px rgba(0,0,0,0.05),
+    inset -2px -2px 4px rgba(255,255,255,0.5);
+}
+
+[data-style="neumorphism"] .n3-vercel-tabs__active-bg {
+  box-shadow: 
+    inset 3px 3px 6px rgba(0,0,0,0.1),
+    inset -3px -3px 6px rgba(255,255,255,0.3);
+}
+
+/* Flat */
+[data-style="flat"] .n3-vercel-tabs__hover-bg {
+  background: var(--highlight);
+  border-bottom: 2px solid var(--text-muted);
+}
+
+[data-style="flat"] .n3-vercel-tabs__active-bg {
+  background: transparent;
+  border-bottom: 3px solid var(--accent);
+}
+
+[data-style="flat"] .n3-vercel-tabs__tab.active {
+  color: var(--accent);
+}

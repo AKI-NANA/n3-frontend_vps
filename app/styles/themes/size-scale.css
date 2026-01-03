@@ -1,0 +1,157 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Size Scale System
+   data-size属性でページ全体のサイズを制御
+   
+   使い方:
+   - <div data-size="md"> でラップすると、中の全コンポーネントが md サイズに
+   - コンポーネント側で size prop を指定すると個別に上書き可能
+   ============================================================ */
+
+/* ============================================================
+   BASE SIZE VARIABLES (Default = md)
+   コンポーネントはこれらを参照する
+   詳細度を上げるため :root:root を使用
+   ============================================================ */
+
+:root,
+:root:root {
+  /* === Current Size (コンポーネントが参照する変数) === */
+  --n3-height: 32px;
+  --n3-font: 12px;
+  --n3-px: 12px;
+  --n3-gap: 6px;
+  --n3-icon: 16px;
+  --n3-radius: 6px;
+  
+  /* Header & Layout */
+  --header-height: 52px;
+  --sidebar-width: 60px;
+  
+  /* Scale factor for reference */
+  --n3-scale: 1;
+}
+
+/* ============================================================
+   SIZE SCALE DEFINITIONS
+   詳細度を上げるため html[data-size] を使用
+   ============================================================ */
+
+/* XS - 最小サイズ */
+html [data-size="xs"],
+[data-size="xs"] {
+  --n3-height: 22px !important;
+  --n3-font: 10px !important;
+  --n3-px: 6px !important;
+  --n3-gap: 3px !important;
+  --n3-icon: 12px !important;
+  --n3-radius: 4px !important;
+  --n3-scale: 0.75;
+  --header-height: 40px !important;
+  --sidebar-width: 48px !important;
+}
+
+/* SM - 小さめサイズ */
+html [data-size="sm"],
+[data-size="sm"] {
+  --n3-height: 26px !important;
+  --n3-font: 11px !important;
+  --n3-px: 8px !important;
+  --n3-gap: 4px !important;
+  --n3-icon: 14px !important;
+  --n3-radius: 4px !important;
+  --n3-scale: 0.875;
+  --header-height: 46px !important;
+  --sidebar-width: 54px !important;
+}
+
+/* MD - 標準サイズ */
+html [data-size="md"],
+[data-size="md"] {
+  --n3-height: 32px !important;
+  --n3-font: 12px !important;
+  --n3-px: 12px !important;
+  --n3-gap: 6px !important;
+  --n3-icon: 16px !important;
+  --n3-radius: 6px !important;
+  --n3-scale: 1;
+  --header-height: 52px !important;
+  --sidebar-width: 60px !important;
+}
+
+/* LG - 大きめサイズ */
+html [data-size="lg"],
+[data-size="lg"] {
+  --n3-height: 40px !important;
+  --n3-font: 14px !important;
+  --n3-px: 16px !important;
+  --n3-gap: 8px !important;
+  --n3-icon: 18px !important;
+  --n3-radius: 8px !important;
+  --n3-scale: 1.125;
+  --header-height: 58px !important;
+  --sidebar-width: 66px !important;
+}
+
+/* XL - 最大サイズ */
+html [data-size="xl"],
+[data-size="xl"] {
+  --n3-height: 48px !important;
+  --n3-font: 16px !important;
+  --n3-px: 20px !important;
+  --n3-gap: 10px !important;
+  --n3-icon: 20px !important;
+  --n3-radius: 12px !important;
+  --n3-scale: 1.25;
+  --header-height: 64px !important;
+  --sidebar-width: 72px !important;
+}
+
+/* ============================================================
+   INDIVIDUAL SIZE OVERRIDES
+   コンポーネント個別でサイズを指定する場合
+   ============================================================ */
+
+/* XS Override */
+.n3-size-xs {
+  --n3-height: 22px !important;
+  --n3-font: 10px !important;
+  --n3-px: 6px !important;
+  --n3-gap: 3px !important;
+  --n3-icon: 12px !important;
+}
+
+/* SM Override */
+.n3-size-sm {
+  --n3-height: 26px !important;
+  --n3-font: 11px !important;
+  --n3-px: 8px !important;
+  --n3-gap: 4px !important;
+  --n3-icon: 14px !important;
+}
+
+/* MD Override */
+.n3-size-md {
+  --n3-height: 32px !important;
+  --n3-font: 12px !important;
+  --n3-px: 12px !important;
+  --n3-gap: 6px !important;
+  --n3-icon: 16px !important;
+}
+
+/* LG Override */
+.n3-size-lg {
+  --n3-height: 40px !important;
+  --n3-font: 14px !important;
+  --n3-px: 16px !important;
+  --n3-gap: 8px !important;
+  --n3-icon: 18px !important;
+}
+
+/* XL Override */
+.n3-size-xl {
+  --n3-height: 48px !important;
+  --n3-font: 16px !important;
+  --n3-px: 20px !important;
+  --n3-gap: 10px !important;
+  --n3-icon: 20px !important;
+}

@@ -1,0 +1,51 @@
+```sql
+UPDATE products
+SET 
+  title_en = '[最適化タイトル]',
+  origin_country = '[原産国コード]',
+  hts_code = '[HTSコード]',
+  hts_confidence = '[信頼度]',
+  material = '[素材]',
+  listing_data = COALESCE(listing_data, '{}'::jsonb) || jsonb_build_object(
+    -- サイズ・重量
+    'length_cm', [長さ],
+    'width_cm', [幅],
+    'height_cm', [高さ],
+    'weight_g', [重量],
+    
+    -- 市場調査データ
+    'sm_lowest_price', [最安値],
+    'sm_average_price', [平均価格],
+    'sm_competitor_count', [競合数],
+    'sm_sales_count', [販売数],
+    
+    -- タイトル最適化
+    'title_no_brand', '[ブランドなしタイトル]',
+    
+    -- データソース
+    'origin_source', '[原産国ソース]',
+    'origin_manual_check_required', [true/false],
+    'dimensions_source', '[サイズソース]',
+    
+    -- 市場分析データ（スコア計算用）
+    'discontinued_status', '[ACTIVE/DISCONTINUED_RECENT/DISCONTINUED_OLD/LIMITED_EDITION/UNKNOWN]',
+    'premium_rate', [プレミア率],
+    'domestic_availability', '[ABUNDANT/MODERATE/SCARCE/RARE/OUT_OF_STOCK]',
+    'community_score', [0-100点],
+    'future_value_trend', '[INCREASING/STABLE/DECREASING/UNKNOWN]',
+    'popular_character_series', '[人気キャラ/シリーズ名]',
+    'popularity_level', '[HIGH/MEDIUM/LOW/NONE]',
+    
+    -- 商品特性
+    'is_easy_to_ship', [true/false],
+    'bulk_order_potential', [true/false],
+    'turnover_rate', '[HIGH/MEDIUM/LOW]',
+    'price_stability', '[STABLE/VOLATILE]',
+    'size_weight_rating', '[COMPACT/MEDIUM/LARGE]',
+    
+    -- AI更新タイムスタンプ
+    'ai_updated_at', NOW()
+  ),
+  updated_at = NOW()
+WHERE id = '[商品UUID]';
+```

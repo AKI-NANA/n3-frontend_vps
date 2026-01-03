@@ -1,0 +1,370 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Design Tokens
+   すべてのコンポーネントが参照する変数定義
+   ============================================================ */
+
+:root {
+  /* ============================================================
+     COMPONENT SIZE TOKENS - 統一サイズシステム
+     ボタン、入力、タブ等すべてのインタラクティブ要素で共有
+     ============================================================ */
+  
+  /* Interactive Component Heights - 共通高さ */
+  --comp-height-2xs: 20px;
+  --comp-height-xs: 24px;
+  --comp-height-sm: 28px;
+  --comp-height-md: 32px;
+  --comp-height-lg: 40px;
+  --comp-height-xl: 48px;
+  --comp-height-2xl: 56px;
+  
+  /* Interactive Component Font Sizes - 共通フォントサイズ */
+  --comp-font-2xs: 9px;
+  --comp-font-xs: 10px;
+  --comp-font-sm: 11px;
+  --comp-font-md: 12px;
+  --comp-font-lg: 14px;
+  --comp-font-xl: 16px;
+  --comp-font-2xl: 18px;
+  
+  /* Interactive Component Padding X - 共通横パディング */
+  --comp-px-2xs: 4px;
+  --comp-px-xs: 6px;
+  --comp-px-sm: 8px;
+  --comp-px-md: 12px;
+  --comp-px-lg: 16px;
+  --comp-px-xl: 20px;
+  --comp-px-2xl: 24px;
+  
+  /* Interactive Component Gap - 共通アイコンとテキストの間隔 */
+  --comp-gap-xs: 2px;
+  --comp-gap-sm: 4px;
+  --comp-gap-md: 6px;
+  --comp-gap-lg: 8px;
+  --comp-gap-xl: 10px;
+  
+  /* Interactive Component Icon Sizes - 共通アイコンサイズ */
+  --comp-icon-xs: 12px;
+  --comp-icon-sm: 14px;
+  --comp-icon-md: 16px;
+  --comp-icon-lg: 18px;
+  --comp-icon-xl: 20px;
+  
+  /* ============================================================
+     SEMANTIC COLOR TOKENS - 意味のある色
+     ============================================================ */
+  
+  /* Primary - メインアクション（ボタン、リンク等） */
+  --color-primary: #6366f1;
+  --color-primary-hover: #818cf8;
+  --color-primary-active: #4f46e5;
+  --color-primary-light: rgba(99, 102, 241, 0.1);
+  --color-primary-lighter: rgba(99, 102, 241, 0.05);
+  
+  /* Secondary - サブアクション */
+  --color-secondary: #64748b;
+  --color-secondary-hover: #94a3b8;
+  --color-secondary-active: #475569;
+  --color-secondary-light: rgba(100, 116, 139, 0.1);
+  
+  /* Success - 成功、完了、オンライン */
+  --color-success: #10b981;
+  --color-success-hover: #34d399;
+  --color-success-active: #059669;
+  --color-success-light: rgba(16, 185, 129, 0.1);
+  --color-success-lighter: rgba(16, 185, 129, 0.05);
+  
+  /* Warning - 警告、注意 */
+  --color-warning: #f59e0b;
+  --color-warning-hover: #fbbf24;
+  --color-warning-active: #d97706;
+  --color-warning-light: rgba(245, 158, 11, 0.1);
+  --color-warning-lighter: rgba(245, 158, 11, 0.05);
+  
+  /* Error/Danger - エラー、削除、オフライン */
+  --color-error: #ef4444;
+  --color-error-hover: #f87171;
+  --color-error-active: #dc2626;
+  --color-error-light: rgba(239, 68, 68, 0.1);
+  --color-error-lighter: rgba(239, 68, 68, 0.05);
+  
+  /* Info - 情報 */
+  --color-info: #0ea5e9;
+  --color-info-hover: #38bdf8;
+  --color-info-active: #0284c7;
+  --color-info-light: rgba(14, 165, 233, 0.1);
+  --color-info-lighter: rgba(14, 165, 233, 0.05);
+  
+  /* Purple - 特別、プレミアム */
+  --color-purple: #a855f7;
+  --color-purple-hover: #c084fc;
+  --color-purple-active: #9333ea;
+  --color-purple-light: rgba(168, 85, 247, 0.1);
+  
+  /* Gray - ニュートラル */
+  --color-gray: #6b7280;
+  --color-gray-hover: #9ca3af;
+  --color-gray-active: #4b5563;
+  --color-gray-light: rgba(107, 114, 128, 0.1);
+  
+  /* ============================================================
+     CHANNEL COLORS - マーケットプレイス
+     ============================================================ */
+  
+  --color-ebay: #e53238;
+  --color-ebay-light: rgba(229, 50, 56, 0.1);
+  --color-amazon: #ff9900;
+  --color-amazon-light: rgba(255, 153, 0, 0.1);
+  --color-yahoo: #ff0033;
+  --color-yahoo-light: rgba(255, 0, 51, 0.1);
+  --color-rakuten: #bf0000;
+  --color-rakuten-light: rgba(191, 0, 0, 0.1);
+  --color-mercari: #ff0211;
+  --color-mercari-light: rgba(255, 2, 17, 0.1);
+  --color-shopee: #ee4d2d;
+  --color-shopee-light: rgba(238, 77, 45, 0.1);
+  
+  /* ============================================================
+     STATUS COLORS - ステータス表示
+     ============================================================ */
+  
+  --status-online: #10b981;
+  --status-online-glow: 0 0 8px rgba(16, 185, 129, 0.6);
+  --status-offline: #ef4444;
+  --status-offline-glow: 0 0 8px rgba(239, 68, 68, 0.6);
+  --status-away: #f59e0b;
+  --status-away-glow: 0 0 8px rgba(245, 158, 11, 0.6);
+  --status-busy: #8b5cf6;
+  --status-busy-glow: 0 0 8px rgba(139, 92, 246, 0.6);
+  
+  /* ============================================================
+     PRODUCT TYPE COLORS - 商品タイプ
+     ============================================================ */
+  
+  --product-stock: #10b981;
+  --product-stock-light: rgba(16, 185, 129, 0.1);
+  --product-dropship: #6366f1;
+  --product-dropship-light: rgba(99, 102, 241, 0.1);
+  --product-set: #f59e0b;
+  --product-set-light: rgba(245, 158, 11, 0.1);
+  
+  /* ============================================================
+     PRIORITY COLORS - 優先度
+     ============================================================ */
+  
+  --priority-urgent: #ef4444;
+  --priority-high: #f97316;
+  --priority-medium: #eab308;
+  --priority-low: #22c55e;
+  --priority-none: #6b7280;
+  
+  /* ============================================================
+     SIZE TOKENS (Legacy - 互換性のため維持)
+     ============================================================ */
+  
+  /* Component Heights */
+  --size-xs: 24px;
+  --size-sm: 28px;
+  --size-md: 32px;
+  --size-lg: 40px;
+  --size-xl: 48px;
+  --size-2xl: 56px;
+  
+  /* Spacing Scale */
+  --space-0: 0;
+  --space-px: 1px;
+  --space-0-5: 2px;
+  --space-1: 4px;
+  --space-1-5: 6px;
+  --space-2: 8px;
+  --space-2-5: 10px;
+  --space-3: 12px;
+  --space-3-5: 14px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+  --space-9: 36px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-14: 56px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --space-24: 96px;
+  
+  /* ============================================================
+     TYPOGRAPHY TOKENS
+     ============================================================ */
+  
+  /* Font Families */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-jp: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+  
+  /* Font Sizes */
+  --text-2xs: 10px;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 14px;
+  --text-md: 15px;
+  --text-lg: 16px;
+  --text-xl: 18px;
+  --text-2xl: 20px;
+  --text-3xl: 24px;
+  --text-4xl: 30px;
+  --text-5xl: 36px;
+  --text-6xl: 48px;
+  
+  /* Font Weights */
+  --font-thin: 100;
+  --font-light: 300;
+  --font-normal: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+  --font-extrabold: 800;
+  
+  /* Line Heights */
+  --leading-none: 1;
+  --leading-tight: 1.25;
+  --leading-snug: 1.375;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+  --leading-loose: 2;
+  
+  /* Letter Spacing */
+  --tracking-tighter: -0.05em;
+  --tracking-tight: -0.025em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.025em;
+  --tracking-wider: 0.05em;
+  --tracking-widest: 0.1em;
+  
+  /* ============================================================
+     BORDER TOKENS
+     ============================================================ */
+  
+  /* Border Radius */
+  --radius-none: 0;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 8px;
+  --radius-2xl: 12px;
+  --radius-3xl: 16px;
+  --radius-full: 9999px;
+  
+  /* Border Width */
+  --border-0: 0;
+  --border-1: 1px;
+  --border-2: 2px;
+  --border-4: 4px;
+  --border-8: 8px;
+  
+  /* ============================================================
+     SHADOW TOKENS
+     ============================================================ */
+  
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.06), 0 2px 4px rgba(0,0,0,0.04);
+  --shadow-lg: 0 10px 15px rgba(0,0,0,0.08), 0 4px 6px rgba(0,0,0,0.04);
+  --shadow-xl: 0 20px 25px rgba(0,0,0,0.10), 0 8px 10px rgba(0,0,0,0.04);
+  --shadow-2xl: 0 25px 50px rgba(0,0,0,0.15);
+  --shadow-inner: inset 0 2px 4px rgba(0,0,0,0.05);
+  --shadow-none: none;
+  
+  /* Glow Effects */
+  --glow-sm: 0 0 4px;
+  --glow-md: 0 0 8px;
+  --glow-lg: 0 0 16px;
+  
+  /* ============================================================
+     ANIMATION TOKENS
+     ============================================================ */
+  
+  /* Durations */
+  --duration-75: 75ms;
+  --duration-100: 100ms;
+  --duration-150: 150ms;
+  --duration-200: 200ms;
+  --duration-300: 300ms;
+  --duration-500: 500ms;
+  --duration-700: 700ms;
+  --duration-1000: 1000ms;
+  
+  /* Easing */
+  --ease-linear: linear;
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  
+  /* ============================================================
+     LAYOUT TOKENS
+     ============================================================ */
+  
+  /* Container Widths */
+  --container-xs: 320px;
+  --container-sm: 640px;
+  --container-md: 768px;
+  --container-lg: 1024px;
+  --container-xl: 1280px;
+  --container-2xl: 1536px;
+  
+  /* Z-Index Scale */
+  --z-hide: -1;
+  --z-base: 0;
+  --z-dropdown: 10;
+  --z-sticky: 20;
+  --z-fixed: 30;
+  --z-header: 40;
+  --z-sidebar: 45;
+  --z-overlay: 50;
+  --z-modal: 60;
+  --z-popover: 70;
+  --z-tooltip: 80;
+  --z-toast: 90;
+  --z-max: 100;
+  
+  /* Sidebar/Header Dimensions */
+  --sidebar-width: 60px;
+  --sidebar-width-expanded: 260px;
+  --header-height: 52px;
+  --topbar-height: 48px;
+  --footer-height: 40px;
+  
+  /* ============================================================
+     BREAKPOINTS (for reference in JS)
+     ============================================================ */
+  
+  --bp-xs: 0;
+  --bp-sm: 640px;
+  --bp-md: 768px;
+  --bp-lg: 1024px;
+  --bp-xl: 1280px;
+  --bp-2xl: 1536px;
+  
+  /* ============================================================
+     ICON SIZES
+     ============================================================ */
+  
+  --icon-xs: 12px;
+  --icon-sm: 14px;
+  --icon-md: 16px;
+  --icon-lg: 20px;
+  --icon-xl: 24px;
+  --icon-2xl: 32px;
+  --icon-3xl: 48px;
+  
+  /* ============================================================
+     ASPECT RATIOS
+     ============================================================ */
+  
+  --aspect-square: 1 / 1;
+  --aspect-video: 16 / 9;
+  --aspect-photo: 4 / 3;
+  --aspect-portrait: 3 / 4;
+  --aspect-wide: 21 / 9;
+}

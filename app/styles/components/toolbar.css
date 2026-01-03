@@ -1,0 +1,344 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Toolbar
+   統一サイズシステム対応版
+   ============================================================ */
+
+/* 統一値: 高さ24px, 上下余白2px, 左右余白6px */
+
+/* ============================================================
+   MAIN TOOLBAR
+   ============================================================ */
+
+.n3-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 8px;
+  background: var(--panel);
+  border: var(--style-toolbar-border, 1px solid var(--panel-border));
+  border-radius: var(--style-toolbar-radius, var(--radius-md));
+  box-shadow: none;
+  margin-bottom: 0;
+  min-height: 28px;
+  overflow-x: hidden;
+}
+
+.n3-toolbar-group { 
+  display: flex; 
+  align-items: center; 
+  gap: 2px; 
+}
+
+.n3-toolbar-divider {
+  width: 1px;
+  height: 14px;
+  background: var(--panel-border);
+  margin: 0 3px;
+}
+
+/* ============================================================
+   TOOLBAR BUTTON (legacy support)
+   ============================================================ */
+
+.n3-toolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--comp-height-sm);
+  height: var(--comp-height-sm);
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+.n3-toolbar-btn:hover {
+  color: var(--text);
+  background: var(--highlight);
+}
+
+.n3-toolbar-btn.active {
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+.n3-toolbar-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Toolbar button with label */
+.n3-toolbar-btn-label {
+  width: auto;
+  padding: 0 var(--comp-px-sm);
+  gap: var(--comp-gap-sm);
+  font-size: var(--comp-font-xs);
+  font-weight: 500;
+}
+
+/* ============================================================
+   TOOLBAR SELECTOR (タブ切り替え)
+   ============================================================ */
+
+.n3-toolbar-selector {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  background: var(--highlight);
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+}
+
+.n3-toolbar-selector__item {
+  display: flex;
+  align-items: center;
+  gap: var(--comp-gap-sm);
+  height: var(--comp-height-xs);
+  padding: 0 var(--comp-px-sm);
+  font-size: var(--comp-font-xs);
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+  white-space: nowrap;
+}
+
+.n3-toolbar-selector__item:hover {
+  color: var(--text);
+  background: var(--panel);
+}
+
+.n3-toolbar-selector__item.active {
+  color: var(--color-primary);
+  background: var(--panel);
+  box-shadow: var(--style-shadow-sm, 0 1px 2px rgba(0,0,0,0.05));
+}
+
+.n3-toolbar-selector__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-left: 4px;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+.n3-toolbar-selector__close:hover {
+  color: var(--color-error);
+  background: var(--color-error-light);
+}
+
+/* ============================================================
+   COLLAPSIBLE TOOLBAR CONTENT
+   ============================================================ */
+
+.n3-toolbar-content {
+  overflow: hidden;
+  transition: max-height 0.2s ease, opacity 0.2s ease, padding 0.2s ease;
+}
+
+.n3-toolbar-content--open {
+  max-height: 500px;
+  opacity: 1;
+}
+
+.n3-toolbar-content--closed {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+/* ============================================================
+   SEARCH IN TOOLBAR
+   ============================================================ */
+
+.n3-toolbar-search {
+  position: relative;
+  flex: 1;
+  max-width: 240px;
+  margin: 0 var(--comp-px-sm);
+}
+
+.n3-toolbar-search input {
+  width: 100%;
+  height: var(--comp-height-sm);
+  padding: 0 var(--comp-px-sm) 0 32px;
+  font-size: var(--comp-font-sm);
+  background: var(--highlight);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--style-input-radius, var(--radius-sm));
+  color: var(--text);
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+.n3-toolbar-search input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  background: var(--panel);
+}
+
+.n3-toolbar-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+/* ============================================================
+   FILTER BAR
+   ============================================================ */
+
+.n3-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--comp-px-sm);
+  padding: var(--comp-px-sm) var(--comp-px-md);
+  background: var(--panel);
+  border: var(--style-toolbar-border, 1px solid var(--panel-border));
+  border-radius: var(--style-toolbar-radius, var(--radius-md));
+}
+
+.n3-filter-bar__label {
+  font-size: var(--comp-font-sm);
+  font-weight: 500;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.n3-filter-bar__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 1;
+}
+
+/* ============================================================
+   FILTER CHIP
+   ============================================================ */
+
+.n3-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--comp-gap-sm);
+  height: var(--comp-height-xs);
+  padding: 0 var(--comp-px-sm);
+  font-size: var(--comp-font-xs);
+  font-weight: 500;
+  background: var(--highlight);
+  color: var(--text);
+  border: none;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+.n3-filter-chip:hover {
+  background: var(--panel-border);
+}
+
+.n3-filter-chip.active {
+  background: var(--color-primary);
+  color: white;
+}
+
+.n3-filter-chip__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 2px;
+  margin-right: -4px;
+  color: currentColor;
+  opacity: 0.7;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.n3-filter-chip__close:hover {
+  opacity: 1;
+  background: rgba(255,255,255,0.2);
+}
+
+/* ============================================================
+   ACTION BAR
+   ============================================================ */
+
+.n3-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--comp-px-sm) var(--comp-px-md);
+  background: var(--panel);
+  border: var(--style-toolbar-border, 1px solid var(--panel-border));
+  border-radius: var(--style-toolbar-radius, var(--radius-md));
+}
+
+.n3-action-bar__left,
+.n3-action-bar__right {
+  display: flex;
+  align-items: center;
+  gap: var(--comp-px-sm);
+}
+
+.n3-action-bar__info {
+  font-size: var(--comp-font-sm);
+  color: var(--text-muted);
+}
+
+.n3-action-bar__info strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* ============================================================
+   VIEW TOGGLE
+   ============================================================ */
+
+.n3-view-toggle {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  background: var(--highlight);
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+}
+
+.n3-view-toggle button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--comp-height-xs);
+  height: var(--comp-height-xs);
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+.n3-view-toggle button:hover {
+  color: var(--text);
+}
+
+.n3-view-toggle button.active {
+  color: var(--color-primary);
+  background: var(--panel);
+  box-shadow: var(--style-shadow-sm, 0 1px 2px rgba(0,0,0,0.05));
+}

@@ -1,0 +1,839 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Navigation (Tabs, NavBars)
+   統一サイズシステム対応版
+   ============================================================ */
+
+/* ============================================================
+   GENERIC TABS
+   ============================================================ */
+
+.n3-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.n3-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--comp-gap-md);
+  height: var(--comp-height-sm);
+  padding: 0 var(--comp-px-md);
+  font-size: var(--comp-font-sm);
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+  white-space: nowrap;
+}
+
+.n3-tab:hover {
+  color: var(--text);
+  background: var(--highlight);
+}
+
+.n3-tab.active {
+  color: white;
+  background: var(--color-primary);
+}
+
+.n3-tab svg {
+  width: var(--comp-icon-sm);
+  height: var(--comp-icon-sm);
+  flex-shrink: 0;
+}
+
+/* Tab Sizes */
+.n3-tab-xs {
+  height: var(--comp-height-xs);
+  padding: 0 var(--comp-px-sm);
+  font-size: var(--comp-font-xs);
+  gap: var(--comp-gap-sm);
+}
+.n3-tab-xs svg { width: 12px; height: 12px; }
+
+.n3-tab-sm {
+  height: var(--comp-height-sm);
+  padding: 0 var(--comp-px-sm);
+  font-size: var(--comp-font-sm);
+}
+
+.n3-tab-md {
+  height: var(--comp-height-md);
+  padding: 0 var(--comp-px-md);
+  font-size: var(--comp-font-md);
+}
+
+.n3-tab-lg {
+  height: var(--comp-height-lg);
+  padding: 0 var(--comp-px-lg);
+  font-size: var(--comp-font-lg);
+}
+
+/* ============================================================
+   UNDERLINE TABS
+   ============================================================ */
+
+.n3-tabs-underline {
+  border-bottom: 1px solid var(--panel-border);
+  gap: 0;
+}
+
+.n3-tabs-underline .n3-tab {
+  height: var(--comp-height-md);
+  padding: 0 var(--comp-px-md);
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.n3-tabs-underline .n3-tab:hover {
+  background: transparent;
+  color: var(--text);
+}
+
+.n3-tabs-underline .n3-tab.active {
+  background: transparent;
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
+/* ============================================================
+   PILL TABS
+   ============================================================ */
+
+.n3-tabs-pills {
+  padding: 3px;
+  background: var(--highlight);
+  border-radius: var(--style-btn-radius, var(--radius-md));
+  gap: 2px;
+}
+
+.n3-tabs-pills .n3-tab {
+  height: var(--comp-height-xs);
+  padding: 0 var(--comp-px-sm);
+  font-size: var(--comp-font-xs);
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+}
+
+.n3-tabs-pills .n3-tab:hover {
+  background: var(--panel);
+}
+
+.n3-tabs-pills .n3-tab.active {
+  background: var(--panel);
+  color: var(--color-primary);
+  box-shadow: var(--style-shadow-sm, 0 1px 2px rgba(0,0,0,0.05));
+}
+
+/* ============================================================
+   L2 TABS (ページ内タブ)
+   ============================================================ */
+
+.n3-l2-tabs-container {
+  padding: 0 12px;
+  margin-left: 0;
+  background: transparent;
+  border-bottom: none;
+}
+
+.n3-l2-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--panel-border);
+  background: transparent;
+}
+
+.n3-l2-tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--comp-gap-md);
+  height: var(--comp-height-sm);
+  padding: 0 var(--comp-px-md);
+  font-size: var(--comp-font-sm);
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: var(--style-transition-fast, color 0.12s ease);
+  white-space: nowrap;
+  margin-bottom: -1px;
+}
+
+.n3-l2-tab:hover {
+  color: var(--text);
+}
+
+.n3-l2-tab.active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
+.n3-l2-tab svg {
+  width: var(--comp-icon-sm);
+  height: var(--comp-icon-sm);
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   FILTER TABS (全商品、データ編集等)
+   ============================================================ */
+
+.n3-filter-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.n3-filter-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--comp-gap-sm);
+  height: var(--comp-height-xs);
+  padding: 0 var(--comp-px-sm);
+  font-size: var(--comp-font-xs);
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+  white-space: nowrap;
+}
+
+.n3-filter-tab:hover {
+  color: var(--text);
+  background: var(--highlight);
+}
+
+.n3-filter-tab.active {
+  color: white;
+  background: var(--color-primary);
+}
+
+.n3-filter-tab-count {
+  font-size: var(--comp-font-2xs);
+  font-weight: 700;
+  padding: 0 4px;
+  border-radius: var(--radius-full);
+  background: rgba(255,255,255,0.2);
+}
+
+.n3-filter-tab:not(.active) .n3-filter-tab-count {
+  background: var(--highlight);
+  color: var(--text-muted);
+}
+
+/* ============================================================
+   TOP TAB BAR - L1
+   ============================================================ */
+
+.n3-top-tab-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 16px;
+  height: 44px;
+  background: var(--glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.n3-top-tab-bar__tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.n3-top-tab-bar__tab {
+  height: var(--comp-height-sm);
+  padding: 0 var(--comp-px-md);
+  font-size: var(--comp-font-sm);
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+  white-space: nowrap;
+}
+
+.n3-top-tab-bar__tab:hover {
+  color: var(--text);
+  background: var(--highlight);
+}
+
+.n3-top-tab-bar__tab.active {
+  color: white;
+  background: var(--color-primary);
+}
+
+.n3-top-tab-bar__search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--comp-height-sm);
+  padding: 0 var(--comp-px-sm);
+  background: var(--panel);
+  border: var(--style-input-border, 1px solid var(--panel-border));
+  border-radius: var(--style-input-radius, var(--radius-md));
+  min-width: 200px;
+  color: var(--text-muted);
+}
+
+.n3-top-tab-bar__search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: var(--comp-font-sm);
+  color: var(--text);
+  min-width: 100px;
+}
+
+.n3-top-tab-bar__search-input::placeholder {
+  color: var(--text-subtle);
+}
+
+.n3-top-tab-bar__kbd {
+  padding: 2px 6px;
+  font-size: var(--comp-font-2xs);
+  font-family: var(--font-mono);
+  color: var(--text-subtle);
+  background: var(--highlight);
+  border-radius: 3px;
+}
+
+/* ============================================================
+   L2 TAB BAR
+   ============================================================ */
+
+.n3-l2-tab-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  min-height: 44px;
+  background: var(--bg-solid);
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.n3-l2-tab-bar__tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.n3-l2-tab-bar__tab {
+  display: flex;
+  align-items: center;
+  gap: var(--comp-gap-md);
+  height: var(--comp-height-md);
+  padding: 0 var(--comp-px-md);
+  font-size: var(--comp-font-sm);
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+  white-space: nowrap;
+  margin-bottom: -1px;
+}
+
+.n3-l2-tab-bar__tab:hover {
+  color: var(--text);
+}
+
+.n3-l2-tab-bar__tab.active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
+.n3-l2-tab-bar__tab svg {
+  width: var(--comp-icon-sm);
+  height: var(--comp-icon-sm);
+  flex-shrink: 0;
+}
+
+.n3-l2-tab-bar__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.n3-l2-tab-bar__lang {
+  display: flex;
+  align-items: center;
+  gap: var(--comp-gap-sm);
+  height: var(--comp-height-xs);
+  padding: 0 var(--comp-px-sm);
+  font-size: var(--comp-font-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--panel);
+  border: var(--style-btn-border, 1px solid var(--panel-border));
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+.n3-l2-tab-bar__lang:hover {
+  color: var(--text);
+  border-color: var(--color-primary);
+}
+
+/* ============================================================
+   GLOBAL NAV BAR
+   ============================================================ */
+
+.n3-global-nav-bar {
+  position: sticky;
+  top: 0;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 16px;
+  height: 44px;
+  background: var(--glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.n3-global-nav-bar__tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.n3-global-nav-bar__tab {
+  display: flex;
+  align-items: center;
+  gap: var(--comp-gap-md);
+  height: var(--comp-height-sm);
+  padding: 0 var(--comp-px-md);
+  font-size: var(--comp-font-sm);
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+  white-space: nowrap;
+}
+
+.n3-global-nav-bar__tab:hover {
+  color: var(--text);
+  background: var(--highlight);
+}
+
+.n3-global-nav-bar__tab.active {
+  color: white;
+  background: var(--color-primary);
+}
+
+.n3-global-nav-bar__tab svg {
+  width: var(--comp-icon-sm);
+  height: var(--comp-icon-sm);
+  flex-shrink: 0;
+}
+
+.n3-global-nav-bar__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.n3-global-nav-bar__lang-btn {
+  height: var(--comp-height-xs);
+  padding: 0 var(--comp-px-sm);
+  font-size: var(--comp-font-sm);
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--panel);
+  border: var(--style-btn-border, 1px solid var(--panel-border));
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+.n3-global-nav-bar__lang-btn:hover {
+  color: var(--text);
+  border-color: var(--color-primary);
+}
+
+/* ============================================================
+   TOOLS NAV PANEL - 修正版
+   ============================================================ */
+
+.n3-tools-nav-panel {
+  background: var(--panel);
+  border: var(--style-panel-border, 1px solid var(--panel-border));
+  border-radius: var(--style-panel-radius, var(--radius-md));
+  margin-bottom: 2px;
+}
+
+.n3-tools-nav-panel.pinned {
+  background: transparent;
+  border: none;
+}
+
+.n3-tools-nav-panel:not(.pinned):hover {
+  background: var(--panel);
+}
+
+.n3-tools-nav-panel__bar {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  min-height: 28px;
+  height: 28px;
+}
+
+.n3-tools-nav-panel__pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 100%;
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--panel-border);
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.12s;
+}
+
+.n3-tools-nav-panel__pin:hover {
+  background: var(--highlight);
+  color: var(--text);
+}
+
+.n3-tools-nav-panel__pin.active {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.n3-tools-nav-panel__tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  height: 100%;
+}
+
+.n3-tools-nav-panel__tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 100%;
+  padding: 0 14px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-left: 1px solid transparent;
+  border-right: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.12s;
+  white-space: nowrap;
+}
+
+.n3-tools-nav-panel__tab:hover {
+  color: var(--text);
+  background: var(--highlight);
+  border-left-color: var(--panel-border);
+  border-right-color: var(--panel-border);
+}
+
+.n3-tools-nav-panel__tab.active {
+  color: white;
+  background: var(--color-primary);
+}
+
+.n3-tools-nav-panel__tab.pinned {
+  color: var(--color-primary);
+  background: var(--color-primary-lighter);
+}
+
+.n3-tools-nav-panel__content {
+  padding: 6px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.n3-tools-nav-panel__content.pinned {
+  background: transparent;
+  border-top: none;
+}
+
+/* ============================================================
+   TOOLS NAV BAR
+   ============================================================ */
+
+.n3-tools-nav-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  min-height: 40px;
+  background: var(--glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.n3-tools-nav-bar__left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.n3-tools-nav-bar__pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--comp-height-sm);
+  height: var(--comp-height-sm);
+  background: transparent;
+  border: var(--style-btn-border, 1px solid var(--panel-border));
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+.n3-tools-nav-bar__pin:hover {
+  background: var(--highlight);
+  color: var(--text);
+  border-color: var(--color-primary);
+}
+
+.n3-tools-nav-bar__pin.active {
+  background: var(--color-primary-light);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.n3-tools-nav-bar__tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.n3-tools-nav-bar__tab {
+  display: flex;
+  align-items: center;
+  gap: var(--comp-gap-md);
+  height: var(--comp-height-xs);
+  padding: 0 var(--comp-px-sm);
+  font-size: var(--comp-font-xs);
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+  white-space: nowrap;
+}
+
+.n3-tools-nav-bar__tab:hover {
+  color: var(--text);
+  background: var(--highlight);
+}
+
+.n3-tools-nav-bar__tab.active {
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+.n3-tools-nav-bar__tab.pinned {
+  color: var(--color-primary);
+  background: var(--color-primary-lighter);
+}
+
+.n3-tools-nav-bar__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.n3-tools-nav-bar__lang {
+  display: flex;
+  align-items: center;
+  gap: var(--comp-gap-sm);
+  height: var(--comp-height-xs);
+  padding: 0 var(--comp-px-sm);
+  font-size: var(--comp-font-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--panel);
+  border: var(--style-btn-border, 1px solid var(--panel-border));
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+.n3-tools-nav-bar__lang:hover {
+  color: var(--text);
+  border-color: var(--color-primary);
+}
+
+/* ============================================================
+   BREADCRUMB
+   ============================================================ */
+
+.n3-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--comp-font-sm);
+}
+
+.n3-breadcrumb-item {
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+.n3-breadcrumb-item:hover {
+  color: var(--color-primary);
+}
+
+.n3-breadcrumb-item.active {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.n3-breadcrumb-separator {
+  color: var(--text-subtle);
+}
+
+/* ============================================================
+   MENU
+   ============================================================ */
+
+.n3-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.n3-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--comp-height-sm);
+  padding: 0 var(--comp-px-sm);
+  font-size: var(--comp-font-sm);
+  color: var(--text);
+  background: transparent;
+  border: none;
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+  text-align: left;
+}
+
+.n3-menu-item:hover {
+  background: var(--highlight);
+}
+
+.n3-menu-item.active {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.n3-menu-item-icon {
+  width: var(--comp-icon-sm);
+  height: var(--comp-icon-sm);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.n3-menu-item.active .n3-menu-item-icon {
+  color: var(--color-primary);
+}
+
+.n3-menu-divider {
+  height: 1px;
+  background: var(--panel-border);
+  margin: 4px 0;
+}
+
+.n3-menu-header {
+  padding: 8px var(--comp-px-sm);
+  font-size: var(--comp-font-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ============================================================
+   ANIMATIONS
+   ============================================================ */
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* パネルオーバーレイ */
+.n3-tools-panel-overlay {
+  position: fixed;
+  z-index: 100;
+  background: var(--bg-solid) !important;
+  border: var(--style-panel-border, 1px solid var(--panel-border));
+  border-top: none;
+  border-radius: 0 0 var(--style-panel-radius, var(--radius-md)) var(--style-panel-radius, var(--radius-md));
+  box-shadow: var(--style-shadow-lg, 0 10px 15px rgba(0,0,0,0.08));
+  padding: 12px;
+  max-height: 60vh;
+  overflow-y: auto;
+  animation: slideDown 0.15s ease-out;
+}
+
+.n3-tools-panel-overlay.pinned {
+  box-shadow: var(--style-shadow-md, 0 4px 6px rgba(0,0,0,0.06));
+}
+
+/* L3 Filter Bar */
+.n3-l3-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  min-height: 40px;
+  background: var(--panel);
+  border: var(--style-panel-border, 1px solid var(--panel-border));
+  border-radius: var(--style-panel-radius, var(--radius-md));
+}

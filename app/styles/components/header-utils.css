@@ -1,0 +1,434 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Header Utilities
+   LanguageSwitch, WorldClock, CurrencyDisplay, 
+   NotificationBell, UserAvatar, PinButton, Divider
+   ============================================================ */
+
+/* ============================================================
+   LANGUAGE SWITCH
+   ============================================================ */
+.n3-lang-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--n3-gap) * 0.5);
+  padding: 0 var(--n3-px);
+  height: var(--n3-height);
+  font-size: var(--n3-font);
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--highlight);
+  border: var(--style-input-border, 1px solid var(--panel-border));
+  border-radius: var(--style-btn-radius, var(--n3-radius));
+  box-shadow: var(--style-btn-shadow, none);
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+.n3-lang-switch:hover {
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--style-btn-shadow-hover, none);
+}
+
+.n3-lang-switch svg {
+  width: var(--n3-icon);
+  height: var(--n3-icon);
+}
+
+/* ============================================================
+   WORLD CLOCK
+   ============================================================ */
+.n3-world-clock {
+  display: flex;
+  align-items: center;
+  gap: var(--n3-gap);
+  font-size: calc(var(--n3-font) * 0.85);
+  font-family: var(--font-mono, monospace);
+}
+
+.n3-world-clock__item {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.n3-world-clock__label {
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+.n3-world-clock__time {
+  color: var(--text);
+}
+
+/* ============================================================
+   CURRENCY DISPLAY
+   ============================================================ */
+.n3-currency-display {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--n3-gap) * 0.5);
+  font-size: calc(var(--n3-font) * 0.85);
+  font-family: var(--font-mono, monospace);
+}
+
+.n3-currency-display__icon {
+  width: calc(var(--n3-icon) * 0.7);
+  height: calc(var(--n3-icon) * 0.7);
+}
+
+.n3-currency-display__icon--up { color: var(--color-success); }
+.n3-currency-display__icon--down { color: var(--color-error); }
+.n3-currency-display__icon--neutral { color: var(--text-muted); }
+
+.n3-currency-display__value {
+  color: var(--text);
+}
+
+.n3-currency-display__trend {
+  width: calc(var(--n3-icon) * 0.6);
+  height: calc(var(--n3-icon) * 0.6);
+}
+
+/* ============================================================
+   NOTIFICATION BELL
+   ============================================================ */
+.n3-notification-bell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--n3-height);
+  height: var(--n3-height);
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--style-btn-radius, var(--n3-radius));
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+.n3-notification-bell:hover {
+  background: var(--highlight);
+  color: var(--text);
+}
+
+.n3-notification-bell.active {
+  background: var(--highlight);
+  color: var(--accent);
+}
+
+.n3-notification-bell svg {
+  width: var(--n3-icon);
+  height: var(--n3-icon);
+}
+
+.n3-notification-bell__badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  min-width: 6px;
+  height: 6px;
+  padding: 0;
+  font-size: 0;
+  color: white;
+  background: var(--error);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ============================================================
+   USER AVATAR
+   ============================================================ */
+.n3-user-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--n3-height) * 0.75);
+  height: calc(var(--n3-height) * 0.75);
+  padding: 0;
+  /* N3オリジナル: 紫〜インディゴのグラデーション */
+  background: linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #4f46e5 100%);
+  border: none;
+  border-radius: 50%;
+  color: white;
+  font-size: calc(var(--n3-font) * 0.8);
+  font-weight: 600;
+  cursor: pointer;
+  overflow: hidden;
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+.n3-user-avatar:hover {
+  opacity: 0.9;
+  transform: scale(1.05);
+}
+
+.n3-user-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ============================================================
+   PIN BUTTON
+   ============================================================ */
+.n3-pin-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--n3-gap) * 0.5);
+  min-width: var(--n3-height);
+  height: var(--n3-height);
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--panel-border);
+  border-radius: 0;
+  color: var(--text-muted);
+  font-size: var(--n3-font);
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+.n3-pin-button:hover {
+  background: var(--highlight);
+  color: var(--text);
+}
+
+.n3-pin-button.pinned {
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--accent);
+}
+
+.n3-pin-button svg {
+  width: var(--n3-icon);
+  height: var(--n3-icon);
+}
+
+.n3-pin-button--with-label {
+  padding: 0 var(--n3-px);
+}
+
+/* ============================================================
+   DIVIDER
+   ============================================================ */
+.n3-divider {
+  flex-shrink: 0;
+  background: var(--panel-border);
+}
+
+.n3-divider-horizontal {
+  width: 100%;
+  height: 1px;
+  margin: var(--n3-gap) 0;
+}
+
+.n3-divider-vertical {
+  width: 1px;
+  height: calc(var(--n3-height) * 0.6);
+  margin: 0 var(--n3-gap);
+}
+
+/* ============================================================
+   HEADER TAB (override for style theme)
+   ============================================================ */
+.n3-header-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--n3-gap);
+  padding: 0 var(--n3-px);
+  height: 100%;
+  font-size: var(--n3-font);
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 0;  /* ヘッダー内のタブはradiusなし */
+  cursor: pointer;
+  white-space: nowrap;
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+.n3-header-tab:hover {
+  background: var(--highlight);
+  color: var(--text);
+}
+
+.n3-header-tab.active {
+  background: var(--accent);
+  color: white;
+  box-shadow: var(--style-btn-shadow, none);
+}
+
+.n3-header-tab.pinned {
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--accent);
+}
+
+.n3-header-tab svg {
+  width: var(--n3-icon);
+  height: var(--n3-icon);
+}
+
+/* ============================================================
+   L2 TAB
+   ============================================================ */
+.n3-l2-tab {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--n3-gap) * 0.5);
+  padding: calc(var(--n3-px) * 0.5) var(--n3-px);
+  font-size: var(--n3-font);
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+.n3-l2-tab:hover {
+  color: var(--text);
+  border-bottom-color: var(--panel-border);
+}
+
+.n3-l2-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.n3-l2-tab__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: calc(var(--n3-font) * 1.4);
+  height: calc(var(--n3-font) * 1.4);
+  padding: 0 4px;
+  font-size: calc(var(--n3-font) * 0.8);
+  font-weight: 600;
+  color: white;
+  background: var(--accent);
+  border-radius: var(--style-badge-radius, 9999px);
+}
+
+/* ============================================================
+   HEADER SEARCH INPUT
+   ============================================================ */
+.n3-header-search-input {
+  display: flex;
+  align-items: center;
+  gap: var(--n3-gap);
+  height: var(--n3-height);
+  padding: 0 var(--n3-px);
+  font-size: var(--n3-font);
+  color: var(--text-muted);
+  background: var(--highlight);
+  border: var(--style-input-border, 1px solid var(--panel-border));
+  border-radius: var(--style-input-radius, var(--n3-radius));
+  box-shadow: var(--style-input-shadow, none);
+  cursor: text;
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+.n3-header-search-input:hover {
+  background: var(--panel);
+  border-color: var(--accent);
+}
+
+.n3-header-search-input.focused {
+  background: var(--panel);
+  border-color: var(--accent);
+  box-shadow: var(--style-input-shadow-focus, 0 0 0 3px rgba(99, 102, 241, 0.15));
+}
+
+.n3-header-search-input svg {
+  width: var(--n3-icon);
+  height: var(--n3-icon);
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.n3-header-search-input__field {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: inherit;
+  color: var(--text);
+}
+
+.n3-header-search-input__field::placeholder {
+  color: var(--text-muted);
+}
+
+.n3-header-search-input__shortcut {
+  font-size: calc(var(--n3-font) * 0.85);
+  font-family: var(--font-mono, monospace);
+  padding: 2px 6px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   CONTAINER: HEADER TABS
+   ============================================================ */
+.n3-header-tabs-container {
+  position: relative;
+}
+
+.n3-header-tabs {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  gap: 0;
+}
+
+.n3-header-tabs__panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  padding: var(--n3-px);
+  background: var(--panel);
+  border: var(--style-card-border, 1px solid var(--panel-border));
+  border-top: none;
+  border-radius: 0 0 var(--style-card-radius, var(--n3-radius)) var(--style-card-radius, var(--n3-radius));
+  box-shadow: var(--style-card-shadow, 0 4px 12px rgba(0, 0, 0, 0.1));
+  z-index: 100;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* ============================================================
+   CONTAINER: L2 TAB NAVIGATION
+   ============================================================ */
+.n3-l2-tab-nav {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  gap: 2px;
+}
+
+/* ============================================================
+   LAYOUT: HEADER TABS GROUP (for main header)
+   ============================================================ */
+.n3-header-tabs-group {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  gap: 0;
+  background: var(--panel);
+  border-radius: 0 var(--style-btn-radius, 4px) var(--style-btn-radius, 4px) 0;
+  overflow: hidden;
+}

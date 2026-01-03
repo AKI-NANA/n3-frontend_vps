@@ -1,0 +1,710 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Data Table
+   EditingTableV2専用スタイル
+   
+   サイズスケール対応:
+   - --n3-table-scale: 0.75 (XS) ~ 1.25 (XL)
+   - デフォルト: 1 (MD)
+   ============================================================ */
+
+/* ============================================================
+   CSS VARIABLES (サイズ・スタイル連携)
+   ============================================================ */
+
+.n3-table {
+  /* サイズスケール（Design Catalogから継承可能） */
+  --table-scale: var(--n3-table-scale, 1);
+  
+  /* 行の高さ（スケール対応） */
+  --row-height: calc(48px * var(--table-scale));
+  --row-height-fast: calc(28px * var(--table-scale));
+  --header-height: calc(32px * var(--table-scale));
+  
+  /* 画像サイズ（行の高さに連動） */
+  --image-size: calc(var(--row-height) - 8px);
+  --image-size-fast: calc(var(--row-height-fast) - 6px);
+  
+  /* フォントサイズ（スケール対応） */
+  --font-size-title: calc(13px * var(--table-scale));
+  --font-size-title-sub: calc(11px * var(--table-scale));
+  --font-size-cell: calc(12px * var(--table-scale));
+  --font-size-header: calc(11px * var(--table-scale));
+  --font-size-small: calc(10px * var(--table-scale));
+  
+  /* カラム幅（広めに設定） */
+  --col-checkbox: 36px;
+  --col-expand: 28px;
+  --col-stock: 56px;
+  --col-cost: 72px;
+  --col-profit: 68px;
+  --col-rate: 56px;
+  --col-filter: 36px;
+  --col-status: 36px;
+  --col-type: 48px;
+  
+  /* ステータスドット */
+  --dot-size: calc(8px * var(--table-scale));
+}
+
+/* ============================================================
+   TABLE CONTAINER
+   ============================================================ */
+
+.n3-table {
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+/* ============================================================
+   TABLE TOOLBAR (Tips/Fast/Pagination統合行)
+   ============================================================ */
+
+.n3-table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 28px;
+  padding: 0 8px;
+  background: var(--highlight);
+  border-bottom: 1px solid var(--panel-border);
+  flex-shrink: 0;
+}
+
+.n3-table-toolbar-left,
+.n3-table-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.n3-table-toolbar-divider {
+  width: 1px;
+  height: 14px;
+  background: var(--panel-border);
+}
+
+/* Toggle Button (Tips/Fast) */
+.n3-table-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 8px;
+  font-size: var(--font-size-small);
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.n3-table-toggle:hover {
+  border-color: var(--accent);
+}
+
+.n3-table-toggle.active {
+  color: var(--accent);
+  background: rgba(99, 102, 241, 0.1);
+  border-color: var(--accent);
+}
+
+.n3-table-toggle.fast.active {
+  color: #d97706;
+  background: rgba(245, 158, 11, 0.1);
+  border-color: #d97706;
+}
+
+.n3-table-toggle svg {
+  width: 11px;
+  height: 11px;
+}
+
+/* Select (PageSize/Sort) */
+.n3-table-select {
+  height: 20px;
+  padding: 0 6px;
+  font-size: var(--font-size-small);
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.n3-table-select:hover,
+.n3-table-select:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+/* Info Text */
+.n3-table-info {
+  font-size: var(--font-size-small);
+  color: var(--text-muted);
+}
+
+/* Sort Button */
+.n3-table-sort-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  font-size: var(--font-size-small);
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.n3-table-sort-btn:hover {
+  border-color: var(--accent);
+}
+
+/* ============================================================
+   INLINE PAGINATION
+   ============================================================ */
+
+.n3-table-pagination {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.n3-table-page-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  font-size: var(--font-size-small);
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.n3-table-page-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--highlight);
+}
+
+.n3-table-page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.n3-table-page-btn.active {
+  color: white;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.n3-table-page-info {
+  font-size: var(--font-size-small);
+  color: var(--text-muted);
+}
+
+/* ============================================================
+   TABLE HEADER ROW (カラムヘッダー)
+   ============================================================ */
+
+.n3-table-header {
+  display: flex;
+  align-items: center;
+  height: var(--header-height);
+  background: var(--highlight);
+  border-bottom: 1px solid var(--panel-border);
+  font-size: var(--font-size-header);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.n3-table-header.fast {
+  height: calc(var(--header-height) * 0.85);
+}
+
+/* Header Cell */
+.n3-table-header-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  flex-shrink: 0;
+  text-align: center;
+  padding: 0 4px;
+}
+
+.n3-table-header-cell.left {
+  justify-content: flex-start;
+  text-align: left;
+  padding-left: 8px;
+}
+
+.n3-table-header-cell.right {
+  justify-content: flex-end;
+  text-align: right;
+  padding-right: 8px;
+}
+
+/* ============================================================
+   TABLE ROW
+   ============================================================ */
+
+.n3-table-row {
+  display: flex;
+  align-items: center;
+  height: var(--row-height);
+  border-bottom: 1px solid var(--panel-border);
+  transition: background 0.1s ease;
+}
+
+.n3-table-row.fast {
+  height: var(--row-height-fast);
+}
+
+.n3-table-row:hover {
+  background: var(--highlight);
+}
+
+.n3-table-row.selected {
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.n3-table-row.modified {
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.n3-table-row.expanded {
+  background: var(--highlight);
+}
+
+/* Row Cell */
+.n3-table-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  flex-shrink: 0;
+  text-align: center;
+  font-size: var(--font-size-cell);
+  padding: 0 4px;
+}
+
+.n3-table-cell.left {
+  justify-content: flex-start;
+  text-align: left;
+  padding-left: 8px;
+}
+
+.n3-table-cell.right {
+  justify-content: flex-end;
+  text-align: right;
+  padding-right: 8px;
+}
+
+/* ============================================================
+   COLUMN WIDTHS - Normal Mode（広めに設定）
+   ============================================================ */
+
+.n3-col-checkbox { width: var(--col-checkbox); }
+.n3-col-expand { width: var(--col-expand); }
+.n3-col-product { flex: 1; min-width: 0; }
+.n3-col-stock { width: var(--col-stock); }
+.n3-col-cost { width: var(--col-cost); }
+.n3-col-profit { width: var(--col-profit); }
+.n3-col-rate { width: var(--col-rate); }
+.n3-col-filter { width: var(--col-filter); }
+.n3-col-status { width: var(--col-status); }
+.n3-col-type { width: var(--col-type); }
+
+/* ============================================================
+   COLUMN WIDTHS - Fast Mode
+   ============================================================ */
+
+.n3-col-checkbox-fast { width: 28px; }
+.n3-col-image-fast { width: 28px; }
+.n3-col-title-fast { flex: 1; min-width: 0; }
+.n3-col-profit-fast { width: 64px; }
+.n3-col-rate-fast { width: 52px; }
+
+/* ============================================================
+   TABLE FOOTER (下部ページネーション)
+   ============================================================ */
+
+.n3-table-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 26px;
+  padding: 0 8px;
+  background: var(--highlight);
+  border-top: 1px solid var(--panel-border);
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   PRODUCT CELL CONTENT
+   ============================================================ */
+
+.n3-product-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  padding: 4px 8px;
+  min-width: 0;
+}
+
+.n3-product-image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--image-size);
+  height: var(--image-size);
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--highlight);
+  cursor: pointer;
+  transition: box-shadow 0.15s ease;
+}
+
+.n3-product-image:hover {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.n3-product-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.n3-product-image.fast {
+  width: var(--image-size-fast);
+  height: var(--image-size-fast);
+}
+
+/* Product Title Container */
+.n3-product-titles {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+
+.n3-product-title {
+  font-size: var(--font-size-title);
+  font-weight: 500;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+
+.n3-product-title-sub {
+  font-size: var(--font-size-title-sub);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.n3-product-title.fast {
+  font-size: calc(var(--font-size-title) * 0.95);
+}
+
+/* ============================================================
+   VALUE DISPLAYS（フォントサイズ拡大）
+   ============================================================ */
+
+.n3-value-profit {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-cell);
+  font-weight: 600;
+}
+
+.n3-value-profit.positive {
+  color: var(--success);
+}
+
+.n3-value-profit.negative {
+  color: var(--error);
+}
+
+.n3-value-margin {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-cell);
+  font-weight: 600;
+}
+
+.n3-value-margin.positive {
+  color: var(--success);
+}
+
+.n3-value-margin.negative {
+  color: var(--error);
+}
+
+/* ============================================================
+   STATUS INDICATORS（サイズ拡大）
+   ============================================================ */
+
+.n3-status-dot {
+  width: var(--dot-size);
+  height: var(--dot-size);
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.n3-status-dot.active {
+  background: var(--success);
+  box-shadow: 0 0 4px var(--success), 0 0 8px rgba(16, 185, 129, 0.3);
+}
+
+.n3-status-dot.ready {
+  background: var(--warning);
+  box-shadow: 0 0 4px var(--warning), 0 0 8px rgba(245, 158, 11, 0.3);
+}
+
+.n3-status-dot.ended {
+  background: var(--error);
+}
+
+/* ============================================================
+   TOOLTIP（z-index最大化）
+   ============================================================ */
+
+.n3-tooltip {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: white;
+  background: rgba(15, 23, 42, 0.95);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.15s ease;
+  z-index: 99999;
+  pointer-events: none;
+}
+
+.n3-tooltip-wrapper {
+  position: relative;
+}
+
+.n3-tooltip-wrapper:hover .n3-tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* ============================================================
+   EMPTY STATE
+   ============================================================ */
+
+.n3-table-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 16px;
+  color: var(--text-muted);
+}
+
+.n3-table-empty-icon {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 12px;
+  color: var(--text-subtle);
+}
+
+.n3-table-empty-text {
+  font-size: 14px;
+}
+
+/* ============================================================
+   EXPANDED PANEL (テーマ対応)
+   ============================================================ */
+
+.n3-expanded-panel {
+  padding: 12px;
+  background: var(--expanded-bg, var(--highlight));
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.n3-expanded-panel .grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 16px;
+}
+
+.n3-expanded-section {
+  background: var(--expanded-section-bg, var(--panel));
+  border-radius: var(--radius-md);
+  padding: 8px;
+  border: 1px solid var(--panel-border);
+}
+
+.n3-expanded-section-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.n3-expanded-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2px 0;
+  font-size: 13px;
+}
+
+.n3-expanded-label {
+  color: var(--text-muted);
+}
+
+.n3-expanded-value {
+  font-family: var(--font-mono);
+}
+
+.n3-expanded-divider {
+  height: 1px;
+  background: var(--panel-border);
+  margin: 6px 0;
+}
+
+/* Expanded Panel Buttons */
+.n3-expanded-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.n3-expanded-btn.primary {
+  background: var(--accent);
+  color: white;
+  border: none;
+}
+
+.n3-expanded-btn.primary:hover {
+  filter: brightness(1.1);
+}
+
+.n3-expanded-btn.secondary {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--panel-border);
+}
+
+.n3-expanded-btn.secondary:hover {
+  background: var(--highlight);
+  border-color: var(--accent);
+}
+
+.n3-expanded-btn.danger {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--error);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.n3-expanded-btn.danger:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+/* Gallery Images in Expanded Panel */
+.n3-expanded-gallery {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.n3-expanded-gallery img {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  border: 1px solid var(--panel-border);
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.n3-expanded-gallery img:hover {
+  border-color: var(--accent);
+}
+
+/* Main Image in Expanded Panel */
+.n3-expanded-main-image {
+  width: 80px;
+  height: 80px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+}
+
+.n3-expanded-main-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ============================================================
+   SIZE SCALE VARIANTS (Design Catalog連携)
+   ============================================================ */
+
+/* XS (0.75) */
+.n3-table[data-size="xs"] {
+  --table-scale: 0.75;
+}
+
+/* SM (0.875) */
+.n3-table[data-size="sm"] {
+  --table-scale: 0.875;
+}
+
+/* MD (1.0) - デフォルト */
+.n3-table[data-size="md"] {
+  --table-scale: 1;
+}
+
+/* LG (1.125) */
+.n3-table[data-size="lg"] {
+  --table-scale: 1.125;
+}
+
+/* XL (1.25) */
+.n3-table[data-size="xl"] {
+  --table-scale: 1.25;
+}

@@ -1,0 +1,547 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Motion & Interactions
+   開閉、スライド、トランジションなどの動きパターン
+   ============================================================ */
+
+/* ============================================================
+   SIDEBAR TOGGLE - 左右サイドバーの開閉
+   ============================================================ */
+
+.n3-sidebar-toggle {
+  transition: width var(--duration-300) var(--ease-out),
+              transform var(--duration-300) var(--ease-out),
+              opacity var(--duration-200) var(--ease-out);
+}
+
+.n3-sidebar-toggle.collapsed {
+  width: 0;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.n3-sidebar-toggle.expanded {
+  opacity: 1;
+}
+
+/* 左サイドバー */
+.n3-sidebar-left {
+  transform-origin: left center;
+}
+
+.n3-sidebar-left.collapsed {
+  transform: translateX(-100%);
+}
+
+/* 右サイドバー */
+.n3-sidebar-right {
+  transform-origin: right center;
+}
+
+.n3-sidebar-right.collapsed {
+  transform: translateX(100%);
+}
+
+/* トグルボタン */
+.n3-sidebar-toggle-btn {
+  position: fixed;
+  z-index: var(--z-fixed);
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: var(--duration-200) var(--ease-out);
+  box-shadow: var(--shadow-md);
+}
+
+.n3-sidebar-toggle-btn:hover {
+  transform: scale(1.05);
+  box-shadow: var(--shadow-lg);
+}
+
+.n3-sidebar-toggle-btn.left {
+  left: 0;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+.n3-sidebar-toggle-btn.right {
+  right: 0;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+
+/* ============================================================
+   PANEL COLLAPSE - パネルの展開/折りたたみ
+   ============================================================ */
+
+.n3-collapsible {
+  overflow: hidden;
+}
+
+.n3-collapsible-content {
+  transition: max-height var(--duration-300) var(--ease-out),
+              opacity var(--duration-200) var(--ease-out),
+              padding var(--duration-200) var(--ease-out);
+}
+
+.n3-collapsible-content.open {
+  max-height: 1000px;
+  opacity: 1;
+}
+
+.n3-collapsible-content.closed {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+.n3-collapsible-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: var(--space-3);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background var(--duration-150) var(--ease-out);
+}
+
+.n3-collapsible-trigger:hover {
+  background: var(--highlight);
+}
+
+.n3-collapsible-trigger svg {
+  transition: transform var(--duration-200) var(--ease-out);
+}
+
+.n3-collapsible-trigger.open svg {
+  transform: rotate(180deg);
+}
+
+/* ============================================================
+   ACCORDION - アコーディオン
+   ============================================================ */
+
+.n3-accordion {
+  border: 1px solid var(--panel-border);
+  border-radius: var(--style-radius-md);
+  overflow: hidden;
+}
+
+.n3-accordion-item {
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.n3-accordion-item:last-child {
+  border-bottom: none;
+}
+
+.n3-accordion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4);
+  background: var(--panel);
+  cursor: pointer;
+  transition: background var(--duration-150) var(--ease-out);
+}
+
+.n3-accordion-header:hover {
+  background: var(--highlight);
+}
+
+.n3-accordion-header.active {
+  background: var(--highlight);
+}
+
+.n3-accordion-icon {
+  transition: transform var(--duration-200) var(--ease-out);
+}
+
+.n3-accordion-header.active .n3-accordion-icon {
+  transform: rotate(180deg);
+}
+
+.n3-accordion-body {
+  overflow: hidden;
+  transition: max-height var(--duration-300) var(--ease-out);
+}
+
+.n3-accordion-body.open {
+  max-height: 500px;
+}
+
+.n3-accordion-body.closed {
+  max-height: 0;
+}
+
+.n3-accordion-content {
+  padding: var(--space-4);
+  background: var(--bg-solid);
+}
+
+/* ============================================================
+   COLUMN LAYOUT - 4列レイアウト切り替え
+   ============================================================ */
+
+.n3-column-layout {
+  display: grid;
+  gap: var(--space-2);
+  transition: grid-template-columns var(--duration-300) var(--ease-out);
+}
+
+.n3-column-layout.cols-4 {
+  grid-template-columns: 300px 240px 1fr 280px;
+}
+
+.n3-column-layout.cols-3-left {
+  grid-template-columns: 0 240px 1fr 280px;
+}
+
+.n3-column-layout.cols-3-right {
+  grid-template-columns: 300px 240px 1fr 0;
+}
+
+.n3-column-layout.cols-2 {
+  grid-template-columns: 0 0 1fr 280px;
+}
+
+.n3-column-layout.cols-1 {
+  grid-template-columns: 1fr;
+}
+
+/* カラム内のパネル */
+.n3-column-panel {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--style-radius-md);
+  overflow: hidden;
+  transition: opacity var(--duration-200) var(--ease-out),
+              transform var(--duration-300) var(--ease-out);
+}
+
+.n3-column-panel.hidden {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+/* ============================================================
+   DRAWER - ドロワー（引き出し）
+   ============================================================ */
+
+.n3-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--duration-200) var(--ease-out),
+              visibility var(--duration-200) var(--ease-out);
+  z-index: var(--z-overlay);
+}
+
+.n3-drawer-overlay.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+.n3-drawer {
+  position: fixed;
+  background: var(--panel);
+  box-shadow: var(--shadow-xl);
+  transition: transform var(--duration-300) var(--ease-out);
+  z-index: var(--z-modal);
+  overflow-y: auto;
+}
+
+/* 左ドロワー */
+.n3-drawer.left {
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 320px;
+  transform: translateX(-100%);
+}
+
+.n3-drawer.left.open {
+  transform: translateX(0);
+}
+
+/* 右ドロワー */
+.n3-drawer.right {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 320px;
+  transform: translateX(100%);
+}
+
+.n3-drawer.right.open {
+  transform: translateX(0);
+}
+
+/* 上ドロワー */
+.n3-drawer.top {
+  top: 0;
+  left: 0;
+  right: 0;
+  height: auto;
+  max-height: 80vh;
+  transform: translateY(-100%);
+}
+
+.n3-drawer.top.open {
+  transform: translateY(0);
+}
+
+/* 下ドロワー（ボトムシート） */
+.n3-drawer.bottom {
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: auto;
+  max-height: 80vh;
+  border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+  transform: translateY(100%);
+}
+
+.n3-drawer.bottom.open {
+  transform: translateY(0);
+}
+
+/* ドロワーハンドル（ボトムシート用） */
+.n3-drawer-handle {
+  width: 40px;
+  height: 4px;
+  background: var(--text-subtle);
+  border-radius: var(--radius-full);
+  margin: var(--space-3) auto;
+}
+
+/* ============================================================
+   TAB SWITCH - タブ切り替えアニメーション
+   ============================================================ */
+
+.n3-tab-indicator {
+  position: absolute;
+  bottom: 0;
+  height: 2px;
+  background: var(--accent);
+  transition: left var(--duration-200) var(--ease-out),
+              width var(--duration-200) var(--ease-out);
+}
+
+.n3-tab-content {
+  position: relative;
+  overflow: hidden;
+}
+
+.n3-tab-panel {
+  opacity: 0;
+  transform: translateX(20px);
+  transition: opacity var(--duration-200) var(--ease-out),
+              transform var(--duration-200) var(--ease-out);
+}
+
+.n3-tab-panel.active {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.n3-tab-panel.exit {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
+/* ============================================================
+   DRAG & DROP - ドラッグ&ドロップ
+   ============================================================ */
+
+.n3-draggable {
+  cursor: grab;
+  transition: transform var(--duration-150) var(--ease-out),
+              box-shadow var(--duration-150) var(--ease-out);
+}
+
+.n3-draggable:active {
+  cursor: grabbing;
+}
+
+.n3-draggable.dragging {
+  opacity: 0.7;
+  transform: rotate(3deg) scale(1.02);
+  box-shadow: var(--shadow-lg);
+  z-index: var(--z-popover);
+}
+
+.n3-drop-zone {
+  transition: background var(--duration-150) var(--ease-out),
+              border-color var(--duration-150) var(--ease-out);
+}
+
+.n3-drop-zone.drag-over {
+  background: rgba(99, 102, 241, 0.1);
+  border: 2px dashed var(--accent);
+}
+
+.n3-drop-zone.drag-over-valid {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: var(--success);
+}
+
+.n3-drop-zone.drag-over-invalid {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: var(--error);
+}
+
+/* ============================================================
+   SLIDE ANIMATIONS
+   ============================================================ */
+
+@keyframes n3-slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes n3-slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes n3-slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes n3-slideInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes n3-fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes n3-scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes n3-bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes n3-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes n3-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Animation classes */
+.n3-animate-slide-left { animation: n3-slideInLeft var(--duration-200) var(--ease-out); }
+.n3-animate-slide-right { animation: n3-slideInRight var(--duration-200) var(--ease-out); }
+.n3-animate-slide-up { animation: n3-slideInUp var(--duration-200) var(--ease-out); }
+.n3-animate-slide-down { animation: n3-slideInDown var(--duration-200) var(--ease-out); }
+.n3-animate-fade { animation: n3-fadeIn var(--duration-150) var(--ease-out); }
+.n3-animate-scale { animation: n3-scaleIn var(--duration-200) var(--ease-out); }
+.n3-animate-bounce { animation: n3-bounce 0.6s infinite; }
+.n3-animate-pulse { animation: n3-pulse 2s infinite; }
+.n3-animate-spin { animation: n3-spin 1s linear infinite; }
+
+/* ============================================================
+   RESIZE HANDLE - リサイズハンドル
+   ============================================================ */
+
+.n3-resize-handle {
+  position: absolute;
+  background: transparent;
+  transition: background var(--duration-150) var(--ease-out);
+}
+
+.n3-resize-handle:hover {
+  background: var(--accent);
+}
+
+.n3-resize-handle.horizontal {
+  width: 4px;
+  top: 0;
+  bottom: 0;
+  cursor: col-resize;
+}
+
+.n3-resize-handle.vertical {
+  height: 4px;
+  left: 0;
+  right: 0;
+  cursor: row-resize;
+}
+
+.n3-resize-handle.left {
+  left: 0;
+}
+
+.n3-resize-handle.right {
+  right: 0;
+}
+
+.n3-resize-handle.top {
+  top: 0;
+}
+
+.n3-resize-handle.bottom {
+  bottom: 0;
+}

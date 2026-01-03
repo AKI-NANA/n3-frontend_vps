@@ -1,0 +1,298 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Modals
+   統一サイズシステム対応版
+   ============================================================ */
+
+.n3-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--style-modal-backdrop, rgba(0,0,0,0.5));
+  backdrop-filter: var(--style-modal-backdrop-blur, blur(2px));
+  -webkit-backdrop-filter: var(--style-modal-backdrop-blur, blur(2px));
+  z-index: 100;
+  animation: n3-fadeIn 0.15s ease;
+}
+
+.n3-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--panel);
+  border: var(--style-modal-border, 1px solid var(--panel-border));
+  border-radius: var(--style-modal-radius, var(--radius-lg));
+  box-shadow: var(--style-modal-shadow, var(--shadow-lg));
+  z-index: 101;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  font-size: var(--comp-font-md);
+  animation: n3-scaleIn 0.2s ease;
+}
+
+@keyframes n3-fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes n3-scaleIn {
+  from { 
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.95);
+  }
+  to { 
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* Modal Sizes */
+.n3-modal-xs { width: 320px; }
+.n3-modal-sm { width: 400px; }
+.n3-modal-md { width: 560px; }
+.n3-modal-lg { width: 720px; }
+.n3-modal-xl { width: 960px; }
+.n3-modal-full {
+  width: calc(100vw - 48px);
+  height: calc(100vh - 48px);
+  max-height: calc(100vh - 48px);
+}
+
+/* Modal Header */
+.n3-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--panel-border);
+  flex-shrink: 0;
+}
+
+.n3-modal-title {
+  font-size: var(--comp-font-lg);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.n3-modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--comp-height-sm);
+  height: var(--comp-height-sm);
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+.n3-modal-close:hover {
+  color: var(--text);
+  background: var(--highlight);
+}
+
+/* Modal Body */
+.n3-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px;
+  font-size: var(--comp-font-md);
+}
+
+/* Modal Footer */
+.n3-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 18px;
+  border-top: 1px solid var(--panel-border);
+  flex-shrink: 0;
+}
+
+.n3-modal-footer .n3-btn {
+  min-width: 80px;
+}
+
+.n3-modal-footer-left { justify-content: flex-start; }
+.n3-modal-footer-center { justify-content: center; }
+.n3-modal-footer-between { justify-content: space-between; }
+
+/* モーダル内のテキストサイズ調整 */
+.n3-modal label {
+  color: var(--text-muted);
+  font-size: var(--comp-font-sm);
+  font-weight: 500;
+}
+
+.n3-modal input,
+.n3-modal select,
+.n3-modal textarea {
+  font-size: var(--comp-font-sm);
+}
+
+/* ============================================================
+   DIALOG VARIANTS
+   ============================================================ */
+
+.n3-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--panel);
+  border: var(--style-modal-border, 1px solid var(--panel-border));
+  border-radius: var(--style-modal-radius, var(--radius-lg));
+  box-shadow: var(--style-modal-shadow, var(--shadow-lg));
+  z-index: 101;
+  width: 400px;
+  padding: 24px;
+  text-align: center;
+  animation: n3-scaleIn 0.2s ease;
+}
+
+.n3-dialog-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.n3-dialog-icon.info {
+  background: var(--color-info-light);
+  color: var(--color-info);
+}
+
+.n3-dialog-icon.success {
+  background: var(--color-success-light);
+  color: var(--color-success);
+}
+
+.n3-dialog-icon.warning {
+  background: var(--color-warning-light);
+  color: var(--color-warning);
+}
+
+.n3-dialog-icon.error {
+  background: var(--color-error-light);
+  color: var(--color-error);
+}
+
+.n3-dialog-title {
+  font-size: var(--comp-font-xl);
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.n3-dialog-message {
+  font-size: var(--comp-font-md);
+  color: var(--text-muted);
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.n3-dialog-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.n3-confirm-dialog .n3-dialog-actions {
+  justify-content: flex-end;
+}
+
+/* ============================================================
+   DRAWER - Slide from edge
+   ============================================================ */
+
+.n3-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--style-modal-backdrop, rgba(0,0,0,0.5));
+  backdrop-filter: var(--style-modal-backdrop-blur, blur(2px));
+  -webkit-backdrop-filter: var(--style-modal-backdrop-blur, blur(2px));
+  z-index: 100;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.n3-drawer-overlay.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+.n3-drawer {
+  position: fixed;
+  background: var(--panel);
+  box-shadow: var(--style-modal-shadow, var(--shadow-xl));
+  z-index: 101;
+  overflow-y: auto;
+  transition: transform 0.3s ease;
+}
+
+.n3-drawer.left {
+  top: 0; left: 0; bottom: 0;
+  width: 320px;
+  transform: translateX(-100%);
+}
+.n3-drawer.left.open { transform: translateX(0); }
+
+.n3-drawer.right {
+  top: 0; right: 0; bottom: 0;
+  width: 320px;
+  transform: translateX(100%);
+}
+.n3-drawer.right.open { transform: translateX(0); }
+
+.n3-drawer.top {
+  top: 0; left: 0; right: 0;
+  height: auto;
+  max-height: 80vh;
+  transform: translateY(-100%);
+}
+.n3-drawer.top.open { transform: translateY(0); }
+
+.n3-drawer.bottom {
+  bottom: 0; left: 0; right: 0;
+  height: auto;
+  max-height: 80vh;
+  border-radius: var(--style-modal-radius, var(--radius-lg)) var(--style-modal-radius, var(--radius-lg)) 0 0;
+  transform: translateY(100%);
+}
+.n3-drawer.bottom.open { transform: translateY(0); }
+
+.n3-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.n3-drawer-body {
+  padding: 18px;
+  overflow-y: auto;
+}
+
+.n3-drawer-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 18px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.n3-drawer-handle {
+  width: 40px;
+  height: 4px;
+  background: var(--text-subtle);
+  border-radius: 2px;
+  margin: 12px auto;
+}

@@ -1,0 +1,359 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Flow Panel & Steps
+   統一サイズシステム対応版
+   ============================================================ */
+
+/* ============================================================
+   FLOW PANEL CONTAINER
+   ============================================================ */
+
+.n3-flow-panel {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 8px;
+  background: var(--color-primary-lighter);
+  border: 1px solid var(--color-primary-light);
+  border-radius: var(--style-panel-radius, var(--radius-md));
+  margin-bottom: 0;
+  min-height: 28px;
+  overflow-x: hidden;
+}
+
+.n3-flow-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-primary);
+  margin-right: 2px;
+}
+
+/* ============================================================
+   FLOW STEP BUTTON
+   ============================================================ */
+
+.n3-flow-step {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 22px;
+  padding: 0 5px;
+  background: var(--panel);
+  border: var(--style-panel-border, 1px solid var(--panel-border));
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.n3-flow-step:hover:not(:disabled) { 
+  border-color: var(--color-primary);
+  background: var(--highlight);
+}
+
+.n3-flow-step:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.n3-flow-step.active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-lighter);
+  color: var(--color-primary);
+}
+
+.n3-flow-step.completed {
+  border-color: var(--color-success);
+  background: var(--color-success-lighter);
+  color: var(--color-success);
+}
+
+.n3-flow-step.error {
+  border-color: var(--color-error);
+  background: var(--color-error-lighter);
+  color: var(--color-error);
+}
+
+.n3-flow-step svg {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+/* Step Number */
+.n3-flow-step-num {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: white;
+  font-size: 8px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.n3-flow-step.completed .n3-flow-step-num {
+  background: var(--color-success);
+}
+
+.n3-flow-step.error .n3-flow-step-num {
+  background: var(--color-error);
+}
+
+/* Step Badge */
+.n3-flow-step-badge {
+  padding: 1px 5px;
+  font-size: 9px;
+  font-weight: 700;
+  border-radius: 9999px;
+  background: var(--color-warning);
+  color: white;
+  margin-left: 2px;
+}
+
+.n3-flow-step-badge.error {
+  background: var(--color-error);
+}
+
+.n3-flow-step-badge.success {
+  background: var(--color-success);
+}
+
+/* Flow Status */
+.n3-flow-status {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--comp-gap-sm);
+  font-size: var(--comp-font-xs);
+  color: var(--color-primary);
+}
+
+.n3-flow-status svg {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ============================================================
+   STEPPER - 縦方向
+   ============================================================ */
+
+.n3-stepper {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.n3-stepper-item {
+  display: flex;
+  gap: 12px;
+  position: relative;
+}
+
+.n3-stepper-item:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 11px;
+  top: 28px;
+  bottom: -4px;
+  width: 2px;
+  background: var(--panel-border);
+}
+
+.n3-stepper-item.completed::before {
+  background: var(--color-success);
+}
+
+.n3-stepper-indicator {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--panel);
+  border: 2px solid var(--panel-border);
+  color: var(--text-muted);
+  flex-shrink: 0;
+  z-index: 1;
+}
+
+.n3-stepper-item.active .n3-stepper-indicator {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: white;
+}
+
+.n3-stepper-item.completed .n3-stepper-indicator {
+  border-color: var(--color-success);
+  background: var(--color-success);
+  color: white;
+}
+
+.n3-stepper-content {
+  flex: 1;
+  padding-bottom: 24px;
+}
+
+.n3-stepper-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.n3-stepper-item.active .n3-stepper-title {
+  color: var(--color-primary);
+}
+
+.n3-stepper-description {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ============================================================
+   PROGRESS STEPS - 横方向
+   ============================================================ */
+
+.n3-progress-steps {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.n3-progress-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  position: relative;
+}
+
+.n3-progress-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 12px;
+  left: calc(50% + 16px);
+  right: calc(-50% + 16px);
+  height: 2px;
+  background: var(--panel-border);
+}
+
+.n3-progress-step.completed::after {
+  background: var(--color-success);
+}
+
+.n3-progress-step-indicator {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--panel);
+  border: 2px solid var(--panel-border);
+  color: var(--text-muted);
+  z-index: 1;
+}
+
+.n3-progress-step.active .n3-progress-step-indicator {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: white;
+}
+
+.n3-progress-step.completed .n3-progress-step-indicator {
+  border-color: var(--color-success);
+  background: var(--color-success);
+  color: white;
+}
+
+.n3-progress-step-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.n3-progress-step.active .n3-progress-step-label {
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+.n3-progress-step.completed .n3-progress-step-label {
+  color: var(--color-success);
+}
+
+/* ============================================================
+   PANEL - 汎用パネル
+   ============================================================ */
+
+.n3-panel {
+  background: var(--panel);
+  border: var(--style-panel-border, 1px solid var(--panel-border));
+  border-radius: var(--style-panel-radius, var(--radius-md));
+  box-shadow: var(--style-panel-shadow, none);
+}
+
+.n3-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.n3-panel-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.n3-panel-body {
+  padding: 16px;
+}
+
+.n3-panel-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--panel-border);
+}
+
+/* Collapsible Panel */
+.n3-panel-collapsible .n3-panel-header {
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+.n3-panel-collapsible .n3-panel-header:hover {
+  background: var(--highlight);
+}
+
+.n3-panel-collapsible .n3-panel-body {
+  overflow: hidden;
+  transition: max-height 0.2s ease, padding 0.2s ease;
+}
+
+.n3-panel-collapsible.collapsed .n3-panel-body {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.n3-panel-toggle {
+  transition: transform 0.2s ease;
+}
+
+.n3-panel-collapsible.collapsed .n3-panel-toggle {
+  transform: rotate(-90deg);
+}

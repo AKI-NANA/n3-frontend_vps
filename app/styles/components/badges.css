@@ -1,0 +1,294 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Badges & Status Indicators
+   統一サイズシステム対応版
+   
+   基本: --n3-* 変数を参照（data-sizeで自動変化）
+   ============================================================ */
+
+/* ============================================================
+   BASE BADGE
+   ============================================================ */
+
+.n3-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--n3-gap) * 0.5);
+  padding: calc(var(--n3-px) * 0.15) calc(var(--n3-px) * 0.6);
+  font-size: calc(var(--n3-font) * 0.85);
+  font-weight: 500;
+  line-height: 1.4;
+  border-radius: var(--style-badge-radius, var(--radius-full));
+  white-space: nowrap;
+  
+  /* Default: gray */
+  background: var(--color-gray-light);
+  color: var(--color-gray);
+}
+
+/* ============================================================
+   COLOR VARIANTS
+   ============================================================ */
+
+/* Primary */
+.n3-badge-primary {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.n3-badge-solid-primary {
+  background: var(--color-primary);
+  color: white;
+}
+
+.n3-badge-outline-primary {
+  background: transparent;
+  color: var(--color-primary);
+  box-shadow: inset 0 0 0 1px var(--color-primary);
+}
+
+/* Success */
+.n3-badge-success {
+  background: var(--color-success-light);
+  color: var(--color-success);
+}
+
+.n3-badge-solid-success {
+  background: var(--color-success);
+  color: white;
+}
+
+.n3-badge-outline-success {
+  background: transparent;
+  color: var(--color-success);
+  box-shadow: inset 0 0 0 1px var(--color-success);
+}
+
+/* Warning */
+.n3-badge-warning {
+  background: var(--color-warning-light);
+  color: var(--color-warning);
+}
+
+.n3-badge-solid-warning {
+  background: var(--color-warning);
+  color: white;
+}
+
+.n3-badge-outline-warning {
+  background: transparent;
+  color: var(--color-warning);
+  box-shadow: inset 0 0 0 1px var(--color-warning);
+}
+
+/* Error / Danger */
+.n3-badge-error,
+.n3-badge-danger {
+  background: var(--color-error-light);
+  color: var(--color-error);
+}
+
+.n3-badge-solid-error,
+.n3-badge-solid-danger {
+  background: var(--color-error);
+  color: white;
+}
+
+.n3-badge-outline-error,
+.n3-badge-outline-danger {
+  background: transparent;
+  color: var(--color-error);
+  box-shadow: inset 0 0 0 1px var(--color-error);
+}
+
+/* Info */
+.n3-badge-info {
+  background: var(--color-info-light);
+  color: var(--color-info);
+}
+
+.n3-badge-solid-info {
+  background: var(--color-info);
+  color: white;
+}
+
+.n3-badge-outline-info {
+  background: transparent;
+  color: var(--color-info);
+  box-shadow: inset 0 0 0 1px var(--color-info);
+}
+
+/* Purple */
+.n3-badge-purple {
+  background: var(--color-purple-light);
+  color: var(--color-purple);
+}
+
+.n3-badge-solid-purple {
+  background: var(--color-purple);
+  color: white;
+}
+
+.n3-badge-outline-purple {
+  background: transparent;
+  color: var(--color-purple);
+  box-shadow: inset 0 0 0 1px var(--color-purple);
+}
+
+/* Gray */
+.n3-badge-gray {
+  background: var(--color-gray-light);
+  color: var(--color-gray);
+}
+
+.n3-badge-solid-gray {
+  background: var(--color-gray);
+  color: white;
+}
+
+/* ============================================================
+   DOT BADGE
+   ============================================================ */
+
+.n3-badge-dot::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   STATUS DOT
+   ============================================================ */
+
+.n3-status-dot {
+  width: calc(var(--n3-icon) * 0.5);
+  height: calc(var(--n3-icon) * 0.5);
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.n3-status-dot-online {
+  background: var(--status-online);
+  box-shadow: var(--status-online-glow);
+}
+
+.n3-status-dot-offline {
+  background: var(--status-offline);
+}
+
+.n3-status-dot-away {
+  background: var(--status-away);
+}
+
+.n3-status-dot-busy {
+  background: var(--status-busy);
+}
+
+/* Pulsing animation */
+.n3-status-dot-pulse {
+  animation: n3-status-pulse 2s ease-in-out infinite;
+}
+
+@keyframes n3-status-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.2); }
+}
+
+/* ============================================================
+   TAG
+   ============================================================ */
+
+.n3-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--n3-gap) * 0.5);
+  height: calc(var(--n3-height) * 0.75);
+  padding: 0 calc(var(--n3-px) * 0.6);
+  font-size: calc(var(--n3-font) * 0.9);
+  font-weight: 500;
+  border-radius: var(--n3-radius);
+  background: var(--highlight);
+  color: var(--text);
+  border: 1px solid var(--panel-border);
+}
+
+.n3-tag-primary {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  border-color: transparent;
+}
+
+.n3-tag-success {
+  background: var(--color-success-light);
+  color: var(--color-success);
+  border-color: transparent;
+}
+
+.n3-tag-warning {
+  background: var(--color-warning-light);
+  color: var(--color-warning);
+  border-color: transparent;
+}
+
+.n3-tag-error {
+  background: var(--color-error-light);
+  color: var(--color-error);
+  border-color: transparent;
+}
+
+.n3-tag-info {
+  background: var(--color-info-light);
+  color: var(--color-info);
+  border-color: transparent;
+}
+
+/* Closable tag */
+.n3-tag-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--n3-icon) * 0.75);
+  height: calc(var(--n3-icon) * 0.75);
+  margin-left: calc(var(--n3-gap) * 0.25);
+  margin-right: calc(var(--n3-gap) * -0.25);
+  border-radius: 50%;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.n3-tag-close:hover {
+  opacity: 1;
+  background: rgba(0,0,0,0.1);
+}
+
+/* ============================================================
+   AVATAR
+   ============================================================ */
+
+.n3-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--n3-height);
+  height: var(--n3-height);
+  border-radius: 50%;
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  font-size: calc(var(--n3-font) * 0.9);
+  font-weight: 600;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.n3-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.n3-avatar-square {
+  border-radius: var(--n3-radius);
+}

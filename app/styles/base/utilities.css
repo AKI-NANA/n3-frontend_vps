@@ -1,0 +1,65 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Utility Classes
+   ============================================================ */
+
+.line-clamp-1 { 
+  display: -webkit-box; 
+  -webkit-line-clamp: 1; 
+  -webkit-box-orient: vertical; 
+  overflow: hidden; 
+}
+
+.line-clamp-2 { 
+  display: -webkit-box; 
+  -webkit-line-clamp: 2; 
+  -webkit-box-orient: vertical; 
+  overflow: hidden; 
+}
+
+.font-mono { 
+  font-family: 'JetBrains Mono', monospace; 
+}
+
+/* Text truncate with tooltip */
+.truncate-tooltip {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Animations */
+@keyframes fadeIn { 
+  from { opacity: 0; } 
+  to { opacity: 1; } 
+}
+
+@keyframes slideIn { 
+  from { opacity: 0; transform: translateY(-4px); } 
+  to { opacity: 1; transform: translateY(0); } 
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes panelSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in { animation: fadeIn 0.15s ease; }
+.animate-slide-in { animation: slideIn 0.2s ease; }

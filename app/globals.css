@@ -1,0 +1,65 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Main Entry Point
+   Refactored: 2024-12-04
+   ============================================================ */
+
+@import 'tailwindcss';
+@custom-variant dark (&:is(.dark *));
+
+/* ===== BASE ===== */
+@import './styles/base/tokens.css';
+@import './styles/base/variables.css';
+@import './styles/base/reset.css';
+@import './styles/base/tailwind-bridge.css';
+@import './styles/base/typography.css';
+@import './styles/base/utilities.css';
+
+/* ===== COLOR THEMES ===== */
+@import './styles/themes/dawn.css';
+@import './styles/themes/cyber.css';
+@import './styles/themes/light.css';
+@import './styles/themes/dark.css';
+
+/* ===== STYLE THEMES ===== */
+@import './styles/themes/style-modern.css';
+@import './styles/themes/style-flat.css';
+@import './styles/themes/style-glass.css';
+@import './styles/themes/style-neumorphism.css';
+
+/* ===== SIZE SCALE (must be after themes) ===== */
+@import './styles/themes/size-scale.css';
+
+/* ===== LAYOUT ===== */
+@import './styles/layout/main.css';
+@import './styles/layout/sidebar.css';
+@import './styles/layout/header.css';
+@import './styles/layout/footer.css';
+@import './styles/layout/navigation.css';
+
+/* ===== COMPONENTS ===== */
+@import './styles/components/buttons.css';
+@import './styles/components/badges.css';
+@import './styles/components/inputs.css';
+@import './styles/components/header-utils.css';
+@import './styles/components/sidebar.css';
+@import './styles/components/vercel-tabs.css';
+@import './styles/components/vercel-style.css';
+@import './styles/components/modals.css';
+@import './styles/components/dropdowns.css';
+@import './styles/components/pagination.css';
+@import './styles/components/toolbar.css';
+
+/* ===== LAYOUT ===== */
+@import './styles/layout.css';
+@import './styles/components/cards.css';
+@import './styles/components/flow-panel.css';
+@import './styles/components/tabs.css';
+@import './styles/components/table.css';
+@import './styles/components/motion.css';
+@import './styles/components/n3-components.css';
+@import './styles/components/generic.css';
+@import './styles/components/inventory.css';
+
+/* ===== PAGES ===== */
+@import './styles/pages/table.css';
+@import './styles/components/full-preview.css';

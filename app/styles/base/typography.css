@@ -1,0 +1,72 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Typography & Font Size Overrides
+   ============================================================ */
+
+/* 小さいテキストをすべて大きく */
+.text-xs {
+  font-size: 13px !important;
+}
+
+.text-sm {
+  font-size: 15px !important;
+}
+
+.text-base {
+  font-size: 16px !important;
+}
+
+/* 9px, 10px, 11pxのテキストを大きく */
+.text-\[9px\] {
+  font-size: 11px !important;
+}
+
+.text-\[10px\] {
+  font-size: 12px !important;
+}
+
+.text-\[11px\] {
+  font-size: 13px !important;
+}
+
+/* ラベル色を濃く */
+.text-gray-400 {
+  color: var(--text-subtle) !important;
+}
+
+.text-gray-500 {
+  color: var(--text-muted) !important;
+}
+
+.text-gray-600 {
+  color: var(--text) !important;
+  opacity: 0.85;
+}
+
+/* テーブル内のテキスト */
+table .text-xs {
+  font-size: 13px !important;
+}
+
+table .text-sm {
+  font-size: 15px !important;
+}
+
+table .text-\[10px\] {
+  font-size: 12px !important;
+}
+
+table .text-\[11px\] {
+  font-size: 13px !important;
+}
+
+/* モーダル内のラベル - 濃いグレー、大きいフォント */
+[role="dialog"] .text-gray-500,
+[role="dialog"] .text-muted,
+[role="dialog"] label,
+.n3-modal .text-gray-500,
+.n3-modal .text-muted,
+.n3-modal label {
+  color: var(--text-muted) !important;
+  font-size: 14px !important;
+  font-weight: 500;
+}

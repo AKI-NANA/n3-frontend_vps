@@ -1,0 +1,48 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Theme: Dawn (Default - Gradient)
+   ============================================================ */
+
+:root, [data-theme="dawn"] {
+  --bg: linear-gradient(135deg, #fff1eb 0%, #ace0f9 100%);
+  --bg-solid: #faf8f6;
+  --glass: rgba(255,255,255,0.65);
+  --glass-border: rgba(255,255,255,0.5);
+  --panel: rgba(255,255,255,0.8);
+  --panel-border: rgba(255,255,255,0.6);
+  --text: #1e293b;
+  --text-muted: #64748b;
+  --text-subtle: #94a3b8;
+  --accent: #6366f1;
+  --accent-bg: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+  --accent-text: #ffffff;
+  --highlight: rgba(255,255,255,0.5);
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --info: #3b82f6;
+  
+  /* Status Colors */
+  --stock: #10b981;
+  --dropship: #8b5cf6;
+  --pending: #f59e0b;
+  --ready: #3b82f6;
+  
+  /* Tailwind Bridge */
+  --background: var(--bg);
+  --foreground: var(--text);
+  --card: var(--panel);
+  --card-foreground: var(--text);
+  --primary: var(--accent);
+  --primary-foreground: var(--accent-text);
+  --secondary: var(--highlight);
+  --muted: var(--highlight);
+  --muted-foreground: var(--text-muted);
+  --border: var(--panel-border);
+  --input: var(--panel);
+  --ring: var(--accent);
+  --radius: var(--radius-md);
+  --destructive: var(--error);
+  --destructive-foreground: #ffffff;
+  --popover: var(--panel);
+  --popover-foreground: var(--text);
+}

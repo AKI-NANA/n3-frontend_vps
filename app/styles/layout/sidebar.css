@@ -1,0 +1,200 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Sidebar
+   ============================================================ */
+
+/* サイドバー基本スタイル */
+.n3-sidebar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: var(--sidebar-width);
+  height: 100vh;
+  background: var(--glass);
+  border-right: 1px solid var(--glass-border);
+  backdrop-filter: blur(12px);
+  overflow-x: hidden;
+  overflow-y: hidden !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  transition: width 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: calc(var(--footer-height) + 20px);
+}
+
+.n3-sidebar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+}
+
+/* ホバーまたは第二階層表示中は展開維持 */
+.n3-sidebar:hover,
+.n3-sidebar.keep-expanded {
+  width: var(--sidebar-width-expanded);
+}
+
+/* ナビゲーションアイテム */
+.n3-sidebar .nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 10px;
+  margin: 2px 6px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.12s;
+  color: var(--text-muted);
+  position: relative;
+  min-height: 40px;
+}
+
+/* ホバー時は左寄せに */
+.n3-sidebar:hover .nav-item,
+.n3-sidebar.keep-expanded .nav-item {
+  justify-content: flex-start;
+  padding: 10px 14px;
+  margin: 2px 8px;
+}
+
+/* アイコンサイズ */
+.n3-sidebar .nav-item svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: inherit;
+}
+
+/* ラベルは最初は非表示 */
+.n3-sidebar .nav-label {
+  opacity: 0;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 450;
+  transition: opacity 0.12s;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ホバー時または展開維持時にラベル表示 */
+.n3-sidebar:hover .nav-label,
+.n3-sidebar.keep-expanded .nav-label {
+  opacity: 1;
+}
+
+/* 選択中の項目 - 濃い青背景 */
+.n3-sidebar .nav-item.active {
+  background: var(--accent) !important;
+  color: white !important;
+}
+
+.n3-sidebar .nav-item.active svg {
+  color: white !important;
+}
+
+.n3-sidebar .nav-item.active:hover {
+  background: var(--accent) !important;
+}
+
+/* 非選択時は通常色 */
+.n3-sidebar .nav-item:not(.active) {
+  color: var(--text-muted);
+}
+
+.n3-sidebar .nav-item:not(.active) svg {
+  color: var(--text-muted);
+}
+
+/* ホバー */
+.n3-sidebar .nav-item:hover:not(.active) {
+  background: var(--highlight);
+  color: var(--text);
+}
+
+/* テーマスイッチャーグリッド */
+.n3-sidebar-theme-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+}
+
+.n3-sidebar:hover .n3-sidebar-theme-grid,
+.n3-sidebar.keep-expanded .n3-sidebar-theme-grid {
+  flex-direction: row;
+  justify-content: center;
+}
+
+/* 幅が狭い時はテーマ切り替えを非表示 */
+@media (max-width: 768px) {
+  .n3-sidebar-theme-grid {
+    display: none;
+  }
+}
+
+/* サブメニューパネル */
+.n3-submenu-panel {
+  position: fixed;
+  left: var(--sidebar-width-expanded);
+  top: 0;
+  width: 240px;
+  height: 100vh;
+  background: var(--glass);
+  border-right: 1px solid var(--glass-border);
+  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-lg);
+  z-index: 45;
+  overflow-x: hidden;
+  overflow-y: auto;
+  transform: translateX(-100%);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.n3-submenu-panel.open {
+  transform: translateX(0);
+}
+
+.n3-submenu-panel .submenu-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--glass-border);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.n3-submenu-panel .submenu-item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 6px 16px;
+  margin: 1px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.12s;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-decoration: none;
+  min-height: 32px;
+}
+
+.n3-submenu-panel .submenu-item:hover {
+  background: var(--highlight);
+  color: var(--text);
+}
+
+.n3-submenu-panel .submenu-item.active {
+  background: var(--accent);
+  color: white;
+}
+
+.n3-submenu-panel .submenu-item svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
