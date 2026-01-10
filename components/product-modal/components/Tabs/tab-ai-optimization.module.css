@@ -1,0 +1,379 @@
+.container {
+  padding: 1.5rem;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0;
+}
+
+.refreshButton {
+  padding: 0.5rem 1rem;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.refreshButton:hover:not(:disabled) {
+  background: #e5e7eb;
+}
+
+.refreshButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ヘルススコアセクション */
+.healthScoreSection {
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.sectionTitle {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 1rem 0;
+}
+
+.sectionDescription {
+  color: #6b7280;
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+.scoreCards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.scoreCard {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 1rem;
+  text-align: center;
+}
+
+.scoreLabel {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-bottom: 0.5rem;
+}
+
+.scoreValue {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.scoreValue.excellent {
+  color: #10b981;
+}
+
+.scoreValue.good {
+  color: #3b82f6;
+}
+
+.scoreValue.poor {
+  color: #ef4444;
+}
+
+/* 問題点セクション */
+.issuesSection {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.issuesTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #991b1b;
+  margin: 0 0 0.75rem 0;
+}
+
+.issueGroup {
+  margin-bottom: 0.75rem;
+}
+
+.issueGroup:last-child {
+  margin-bottom: 0;
+}
+
+.issueGroupTitle {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #7f1d1d;
+  margin-bottom: 0.25rem;
+}
+
+.issueList {
+  list-style: disc;
+  padding-left: 1.5rem;
+  margin: 0;
+  font-size: 0.875rem;
+  color: #991b1b;
+}
+
+.issueList li {
+  margin-bottom: 0.25rem;
+}
+
+/* 改善提案セクション */
+.suggestionsSection {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.suggestionsTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #065f46;
+  margin: 0 0 0.75rem 0;
+}
+
+.suggestionsList {
+  list-style: decimal;
+  padding-left: 1.5rem;
+  margin: 0;
+  font-size: 0.875rem;
+  color: #047857;
+}
+
+.suggestionsList li {
+  margin-bottom: 0.5rem;
+}
+
+/* AI最適化セクション */
+.aiOptimizationSection {
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.generateButton {
+  width: 100%;
+  padding: 1rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.generateButton:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.generateButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 最適化結果 */
+.optimizationResults {
+  margin-top: 1rem;
+}
+
+.confidenceBar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.confidenceLabel {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.confidenceProgress {
+  flex: 1;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.confidenceFill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+  transition: width 0.3s ease;
+}
+
+.confidenceValue {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #10b981;
+}
+
+.comparison {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  align-items: center;
+}
+
+.comparisonColumn {
+  flex: 1;
+}
+
+.comparisonTitle {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #6b7280;
+  margin: 0 0 0.5rem 0;
+}
+
+.comparisonContent {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0.75rem;
+  font-size: 0.875rem;
+  color: #1f2937;
+  min-height: 60px;
+}
+
+.comparisonContent.optimized {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+
+.comparisonArrow {
+  font-size: 1.5rem;
+  color: #9ca3af;
+}
+
+.keywords {
+  margin-bottom: 1.5rem;
+}
+
+.keywordsTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 0.75rem 0;
+}
+
+.keywordTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.keywordTag {
+  background: #dbeafe;
+  color: #1e40af;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.improvements {
+  margin-bottom: 1.5rem;
+}
+
+.improvementsTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 0.75rem 0;
+}
+
+.improvementsList {
+  list-style: disc;
+  padding-left: 1.5rem;
+  margin: 0;
+  font-size: 0.875rem;
+  color: #4b5563;
+}
+
+.improvementsList li {
+  margin-bottom: 0.5rem;
+}
+
+.actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.applyButton,
+.regenerateButton {
+  flex: 1;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.applyButton {
+  background: #10b981;
+  color: white;
+}
+
+.applyButton:hover:not(:disabled) {
+  background: #059669;
+}
+
+.applyButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.regenerateButton {
+  background: #f3f4f6;
+  color: #1f2937;
+  border: 1px solid #e5e7eb;
+}
+
+.regenerateButton:hover:not(:disabled) {
+  background: #e5e7eb;
+}
+
+.regenerateButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.loadingState {
+  text-align: center;
+  padding: 2rem;
+  color: #9ca3af;
+  font-size: 1rem;
+}

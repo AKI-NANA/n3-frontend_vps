@@ -19,6 +19,7 @@ import { TabNav } from './components/tab-nav'
 import { ApprovalTab } from './components/approval-tab'
 import { InventoryMasterTab } from './components/inventory-master-tab'
 import { MercariSyncModal } from './components/mercari-sync-modal'
+import { EbayCSVExportModal } from './components/ebay-csv-export-modal'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
@@ -45,7 +46,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
-  ChevronsRight
+  ChevronsRight,
+  FileSpreadsheet
 } from 'lucide-react'
 
 export default function TanaoroshiPage() {
@@ -97,6 +99,9 @@ export default function TanaoroshiPage() {
 
   // メルカリ同期モーダル
   const [showMercariSyncModal, setShowMercariSyncModal] = useState(false)
+
+  // eBay CSV出力モーダル
+  const [showEbayCSVModal, setShowEbayCSVModal] = useState(false)
 
   // タブ管理
   const [activeTab, setActiveTab] = useState<'inventory' | 'approval' | 'master'>('inventory')
@@ -1038,6 +1043,18 @@ export default function TanaoroshiPage() {
               </Button>
             </div>
 
+            {/* eBay CSV出力ボタン */}
+            <Button
+              onClick={() => setShowEbayCSVModal(true)}
+              disabled={selectedProducts.size === 0}
+              variant="outline"
+              className="border-blue-400 text-blue-700 hover:bg-blue-50"
+              title="選択した商品をeBay File Exchange CSVで出力"
+            >
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              eBay CSV出力 ({selectedProducts.size})
+            </Button>
+
             {/* メルカリ同期ボタン */}
             <Button
               onClick={() => setShowMercariSyncModal(true)}
@@ -1294,6 +1311,14 @@ export default function TanaoroshiPage() {
         onClose={() => setShowMercariSyncModal(false)}
         onSyncComplete={() => loadProducts()}
       />
+
+      {/* eBay CSV出力モーダル */}
+      {showEbayCSVModal && (
+        <EbayCSVExportModal
+          selectedProducts={products.filter(p => selectedProducts.has(p.id))}
+          onClose={() => setShowEbayCSVModal(false)}
+        />
+      )}
       </div>
     </div>
   )

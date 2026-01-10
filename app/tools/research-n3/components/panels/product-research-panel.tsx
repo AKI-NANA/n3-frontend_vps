@@ -341,3 +341,5 @@ export default function ProductResearchPanel({
     </div>
   );
 }
+
+export default ProductResearchPanel;

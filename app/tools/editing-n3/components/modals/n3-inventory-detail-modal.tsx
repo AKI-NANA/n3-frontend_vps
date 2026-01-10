@@ -4,14 +4,17 @@
  * 
  * inventory_master の商品詳細を表示・編集するモーダル
  * 原価と在庫数のインライン編集に対応
+ * L4属性（販売予定販路）とその他経費の編集に対応
  */
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { X, Package, DollarSign, Hash, Calendar, Edit2, Save, ExternalLink, Check, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { X, Package, DollarSign, Hash, Calendar, Edit2, Save, ExternalLink, Check, Loader2, Plus, Trash2, Store } from 'lucide-react';
 import { N3Button, N3Divider } from '@/components/n3';
 import type { InventoryProduct } from '../../hooks';
+import { SALES_CHANNEL_LABELS, COST_ITEM_PRESETS, type SalesChannel, type AdditionalCosts } from '@/types/inventory';
+import { supabase } from '@/lib/supabase/client';
 
 interface N3InventoryDetailModalProps {
   product: InventoryProduct | null;
@@ -20,6 +23,14 @@ interface N3InventoryDetailModalProps {
   onSave?: (id: string, updates: Partial<InventoryProduct>) => Promise<void>;
   onStockChange?: (id: string, newQuantity: number) => Promise<void>;
   onCostChange?: (id: string, newCost: number) => Promise<void>;
+  onRefresh?: () => void;
+}
+
+// 経費項目の型
+interface CostItem {
+  key: string;
+  label: string;
+  amount: number;
 }
 
 export function N3InventoryDetailModal({
@@ -29,6 +40,7 @@ export function N3InventoryDetailModal({
   onSave,
   onStockChange,
   onCostChange,
+  onRefresh,
 }: N3InventoryDetailModalProps) {
   const [localProduct, setLocalProduct] = useState<InventoryProduct | null>(null);
   
@@ -43,6 +55,16 @@ export function N3InventoryDetailModal({
   // 保存中の状態
   const [savingStock, setSavingStock] = useState(false);
   const [savingCost, setSavingCost] = useState(false);
+  
+  // L4属性（販売予定販路）
+  const [selectedChannels, setSelectedChannels] = useState<SalesChannel[]>([]);
+  const [savingChannels, setSavingChannels] = useState(false);
+  
+  // その他経費
+  const [costItems, setCostItems] = useState<CostItem[]>([]);
+  const [savingCostItems, setSavingCostItems] = useState(false);
+  const [newCostKey, setNewCostKey] = useState('');
+  const [newCostAmount, setNewCostAmount] = useState('');
 
   // 商品データをローカルにコピー
   useEffect(() => {
@@ -50,6 +72,23 @@ export function N3InventoryDetailModal({
       setLocalProduct({ ...product });
       setStockValue(String(product.physical_quantity || 0));
       setCostValue(String(product.cost_jpy || product.cost_price || 0));
+      
+      // L4属性を設定
+      const l4 = (product as any).attr_l4;
+      setSelectedChannels(Array.isArray(l4) ? l4 : []);
+      
+      // その他経費を設定
+      const additionalCosts = (product as any).additional_costs || {};
+      const items: CostItem[] = [];
+      for (const [key, amount] of Object.entries(additionalCosts)) {
+        const preset = COST_ITEM_PRESETS.find(p => p.key === key);
+        items.push({
+          key,
+          label: preset?.label || key,
+          amount: Number(amount) || 0,
+        });
+      }
+      setCostItems(items);
     }
   }, [product]);
 
@@ -112,6 +151,104 @@ export function N3InventoryDetailModal({
     }
   };
 
+  // L4属性（販売予定販路）の保存
+  const handleSaveChannels = async () => {
+    if (!localProduct) return;
+    
+    setSavingChannels(true);
+    try {
+      const { error } = await supabase
+        .from('inventory_master')
+        .update({ attr_l4: selectedChannels })
+        .eq('id', localProduct.id);
+      
+      if (error) throw error;
+      
+      setLocalProduct(prev => prev ? { ...prev, attr_l4: selectedChannels } as any : null);
+      onRefresh?.();
+    } catch (err) {
+      console.error('販路保存エラー:', err);
+    } finally {
+      setSavingChannels(false);
+    }
+  };
+
+  // 販路チェックボックスのトグル
+  const toggleChannel = (channel: SalesChannel) => {
+    setSelectedChannels(prev => {
+      if (prev.includes(channel)) {
+        return prev.filter(c => c !== channel);
+      } else {
+        return [...prev, channel];
+      }
+    });
+  };
+
+  // その他経費の保存
+  const handleSaveCostItems = async () => {
+    if (!localProduct) return;
+    
+    setSavingCostItems(true);
+    try {
+      const additionalCosts: AdditionalCosts = {};
+      for (const item of costItems) {
+        if (item.amount > 0) {
+          additionalCosts[item.key] = item.amount;
+        }
+      }
+      
+      const { error } = await supabase
+        .from('inventory_master')
+        .update({ additional_costs: additionalCosts })
+        .eq('id', localProduct.id);
+      
+      if (error) throw error;
+      
+      setLocalProduct(prev => prev ? { ...prev, additional_costs: additionalCosts } as any : null);
+      onRefresh?.();
+    } catch (err) {
+      console.error('経費保存エラー:', err);
+    } finally {
+      setSavingCostItems(false);
+    }
+  };
+
+  // 経費項目の追加
+  const handleAddCostItem = () => {
+    if (!newCostKey || !newCostAmount) return;
+    
+    const amount = parseInt(newCostAmount) || 0;
+    if (amount <= 0) return;
+    
+    const preset = COST_ITEM_PRESETS.find(p => p.key === newCostKey);
+    const existingIndex = costItems.findIndex(item => item.key === newCostKey);
+    
+    if (existingIndex >= 0) {
+      // 既存の項目を更新
+      setCostItems(prev => prev.map((item, i) => 
+        i === existingIndex ? { ...item, amount } : item
+      ));
+    } else {
+      // 新規追加
+      setCostItems(prev => [...prev, {
+        key: newCostKey,
+        label: preset?.label || newCostKey,
+        amount,
+      }]);
+    }
+    
+    setNewCostKey('');
+    setNewCostAmount('');
+  };
+
+  // 経費項目の削除
+  const handleRemoveCostItem = (key: string) => {
+    setCostItems(prev => prev.filter(item => item.key !== key));
+  };
+
+  // 経費合計
+  const totalAdditionalCosts = costItems.reduce((sum, item) => sum + item.amount, 0);
+
   // キー入力ハンドラ
   const handleKeyDown = (e: React.KeyboardEvent, type: 'stock' | 'cost') => {
     if (e.key === 'Enter') {
@@ -130,6 +267,10 @@ export function N3InventoryDetailModal({
 
   // 画像URL
   const imageUrl = localProduct.image_url || localProduct.images?.[0] || null;
+
+  // 総原価（原価 + 経費）
+  const baseCost = localProduct.cost_jpy || localProduct.cost_price || 0;
+  const totalCost = baseCost + totalAdditionalCosts;
 
   return (
     <div 
@@ -346,10 +487,10 @@ export function N3InventoryDetailModal({
                     </div>
                   ) : (
                     <div className="text-2xl font-bold text-center" style={{ color: 'var(--text)' }}>
-                      ¥{(localProduct.cost_jpy || localProduct.cost_price || 0).toLocaleString()}
+                      ¥{baseCost.toLocaleString()}
                     </div>
                   )}
-                  {!editingCost && !(localProduct.cost_jpy || localProduct.cost_price) && (
+                  {!editingCost && !baseCost && (
                     <div className="text-xs text-center mt-1" style={{ color: 'var(--text-muted)' }}>
                       未登録
                     </div>
@@ -371,20 +512,210 @@ export function N3InventoryDetailModal({
                 </div>
               </div>
               
-              {/* 利益表示（原価が登録されている場合） */}
-              {(localProduct.cost_jpy || localProduct.cost_price) && localProduct.selling_price && (
+              {/* 利益表示（総原価で計算） */}
+              {totalCost > 0 && localProduct.selling_price && (
                 <div 
                   className="mt-3 p-2 rounded text-sm text-center"
                   style={{ background: 'rgba(34, 197, 94, 0.1)' }}
                 >
-                  <span style={{ color: 'var(--text-muted)' }}>推定利益: </span>
+                  <span style={{ color: 'var(--text-muted)' }}>推定利益（総原価ベース）: </span>
                   <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>
-                    ${((localProduct.selling_price || 0) - ((localProduct.cost_jpy || localProduct.cost_price || 0) / 150)).toFixed(2)} USD
+                    ${((localProduct.selling_price || 0) - (totalCost / 150)).toFixed(2)} USD
                   </span>
                   <span style={{ color: 'var(--text-muted)' }}> / </span>
                   <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>
-                    ¥{((localProduct.selling_price || 0) * 150 - (localProduct.cost_jpy || localProduct.cost_price || 0)).toLocaleString()}
+                    ¥{((localProduct.selling_price || 0) * 150 - totalCost).toLocaleString()}
                   </span>
+                </div>
+              )}
+            </div>
+
+            <N3Divider />
+
+            {/* その他経費セクション */}
+            <div className="py-4">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+                  その他経費
+                </h4>
+                <N3Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleSaveCostItems}
+                  loading={savingCostItems}
+                  disabled={savingCostItems}
+                >
+                  <Save size={14} />
+                  保存
+                </N3Button>
+              </div>
+              
+              {/* 経費リスト */}
+              <div className="space-y-2 mb-3">
+                {costItems.map((item) => (
+                  <div 
+                    key={item.key}
+                    className="flex items-center gap-2 p-2 rounded"
+                    style={{ background: 'var(--highlight)' }}
+                  >
+                    <span className="flex-1 text-sm" style={{ color: 'var(--text)' }}>
+                      {item.label}
+                    </span>
+                    <span className="text-sm font-mono" style={{ color: 'var(--text)' }}>
+                      ¥{item.amount.toLocaleString()}
+                    </span>
+                    <button
+                      onClick={() => handleRemoveCostItem(item.key)}
+                      className="p-1 rounded hover:bg-[var(--panel)]"
+                      style={{ color: 'var(--color-error)' }}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+                
+                {costItems.length === 0 && (
+                  <div 
+                    className="p-3 rounded text-sm text-center"
+                    style={{ background: 'var(--highlight)', color: 'var(--text-muted)' }}
+                  >
+                    経費が登録されていません
+                  </div>
+                )}
+              </div>
+              
+              {/* 経費追加フォーム */}
+              <div className="flex items-center gap-2">
+                <select
+                  value={newCostKey}
+                  onChange={(e) => setNewCostKey(e.target.value)}
+                  className="flex-1 px-2 py-1.5 rounded text-sm"
+                  style={{ 
+                    background: 'var(--highlight)', 
+                    color: 'var(--text)',
+                    border: '1px solid var(--panel-border)',
+                  }}
+                >
+                  <option value="">項目を選択...</option>
+                  {COST_ITEM_PRESETS.map((preset) => (
+                    <option key={preset.key} value={preset.key}>
+                      {preset.label}
+                    </option>
+                  ))}
+                </select>
+                <div className="flex items-center">
+                  <span className="text-sm mr-1" style={{ color: 'var(--text-muted)' }}>¥</span>
+                  <input
+                    type="number"
+                    value={newCostAmount}
+                    onChange={(e) => setNewCostAmount(e.target.value)}
+                    placeholder="金額"
+                    className="w-24 px-2 py-1.5 rounded text-sm text-right"
+                    style={{ 
+                      background: 'var(--highlight)', 
+                      color: 'var(--text)',
+                      border: '1px solid var(--panel-border)',
+                    }}
+                  />
+                </div>
+                <N3Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleAddCostItem}
+                  disabled={!newCostKey || !newCostAmount}
+                >
+                  <Plus size={14} />
+                </N3Button>
+              </div>
+              
+              {/* 合計 */}
+              {costItems.length > 0 && (
+                <div 
+                  className="mt-3 p-2 rounded flex justify-between items-center"
+                  style={{ background: 'rgba(245, 158, 11, 0.1)' }}
+                >
+                  <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+                    経費合計
+                  </span>
+                  <span className="text-lg font-bold" style={{ color: 'rgb(245, 158, 11)' }}>
+                    ¥{totalAdditionalCosts.toLocaleString()}
+                  </span>
+                </div>
+              )}
+              
+              {/* 総原価 */}
+              <div 
+                className="mt-2 p-2 rounded flex justify-between items-center"
+                style={{ background: 'rgba(59, 130, 246, 0.1)' }}
+              >
+                <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+                  総原価（原価 + 経費）
+                </span>
+                <span className="text-lg font-bold" style={{ color: 'rgb(59, 130, 246)' }}>
+                  ¥{totalCost.toLocaleString()}
+                </span>
+              </div>
+            </div>
+
+            <N3Divider />
+
+            {/* L4属性: 販売予定販路 */}
+            <div className="py-4">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text)' }}>
+                  <Store size={14} />
+                  販売予定販路 (L4)
+                </h4>
+                <N3Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleSaveChannels}
+                  loading={savingChannels}
+                  disabled={savingChannels}
+                >
+                  <Save size={14} />
+                  保存
+                </N3Button>
+              </div>
+              
+              <div className="grid grid-cols-3 gap-2">
+                {(Object.entries(SALES_CHANNEL_LABELS) as [SalesChannel, string][]).map(([channel, label]) => (
+                  <label
+                    key={channel}
+                    className="flex items-center gap-2 p-2 rounded cursor-pointer transition-all"
+                    style={{ 
+                      background: selectedChannels.includes(channel) 
+                        ? 'rgba(59, 130, 246, 0.15)' 
+                        : 'var(--highlight)',
+                      border: selectedChannels.includes(channel)
+                        ? '1px solid rgba(59, 130, 246, 0.5)'
+                        : '1px solid transparent',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedChannels.includes(channel)}
+                      onChange={() => toggleChannel(channel)}
+                      className="rounded"
+                    />
+                    <span 
+                      className="text-sm"
+                      style={{ 
+                        color: selectedChannels.includes(channel) 
+                          ? 'rgb(59, 130, 246)' 
+                          : 'var(--text)',
+                        fontWeight: selectedChannels.includes(channel) ? 600 : 400,
+                      }}
+                    >
+                      {label}
+                    </span>
+                  </label>
+                ))}
+              </div>
+              
+              {selectedChannels.length > 0 && (
+                <div className="mt-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+                  選択中: {selectedChannels.map(c => SALES_CHANNEL_LABELS[c]).join(', ')}
                 </div>
               )}
             </div>
@@ -418,17 +749,6 @@ export function N3InventoryDetailModal({
                   <span style={{ color: 'var(--text-muted)' }}>優先度スコア</span>
                   <span style={{ color: 'var(--text)' }}>{localProduct.priority_score || 0}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span style={{ color: 'var(--text-muted)' }}>在庫タイプ</span>
-                  <span style={{ color: 'var(--text)' }}>
-                    {localProduct.inventory_type === 'stock' ? '有在庫' : 
-                     localProduct.inventory_type === 'mu' ? '無在庫' : '-'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span style={{ color: 'var(--text-muted)' }}>価格フェーズ</span>
-                  <span style={{ color: 'var(--text)' }}>{localProduct.current_price_phase || '-'}</span>
-                </div>
               </div>
             </div>
 
@@ -445,112 +765,35 @@ export function N3InventoryDetailModal({
                       <span style={{ color: 'var(--text-muted)' }}>親SKU</span>
                       <span style={{ color: 'var(--text)' }}>{localProduct.parent_sku || '-'}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span style={{ color: 'var(--text-muted)' }}>属性</span>
-                      <span style={{ color: 'var(--text)' }}>
-                        {localProduct.variation_attributes 
-                          ? JSON.stringify(localProduct.variation_attributes)
-                          : '-'
-                        }
-                      </span>
-                    </div>
                   </div>
                 </div>
               </>
             )}
 
             {/* セット商品情報（該当する場合） */}
-            {localProduct.product_type === 'set' && (
+            {localProduct.product_type === 'set' && localProduct.set_members && localProduct.set_members.length > 0 && (
               <>
                 <N3Divider />
                 <div className="py-4">
                   <h4 className="text-sm font-semibold mb-3" style={{ color: 'var(--text)' }}>
                     セット構成
                   </h4>
-                  
-                  {/* セット販売可能数 */}
-                  <div 
-                    className="p-3 rounded-lg mb-3"
-                    style={{ background: 'var(--highlight)' }}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span style={{ color: 'var(--text-muted)' }}>セット販売可能数</span>
-                      <span 
-                        className="text-xl font-bold"
-                        style={{ 
-                          color: (localProduct.set_available_quantity || 0) > 0 
-                            ? 'var(--color-success)' 
-                            : 'var(--color-error)' 
-                        }}
+                  <div className="space-y-2">
+                    {localProduct.set_members.map((member, index) => (
+                      <div 
+                        key={member.product_id || index}
+                        className="flex items-center gap-3 p-2 rounded"
+                        style={{ background: 'var(--highlight)' }}
                       >
-                        {localProduct.set_available_quantity ?? '計算中...'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* 構成品リスト */}
-                  {localProduct.set_members && localProduct.set_members.length > 0 ? (
-                    <div className="space-y-2">
-                      {localProduct.set_members.map((member, index) => (
-                        <div 
-                          key={member.product_id || index}
-                          className="flex items-center gap-3 p-2 rounded"
-                          style={{ background: 'var(--panel)', border: '1px solid var(--panel-border)' }}
-                        >
-                          {/* 構成品画像 */}
-                          <div 
-                            className="w-10 h-10 rounded overflow-hidden flex-shrink-0"
-                            style={{ background: 'var(--highlight)' }}
-                          >
-                            {member.image_url ? (
-                              <img 
-                                src={member.image_url} 
-                                alt="" 
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center">
-                                <Package size={16} style={{ color: 'var(--text-subtle)' }} />
-                              </div>
-                            )}
-                          </div>
-                          
-                          {/* 構成品情報 */}
-                          <div className="flex-1 min-w-0">
-                            <div 
-                              className="text-sm truncate"
-                              style={{ color: 'var(--text)' }}
-                            >
-                              {member.product_name || member.sku || `構成品 ${index + 1}`}
-                            </div>
-                            {member.sku && (
-                              <div 
-                                className="text-xs truncate"
-                                style={{ color: 'var(--text-muted)' }}
-                              >
-                                {member.sku}
-                              </div>
-                            )}
-                          </div>
-                          
-                          {/* 必要数量 */}
-                          <div 
-                            className="px-2 py-1 rounded text-sm font-mono"
-                            style={{ background: 'var(--highlight)', color: 'var(--text)' }}
-                          >
-                            ×{member.quantity || 1}
-                          </div>
+                        <div className="flex-1 text-sm" style={{ color: 'var(--text)' }}>
+                          {member.product_name || member.sku || `構成品 ${index + 1}`}
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div 
-                      className="p-4 rounded text-center text-sm"
-                      style={{ background: 'var(--highlight)', color: 'var(--text-muted)' }}
-                    >
-                      構成品が登録されていません
-                    </div>
-                  )}
+                        <div className="px-2 py-1 rounded text-sm font-mono" style={{ color: 'var(--text)' }}>
+                          ×{member.quantity || 1}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </>
             )}

@@ -70,9 +70,12 @@ const SHEET_CONFIG = {
       { header: 'L1', dbField: 'attr_l1', type: 'string' },
       { header: 'L2', dbField: 'attr_l2', type: 'string' },
       { header: 'L3', dbField: 'attr_l3', type: 'string' },
+      { header: 'L4', dbField: 'attr_l4', type: 'array' },  // 販売予定販路（配列）
       { header: '在庫数', dbField: 'physical_quantity', type: 'number' },
       { header: '保管場所', dbField: 'storage_location', type: 'string' },
       { header: '原価', dbField: 'cost_price', type: 'number' },
+      { header: '経費', dbField: 'additional_costs', type: 'additional_costs' },  // その他経費合計
+      { header: '総原価', dbField: 'total_cost_jpy', type: 'number' },  // 原価+経費
       { header: '販売価格', dbField: 'selling_price', type: 'number' },
       { header: '状態', dbField: 'condition_name', type: 'string' },
       { header: 'ワークフロー', dbField: 'workflow_status', type: 'string' },
@@ -123,6 +126,25 @@ function formatForSheet(value: any, type: string): any {
         return value.split('T')[0];
       }
       return value || '';
+    case 'array':
+      // 配列はカンマ区切りで表示（L4販売予定販路等）
+      console.log(`[Debug formatForSheet] array field:`, value);
+      if (Array.isArray(value) && value.length > 0) {
+        const joined = value.join(', ');
+        console.log(`[Debug formatForSheet] result:`, joined);
+        return joined;
+      }
+      return '';
+    case 'additional_costs':
+      // JSONBの経費データから合計を計算
+      if (value && typeof value === 'object') {
+        const total = Object.values(value).reduce((sum: number, val: any) => {
+          const numVal = typeof val === 'number' ? val : parseFloat(String(val)) || 0;
+          return sum + numVal;
+        }, 0);
+        return total > 0 ? total : 0;
+      }
+      return 0;
     default:
       return String(value);
   }
@@ -154,6 +176,15 @@ function parseFromSheet(value: any, type: string): any {
         return [value];
       }
       return null;
+    case 'array':
+      // カンマ区切り文字列を配列に変換（L4販売予定販路等）
+      if (typeof value === 'string') {
+        return value.split(',').map((s: string) => s.trim()).filter(Boolean);
+      }
+      if (Array.isArray(value)) {
+        return value;
+      }
+      return [];
     default:
       return value;
   }
@@ -331,6 +362,13 @@ export async function POST(request: NextRequest) {
         
         console.log(`[Supusi] Fetched ${records.length} records from DB (after MUG filter)`);
         
+        // デバッグ: 最初のレコードのattr_l4を確認
+        if (records.length > 0) {
+          const firstRecord = records[0];
+          console.log(`[Supusi Debug] First record attr_l4:`, firstRecord.attr_l4);
+          console.log(`[Supusi Debug] First record keys with 'attr':`, Object.keys(firstRecord).filter(k => k.includes('attr')));
+        }
+        
         // シート用データ作成
         const headers = sheetConfig.columns.map(c => c.header);
         const rows = records.map((record, index) => {
@@ -380,6 +418,7 @@ export async function POST(request: NextRequest) {
     }
     
     // プル（シート → DB）：Google Sheets APIを直接使用
+    // v6: 新規行のINSERT対応
     if (action === 'pull') {
       try {
         console.log('[Supusi] Starting direct pull from sheet:', sheetConfig.name);
@@ -412,32 +451,39 @@ export async function POST(request: NextRequest) {
           headerToIndex[String(h).trim()] = i;
         });
         
-        // IDカラムのインデックスを取得
+        // IDカラムとSKUカラムのインデックスを取得
         const idIndex = headerToIndex['ID'];
-        if (idIndex === undefined) {
-          return NextResponse.json({
-            success: false,
-            error: 'シートにID列がありません。ID列は必須です。',
-          }, { status: 400 });
-        }
+        const skuIndex = headerToIndex['SKU'];
+        const nameIndex = headerToIndex['商品名(JP)'];
         
-        let successCount = 0;
+        let updateCount = 0;
+        let insertCount = 0;
+        let skipCount = 0;
         let errorCount = 0;
         const errors: string[] = [];
         
         // 各行を処理
-        for (const row of dataRows) {
-          const recordId = row[idIndex];
-          if (!recordId) {
-            console.log('[Supusi] Skipping row without ID');
+        for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+          const row = dataRows[rowIndex];
+          const recordId = idIndex !== undefined ? row[idIndex] : null;
+          const sku = skuIndex !== undefined ? row[skuIndex] : null;
+          const productName = nameIndex !== undefined ? row[nameIndex] : null;
+          
+          // IDもSKUも商品名もない行はスキップ
+          if (!recordId && !sku && !productName) {
+            console.log(`[Supusi] Row ${rowIndex + 2}: Skipping empty row`);
+            skipCount++;
             continue;
           }
           
-          // 更新データを構築
-          const updateData: Record<string, any> = {};
+          // データを構築
+          const rowData: Record<string, any> = {};
           
           for (const col of sheetConfig.columns) {
-            if (!col.dbField || col.readOnly || col.type === 'row_number') continue;
+            if (!col.dbField || col.type === 'row_number') continue;
+            // 新規登録時はIDを除外、更新時はreadOnlyを除外
+            if (recordId && col.readOnly) continue;
+            if (!recordId && col.dbField === 'id') continue;
             
             const colIndex = headerToIndex[col.header];
             if (colIndex === undefined) continue;
@@ -445,37 +491,121 @@ export async function POST(request: NextRequest) {
             const cellValue = row[colIndex];
             const parsedValue = parseFromSheet(cellValue, col.type);
             
-            // 値が存在する場合のみ更新（空文字はnullとして扱う）
-            if (parsedValue !== null || cellValue === '') {
-              updateData[col.dbField] = parsedValue;
+            // 値が存在する場合のみ設定
+            if (parsedValue !== null) {
+              rowData[col.dbField] = parsedValue;
+            } else if (cellValue === '' && col.dbField !== 'id') {
+              // 明示的に空にされた場合はnull
+              rowData[col.dbField] = null;
             }
           }
           
-          // 更新実行
-          if (Object.keys(updateData).length > 0) {
-            updateData.updated_at = new Date().toISOString();
+          // IDがある場合は更新、ない場合は新規登録
+          if (recordId) {
+            // 更新
+            if (Object.keys(rowData).length > 0) {
+              rowData.updated_at = new Date().toISOString();
+              
+              const { error: updateError } = await supabase
+                .from('inventory_master')
+                .update(rowData)
+                .eq('id', recordId);
+              
+              if (updateError) {
+                errorCount++;
+                errors.push(`Row ${rowIndex + 2} (ID: ${recordId}): ${updateError.message}`);
+                console.error(`[Supusi] Update error:`, updateError);
+              } else {
+                updateCount++;
+              }
+            }
+          } else {
+            // 新規登録（IDがない行）
+            // 最低限、SKUか商品名が必要
+            if (!rowData.sku && !rowData.product_name) {
+              console.log(`[Supusi] Row ${rowIndex + 2}: Skipping - no SKU or product_name`);
+              skipCount++;
+              continue;
+            }
             
-            const { error: updateError } = await supabase
+            // SKUの自動生成（なければ）
+            if (!rowData.sku) {
+              const timestamp = Date.now().toString(36).toUpperCase();
+              rowData.sku = `SHEET-${timestamp}-${rowIndex}`;
+            }
+            
+            // unique_id の設定
+            rowData.unique_id = rowData.sku;
+            
+            // 必須フィールドのデフォルト値
+            rowData.physical_quantity = rowData.physical_quantity ?? 1;
+            rowData.inventory_type = rowData.inventory_type || 'stock';
+            rowData.is_manual_entry = true;
+            rowData.marketplace = 'manual';
+            rowData.product_type = 'single';
+            rowData.created_at = new Date().toISOString();
+            rowData.updated_at = new Date().toISOString();
+            rowData.source_data = {
+              source: 'spreadsheet_import',
+              sheet: sheetConfig.name,
+              imported_at: new Date().toISOString(),
+            };
+            
+            // SKUの重複チェック
+            const { data: existing } = await supabase
               .from('inventory_master')
-              .update(updateData)
-              .eq('id', recordId);
+              .select('id')
+              .eq('sku', rowData.sku)
+              .single();
             
-            if (updateError) {
-              errorCount++;
-              errors.push(`ID ${recordId}: ${updateError.message}`);
-              console.error(`[Supusi] Update error for ID ${recordId}:`, updateError);
+            if (existing) {
+              // 既存レコードがあれば更新
+              const { error: updateError } = await supabase
+                .from('inventory_master')
+                .update(rowData)
+                .eq('id', existing.id);
+              
+              if (updateError) {
+                errorCount++;
+                errors.push(`Row ${rowIndex + 2} (SKU: ${rowData.sku}): ${updateError.message}`);
+              } else {
+                updateCount++;
+              }
             } else {
-              successCount++;
+              // 新規挿入
+              const { error: insertError } = await supabase
+                .from('inventory_master')
+                .insert(rowData);
+              
+              if (insertError) {
+                errorCount++;
+                errors.push(`Row ${rowIndex + 2} (New): ${insertError.message}`);
+                console.error(`[Supusi] Insert error:`, insertError);
+              } else {
+                insertCount++;
+                console.log(`[Supusi] Inserted new row: ${rowData.sku}`);
+              }
             }
           }
         }
         
-        console.log(`[Supusi] Pull complete: ${successCount} success, ${errorCount} errors`);
+        console.log(`[Supusi] Pull complete: ${updateCount} updated, ${insertCount} inserted, ${skipCount} skipped, ${errorCount} errors`);
+        
+        // 結果メッセージ
+        let resultMessage = `✅ ${sheetConfig.name}シートからDBにプルしました\n\n`;
+        resultMessage += `📝 更新: ${updateCount}件\n`;
+        resultMessage += `➕ 新規登録: ${insertCount}件\n`;
+        if (skipCount > 0) resultMessage += `⏭️ スキップ: ${skipCount}件\n`;
+        if (errorCount > 0) {
+          resultMessage += `❌ エラー: ${errorCount}件\n\nエラー詳細:\n${errors.slice(0, 5).join('\n')}`;
+        }
         
         return NextResponse.json({
           success: errorCount === 0,
-          message: `✅ ${sheetConfig.name}シートからDBにプルしました\n\n成功: ${successCount}件\n失敗: ${errorCount}件${errors.length > 0 ? '\n\nエラー:\n' + errors.slice(0, 5).join('\n') : ''}`,
-          successCount,
+          message: resultMessage,
+          updateCount,
+          insertCount,
+          skipCount,
           errorCount,
           errors: errors.slice(0, 10),
         });
@@ -551,6 +681,7 @@ export async function PUT(request: NextRequest) {
         'L1': 'attr_l1',
         'L2': 'attr_l2',
         'L3': 'attr_l3',
+        'L4': 'attr_l4',  // 販売予定販路（配列）
         '確定': 'is_verified',
         '在庫数': 'physical_quantity',
         '保管場所': 'storage_location',

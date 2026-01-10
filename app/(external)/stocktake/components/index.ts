@@ -5,3 +5,4 @@ export { NewProductModal } from './new-product-modal';
 export { EditProductModal } from './edit-product-modal';
 export { ProductDetailModal } from './product-detail-modal';
 export { BulkUploadModal } from './bulk-upload-modal';
+export { LocationStatsPanel } from './location-stats-panel';

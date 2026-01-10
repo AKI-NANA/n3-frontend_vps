@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>N3 n8n ワークフロー管理センター</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--gray-100);
+            color: var(--gray-800);
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 16px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        
+        header h1 {
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+        
+        header p {
+            opacity: 0.9;
+        }
+        
+        .quick-links {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+            flex-wrap: wrap;
+        }
+        
+        .quick-links a {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        
+        .quick-links a:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 4px;
+            background: white;
+            padding: 8px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .tab {
+            padding: 12px 24px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--gray-700);
+            transition: all 0.2s;
+        }
+        
+        .tab:hover {
+            background: var(--gray-100);
+        }
+        
+        .tab.active {
+            background: var(--primary);
+            color: white;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .card h2 {
+            font-size: 18px;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid var(--gray-100);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .card h3 {
+            font-size: 16px;
+            margin: 16px 0 8px;
+            color: var(--gray-700);
+        }
+        
+        .workflow-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        
+        .workflow-table th,
+        .workflow-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--gray-200);
+        }
+        
+        .workflow-table th {
+            background: var(--gray-50);
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+        
+        .workflow-table tr:hover {
+            background: var(--gray-50);
+        }
+        
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .status-active {
+            background: #dcfce7;
+            color: #166534;
+        }
+        
+        .status-inactive {
+            background: #fef2f2;
+            color: #991b1b;
+        }
+        
+        .copy-btn {
+            background: var(--gray-100);
+            border: 1px solid var(--gray-200);
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        
+        .copy-btn:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        
+        .copy-btn.copied {
+            background: var(--success);
+            color: white;
+            border-color: var(--success);
+        }
+        
+        .id-cell {
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 12px;
+            background: var(--gray-100);
+            padding: 4px 8px;
+            border-radius: 4px;
+            display: inline-block;
+        }
+        
+        .command-box {
+            background: var(--gray-900);
+            color: #e5e7eb;
+            padding: 16px;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 13px;
+            overflow-x: auto;
+            position: relative;
+            margin: 12px 0;
+        }
+        
+        .command-box .copy-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: var(--gray-700);
+            border-color: var(--gray-600);
+            color: white;
+        }
+        
+        .command-box .copy-btn:hover {
+            background: var(--primary);
+        }
+        
+        .command-box code {
+            display: block;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        
+        .highlight {
+            color: #fbbf24;
+        }
+        
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+        }
+        
+        .warning-box {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+        
+        .warning-box h4 {
+            color: #92400e;
+            margin-bottom: 8px;
+        }
+        
+        .warning-box p {
+            color: #78350f;
+            font-size: 14px;
+        }
+        
+        .info-box {
+            background: #dbeafe;
+            border: 1px solid #3b82f6;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+        
+        .info-box h4 {
+            color: #1e40af;
+            margin-bottom: 8px;
+        }
+        
+        .search-box {
+            padding: 12px 16px;
+            border: 2px solid var(--gray-200);
+            border-radius: 8px;
+            width: 100%;
+            font-size: 14px;
+            margin-bottom: 16px;
+        }
+        
+        .search-box:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        
+        .node-template {
+            background: var(--gray-50);
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            padding: 16px;
+            margin: 12px 0;
+        }
+        
+        .node-template h4 {
+            font-size: 14px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .api-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        
+        .api-table th,
+        .api-table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid var(--gray-200);
+        }
+        
+        .api-table th {
+            background: var(--gray-50);
+        }
+        
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: var(--gray-700);
+            font-size: 14px;
+        }
+        
+        @media (max-width: 768px) {
+            .tabs {
+                flex-wrap: wrap;
+            }
+            .tab {
+                flex: 1;
+                min-width: 100px;
+                text-align: center;
+            }
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔧 N3 n8n ワークフロー管理センター</h1>
+            <p>ワークフローの管理、Claudeコマンドのコピー、開発ガイド</p>
+            <div class="quick-links">
+                <a href="http://160.16.120.186:5678" target="_blank">🌐 n8n Web UI</a>
+                <a href="https://n3.emverze.com" target="_blank">📊 N3 Dashboard</a>
+                <a href="#" onclick="exportAllData()">📥 データエクスポート</a>
+            </div>
+        </header>
+
+        <!-- タブナビゲーション -->
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('status')">📊 現状</button>
+            <button class="tab" onclick="showTab('json')">📁 JSONファイル</button>
+            <button class="tab" onclick="showTab('rules')">📋 ルール</button>
+            <button class="tab" onclick="showTab('commands')">🤖 Claudeコマンド</button>
+            <button class="tab" onclick="showTab('integration')">🔗 N3連携</button>
+            <button class="tab" onclick="showTab('templates')">📝 テンプレート</button>
+        </div>
+
+        <!-- タブ1: 現状 -->
+        <div id="status" class="tab-content active">
+            <div class="warning-box">
+                <h4>⚠️ 重要: n8n_list_workflows は使用禁止</h4>
+                <p>このツールは437KB（24ワークフロー分）を返すため、Claudeのコンテキストを消費します。代わりにこのページのIDを使用してください。</p>
+            </div>
+
+            <div class="card">
+                <h2>✅ アクティブなワークフロー（本番稼働中）</h2>
+                <input type="text" class="search-box" placeholder="ワークフロー名で検索..." onkeyup="filterTable('active-table', this.value)">
+                <table class="workflow-table" id="active-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>名前</th>
+                            <th>ノード数</th>
+                            <th>役割</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="id-cell">D2y9yKA29NN4eFEY</span></td>
+                            <td>使用_N3-スケジュール実行（完全版）</td>
+                            <td>12</td>
+                            <td>メインスケジューラー（Cron実行）</td>
+                            <td>
+                                <button class="copy-btn" onclick="copyId('D2y9yKA29NN4eFEY')">IDコピー</button>
+                                <button class="copy-btn" onclick="copyCommand('get', 'D2y9yKA29NN4eFEY')">取得コマンド</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><span class="id-cell">R0ebUrmiSSYmxW2M</span></td>
+                            <td>使用_N3-設定更新受信＆ワークフロー更新</td>
+                            <td>12</td>
+                            <td>設定変更のリアルタイム反映</td>
+                            <td>
+                                <button class="copy-btn" onclick="copyId('R0ebUrmiSSYmxW2M')">IDコピー</button>
+                                <button class="copy-btn" onclick="copyCommand('get', 'R0ebUrmiSSYmxW2M')">取得コマンド</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><span class="id-cell">bgFuncmuJP0RLj4x</span></td>
+                            <td>使用_N3-在庫監視（Inventory Monitoring）</td>
+                            <td>11</td>
+                            <td>在庫変動の監視・価格調整</td>
+                            <td>
+                                <button class="copy-btn" onclick="copyId('bgFuncmuJP0RLj4x')">IDコピー</button>
+                                <button class="copy-btn" onclick="copyCommand('get', 'bgFuncmuJP0RLj4x')">取得コマンド</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><span class="id-cell">ypRpQi9J4ro1Inom</span></td>
+                            <td>使用_N3-LISTING-GATEWAY-V1</td>
+                            <td>10</td>
+                            <td>出品処理のエントリーポイント</td>
+                            <td>
+                                <button class="copy-btn" onclick="copyId('ypRpQi9J4ro1Inom')">IDコピー</button>
+                                <button class="copy-btn" onclick="copyCommand('get', 'ypRpQi9J4ro1Inom')">取得コマンド</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><span class="id-cell">zLxistVzYFVrcUwe</span></td>
+                            <td>使用_【本番】N3-エラー監視通知</td>
+                            <td>10</td>
+                            <td>エラー検知・Slack通知</td>
+                            <td>
+                                <button class="copy-btn" onclick="copyId('zLxistVzYFVrcUwe')">IDコピー</button>
+                                <button class="copy-btn" onclick="copyCommand('get', 'zLxistVzYFVrcUwe')">取得コマンド</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><span class="id-cell">1IpXAdt6gn6JUb78</span></td>
+                            <td>N3-エラー即時通知</td>
+                            <td>7</td>
+                            <td>即時エラー通知（Error Trigger）</td>
+                            <td>
+                                <button class="copy-btn" onclick="copyId('1IpXAdt6gn6JUb78')">IDコピー</button>
+                                <button class="copy-btn" onclick="copyCommand('get', '1IpXAdt6gn6JUb78')">取得コマンド</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><span class="id-cell">lvKIse9wZ7bxsxAB</span></td>
+                            <td>MCP_CONNECTION_TEST</td>
+                            <td>2</td>
+                            <td>MCP接続テスト用</td>
+                            <td>
+                                <button class="copy-btn" onclick="copyId('lvKIse9wZ7bxsxAB')">IDコピー</button>
+                                <button class="copy-btn" onclick="copyCommand('get', 'lvKIse9wZ7bxsxAB')">取得コマンド</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="card">
+                <h2>❌ 非アクティブなワークフロー（開発/テスト/旧版）</h2>
+                <details>
+                    <summary style="cursor: pointer; padding: 12px; background: var(--gray-50); border-radius: 8px;">クリックして展開（17件）</summary>
+                    <table class="workflow-table" style="margin-top: 16px;">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>名前</th>
+                                <th>備考</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><span class="id-cell">4Lip3ZlCPmbuV6OO</span></td><td>N3-出品処理（v2.1.4対応）</td><td>旧版</td></tr>
+                            <tr><td><span class="id-cell">CONysnxC3wWuWEnT</span></td><td>N3-スケジュール実行（修正版）</td><td>旧版</td></tr>
+                            <tr><td><span class="id-cell">EhbuBznNPrwzJcu3</span></td><td>N3 - eBay出品</td><td>旧版</td></tr>
+                            <tr><td><span class="id-cell">IhCbCE8fahqy4z2b</span></td><td>N3-スケジュール実行（修正版）</td><td>旧版</td></tr>
+                            <tr><td><span class="id-cell">Jx0d1pjxFgDUfxnK</span></td><td>N3-出品処理（v2.1.4対応）</td><td>旧版</td></tr>
+                            <tr><td><span class="id-cell">LbgEbzbbLXmJWDcG</span></td><td>N3-スケジュール実行（Cron）</td><td>旧版</td></tr>
+                            <tr><td><span class="id-cell">QN0Z94l5LyOyrjpI</span></td><td>My workflow</td><td>テスト</td></tr>
+                            <tr><td><span class="id-cell">UhQOiGVlmbWAqpq3</span></td><td>N3-出品処理（Webhook）</td><td>旧版</td></tr>
+                            <tr><td><span class="id-cell">XEAog8xqq06EcTzo</span></td><td>N3統合出品システム</td><td>旧版</td></tr>
+                            <tr><td><span class="id-cell">eVEVQjsqv1HNUag5</span></td><td>N3 - 在庫価格同期</td><td>旧版</td></tr>
+                            <tr><td><span class="id-cell">fgkT2sgP7uaiCbQ7</span></td><td>N3-出品処理（v2.1.4対応）</td><td>旧版</td></tr>
+                            <tr><td><span class="id-cell">jIfJKtzVF71fGGwx</span></td><td>My workflow 3</td><td>テスト</td></tr>
+                            <tr><td><span class="id-cell">kj0QbbYkFKVaj3X8</span></td><td>My workflow 2</td><td>テスト</td></tr>
+                            <tr><td><span class="id-cell">q99pYeZCnIIhuDw1</span></td><td>N3-エラー監視通知システム</td><td>開発中</td></tr>
+                            <tr><td><span class="id-cell">t616bAXQP09K1q3R</span></td><td>N3-出品処理（Webhook）</td><td>旧版</td></tr>
+                            <tr><td><span class="id-cell">tYuoVY4frdOZO6mo</span></td><td>N3-スケジュール実行（Cron）</td><td>旧版</td></tr>
+                            <tr><td><span class="id-cell">yfTCPSUGt4H3ahlS</span></td><td>N3-出品処理（Webhook） copy</td><td>旧版</td></tr>
+                        </tbody>
+                    </table>
+                </details>
+            </div>
+
+            <div class="card">
+                <h2>📊 システム構成図</h2>
+                <pre style="background: var(--gray-50); padding: 20px; border-radius: 8px; overflow-x: auto; font-size: 13px;">
+┌─────────────────────────────────────────────────────────────────────┐
+│                        N3 n8n システム構成                            │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  [トリガー]                     [処理]                              │
+│      │                                                              │
+│      ├── Cron (毎分) ──────▶ D2y9yKA29NN4eFEY                      │
+│      │                       スケジュール実行（完全版）               │
+│      │                           │                                  │
+│      │                           ▼                                  │
+│      │                    ┌──────────────┐                         │
+│      │                    │ N3 Gateway   │                         │
+│      │                    │ API 呼び出し  │                         │
+│      │                    └──────────────┘                         │
+│      │                                                              │
+│      ├── Webhook ──────────▶ ypRpQi9J4ro1Inom                      │
+│      │                       LISTING-GATEWAY-V1                     │
+│      │                                                              │
+│      ├── Error Trigger ────▶ zLxistVzYFVrcUwe + 1IpXAdt6gn6JUb78  │
+│      │                       エラー監視 → Slack通知                  │
+│      │                                                              │
+│      └── Webhook ──────────▶ R0ebUrmiSSYmxW2M                      │
+│                              設定更新受信                            │
+│                                                                     │
+│  [監視系]                                                           │
+│      │                                                              │
+│      └── Cron ─────────────▶ bgFuncmuJP0RLj4x                      │
+│                              在庫監視（価格自動調整）                 │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+                </pre>
+            </div>
+        </div>
+
+        <!-- タブ2: JSONファイル管理 -->
+        <div id="json" class="tab-content">
+            <div class="warning-box">
+                <h4>⚠️ 重要: JSON管理方針</h4>
+                <p>n8nの直接分析は禁止（チャット文字数オーバー防止）。すべてのワークフロー修正はJSONファイルを編集し、n8nにインポートする。</p>
+            </div>
+
+            <div class="card">
+                <h2>📁 JSONファイル一覧（/n8n-workflows/json/）</h2>
+                <p style="margin-bottom: 16px;">パス: <code>~/n3-frontend_new/n8n-workflows/json/</code></p>
+                <table class="workflow-table">
+                    <thead>
+                        <tr>
+                            <th>ファイル名</th>
+                            <th>状態</th>
+                            <th>n8n上のID</th>
+                            <th>問題点</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>N3-SCHEDULE-CRON-COMPLETE.json</code></td>
+                            <td><span class="status-badge status-inactive">要改修</span></td>
+                            <td><span class="id-cell">D2y9yKA29NN4eFEY</span></td>
+                            <td>❌ cron v1（古い）、❌ eBay直接呼出、❌ トークンハードコード</td>
+                        </tr>
+                        <tr>
+                            <td><code>N3-SETTINGS-UPDATE-WITH-WORKFLOW-UPDATE.json</code></td>
+                            <td><span class="status-badge status-active">確認中</span></td>
+                            <td><span class="id-cell">R0ebUrmiSSYmxW2M</span></td>
+                            <td>⚠️ localhost呼出（VPS環境では正常の可能性）</td>
+                        </tr>
+                        <tr>
+                            <td><code>N3-INVENTORY-MONITORING-FIXED.json</code></td>
+                            <td><span class="status-badge status-active">稼働中</span></td>
+                            <td><span class="id-cell">bgFuncmuJP0RLj4x</span></td>
+                            <td>✅ 正常</td>
+                        </tr>
+                        <tr>
+                            <td><code>N3-LISTING-GATEWAY-V1.json</code></td>
+                            <td><span class="status-badge status-active">稼働中</span></td>
+                            <td><span class="id-cell">ypRpQi9J4ro1Inom</span></td>
+                            <td>✅ Gateway経由で正常</td>
+                        </tr>
+                        <tr>
+                            <td><code>N3-INVENTORY-MONITORING.json</code></td>
+                            <td><span class="status-badge status-inactive">旧版</span></td>
+                            <td>-</td>
+                            <td>FIXED版を使用</td>
+                        </tr>
+                        <tr>
+                            <td><code>N3-INVENTORY-SYNC-FIXED.json</code></td>
+                            <td><span class="status-badge status-inactive">未デプロイ</span></td>
+                            <td>-</td>
+                            <td>デプロイ待ち</td>
+                        </tr>
+                        <tr>
+                            <td><code>N3-INVENTORY-SYNC.json</code></td>
+                            <td><span class="status-badge status-inactive">旧版</span></td>
+                            <td>-</td>
+                            <td>FIXED版を使用</td>
+                        </tr>
+                        <tr>
+                            <td><code>N3-LISTING-SIMPLE.json</code></td>
+                            <td><span class="status-badge status-inactive">テスト用</span></td>
+                            <td>-</td>
+                            <td>簡易版</td>
+                        </tr>
+                        <tr>
+                            <td><code>N3-LISTING-WEBHOOK-CORRECTED.json</code></td>
+                            <td><span class="status-badge status-inactive">旧版</span></td>
+                            <td>-</td>
+                            <td>V2に移行済み</td>
+                        </tr>
+                        <tr>
+                            <td><code>N3-LISTING-WEBHOOK-V2.json</code></td>
+                            <td><span class="status-badge status-inactive">統合済み</span></td>
+                            <td>-</td>
+                            <td>GATEWAY-V1に統合</td>
+                        </tr>
+                        <tr>
+                            <td><code>N3-LISTING-WORKFLOW-V3-COMPLETE.json</code></td>
+                            <td><span class="status-badge status-inactive">開発中</span></td>
+                            <td>-</td>
+                            <td>次期バージョン</td>
+                        </tr>
+                        <tr>
+                            <td><code>N3-LISTING_gemini.json</code></td>
+                            <td><span class="status-badge status-inactive">実験</span></td>
+                            <td>-</td>
+                            <td>Gemini連携テスト</td>
+                        </tr>
+                        <tr>
+                            <td><code>N3-SETTINGS-MASTER-CONTROLLER.json</code></td>
+                            <td><span class="status-badge status-inactive">未使用</span></td>
+                            <td>-</td>
+                            <td>マスター設定用</td>
+                        </tr>
+                        <tr>
+                            <td><code>N3-SETTINGS-UPDATE-RECEIVER.json</code></td>
+                            <td><span class="status-badge status-inactive">旧版</span></td>
+                            <td>-</td>
+                            <td>WITH-WORKFLOW-UPDATEに統合</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="card">
+                <h2>🔄 JSON → n8n デプロイ手順</h2>
+                <ol style="margin-left: 20px;">
+                    <li style="margin: 8px 0;"><strong>JSONファイルを編集</strong> - VSCode等で <code>~/n3-frontend_new/n8n-workflows/json/</code> 内のファイルを修正</li>
+                    <li style="margin: 8px 0;"><strong>n8n Web UIを開く</strong> - <a href="http://160.16.120.186:5678" target="_blank">http://160.16.120.186:5678</a></li>
+                    <li style="margin: 8px 0;"><strong>インポート</strong> - ワークフロー → インポート → JSONファイルをアップロード</li>
+                    <li style="margin: 8px 0;"><strong>テスト実行</strong> - 手動実行で動作確認</li>
+                    <li style="margin: 8px 0;"><strong>有効化</strong> - 問題なければアクティブ化</li>
+                    <li style="margin: 8px 0;"><strong>このページを更新</strong> - ID・状態を更新</li>
+                </ol>
+            </div>
+
+            <div class="card">
+                <h2>🔧 次に改修すべきワークフロー</h2>
+                <div class="warning-box" style="margin-top: 12px;">
+                    <h4>📋 N3-SCHEDULE-CRON-COMPLETE.json → v3.1へ改修</h4>
+                    <p>問題点:</p>
+                    <ul style="margin: 8px 0 0 20px;">
+                        <li>cron typeVersion: 1 → scheduleTrigger typeVersion: 1.2 に変更</li>
+                        <li>eBay API直接呼出 → N3 Gateway経由に変更</li>
+                        <li>ハードコードトークン → 環境変数または認証情報管理に変更</li>
+                        <li>エラーハンドリング追加（errorWorkflow設定）</li>
+                    </ul>
+                </div>
+                <div class="info-box" style="margin-top: 12px;">
+                    <h4>💡 改修後の新ファイル名</h4>
+                    <p><code>N3-SCHEDULE-EXECUTION-V31.json</code> として保存し、テスト後に本番デプロイ</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>📂 その他のディレクトリ</h2>
+                <table class="api-table">
+                    <tr><th>パス</th><th>内容</th></tr>
+                    <tr><td><code>/n8n-workflows/md/</code></td><td>仕様書・ドキュメント</td></tr>
+                    <tr><td><code>/n8n-workflows/old/</code></td><td>旧バージョン（参考用）</td></tr>
+                    <tr><td><code>/n8n-workflows/files_メール/</code></td><td>エラー通知系ワークフロー</td></tr>
+                    <tr><td><code>/n8n-workflows/zip/</code></td><td>エクスポート用ZIP</td></tr>
+                </table>
+            </div>
+        </div>
+
+        <!-- タブ3: ルール -->
+        <div id="rules" class="tab-content">
+            <div class="warning-box" style="background: #fee2e2; border-color: #ef4444;">
+                <h4 style="color: #991b1b;">🚫 絶対禁止: n8n直接分析</h4>
+                <p style="color: #991b1b;"><strong>n8n:n8n_list_workflows</strong> および <strong>n8n:n8n_get_workflow</strong> はClaudeで使用禁止。<br>
+                理由: チャット文字数オーバーによるセッション崩壊防止。<br>
+                <strong>代替方法:</strong> <code>/n8n-workflows/json/</code> 内のJSONファイルを直接確認・編集する。</p>
+            </div>
+
+            <div class="card">
+                <h2>📋 ワークフロー命名規則</h2>
+                <table class="api-table">
+                    <tr>
+                        <th>プレフィックス</th>
+                        <th>意味</th>
+                        <th>例</th>
+                    </tr>
+                    <tr>
+                        <td><code>使用_N3-</code></td>
+                        <td>本番稼働中（変更注意）</td>
+                        <td>使用_N3-スケジュール実行</td>
+                    </tr>
+                    <tr>
+                        <td><code>N3-</code></td>
+                        <td>開発中/テスト中</td>
+                        <td>N3-出品処理（v2.1.4対応）</td>
+                    </tr>
+                    <tr>
+                        <td><code>My workflow</code></td>
+                        <td>個人テスト（削除可）</td>
+                        <td>My workflow 3</td>
+                    </tr>
+                    <tr>
+                        <td><code>【本番】</code></td>
+                        <td>本番環境専用</td>
+                        <td>使用_【本番】N3-エラー監視</td>
+                    </tr>
+                </table>
+            </div>
+
+            <div class="card">
+                <h2>⚠️ 禁止事項</h2>
+                <ul style="margin-left: 20px;">
+                    <li style="margin: 8px 0;"><strong>n8n:n8n_list_workflows は絶対に使用しない</strong> - 437KBのデータを返す</li>
+                    <li style="margin: 8px 0;"><strong>「使用_」で始まるワークフローの無断削除禁止</strong></li>
+                    <li style="margin: 8px 0;"><strong>本番ワークフローの直接編集禁止</strong> - 必ずコピーしてテスト</li>
+                </ul>
+            </div>
+
+            <div class="card">
+                <h2>✅ 推奨事項</h2>
+                <ul style="margin-left: 20px;">
+                    <li style="margin: 8px 0;">新規作成時は <code>N3-</code> プレフィックスを使用</li>
+                    <li style="margin: 8px 0;">テスト完了後、本番移行時に <code>使用_</code> を追加</li>
+                    <li style="margin: 8px 0;">エラーハンドリングノードを必ず含める</li>
+                    <li style="margin: 8px 0;">作成後、このページのID一覧を更新</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- タブ3: Claudeコマンド -->
+        <div id="commands" class="tab-content">
+            <div class="info-box">
+                <h4>💡 使い方</h4>
+                <p>以下のコマンドをコピーしてClaudeに貼り付けてください。IDは上の「現状」タブから取得できます。</p>
+            </div>
+
+            <div class="card">
+                <h2>📥 ワークフロー取得</h2>
+                <div class="command-box">
+                    <button class="copy-btn" onclick="copyText(this, 'n8nのワークフロー ID「D2y9yKA29NN4eFEY」の詳細を取得して')">コピー</button>
+                    <code>n8nのワークフロー ID「<span class="highlight">D2y9yKA29NN4eFEY</span>」の詳細を取得して</code>
+                </div>
+                <p style="font-size: 13px; color: var(--gray-700);">→ n8n:n8n_get_workflow ツールを使用（軽量）</p>
+            </div>
+
+            <div class="card">
+                <h2>▶️ ワークフロー有効化/無効化</h2>
+                <div class="command-box">
+                    <button class="copy-btn" onclick="copyText(this, 'n8nのワークフロー ID「D2y9yKA29NN4eFEY」を有効化して')">コピー</button>
+                    <code>n8nのワークフロー ID「<span class="highlight">D2y9yKA29NN4eFEY</span>」を有効化して</code>
+                </div>
+                <div class="command-box">
+                    <button class="copy-btn" onclick="copyText(this, 'n8nのワークフロー ID「D2y9yKA29NN4eFEY」を無効化して')">コピー</button>
+                    <code>n8nのワークフロー ID「<span class="highlight">D2y9yKA29NN4eFEY</span>」を無効化して</code>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>📊 実行履歴確認</h2>
+                <div class="command-box">
+                    <button class="copy-btn" onclick="copyText(this, 'n8nのワークフロー ID「D2y9yKA29NN4eFEY」の実行履歴を表示して')">コピー</button>
+                    <code>n8nのワークフロー ID「<span class="highlight">D2y9yKA29NN4eFEY</span>」の実行履歴を表示して</code>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>➕ 新規ワークフロー作成</h2>
+                <div class="command-box">
+                    <button class="copy-btn" onclick="copyText(this, document.getElementById('create-cmd').textContent)">コピー</button>
+                    <code id="create-cmd">n8nで新しいワークフローを作成して
+名前: N3-テストワークフロー
+トリガー: Webhook (POST /test-webhook)
+処理: HTTP Request で https://n3.emverze.com/api/gateway を呼び出し
+エラー時: Slack通知</code>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>✏️ ワークフロー更新</h2>
+                <div class="command-box">
+                    <button class="copy-btn" onclick="copyText(this, document.getElementById('update-cmd').textContent)">コピー</button>
+                    <code id="update-cmd">n8nのワークフロー ID「D2y9yKA29NN4eFEY」を更新して
+変更内容:
+- Cronの実行間隔を5分から10分に変更
+- エラー通知のSlackチャンネルを #n3-alerts に変更</code>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>🔍 特定のワークフローを探す</h2>
+                <div class="command-box">
+                    <button class="copy-btn" onclick="copyText(this, 'n8nで「在庫監視」に関連するワークフローを探して（このページのID一覧を参照）')">コピー</button>
+                    <code>n8nで「<span class="highlight">在庫監視</span>」に関連するワークフローを探して（このページのID一覧を参照）</code>
+                </div>
+                <p style="font-size: 13px; color: var(--gray-700);">※ n8n_list_workflows ではなく、プロジェクト知識を参照させる</p>
+            </div>
+        </div>
+
+        <!-- タブ4: N3連携 -->
+        <div id="integration" class="tab-content">
+            <div class="card">
+                <h2>🔗 N3 Gateway API</h2>
+                <p style="margin-bottom: 16px;">すべてのN3 APIは <code>/api/gateway</code> を通じて呼び出します。</p>
+                
+                <h3>標準リクエスト形式</h3>
+                <div class="command-box">
+                    <code>{
+  "action": "APIパス",
+  "method": "GET | POST | PUT | DELETE",
+  "data": { リクエストボディ },
+  "query": { クエリパラメータ }
+}</code>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <h2>📦 出品関連API</h2>
+                    <table class="api-table">
+                        <tr><th>action</th><th>説明</th></tr>
+                        <tr><td><code>listing/now</code></td><td>今すぐ出品</td></tr>
+                        <tr><td><code>listing/execute</code></td><td>出品実行</td></tr>
+                        <tr><td><code>listing/execute-scheduled</code></td><td>スケジュール出品</td></tr>
+                        <tr><td><code>listing/delist</code></td><td>出品取り下げ</td></tr>
+                    </table>
+                </div>
+
+                <div class="card">
+                    <h2>📊 商品関連API</h2>
+                    <table class="api-table">
+                        <tr><th>action</th><th>説明</th></tr>
+                        <tr><td><code>products/approve</code></td><td>商品承認</td></tr>
+                        <tr><td><code>products/update</code></td><td>商品更新</td></tr>
+                        <tr><td><code>products/get-all</code></td><td>商品一覧</td></tr>
+                        <tr><td><code>products/bulk-update</code></td><td>一括更新</td></tr>
+                    </table>
+                </div>
+
+                <div class="card">
+                    <h2>📈 在庫関連API</h2>
+                    <table class="api-table">
+                        <tr><th>action</th><th>説明</th></tr>
+                        <tr><td><code>inventory/sync</code></td><td>在庫同期</td></tr>
+                        <tr><td><code>inventory/list</code></td><td>在庫一覧</td></tr>
+                        <tr><td><code>inventory-monitoring/execute</code></td><td>在庫監視実行</td></tr>
+                    </table>
+                </div>
+
+                <div class="card">
+                    <h2>🔄 同期関連API</h2>
+                    <table class="api-table">
+                        <tr><th>action</th><th>説明</th></tr>
+                        <tr><td><code>sync/ebay-trading</code></td><td>eBay同期</td></tr>
+                        <tr><td><code>sync/ebay-incremental</code></td><td>差分同期</td></tr>
+                        <tr><td><code>sync/execute-all</code></td><td>全同期</td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>📝 n8n → N3 呼び出し例</h2>
+                <div class="command-box">
+                    <code>{
+  "action": "listing/execute",
+  "method": "POST",
+  "data": {
+    "productIds": [1, 2, 3],
+    "marketplace": "ebay",
+    "account": "green"
+  }
+}</code>
+                </div>
+            </div>
+        </div>
+
+        <!-- タブ5: テンプレート -->
+        <div id="templates" class="tab-content">
+            <div class="card">
+                <h2>📝 ノードテンプレート</h2>
+                
+                <div class="node-template">
+                    <h4>⏰ Schedule Trigger（Cron）</h4>
+                    <div class="command-box">
+                        <button class="copy-btn" onclick="copyText(this, document.getElementById('tpl-cron').textContent)">コピー</button>
+                        <code id="tpl-cron">{
+  "parameters": {
+    "rule": {
+      "interval": [{ "field": "minutes", "minutesInterval": 5 }]
+    }
+  },
+  "name": "Schedule Trigger",
+  "type": "n8n-nodes-base.scheduleTrigger",
+  "typeVersion": 1.2,
+  "position": [0, 0]
+}</code>
+                    </div>
+                </div>
+
+                <div class="node-template">
+                    <h4>🌐 Webhook Trigger</h4>
+                    <div class="command-box">
+                        <button class="copy-btn" onclick="copyText(this, document.getElementById('tpl-webhook').textContent)">コピー</button>
+                        <code id="tpl-webhook">{
+  "parameters": {
+    "httpMethod": "POST",
+    "path": "n3-webhook-name",
+    "authentication": "basicAuth",
+    "options": {}
+  },
+  "name": "Webhook",
+  "type": "n8n-nodes-base.webhook",
+  "typeVersion": 2,
+  "position": [0, 0]
+}</code>
+                    </div>
+                </div>
+
+                <div class="node-template">
+                    <h4>📡 HTTP Request（Gateway呼び出し）</h4>
+                    <div class="command-box">
+                        <button class="copy-btn" onclick="copyText(this, document.getElementById('tpl-http').textContent)">コピー</button>
+                        <code id="tpl-http">{
+  "parameters": {
+    "method": "POST",
+    "url": "https://n3.emverze.com/api/gateway",
+    "sendBody": true,
+    "bodyParameters": {
+      "parameters": [
+        { "name": "action", "value": "listing/execute" },
+        { "name": "method", "value": "POST" },
+        { "name": "data", "value": "={{ JSON.stringify($json) }}" }
+      ]
+    }
+  },
+  "name": "Call N3 Gateway",
+  "type": "n8n-nodes-base.httpRequest",
+  "typeVersion": 4.2,
+  "position": [200, 0]
+}</code>
+                    </div>
+                </div>
+
+                <div class="node-template">
+                    <h4>🔀 IF 分岐</h4>
+                    <div class="command-box">
+                        <button class="copy-btn" onclick="copyText(this, document.getElementById('tpl-if').textContent)">コピー</button>
+                        <code id="tpl-if">{
+  "parameters": {
+    "conditions": {
+      "conditions": [{
+        "leftValue": "={{ $json.success }}",
+        "rightValue": true,
+        "operator": { "type": "boolean", "operation": "equals" }
+      }],
+      "combinator": "and"
+    }
+  },
+  "name": "IF Success",
+  "type": "n8n-nodes-base.if",
+  "typeVersion": 2,
+  "position": [400, 0]
+}</code>
+                    </div>
+                </div>
+
+                <div class="node-template">
+                    <h4>💻 Code（JavaScript）</h4>
+                    <div class="command-box">
+                        <button class="copy-btn" onclick="copyText(this, document.getElementById('tpl-code').textContent)">コピー</button>
+                        <code id="tpl-code">{
+  "parameters": {
+    "jsCode": "const items = $input.all();\nreturn items.map(item => ({\n  json: {\n    ...item.json,\n    processed: true,\n    timestamp: new Date().toISOString()\n  }\n}));"
+  },
+  "name": "Process Data",
+  "type": "n8n-nodes-base.code",
+  "typeVersion": 2,
+  "position": [600, 0]
+}</code>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>🔗 connections 構造</h2>
+                <div class="command-box">
+                    <button class="copy-btn" onclick="copyText(this, document.getElementById('tpl-conn').textContent)">コピー</button>
+                    <code id="tpl-conn">{
+  "Webhook": {
+    "main": [[{ "node": "Call N3 Gateway", "type": "main", "index": 0 }]]
+  },
+  "Call N3 Gateway": {
+    "main": [[{ "node": "IF Success", "type": "main", "index": 0 }]]
+  },
+  "IF Success": {
+    "main": [
+      [{ "node": "Success Handler", "type": "main", "index": 0 }],
+      [{ "node": "Error Handler", "type": "main", "index": 0 }]
+    ]
+  }
+}</code>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>N3 n8n ワークフロー管理センター | 最終更新: 2026-01-03 (JSONタブ追加)</p>
+            <p>ファイル場所: ~/n3-frontend_new/public/n8n-dashboard.html</p>
+        </footer>
+    </div>
+
+    <script>
+        // タブ切り替え
+        function showTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // テーブルフィルター
+        function filterTable(tableId, query) {
+            const table = document.getElementById(tableId);
+            const rows = table.querySelectorAll('tbody tr');
+            query = query.toLowerCase();
+            
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(query) ? '' : 'none';
+            });
+        }
+
+        // IDをコピー
+        function copyId(id) {
+            navigator.clipboard.writeText(id).then(() => {
+                showCopied(event.target);
+            });
+        }
+
+        // コマンドをコピー
+        function copyCommand(type, id) {
+            const commands = {
+                get: `n8nのワークフロー ID「${id}」の詳細を取得して`,
+                activate: `n8nのワークフロー ID「${id}」を有効化して`,
+                deactivate: `n8nのワークフロー ID「${id}」を無効化して`,
+                history: `n8nのワークフロー ID「${id}」の実行履歴を表示して`
+            };
+            navigator.clipboard.writeText(commands[type]).then(() => {
+                showCopied(event.target);
+            });
+        }
+
+        // テキストをコピー
+        function copyText(btn, text) {
+            navigator.clipboard.writeText(text).then(() => {
+                showCopied(btn);
+            });
+        }
+
+        // コピー完了表示
+        function showCopied(btn) {
+            const originalText = btn.textContent;
+            btn.textContent = 'コピー完了!';
+            btn.classList.add('copied');
+            setTimeout(() => {
+                btn.textContent = originalText;
+                btn.classList.remove('copied');
+            }, 1500);
+        }
+
+        // 全データエクスポート
+        function exportAllData() {
+            const data = {
+                activeWorkflows: [
+                    { id: 'D2y9yKA29NN4eFEY', name: '使用_N3-スケジュール実行（完全版）', nodes: 12 },
+                    { id: 'R0ebUrmiSSYmxW2M', name: '使用_N3-設定更新受信＆ワークフロー更新', nodes: 12 },
+                    { id: 'bgFuncmuJP0RLj4x', name: '使用_N3-在庫監視', nodes: 11 },
+                    { id: 'ypRpQi9J4ro1Inom', name: '使用_N3-LISTING-GATEWAY-V1', nodes: 10 },
+                    { id: 'zLxistVzYFVrcUwe', name: '使用_【本番】N3-エラー監視通知', nodes: 10 },
+                    { id: '1IpXAdt6gn6JUb78', name: 'N3-エラー即時通知', nodes: 7 },
+                    { id: 'lvKIse9wZ7bxsxAB', name: 'MCP_CONNECTION_TEST', nodes: 2 }
+                ],
+                exportedAt: new Date().toISOString()
+            };
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `n8n-workflows-export-${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+        }
+    </script>
+</body>
+</html>

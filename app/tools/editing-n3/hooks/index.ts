@@ -4,7 +4,10 @@
  */
 
 export { useInventoryData } from './use-inventory-data';
-export type { InventoryProduct, InventoryFilter, InventoryStats } from './use-inventory-data';
+export type { InventoryProduct, InventoryFilter, InventoryStats, SortOption, SortField, SortOrder } from './use-inventory-data';
+
+// Phase 4: サーバーサイドフィルタリング版
+export { useInventoryServerData } from './use-inventory-server-data';
 
 export { useInventorySync } from './use-inventory-sync';
 
@@ -30,3 +33,7 @@ export type { SpreadsheetSyncConfig, SpreadsheetSyncState, UseSpreadsheetSyncRet
 
 // N3 v3.0 グローバル永続フィルター
 export { usePersistentFilter, isProductVerified, getVerifiedStyle, getVerifiedClassName } from './use-persistent-filter';
+
+// N3 v3.1 セット品構成管理
+export { useBundleItems } from './use-bundle-items';
+export type { BundleComponent, SetStockInfo, InventorySearchResult } from './use-bundle-items';

@@ -1,0 +1,35 @@
+{
+  "root": true,
+  "extends": [
+    "next/core-web-vitals",
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended"
+  ],
+  "rules": {
+    // ファイル名をkebab-caseに強制
+    "unicorn/filename-case": [
+      "error",
+      {
+        "cases": {
+          "kebabCase": true
+        },
+        "ignore": [
+          "^\\[.*\\]\\.tsx?$",  // Dynamic routes like [id].tsx
+          "^_.*\\.tsx?$"         // Next.js special files like _app.tsx
+        ]
+      }
+    ],
+    // インポートの大文字・小文字を検証
+    "import/no-unresolved": "error",
+    "import/case-sensitive-paths": "error"
+  },
+  "overrides": [
+    {
+      "files": ["*.ts", "*.tsx"],
+      "rules": {
+        "@typescript-eslint/no-explicit-any": "warn",
+        "@typescript-eslint/explicit-module-boundary-types": "off"
+      }
+    }
+  ]
+}

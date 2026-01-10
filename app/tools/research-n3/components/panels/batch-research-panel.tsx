@@ -547,3 +547,5 @@ export default function BatchResearchPanel({
     </div>
   );
 }
+
+export default BatchResearchPanel;

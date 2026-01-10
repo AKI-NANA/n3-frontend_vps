@@ -1,11 +1,13 @@
 // app/(external)/stocktake/hooks/use-stocktake.ts
 /**
- * 外注用棚卸しフック（ページネーション対応版）
+ * 外注用棚卸しフック（ページネーション対応版 + フラグ管理機能）
  * 
- * 改善点:
+ * 機能:
  * 1. 全件取得（ページネーションのため）
  * 2. サーバーサイド検索
  * 3. 楽観的UI更新
+ * 4. 要確認フラグ・確定フラグ・メモ管理
+ * 5. 保管場所別統計
  */
 
 'use client';
@@ -22,7 +24,7 @@ export const STORAGE_LOCATIONS = [
   { value: 'other', label: 'その他' },
 ];
 
-// MUG除外パターン
+// MUG除外パターン（USD以外の通貨のみ除外）
 const MUG_NON_ENGLISH_PATTERNS = [
   /\bKarten\b/i, /\bSumpf\b/i, /\bKomplett\b/i, /\bActionfigur\b/i,
   /\bCarta\b/i, /\bCarte\b/i, /\bgiapponese\b/i, /\bFigurine\b/i,
@@ -37,12 +39,19 @@ function isMugDerivedListing(item: any): boolean {
   return false;
 }
 
+// 保管場所詳細（JSONB構造）
+export interface LocationDetail {
+  location: string;
+  qty: number;
+}
+
 export interface StocktakeProduct {
   id: string;
   sku: string;
   product_name: string;
   physical_quantity: number;
-  storage_location?: string;
+  storage_location?: string;  // レガシー（互換性維持）
+  location_details?: LocationDetail[];  // 新規：複数拠点対応
   images?: string[];
   thumbnail_url?: string;
   source_data?: any;
@@ -51,6 +60,21 @@ export interface StocktakeProduct {
   created_at: string;
   updated_at: string;
   isStocktakeRegistered?: boolean;
+  // L1-L4属性
+  attr_l1?: string;
+  attr_l2?: string;
+  attr_l3?: string;
+  attr_l4?: string[];
+  // 新規追加: フラグ・メモ
+  needs_count_check?: boolean;  // 要確認フラグ
+  stock_confirmed?: boolean;    // 確定フラグ
+  stock_memo?: string;          // メモ
+}
+
+// 保管場所別統計
+export interface LocationStat {
+  count: number;      // 商品数
+  quantity: number;   // 総個数
 }
 
 export interface StocktakeStats {
@@ -59,6 +83,10 @@ export interface StocktakeStats {
   totalImages: number;
   todayCount: number;
   stocktakeCount: number;
+  // 新規追加
+  needsCheckCount: number;      // 要確認件数
+  confirmedCount: number;       // 確定件数
+  locationStats: Record<string, LocationStat>;  // 保管場所別統計
 }
 
 // 一度に取得する最大件数
@@ -80,10 +108,29 @@ export function useStocktake() {
 
   const supabase = createClient();
 
-  // 統計情報（メモ化）
+  // 統計情報（メモ化）- 保管場所別統計を追加
   const stats = useMemo((): StocktakeStats => {
     const today = new Date().toDateString();
     const stocktakeProducts = products.filter(p => p.isStocktakeRegistered);
+    
+    // 保管場所別統計を計算
+    const locationStats: Record<string, LocationStat> = {};
+    
+    // 全保管場所を初期化
+    STORAGE_LOCATIONS.forEach(loc => {
+      locationStats[loc.value] = { count: 0, quantity: 0 };
+    });
+    locationStats['未設定'] = { count: 0, quantity: 0 };
+    
+    // 集計
+    products.forEach(p => {
+      const loc = p.storage_location || '未設定';
+      if (!locationStats[loc]) {
+        locationStats[loc] = { count: 0, quantity: 0 };
+      }
+      locationStats[loc].count += 1;
+      locationStats[loc].quantity += (p.physical_quantity || 0);
+    });
     
     return {
       totalCount: totalCount || products.length,
@@ -94,6 +141,10 @@ export function useStocktake() {
         return new Date(created).toDateString() === today;
       }).length,
       stocktakeCount: stocktakeProducts.length,
+      // 新規追加
+      needsCheckCount: products.filter(p => p.needs_count_check).length,
+      confirmedCount: products.filter(p => p.stock_confirmed).length,
+      locationStats,
     };
   }, [products, totalCount]);
 
@@ -113,12 +164,28 @@ export function useStocktake() {
   // 商品データをマッピング
   const mapProduct = useCallback((item: any): StocktakeProduct => {
     const firstImage = item.images?.[0] || '';
+    
+    // location_details から storage_location を導出（複数ある場合は最初のもの）
+    let storageLocation = item.storage_location || '未設定';
+    let locationDetails: LocationDetail[] = item.location_details || [];
+    
+    // location_details が空なら storage_location から生成
+    if (!locationDetails.length && storageLocation && storageLocation !== '未設定') {
+      locationDetails = [{ location: storageLocation, qty: item.physical_quantity || 0 }];
+    }
+    
+    // location_details があればそこから storage_location を設定
+    if (locationDetails.length > 0) {
+      storageLocation = locationDetails[0].location || '未設定';
+    }
+    
     return {
       id: item.id,
       sku: item.sku || '',
       product_name: item.product_name || '',
       physical_quantity: item.physical_quantity || 0,
-      storage_location: item.storage_location || 'env',
+      storage_location: storageLocation,
+      location_details: locationDetails,
       images: item.images || [],
       thumbnail_url: getThumbnailUrl(firstImage),
       source_data: item.source_data,
@@ -127,6 +194,15 @@ export function useStocktake() {
       created_at: item.created_at,
       updated_at: item.updated_at,
       isStocktakeRegistered: item.source_data?.created_by === 'stocktake_tool',
+      // L1-L4属性
+      attr_l1: item.attr_l1,
+      attr_l2: item.attr_l2,
+      attr_l3: item.attr_l3,
+      attr_l4: item.attr_l4,
+      // 新規追加: フラグ・メモ
+      needs_count_check: item.needs_count_check || false,
+      stock_confirmed: item.stock_confirmed || false,
+      stock_memo: item.stock_memo || '',
     };
   }, [getThumbnailUrl]);
 
@@ -157,7 +233,7 @@ export function useStocktake() {
       while (hasMore && offset < MAX_ITEMS) {
         let query = supabase
           .from('inventory_master')
-          .select('id, sku, product_name, physical_quantity, storage_location, images, source_data, ebay_data, inventory_type, created_at, updated_at')
+          .select('id, sku, product_name, physical_quantity, storage_location, location_details, images, source_data, ebay_data, inventory_type, attr_l1, attr_l2, attr_l3, attr_l4, needs_count_check, stock_confirmed, stock_memo, created_at, updated_at')
           .eq('inventory_type', 'stock')
           .order('updated_at', { ascending: false })
           .range(offset, offset + CHUNK_SIZE - 1);
@@ -225,6 +301,126 @@ export function useStocktake() {
     }
   }, []);
 
+  // =====================================================
+  // 新規追加: フラグ・メモ更新メソッド
+  // =====================================================
+
+  // 要確認フラグ更新
+  const updateNeedsCheck = useCallback(async (id: string, value: boolean): Promise<{ success: boolean; error?: string }> => {
+    // 楽観的更新
+    setProducts(prev => prev.map(p => p.id === id ? { ...p, needs_count_check: value } : p));
+
+    try {
+      const { error } = await supabase
+        .from('inventory_master')
+        .update({ 
+          needs_count_check: value, 
+          updated_at: new Date().toISOString() 
+        })
+        .eq('id', id);
+      
+      if (error) throw error;
+      return { success: true };
+    } catch (err: any) {
+      // ロールバック
+      loadProducts(false);
+      return { success: false, error: err.message };
+    }
+  }, [supabase, loadProducts]);
+
+  // 確定フラグ更新
+  const updateConfirmed = useCallback(async (id: string, value: boolean): Promise<{ success: boolean; error?: string }> => {
+    // 楽観的更新
+    setProducts(prev => prev.map(p => p.id === id ? { ...p, stock_confirmed: value } : p));
+
+    try {
+      const { error } = await supabase
+        .from('inventory_master')
+        .update({ 
+          stock_confirmed: value, 
+          updated_at: new Date().toISOString() 
+        })
+        .eq('id', id);
+      
+      if (error) throw error;
+      return { success: true };
+    } catch (err: any) {
+      loadProducts(false);
+      return { success: false, error: err.message };
+    }
+  }, [supabase, loadProducts]);
+
+  // メモ更新
+  const updateMemo = useCallback(async (id: string, memo: string): Promise<{ success: boolean; error?: string }> => {
+    // 楽観的更新
+    setProducts(prev => prev.map(p => p.id === id ? { ...p, stock_memo: memo } : p));
+
+    try {
+      const { error } = await supabase
+        .from('inventory_master')
+        .update({ 
+          stock_memo: memo, 
+          updated_at: new Date().toISOString() 
+        })
+        .eq('id', id);
+      
+      if (error) throw error;
+      return { success: true };
+    } catch (err: any) {
+      loadProducts(false);
+      return { success: false, error: err.message };
+    }
+  }, [supabase, loadProducts]);
+
+  // 一括フラグ更新
+  const bulkUpdateFlags = useCallback(async (
+    ids: string[], 
+    updates: { needs_count_check?: boolean; stock_confirmed?: boolean }
+  ): Promise<{ success: boolean; updated: number; error?: string }> => {
+    if (ids.length === 0) {
+      return { success: false, updated: 0, error: 'IDが指定されていません' };
+    }
+
+    // 楽観的更新
+    setProducts(prev => prev.map(p => {
+      if (ids.includes(p.id)) {
+        return { 
+          ...p, 
+          ...(updates.needs_count_check !== undefined && { needs_count_check: updates.needs_count_check }),
+          ...(updates.stock_confirmed !== undefined && { stock_confirmed: updates.stock_confirmed }),
+        };
+      }
+      return p;
+    }));
+
+    try {
+      const updateData: any = { updated_at: new Date().toISOString() };
+      if (updates.needs_count_check !== undefined) {
+        updateData.needs_count_check = updates.needs_count_check;
+      }
+      if (updates.stock_confirmed !== undefined) {
+        updateData.stock_confirmed = updates.stock_confirmed;
+      }
+
+      const { error, count } = await supabase
+        .from('inventory_master')
+        .update(updateData)
+        .in('id', ids);
+      
+      if (error) throw error;
+      
+      console.log(`[Stocktake] Bulk updated ${ids.length} items`);
+      return { success: true, updated: ids.length };
+    } catch (err: any) {
+      loadProducts(false);
+      return { success: false, updated: 0, error: err.message };
+    }
+  }, [supabase, loadProducts]);
+
+  // =====================================================
+  // 既存メソッド
+  // =====================================================
+
   // 商品作成
   const createProduct = useCallback(async (input: {
     product_name: string;
@@ -264,6 +460,9 @@ export function useStocktake() {
         is_manual_entry: true,
         product_type: 'single',
         inventory_type: 'stock',
+        needs_count_check: false,
+        stock_confirmed: false,
+        stock_memo: '',
         source_data: {
           created_by: 'stocktake_tool',
           stocktake_registered_at: now,
@@ -277,7 +476,7 @@ export function useStocktake() {
       const { data, error: insertError } = await supabase
         .from('inventory_master')
         .insert(insertData)
-        .select('id, sku, product_name, physical_quantity, storage_location, images, source_data, inventory_type, created_at, updated_at')
+        .select('id, sku, product_name, physical_quantity, storage_location, images, source_data, inventory_type, needs_count_check, stock_confirmed, stock_memo, created_at, updated_at')
         .single();
 
       if (insertError) throw insertError;
@@ -383,7 +582,10 @@ export function useStocktake() {
   const updateProduct = useCallback(async (id: string, updates: { 
     product_name?: string; 
     physical_quantity?: number; 
-    storage_location?: string 
+    storage_location?: string;
+    needs_count_check?: boolean;
+    stock_confirmed?: boolean;
+    stock_memo?: string;
   }) => {
     setSaving(true);
     setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
@@ -396,6 +598,9 @@ export function useStocktake() {
         updateData.listing_quantity = updates.physical_quantity;
       }
       if (updates.storage_location !== undefined) updateData.storage_location = updates.storage_location;
+      if (updates.needs_count_check !== undefined) updateData.needs_count_check = updates.needs_count_check;
+      if (updates.stock_confirmed !== undefined) updateData.stock_confirmed = updates.stock_confirmed;
+      if (updates.stock_memo !== undefined) updateData.stock_memo = updates.stock_memo;
 
       const { error } = await supabase.from('inventory_master').update(updateData).eq('id', id);
       if (error) throw error;
@@ -420,14 +625,23 @@ export function useStocktake() {
     totalCount,
     searchQuery,
     
+    // 読み込み
     loadProducts,
     loadMore,
     search,
+    
+    // CRUD
     createProduct,
     updateQuantity,
     updateLocation,
     addImage,
     uploadImage,
     updateProduct,
+    
+    // 新規追加: フラグ・メモ更新
+    updateNeedsCheck,
+    updateConfirmed,
+    updateMemo,
+    bulkUpdateFlags,
   };
 }

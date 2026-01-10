@@ -62,7 +62,8 @@ import { useProductUIStore, productUIActions, type ListFilterType } from '@/stor
 import { useInventoryData, useInventorySync, useVariationCreation, useSetCreation, useTabCounts } from '../../hooks';
 import type { SortField } from '../../hooks/use-inventory-data';
 import { HistoryTab } from '../l3-tabs';
-import { N3BulkImageUploadModal, N3InventoryDetailModal, N3NewProductModal, N3ListingDestinationModal } from '../modals';
+import { N3BulkImageUploadModal, N3InventoryDetailModal, N3NewProductModal, N3ListingDestinationModal, N3EbayCSVExportModal } from '../modals';
+import type { EbayCSVExportOptions } from '../modals';
 import type { NewProductData, SelectedDestination, ListingOptions } from '../modals';
 import type { InventoryProduct } from '../../hooks';
 import { L2TabContent } from './l2-tab-content';
@@ -180,6 +181,7 @@ export function EditingN3PageLayout() {
   const [showEnrichmentFlowModal, setShowEnrichmentFlowModal] = useState(false);
   const [enrichmentFlowProduct, setEnrichmentFlowProduct] = useState<Product | null>(null);
   const [showListingDestinationModal, setShowListingDestinationModal] = useState(false);
+  const [showEbayCSVExportModal, setShowEbayCSVExportModal] = useState(false);
   
   // 出品予約用ステート
   const [isReserving, setIsReserving] = useState(false);
@@ -257,21 +259,26 @@ export function EditingN3PageLayout() {
       prevFilterRef.current = activeFilter;
       if (isInventoryActive) {
         // ref経由で安定した関数を呼び出し
+        // minStock: 1 をデフォルトで維持（在庫0は「在庫0」タブで表示）
         switch (activeFilter) {
           case 'in_stock':
-            inventorySetFilterRef.current({ inventoryType: 'stock', masterOnly: false, dataIncomplete: false });
+            inventorySetFilterRef.current({ inventoryType: 'stock', masterOnly: false, dataIncomplete: false, minStock: 1 });
             break;
           case 'in_stock_master':
-            inventorySetFilterRef.current({ inventoryType: 'stock', masterOnly: true, dataIncomplete: false });
+            inventorySetFilterRef.current({ inventoryType: 'stock', masterOnly: true, dataIncomplete: false, minStock: 1 });
             break;
           case 'variation':
-            inventorySetFilterRef.current({ variationStatus: 'parent', masterOnly: false, dataIncomplete: false });
+            inventorySetFilterRef.current({ variationStatus: 'parent', masterOnly: false, dataIncomplete: false, minStock: 1 });
             break;
           case 'set_products':
-            inventorySetFilterRef.current({ productType: 'set', masterOnly: false, dataIncomplete: false });
+            inventorySetFilterRef.current({ productType: 'set', masterOnly: false, dataIncomplete: false, minStock: 1 });
+            break;
+          case 'out_of_stock':
+            // 在庫0タブでは minStock: 0, maxStock: 0 で在庫0のみ表示
+            inventorySetFilterRef.current({ inventoryType: undefined, masterOnly: false, dataIncomplete: false, minStock: 0, maxStock: 0 });
             break;
           default:
-            inventorySetFilterRef.current({ inventoryType: undefined, masterOnly: false, dataIncomplete: false });
+            inventorySetFilterRef.current({ inventoryType: undefined, masterOnly: false, dataIncomplete: false, minStock: 1 });
         }
       }
     }
@@ -351,7 +358,7 @@ export function EditingN3PageLayout() {
   const candidates = variationCreation.findGroupingCandidates(inventoryData.filteredProducts);
   
   const getPanelContent = (tabId: PanelTabId | null) => {
-    if (tabId === 'tools') return <N3ToolsPanelContent activeFilter={activeFilter} processing={processing} currentStep={currentStep} modifiedCount={modifiedIds.size} readyCount={readyCount} selectedMirrorCount={selectedMirrorCount} selectedCount={selectedIds.size} completeCount={completeProducts.length} incompleteCount={incompleteProducts.length} dataFilter={dataFilter} onDataFilterChange={setDataFilter} marketplaces={marketplaces} onMarketplacesChange={setMarketplaces} inventoryData={{ stats: inventoryData.stats, loading: inventoryData.loading, filteredProducts: inventoryData.filteredProducts }} inventorySyncing={{ mjt: inventorySync.ebaySyncingMjt, green: inventorySync.ebaySyncingGreen, incremental: inventorySync.incrementalSyncing, mercari: inventorySync.mercariSyncing }} inventorySelectedCount={inventorySelectedIds.size} inventoryPendingCount={inventoryData.pendingCount} showCandidatesOnly={showCandidatesOnly} showSetsOnly={showSetsOnly} variationStats={{ parentCount: inventoryData.stats.variationParentCount, memberCount: inventoryData.stats.variationMemberCount, standaloneCount: inventoryData.stats.standaloneCount, candidateCount: candidates.length }} variationLoading={variationCreation.loading} setLoading={setCreation.loading} selectedProductIds={Array.from(selectedIds)} toolHandlers={{ onRunAll: basicEditHandlers.handleRunAll, onPaste: modals.openPasteModal, onReload: loadProducts, onCSVUpload: modals.openCSVModal, onCategory: basicEditHandlers.handleCategory, onShipping: basicEditHandlers.handleShipping, onProfit: basicEditHandlers.handleProfit, onHTML: basicEditHandlers.handleHTML, onScore: () => runBatchScores(products), onHTS: basicEditHandlers.handleHTSFetch, onOrigin: basicEditHandlers.handleOriginCountryFetch, onMaterial: basicEditHandlers.handleMaterialFetch, onFilter: basicEditHandlers.handleFilterCheck, onResearch: basicEditHandlers.handleBulkResearch, onAI: basicEditHandlers.handleAIEnrich, onTranslate: basicEditHandlers.handleTranslate, onSellerMirror: async () => { if (selectedIds.size === 0) { showToast('商品を選択', 'error'); return; } const r = await runBatchSellerMirror(Array.from(selectedIds)); if (r.success) { showToast('✅ SM分析完了', 'success'); await loadProducts(); } else showToast(`❌ ${r.error}`, 'error'); }, onDetails: basicEditHandlers.handleBatchFetchDetails, onGemini: modals.openGeminiBatchModal, onFinalProcess: basicEditHandlers.handleFinalProcessChain, onList: exportOps.handleList, onSave: crudOps.handleSaveAll, onDelete: crudOps.handleDelete, onExportCSV: exportOps.handleExport, onExportEbay: exportOps.handleExportEbay, onExportAI: exportOps.handleAIExport, onEnrichmentFlow: () => { if (selectedIds.size !== 1) { showToast('1件選択', 'error'); return; } const p = displayProducts.find(x => String(x.id) === Array.from(selectedIds)[0]); if (p) { setEnrichmentFlowProduct(p); setShowEnrichmentFlowModal(true); } } }} approvalHandlers={{ onSelectAll: () => { setSelectedIds(new Set(displayProducts.map(p => String(p.id)))); showToast(`✅ 全選択`, 'success'); }, onDeselectAll: () => { setSelectedIds(new Set()); showToast('選択解除', 'success'); }, onApprove: async () => { if (selectedIds.size === 0) { showToast('商品を選択してください', 'error'); return; } try { const res = await fetch('/api/products/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productIds: Array.from(selectedIds).map(id => parseInt(id)), action: 'approve' }) }); const data = await res.json(); if (data.success) { showToast(`✅ ${data.updated}件を承認しました`, 'success'); await loadProducts(); } else { showToast(`❌ ${data.error}`, 'error'); } } catch (e: any) { showToast(`❌ ${e.message}`, 'error'); } }, onReject: async () => { if (selectedIds.size === 0) { showToast('商品を選択してください', 'error'); return; } try { const res = await fetch('/api/products/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productIds: Array.from(selectedIds).map(id => parseInt(id)), action: 'reject' }) }); const data = await res.json(); if (data.success) { showToast(`❌ ${data.updated}件を却下しました`, 'success'); await loadProducts(); setSelectedIds(new Set()); } else { showToast(`❌ ${data.error}`, 'error'); } } catch (e: any) { showToast(`❌ ${e.message}`, 'error'); } }, onScheduleListing: () => { const approvedIds = Array.from(selectedIds).filter(id => { const p = products.find(x => String(x.id) === id); return p && (p.workflow_status === 'approved' || p.approval_status === 'approved'); }); if (approvedIds.length === 0) { showToast('承認済み商品を選択してください', 'error'); return; } setShowListingDestinationModal(true); }, onListNow: () => { const approvedIds = Array.from(selectedIds).filter(id => { const p = products.find(x => String(x.id) === id); return p && (p.workflow_status === 'approved' || p.approval_status === 'approved'); }); if (approvedIds.length === 0) { showToast('承認済み商品を選択してください', 'error'); return; } setShowListingDestinationModal(true); }, onSave: crudOps.handleSaveAll }} approvedCount={approvedSelectedCount} inventoryHandlers={{ onSyncIncremental: (a) => { inventorySync.syncEbayIncremental(a); showToast(`🔄 ${a} 差分同期`, 'success'); }, onSyncFull: (a) => { inventorySync.syncEbay(a); showToast(`🔄 ${a} 完全同期`, 'success'); }, onSyncMercari: () => { inventorySync.syncMercari(); showToast('🔄 メルカリ同期', 'success'); }, onRefresh: () => { inventoryData.refreshData(); showToast('🔄 更新中', 'success'); }, onBulkDelete: async (t) => { const r = await inventorySync.bulkDelete(t); if (r.success) { showToast(`✅ ${r.deleted}件削除`, 'success'); inventoryData.refreshData(); } else showToast(`❌ ${r.error}`, 'error'); }, onNewProduct: () => setShowNewProductModal(true), onBulkImageUpload: () => setShowBulkImageUploadModal(true), onDetectCandidates: () => { setShowCandidatesOnly(true); showToast(`🔍 ${candidates.length}件検出`, 'success'); }, onToggleCandidatesOnly: () => setShowCandidatesOnly(!showCandidatesOnly), onCreateVariation: async () => { if (inventorySelectedIds.size < 2) { showToast('❌ 2件以上', 'error'); return; } const ps = inventoryData.filteredProducts.filter(p => inventorySelectedIds.has(String(p.id))); const r = await variationCreation.createVariation({ memberIds: ps.map(p => String(p.id)), variationTitle: ps[0].title || 'バリエーション' }); if (r.success) { showToast('✅ 作成完了', 'success'); setInventorySelectedIds(new Set()); inventoryData.refreshData(); } else showToast(`❌ ${r.error}`, 'error'); }, onClearSelection: () => { setInventorySelectedIds(new Set()); showToast('選択解除', 'success'); }, onCreateSet: async () => { if (inventorySelectedIds.size < 2) { showToast('❌ 2件以上', 'error'); return; } const ps = inventoryData.filteredProducts.filter(p => inventorySelectedIds.has(String(p.id))); const q = ps.reduce((a, p) => { a[String(p.id)] = 1; return a; }, {} as Record<string, number>); const r = await setCreation.createSet({ name: `SET_${Date.now()}`, memberIds: ps.map(p => String(p.id)), quantities: q }); if (r.success) { showToast('✅ セット作成', 'success'); setInventorySelectedIds(new Set()); inventoryData.refreshData(); } else showToast(`❌ ${r.error}`, 'error'); }, onToggleSetsOnly: () => setShowSetsOnly(!showSetsOnly), onEditSet: () => showToast('📝 セット編集', 'success'), onDeleteSet: () => showToast('🗑️ セット削除', 'success') }} />;
+    if (tabId === 'tools') return <N3ToolsPanelContent activeFilter={activeFilter} processing={processing} currentStep={currentStep} modifiedCount={modifiedIds.size} readyCount={readyCount} selectedMirrorCount={selectedMirrorCount} selectedCount={selectedIds.size} completeCount={completeProducts.length} incompleteCount={incompleteProducts.length} dataFilter={dataFilter} onDataFilterChange={setDataFilter} marketplaces={marketplaces} onMarketplacesChange={setMarketplaces} inventoryData={{ stats: inventoryData.stats, loading: inventoryData.loading, filteredProducts: inventoryData.filteredProducts }} inventorySyncing={{ mjt: inventorySync.ebaySyncingMjt, green: inventorySync.ebaySyncingGreen, incremental: inventorySync.incrementalSyncing, mercari: inventorySync.mercariSyncing }} inventorySelectedCount={inventorySelectedIds.size} inventoryPendingCount={inventoryData.pendingCount} showCandidatesOnly={showCandidatesOnly} showSetsOnly={showSetsOnly} variationStats={{ parentCount: inventoryData.stats.variationParentCount, memberCount: inventoryData.stats.variationMemberCount, standaloneCount: inventoryData.stats.standaloneCount, candidateCount: candidates.length }} variationLoading={variationCreation.loading} setLoading={setCreation.loading} selectedProductIds={Array.from(selectedIds)} toolHandlers={{ onRunAll: basicEditHandlers.handleRunAll, onPaste: modals.openPasteModal, onReload: loadProducts, onCSVUpload: modals.openCSVModal, onCategory: basicEditHandlers.handleCategory, onShipping: basicEditHandlers.handleShipping, onProfit: basicEditHandlers.handleProfit, onHTML: basicEditHandlers.handleHTML, onScore: () => runBatchScores(products), onHTS: basicEditHandlers.handleHTSFetch, onOrigin: basicEditHandlers.handleOriginCountryFetch, onMaterial: basicEditHandlers.handleMaterialFetch, onFilter: basicEditHandlers.handleFilterCheck, onResearch: basicEditHandlers.handleBulkResearch, onAI: basicEditHandlers.handleAIEnrich, onTranslate: basicEditHandlers.handleTranslate, onSellerMirror: async () => { if (selectedIds.size === 0) { showToast('商品を選択', 'error'); return; } const r = await runBatchSellerMirror(Array.from(selectedIds)); if (r.success) { showToast('✅ SM分析完了', 'success'); await loadProducts(); } else showToast(`❌ ${r.error}`, 'error'); }, onDetails: basicEditHandlers.handleBatchFetchDetails, onGemini: modals.openGeminiBatchModal, onFinalProcess: basicEditHandlers.handleFinalProcessChain, onList: exportOps.handleList, onSave: crudOps.handleSaveAll, onDelete: crudOps.handleDelete, onExportCSV: exportOps.handleExport, onExportEbay: () => { if (selectedIds.size === 0) { showToast('商品を選択してください', 'error'); return; } setShowEbayCSVExportModal(true); }, onExportAI: exportOps.handleAIExport, onEnrichmentFlow: () => { if (selectedIds.size !== 1) { showToast('1件選択', 'error'); return; } const p = displayProducts.find(x => String(x.id) === Array.from(selectedIds)[0]); if (p) { setEnrichmentFlowProduct(p); setShowEnrichmentFlowModal(true); } } }} approvalHandlers={{ onSelectAll: () => { setSelectedIds(new Set(displayProducts.map(p => String(p.id)))); showToast(`✅ 全選択`, 'success'); }, onDeselectAll: () => { setSelectedIds(new Set()); showToast('選択解除', 'success'); }, onApprove: async () => { if (selectedIds.size === 0) { showToast('商品を選択してください', 'error'); return; } try { const res = await fetch('/api/products/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productIds: Array.from(selectedIds).map(id => parseInt(id)), action: 'approve' }) }); const data = await res.json(); if (data.success) { showToast(`✅ ${data.updated}件を承認しました`, 'success'); await loadProducts(); } else { showToast(`❌ ${data.error}`, 'error'); } } catch (e: any) { showToast(`❌ ${e.message}`, 'error'); } }, onReject: async () => { if (selectedIds.size === 0) { showToast('商品を選択してください', 'error'); return; } try { const res = await fetch('/api/products/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productIds: Array.from(selectedIds).map(id => parseInt(id)), action: 'reject' }) }); const data = await res.json(); if (data.success) { showToast(`❌ ${data.updated}件を却下しました`, 'success'); await loadProducts(); setSelectedIds(new Set()); } else { showToast(`❌ ${data.error}`, 'error'); } } catch (e: any) { showToast(`❌ ${e.message}`, 'error'); } }, onScheduleListing: () => { const approvedIds = Array.from(selectedIds).filter(id => { const p = products.find(x => String(x.id) === id); return p && (p.workflow_status === 'approved' || p.approval_status === 'approved'); }); if (approvedIds.length === 0) { showToast('承認済み商品を選択してください', 'error'); return; } setShowListingDestinationModal(true); }, onListNow: () => { const approvedIds = Array.from(selectedIds).filter(id => { const p = products.find(x => String(x.id) === id); return p && (p.workflow_status === 'approved' || p.approval_status === 'approved'); }); if (approvedIds.length === 0) { showToast('承認済み商品を選択してください', 'error'); return; } setShowListingDestinationModal(true); }, onSave: crudOps.handleSaveAll }} approvedCount={approvedSelectedCount} inventoryHandlers={{ onSyncIncremental: (a) => { inventorySync.syncEbayIncremental(a); showToast(`🔄 ${a} 差分同期`, 'success'); }, onSyncFull: (a) => { inventorySync.syncEbay(a); showToast(`🔄 ${a} 完全同期`, 'success'); }, onSyncMercari: () => { inventorySync.syncMercari(); showToast('🔄 メルカリ同期', 'success'); }, onRefresh: () => { inventoryData.refreshData(); showToast('🔄 更新中', 'success'); }, onBulkDelete: async (t) => { const r = await inventorySync.bulkDelete(t); if (r.success) { showToast(`✅ ${r.deleted}件削除`, 'success'); inventoryData.refreshData(); } else showToast(`❌ ${r.error}`, 'error'); }, onNewProduct: () => setShowNewProductModal(true), onBulkImageUpload: () => setShowBulkImageUploadModal(true), onDetectCandidates: () => { setShowCandidatesOnly(true); showToast(`🔍 ${candidates.length}件検出`, 'success'); }, onToggleCandidatesOnly: () => setShowCandidatesOnly(!showCandidatesOnly), onCreateVariation: async () => { if (inventorySelectedIds.size < 2) { showToast('❌ 2件以上', 'error'); return; } const ps = inventoryData.filteredProducts.filter(p => inventorySelectedIds.has(String(p.id))); const r = await variationCreation.createVariation({ memberIds: ps.map(p => String(p.id)), variationTitle: ps[0].title || 'バリエーション' }); if (r.success) { showToast('✅ 作成完了', 'success'); setInventorySelectedIds(new Set()); inventoryData.refreshData(); } else showToast(`❌ ${r.error}`, 'error'); }, onClearSelection: () => { setInventorySelectedIds(new Set()); showToast('選択解除', 'success'); }, onCreateSet: async () => { if (inventorySelectedIds.size < 2) { showToast('❌ 2件以上', 'error'); return; } const ps = inventoryData.filteredProducts.filter(p => inventorySelectedIds.has(String(p.id))); const q = ps.reduce((a, p) => { a[String(p.id)] = 1; return a; }, {} as Record<string, number>); const r = await setCreation.createSet({ name: `SET_${Date.now()}`, memberIds: ps.map(p => String(p.id)), quantities: q }); if (r.success) { showToast('✅ セット作成', 'success'); setInventorySelectedIds(new Set()); inventoryData.refreshData(); } else showToast(`❌ ${r.error}`, 'error'); }, onToggleSetsOnly: () => setShowSetsOnly(!showSetsOnly), onEditSet: () => showToast('📝 セット編集', 'success'), onDeleteSet: () => showToast('🗑️ セット削除', 'success') }} />;
     if (tabId === 'flow') return <div className="p-3 text-sm" style={{ color: 'var(--text-muted)' }}>FLOWパネルは次のステップで実装予定</div>;
     if (tabId === 'stats') return <N3StatsPanelContent activeFilter={activeFilter} displayProducts={displayProducts} total={total} products={products} completeCount={completeProducts.length} incompleteCount={incompleteProducts.length} inventoryData={{ filteredProducts: inventoryData.filteredProducts, stats: inventoryData.stats }} />;
     if (tabId === 'filter') return <div className="p-3"><div className="text-xs font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>Marketplaces</div><MarketplaceSelector marketplaces={marketplaces} onChange={setMarketplaces} /></div>;
@@ -409,8 +416,33 @@ export function EditingN3PageLayout() {
               filters={globalFilters}
               onFiltersChange={setGlobalFilters}
               onApply={() => {
-                // フィルター適用時の処理
-                showToast(`✅ フィルター適用`, 'success');
+                // 棚卸しタブの場合、inventoryDataにフィルターを適用
+                if (isInventoryActive) {
+                  inventorySetFilterRef.current({
+                  ...inventoryData.filter,
+                  attrL1: globalFilters.attrL1 || undefined,
+                  attrL2: globalFilters.attrL2 || undefined,
+                  attrL3: globalFilters.attrL3 || undefined,
+                  noImages: globalFilters.noImages || undefined,
+                  search: globalFilters.searchQuery || undefined,
+                    // 在庫数フィルターを接続
+                  minStock: globalFilters.stockMin ?? undefined,
+                  maxStock: globalFilters.stockMax ?? undefined,
+                });
+                  
+                  // アクティブなフィルター数をカウント
+                  const activeCount = [
+                    globalFilters.attrL1,
+                    globalFilters.attrL2,
+                    globalFilters.attrL3,
+                    globalFilters.noImages,
+                    globalFilters.searchQuery,
+                  ].filter(Boolean).length;
+                  
+                  showToast(`✅ ${activeCount}件のフィルター適用`, 'success');
+                } else {
+                  showToast(`✅ フィルター適用`, 'success');
+                }
               }}
             />
           )}
@@ -419,7 +451,7 @@ export function EditingN3PageLayout() {
         {/* メインコンテンツ */}
         <ErrorBoundary componentName="N3EditingMainContent">
           <div style={{ flexShrink: 0 }}>
-            {isInventoryActive && <N3InventoryView paginatedProducts={inventoryData.paginatedProducts} filteredProducts={inventoryData.filteredProducts} stats={inventoryData.stats} loading={inventoryData.loading} error={inventoryData.error} selectedIds={inventorySelectedIds} viewMode={viewMode} activeFilter={activeFilter} showCandidatesOnly={showCandidatesOnly} showSetsOnly={showSetsOnly} pagination={{ currentPage: inventoryData.currentPage, totalPages: inventoryData.totalPages, totalItems: inventoryData.totalItems, itemsPerPage: inventoryData.itemsPerPage, setCurrentPage: inventoryData.setCurrentPage, setItemsPerPage: inventoryData.setItemsPerPage }} onSelect={(id) => { const n = new Set(inventorySelectedIds); if (n.has(id)) n.delete(id); else n.add(id); setInventorySelectedIds(n); }} onDetail={(id) => { const p = inventoryData.paginatedProducts.find(x => String(x.id) === id); if (p) { setSelectedInventoryProduct(p); setShowInventoryDetailModal(true); } }} onStockChange={async (id, q) => { const r = await inventorySync.updateStock(id, q); if (r.success) { inventoryData.updateLocalProduct(id, { physical_quantity: q }); showToast('✅ 在庫更新', 'success'); } else showToast(`❌ ${r.error}`, 'error'); }} onCostChange={async (id, c) => { const r = await inventorySync.updateCost(id, c); if (r.success) { inventoryData.updateLocalProduct(id, { cost_price: c, cost_jpy: c }); showToast('✅ 原価更新', 'success'); } else showToast(`❌ ${r.error}`, 'error'); }} onInventoryTypeChange={async (id, t) => { const r = await inventorySync.toggleInventoryType(id, t); if (r.success) { inventoryData.updateLocalProduct(id, { inventory_type: t }); tabCounts.fetchAllCounts(); showToast(`✅ ${t === 'stock' ? '有在庫' : '無在庫'}に変更`, 'success'); } else showToast(`❌ ${r.error}`, 'error'); }} onStorageLocationChange={async (id, l) => { const r = await inventorySync.updateStorageLocation(id, l); if (r.success) { inventoryData.updateLocalProduct(id, { storage_location: l }); showToast(`✅ 保管場所更新`, 'success'); } else showToast(`❌ ${r.error}`, 'error'); }} />}
+            {isInventoryActive && <N3InventoryView paginatedProducts={inventoryData.paginatedProducts} filteredProducts={inventoryData.filteredProducts} stats={inventoryData.stats} loading={inventoryData.loading} error={inventoryData.error} selectedIds={inventorySelectedIds} viewMode={viewMode} activeFilter={activeFilter} showCandidatesOnly={showCandidatesOnly} showSetsOnly={showSetsOnly} pagination={{ currentPage: inventoryData.currentPage, totalPages: inventoryData.totalPages, totalItems: inventoryData.totalItems, itemsPerPage: inventoryData.itemsPerPage, setCurrentPage: inventoryData.setCurrentPage, setItemsPerPage: inventoryData.setItemsPerPage }} onSelect={(id) => { const n = new Set(inventorySelectedIds); if (n.has(id)) n.delete(id); else n.add(id); setInventorySelectedIds(n); }} onDetail={(id) => { const p = inventoryData.paginatedProducts.find(x => String(x.id) === id); if (p) { setSelectedInventoryProduct(p); setShowInventoryDetailModal(true); } }} onStockChange={async (id, q) => { const r = await inventorySync.updateStock(id, q); if (r.success) { inventoryData.updateLocalProduct(id, { physical_quantity: q }); showToast('✅ 在庫更新', 'success'); } else showToast(`❌ ${r.error}`, 'error'); }} onCostChange={async (id, c) => { const r = await inventorySync.updateCost(id, c); if (r.success) { inventoryData.updateLocalProduct(id, { cost_price: c, cost_jpy: c }); showToast('✅ 原価更新', 'success'); } else showToast(`❌ ${r.error}`, 'error'); }} onInventoryTypeChange={async (id, t) => { const r = await inventorySync.toggleInventoryType(id, t); if (r.success) { inventoryData.updateLocalProduct(id, { inventory_type: t }); tabCounts.fetchAllCounts(); showToast(`✅ ${t === 'stock' ? '有在庫' : '無在庫'}に変更`, 'success'); } else showToast(`❌ ${r.error}`, 'error'); }} onStorageLocationChange={async (id, l) => { const r = await inventorySync.updateStorageLocation(id, l); if (r.success) { inventoryData.updateLocalProduct(id, { storage_location: l }); showToast(`✅ 保管場所更新`, 'success'); } else showToast(`❌ ${r.error}`, 'error'); }} onInventoryImageUpload={async (id, file) => { const url = await inventorySync.uploadImage(id, file); if (url) { inventoryData.updateLocalProduct(id, { images: [url], image_url: url }); showToast('✅ 画像アップロード完了', 'success'); } else { showToast('❌ 画像アップロード失敗', 'error'); } return url; }} />}
             {!isInventoryActive && activeL2Tab === 'basic-edit' && <N3BasicEditView products={displayProducts} loading={loading} error={error} selectedIds={selectedIds} expandedId={expandedId} viewMode={viewMode} fastMode={fastMode} activeFilter={activeFilter} onToggleSelect={handleToggleSelect} onToggleSelectAll={handleToggleSelectAll} onToggleExpand={handleToggleExpand} onRowClick={handleRowClick} onCellChange={handleInlineCellChange} onDelete={(id) => showToast('🗑️ 削除', 'success')} onEbaySearch={(p) => window.open(`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(p.english_title || p.title || '')}`, '_blank')} productToExpandPanelProduct={productToExpandPanelProduct} />}
             {!isInventoryActive && (activeL2Tab === 'logistics' || activeL2Tab === 'compliance' || activeL2Tab === 'media') && <div style={{ height: 'calc(100vh - 250px)', minHeight: 400 }}><L2TabContent activeL2Tab={activeL2Tab} /></div>}
             {activeL2Tab === 'history' && <HistoryTab />}
@@ -443,7 +475,7 @@ export function EditingN3PageLayout() {
       {modals.showHTMLPanel && <Suspense fallback={<ModalLoading />}><HTMLPublishPanel selectedProducts={selectedProducts} onClose={modals.closeHTMLPanel} /></Suspense>}
       {modals.showPricingPanel && <Suspense fallback={<ModalLoading />}><PricingStrategyPanel selectedProducts={selectedProducts} onClose={modals.closePricingPanel} /></Suspense>}
       <N3BulkImageUploadModal isOpen={showBulkImageUploadModal} onClose={() => setShowBulkImageUploadModal(false)} onSuccess={() => { showToast('✅ 画像アップロード完了', 'success'); inventoryData.refreshData(); }} />
-      <N3InventoryDetailModal product={selectedInventoryProduct} isOpen={showInventoryDetailModal} onClose={() => { setShowInventoryDetailModal(false); setSelectedInventoryProduct(null); }} onStockChange={async (id, q) => { const r = await inventorySync.updateStock(id, q); if (r.success) { inventoryData.updateLocalProduct(id, { physical_quantity: q }); showToast('✅ 更新', 'success'); } else showToast(`❌ ${r.error}`, 'error'); }} onCostChange={async (id, c) => { const r = await inventorySync.updateCost(id, c); if (r.success) { inventoryData.updateLocalProduct(id, { cost_price: c, cost_jpy: c }); showToast('✅ 更新', 'success'); } else showToast(`❌ ${r.error}`, 'error'); }} />
+      <N3InventoryDetailModal product={selectedInventoryProduct} isOpen={showInventoryDetailModal} onClose={() => { setShowInventoryDetailModal(false); setSelectedInventoryProduct(null); }} onStockChange={async (id, q) => { const r = await inventorySync.updateStock(id, q); if (r.success) { inventoryData.updateLocalProduct(id, { physical_quantity: q }); showToast('✅ 更新', 'success'); } else showToast(`❌ ${r.error}`, 'error'); }} onCostChange={async (id, c) => { const r = await inventorySync.updateCost(id, c); if (r.success) { inventoryData.updateLocalProduct(id, { cost_price: c, cost_jpy: c }); showToast('✅ 更新', 'success'); } else showToast(`❌ ${r.error}`, 'error'); }} onRefresh={() => inventoryData.refreshData()} />
       {showEnrichmentFlowModal && enrichmentFlowProduct && <Suspense fallback={<ModalLoading />}><ProductEnrichmentFlow product={enrichmentFlowProduct} onClose={() => { setShowEnrichmentFlowModal(false); setEnrichmentFlowProduct(null); }} onComplete={async () => { await loadProducts(); setShowEnrichmentFlowModal(false); setEnrichmentFlowProduct(null); }} onRunSMAnalysis={async (id) => { const r = await runBatchSellerMirror([id]); return r.success; }} onRunCalculations={async (id) => { await runBatchShipping([id]); await runBatchProfit([id]); return true; }} onRunFilter={async () => true} onRunScore={async (id) => { await runBatchScores([{ id }] as any); return true; }} /></Suspense>}
       <N3NewProductModal isOpen={showNewProductModal} onClose={() => setShowNewProductModal(false)} onSubmit={async (d: NewProductData) => { const r = await inventorySync.createProduct(d); if (r.success) { showToast('✅ 登録', 'success'); inventoryData.refreshData(); return { success: true }; } return { success: false, error: r.error }; }} />
 
@@ -541,6 +573,48 @@ export function EditingN3PageLayout() {
           await loadProducts();
           setSelectedIds(new Set());
           setShowListingDestinationModal(false);
+        }}
+      />
+
+      {/* eBay CSVエクスポートモーダル */}
+      <N3EbayCSVExportModal
+        isOpen={showEbayCSVExportModal}
+        onClose={() => setShowEbayCSVExportModal(false)}
+        selectedProducts={selectedProducts}
+        onExport={async (options: EbayCSVExportOptions) => {
+          try {
+            const productIds = Array.from(selectedIds).map(id => parseInt(id));
+            const response = await fetch('/api/export/ebay-csv-v2', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ...options, productIds }),
+            });
+            
+            if (!response.ok) {
+              const errorData = await response.json();
+              throw new Error(errorData.error || 'CSV生成に失敗しました');
+            }
+            
+            // Blobとしてダウンロード
+            const blob = await response.blob();
+            const contentDisposition = response.headers.get('Content-Disposition');
+            const filenameMatch = contentDisposition?.match(/filename="([^"]+)"/);
+            const filename = filenameMatch ? filenameMatch[1] : `ebay_export_${Date.now()}.csv`;
+            
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+            showToast(`✅ ${productIds.length}件のCSVをダウンロード`, 'success');
+          } catch (error: any) {
+            showToast(`❌ ${error.message}`, 'error');
+            throw error;
+          }
         }}
       />
 

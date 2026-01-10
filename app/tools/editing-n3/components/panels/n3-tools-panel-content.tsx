@@ -133,6 +133,7 @@ export interface ToolsPanelContentProps {
     onBulkDelete: (target: string) => void;
     onNewProduct: () => void;
     onBulkImageUpload: () => void;
+    onImageAttach?: () => void; // ★ 追加: 画像なし商品への画像追加
     onDetectCandidates: () => void;
     onToggleCandidatesOnly: () => void;
     onCreateVariation: () => void;

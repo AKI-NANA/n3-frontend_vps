@@ -1,188 +1,274 @@
+// app/api/inventory/list/route.ts
 /**
- * 棚卸しリスト取得API（サーバーサイドページネーション）
- * GET /api/inventory/list
- *
- * パラメータ:
+ * 棚卸し商品一覧API - サーバーサイドフィルタリング対応
+ * 
+ * Phase 4: パフォーマンス最適化
+ * - サーバーサイドでのフィルタリング・ソート・ページネーション
+ * - 大量データ（10,000件以上）でも高速レスポンス
+ * 
+ * クエリパラメータ:
  * - page: ページ番号（デフォルト: 1）
- * - limit: 1ページあたりの件数（デフォルト: 50）
- * - marketplace: マーケットプレイス（all, ebay, mercari, manual）
- * - stock_status: 在庫状態（all, in_stock, out_of_stock）
- * - product_type: 商品タイプ（all, stock, dropship, set, variation）
- * - search: 検索ワード（商品名・SKU）
- * - sort_by: ソート列（created_at, product_name, selling_price など）
- * - sort_order: ソート順（asc, desc）
- * - ebay_account: eBayアカウント（all, MJT, GREEN, manual）
- * - site: サイト（all, US, UK, AU）
+ * - limit: 1ページあたりの件数（デフォルト: 50、最大: 500）
+ * - attrL1, attrL2, attrL3: L1-L3属性フィルター
+ * - search: 商品名・SKU検索
+ * - inventoryType: 在庫タイプ（stock/backorder）
+ * - ebayAccount: eBayアカウント（mjt/green/manual）
+ * - noImages: 画像なしのみ（true/false）
+ * - sortField: ソートフィールド
+ * - sortOrder: ソート順序（asc/desc）
  */
 
-import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+// MUG（Multi-country Listing）非英語パターン
+const MUG_NON_ENGLISH_PATTERNS = [
+  'Karten', 'Sumpf', 'Komplett', 'Actionfigur',
+  'Carta', 'Carte', 'giapponese', 'Figurine',
+  'cartas', 'Figura de acción', 'Actiefiguur', 'Figurka',
+];
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient()
-    const { searchParams } = new URL(request.url)
-
+    const { searchParams } = new URL(request.url);
+    
     // パラメータ取得
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '50')
-    const marketplace = searchParams.get('marketplace') || 'all'
-    const stockStatus = searchParams.get('stock_status') || 'all'
-    const productType = searchParams.get('product_type') || 'all'
-    const search = searchParams.get('search') || ''
-    const sortBy = searchParams.get('sort_by') || 'created_at'
-    const sortOrder = searchParams.get('sort_order') || 'desc'
-    const ebayAccount = searchParams.get('ebay_account') || 'all'
-    const site = searchParams.get('site') || 'all'
-    const condition = searchParams.get('condition') || 'all'
-    const inventoryType = searchParams.get('inventory_type') || 'all'
-    const pricePhase = searchParams.get('price_phase') || 'all'
-    const daysHeld = searchParams.get('days_held') || 'all'
-    const variationStatus = searchParams.get('variation_status') || 'all'
-    const groupingCandidate = searchParams.get('grouping_candidate') === 'true'
-
-    // ページネーション計算
-    const from = (page - 1) * limit
-    const to = from + limit - 1
-
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
+    const limit = Math.min(500, Math.max(1, parseInt(searchParams.get('limit') || '50')));
+    const attrL1 = searchParams.get('attrL1');
+    const attrL2 = searchParams.get('attrL2');
+    const attrL3 = searchParams.get('attrL3');
+    const search = searchParams.get('search');
+    const inventoryType = searchParams.get('inventoryType');
+    const ebayAccount = searchParams.get('ebayAccount');
+    const noImages = searchParams.get('noImages') === 'true';
+    const masterOnly = searchParams.get('masterOnly') === 'true';
+    const variationStatus = searchParams.get('variationStatus');
+    const productType = searchParams.get('productType');
+    const sortField = searchParams.get('sortField') || 'created_at';
+    const sortOrder = (searchParams.get('sortOrder') || 'desc') as 'asc' | 'desc';
+    
     // クエリ構築
     let query = supabase
       .from('inventory_master')
-      .select('*', { count: 'exact' })
-
-    // マーケットプレイスフィルター
-    if (marketplace !== 'all') {
-      if (marketplace === 'manual') {
-        // 手動登録 = marketplaceがnullまたはmanual
-        query = query.or('source_data->>marketplace.is.null,source_data->>marketplace.eq.manual')
-      } else {
-        query = query.eq('source_data->>marketplace', marketplace)
-      }
+      .select('*', { count: 'exact' });
+    
+    // L1-L3属性フィルター
+    if (attrL1) {
+      query = query.eq('attr_l1', attrL1);
     }
-
-    // eBayアカウントフィルター
-    if (ebayAccount !== 'all') {
-      if (ebayAccount === 'manual') {
-        query = query.or('source_data->>ebay_account.is.null,source_data->>ebay_account.eq.')
-      } else {
-        query = query.ilike('source_data->>ebay_account', ebayAccount)
-      }
+    if (attrL2) {
+      query = query.eq('attr_l2', attrL2);
     }
-
-    // サイトフィルター
-    if (site !== 'all') {
-      query = query.eq('source_data->>site', site)
+    if (attrL3) {
+      query = query.eq('attr_l3', attrL3);
     }
-
-    // 在庫状態フィルター
-    if (stockStatus === 'in_stock') {
-      query = query.gt('physical_quantity', 0)
-    } else if (stockStatus === 'out_of_stock') {
-      query = query.eq('physical_quantity', 0)
-    }
-
-    // 商品タイプフィルター
-    if (productType !== 'all' && productType !== 'unknown') {
-      query = query.eq('product_type', productType)
-    } else if (productType === 'unknown') {
-      query = query.is('product_type', null)
-    }
-
-    // コンディションフィルター
-    if (condition !== 'all') {
-      query = query.ilike('condition_name', condition)
-    }
-
-    // 在庫タイプフィルター
-    if (inventoryType !== 'all') {
-      query = query.eq('inventory_type', inventoryType)
-    }
-
-    // 価格フェーズフィルター
-    if (pricePhase !== 'all') {
-      query = query.eq('current_price_phase', pricePhase)
-    }
-
-    // 経過日数フィルター
-    if (daysHeld !== 'all') {
-      const now = new Date()
-      if (daysHeld === '0-90') {
-        const date90DaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
-        query = query.gte('date_acquired', date90DaysAgo.toISOString())
-      } else if (daysHeld === '91-180') {
-        const date90DaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
-        const date180DaysAgo = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000)
-        query = query.lt('date_acquired', date90DaysAgo.toISOString())
-        query = query.gte('date_acquired', date180DaysAgo.toISOString())
-      } else if (daysHeld === '180+') {
-        const date180DaysAgo = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000)
-        query = query.lt('date_acquired', date180DaysAgo.toISOString())
-      }
-    }
-
-    // バリエーション状態フィルター
-    if (variationStatus !== 'all') {
-      if (variationStatus === 'parent') {
-        query = query.eq('is_variation_parent', true)
-      } else if (variationStatus === 'member') {
-        query = query.or('is_variation_member.eq.true,is_variation_child.eq.true')
-      } else if (variationStatus === 'standalone') {
-        query = query.is('is_variation_parent', null)
-        query = query.is('is_variation_member', null)
-        query = query.is('is_variation_child', null)
-      }
-    }
-
-    // グルーピング候補フィルター
-    if (groupingCandidate) {
-      query = query.gt('physical_quantity', 0)
-      query = query.not('category', 'is', null)
-      query = query.neq('product_type', 'set')
-      query = query.is('is_variation_parent', null)
-      query = query.is('is_variation_member', null)
-      query = query.is('is_variation_child', null)
-    }
-
-    // 検索フィルター
+    
+    // 検索フィルター（商品名・SKU・unique_id）
     if (search) {
-      // SQLインジェクション対策のためワイルドカードをエスケープ
-      const escapedSearch = search.replace(/[%_]/g, '\\$&')
-      query = query.or(`product_name.ilike.%${escapedSearch}%,sku.ilike.%${escapedSearch}%`)
+      const searchLower = search.toLowerCase();
+      query = query.or(`product_name.ilike.%${searchLower}%,sku.ilike.%${searchLower}%,unique_id.ilike.%${searchLower}%`);
     }
-
-    // ソートとページネーション
-    query = query
-      .order(sortBy, { ascending: sortOrder === 'asc' })
-      .range(from, to)
-
-    const { data, error, count } = await query
-
+    
+    // 在庫タイプフィルター
+    if (inventoryType) {
+      query = query.eq('inventory_type', inventoryType);
+    }
+    
+    // eBayアカウントフィルター
+    if (ebayAccount) {
+      if (ebayAccount === 'manual') {
+        // 手動登録商品
+        query = query.eq('is_manual_entry', true);
+      } else {
+        // source_data->ebay_accountでフィルター
+        query = query.eq('source_data->>ebay_account', ebayAccount);
+      }
+    }
+    
+    // 画像なしフィルター
+    if (noImages) {
+      query = query.or('images.is.null,images.eq.[]');
+    }
+    
+    // マスターアイテムフィルター
+    if (masterOnly) {
+      // 画像あり または 手動登録
+      query = query.or('images.neq.[],is_manual_entry.eq.true');
+    }
+    
+    // バリエーションステータスフィルター
+    if (variationStatus) {
+      switch (variationStatus) {
+        case 'parent':
+          query = query.eq('is_variation_parent', true);
+          break;
+        case 'member':
+          query = query.or('is_variation_member.eq.true,is_variation_child.eq.true');
+          break;
+        case 'standalone':
+          query = query
+            .eq('is_variation_parent', false)
+            .eq('is_variation_member', false)
+            .eq('is_variation_child', false);
+          break;
+      }
+    }
+    
+    // 商品タイプフィルター
+    if (productType) {
+      query = query.eq('product_type', productType);
+    }
+    
+    // MUG派生リスティング除外（USD以外の通貨）
+    // 注: JSONBフィールドのフィルタリングはSupabase側で制限あり
+    // クライアント側で追加フィルタリングが必要な場合あり
+    
+    // ソート適用
+    const validSortFields = ['created_at', 'updated_at', 'product_name', 'sku', 'cost_price', 'selling_price', 'physical_quantity'];
+    const actualSortField = validSortFields.includes(sortField) ? sortField : 'created_at';
+    query = query.order(actualSortField, { ascending: sortOrder === 'asc' });
+    
+    // ページネーション
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+    
+    const { data, count, error } = await query.range(from, to);
+    
     if (error) {
-      console.error('Inventory list error:', error)
+      console.error('[inventory/list] Query error:', error);
       return NextResponse.json(
         { success: false, error: error.message },
         { status: 500 }
-      )
+      );
     }
-
-    console.log(`[inventory/list] ページ${page}: ${data?.length || 0}件取得 (総数: ${count}件)`)
-
+    
+    // MUG派生リスティング除外（クライアント側フィルタリング）
+    const filteredData = (data || []).filter(item => {
+      // USD以外の通貨は除外
+      const currency = item.ebay_data?.currency;
+      if (currency && currency !== 'USD') {
+        return false;
+      }
+      // 非英語タイトルパターン検出
+      const title = item.product_name || '';
+      if (MUG_NON_ENGLISH_PATTERNS.some(pattern => 
+        title.toLowerCase().includes(pattern.toLowerCase())
+      )) {
+        return false;
+      }
+      return true;
+    });
+    
+    // 統計情報を追加（フィルター適用後）
+    const stats = {
+      totalInPage: filteredData.length,
+      totalFiltered: count || 0,
+      page,
+      limit,
+      totalPages: Math.ceil((count || 0) / limit),
+    };
+    
     return NextResponse.json({
       success: true,
-      data: data || [],
-      pagination: {
-        page,
-        limit,
-        total: count || 0,
-        totalPages: Math.ceil((count || 0) / limit)
-      }
-    })
-
+      data: filteredData,
+      stats,
+    });
+    
   } catch (error: any) {
-    console.error('Inventory list API error:', error)
+    console.error('[inventory/list] Error:', error);
     return NextResponse.json(
-      { success: false, error: error.message || '不明なエラー' },
+      { success: false, error: error.message || 'Internal server error' },
       { status: 500 }
-    )
+    );
+  }
+}
+
+/**
+ * POST: バルク操作用（将来拡張）
+ * - 一括属性更新
+ * - 一括在庫更新
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { action, ids, updates } = body;
+    
+    if (!action || !ids || !Array.isArray(ids)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid request: action and ids required' },
+        { status: 400 }
+      );
+    }
+    
+    switch (action) {
+      case 'bulk_update_attributes': {
+        // L1-L3属性の一括更新
+        const { attr_l1, attr_l2, attr_l3 } = updates || {};
+        const updateData: Record<string, any> = {};
+        if (attr_l1 !== undefined) updateData.attr_l1 = attr_l1;
+        if (attr_l2 !== undefined) updateData.attr_l2 = attr_l2;
+        if (attr_l3 !== undefined) updateData.attr_l3 = attr_l3;
+        updateData.updated_at = new Date().toISOString();
+        
+        const { data, error } = await supabase
+          .from('inventory_master')
+          .update(updateData)
+          .in('id', ids)
+          .select('id');
+        
+        if (error) throw error;
+        
+        return NextResponse.json({
+          success: true,
+          updated: data?.length || 0,
+        });
+      }
+      
+      case 'bulk_update_inventory_type': {
+        // 在庫タイプの一括更新
+        const { inventory_type } = updates || {};
+        if (!inventory_type) {
+          return NextResponse.json(
+            { success: false, error: 'inventory_type required' },
+            { status: 400 }
+          );
+        }
+        
+        const { data, error } = await supabase
+          .from('inventory_master')
+          .update({ 
+            inventory_type, 
+            updated_at: new Date().toISOString() 
+          })
+          .in('id', ids)
+          .select('id');
+        
+        if (error) throw error;
+        
+        return NextResponse.json({
+          success: true,
+          updated: data?.length || 0,
+        });
+      }
+      
+      default:
+        return NextResponse.json(
+          { success: false, error: `Unknown action: ${action}` },
+          { status: 400 }
+        );
+    }
+    
+  } catch (error: any) {
+    console.error('[inventory/list] POST error:', error);
+    return NextResponse.json(
+      { success: false, error: error.message || 'Internal server error' },
+      { status: 500 }
+    );
   }
 }

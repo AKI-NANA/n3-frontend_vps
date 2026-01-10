@@ -264,10 +264,8 @@ export const N3PageHeader = memo(function N3PageHeader({
           <ExternalLink size={10} style={{ opacity: 0.6 }} />
         </a>
         {/* 外注ツールリンク */}
-        <a
-          href="/stocktake"
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          onClick={() => window.open('/stocktake', '_blank', 'noopener,noreferrer')}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -280,16 +278,14 @@ export const N3PageHeader = memo(function N3PageHeader({
             borderRadius: 6,
             color: 'var(--text)',
             cursor: 'pointer',
-            textDecoration: 'none',
             transition: 'all 0.2s ease',
           }}
-          className="hover:opacity-80"
           title="外注用棚卸しツール（新しいタブで開く）"
         >
           <Package size={14} />
           <span>外注ツール</span>
           <ExternalLink size={10} style={{ opacity: 0.6 }} />
-        </a>
+        </button>
         <N3Divider orientation="vertical" />
         <N3LanguageSwitch language={language} onToggle={onLanguageToggle} />
         <N3Divider orientation="vertical" />

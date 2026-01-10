@@ -12,6 +12,7 @@ import {
   Trash2, 
   Plus, 
   Image as ImageIcon,
+  ImagePlus,
   AlertCircle,
   ExternalLink,
   Users,
@@ -46,6 +47,7 @@ interface InventoryToolPanelProps {
   onBulkDelete: (target: 'out_of_stock' | 'sold' | 'selected') => void;
   onNewProduct: () => void;
   onBulkImageUpload: () => void;
+  onImageAttach?: () => void; // ★ 追加: 画像なし商品への画像追加
 }
 
 type SupusiSyncStatus = 'idle' | 'testing' | 'pushing' | 'pulling' | 'success' | 'error';
@@ -69,6 +71,7 @@ export function InventoryToolPanel({
   onBulkDelete,
   onNewProduct,
   onBulkImageUpload,
+  onImageAttach, // ★ 追加
 }: InventoryToolPanelProps) {
   const anySyncing = syncing.mjt || syncing.green || syncing.incremental || syncing.mercari;
   
@@ -464,6 +467,24 @@ export function InventoryToolPanel({
               画像
             </N3Button>
           </N3Tooltip>
+          
+          {/* ★ 新規追加: 画像なし商品への画像追加 */}
+          {onImageAttach && (
+            <N3Tooltip content="画像なし商品に画像を追加">
+              <N3Button 
+                size="sm" 
+                variant="ghost" 
+                onClick={onImageAttach}
+                style={{ 
+                  color: '#f59e0b',
+                  borderColor: 'rgba(245, 158, 11, 0.3)',
+                }}
+              >
+                <ImagePlus size={14} />
+                画像追加
+              </N3Button>
+            </N3Tooltip>
+          )}
           
           <N3Tooltip content="データ更新">
             <N3Button size="sm" variant="ghost" onClick={onRefresh} disabled={loading} loading={loading}>

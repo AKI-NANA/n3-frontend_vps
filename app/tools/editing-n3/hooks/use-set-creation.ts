@@ -109,6 +109,22 @@ export function useSetCreation() {
       
       if (insertError) throw insertError;
       
+      // ★追加: bundle_itemsに構成を登録
+      const bundleItems = params.memberIds.map(memberId => ({
+        parent_product_id: newSet.id,
+        child_inventory_id: memberId,
+        quantity: params.quantities[String(memberId)] || 1,
+      }));
+      
+      const { error: bundleError } = await supabase
+        .from('bundle_items')
+        .insert(bundleItems);
+      
+      if (bundleError) {
+        console.warn('bundle_items登録に失敗しました:', bundleError);
+        // セット自体は作成成功しているので継続
+      }
+      
       // メンバー商品に親セットIDを設定
       const { error: updateError } = await supabase
         .from('inventory_master')

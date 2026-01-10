@@ -1,14 +1,21 @@
 // app/(external)/stocktake/page.tsx
 /**
- * 外注用棚卸しツール（高速化版 + ページネーション）
+ * 外注用棚卸しツール（高速化版 + ページネーション + フラグ管理）
+ * 
+ * 機能:
+ * - 在庫フィルター（在庫0 / 在庫あり / 全て）
+ * - L1-L4属性フィルター
+ * - 要確認フィルター（赤枠表示）
+ * - 確定済みフィルター
+ * - 保管場所別統計パネル
  */
 
 'use client';
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { Plus, Package, RefreshCw, Search, Camera, Grid, List, Lock, Key, Upload, ExternalLink, ChevronLeft, ChevronRight, Filter, FileSpreadsheet } from 'lucide-react';
+import { Plus, Package, RefreshCw, Search, Camera, Grid, List, Lock, Key, Upload, ExternalLink, ChevronLeft, ChevronRight, Filter, FileSpreadsheet, PackageX, PackageCheck, AlertTriangle, CheckCircle } from 'lucide-react';
 import { useStocktake, type StocktakeProduct, STORAGE_LOCATIONS } from './hooks';
-import { StocktakeCard, NewProductModal, EditProductModal, StocktakeList, ProductDetailModal, BulkUploadModal } from './components';
+import { StocktakeCard, NewProductModal, EditProductModal, StocktakeList, ProductDetailModal, BulkUploadModal, LocationStatsPanel } from './components';
 import { createClient } from '@/lib/supabase/client';
 
 const STOCKTAKE_PASSWORD = process.env.NEXT_PUBLIC_STOCKTAKE_PASSWORD || 'plus1stock';
@@ -16,6 +23,11 @@ const STOCKTAKE_PASSWORD = process.env.NEXT_PUBLIC_STOCKTAKE_PASSWORD || 'plus1s
 // ページサイズオプション
 const PAGE_SIZE_OPTIONS = [60, 120, 240];
 const DEFAULT_PAGE_SIZE = 120;
+
+// L1-L4オプション（固定値）
+const L1_OPTIONS = ['', 'collectibles', 'toys', 'cards', 'electronics', 'other'];
+const L2_OPTIONS = ['', 'pokemon', 'yugioh', 'mtg', 'onepiece', 'dragonball', 'other'];
+const L3_OPTIONS = ['', 'japanese', 'english', 'korean', 'chinese', 'other'];
 
 export default function StocktakePage() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
@@ -38,7 +50,10 @@ export default function StocktakePage() {
     updateLocation, 
     addImage, 
     uploadImage, 
-    updateProduct 
+    updateProduct,
+    updateNeedsCheck,
+    updateConfirmed,
+    updateMemo,
   } = useStocktake();
 
   const [showNewModal, setShowNewModal] = useState(false);
@@ -51,9 +66,27 @@ export default function StocktakePage() {
   const [locationFilter, setLocationFilter] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   
+  // 在庫フィルター
+  const [stockFilter, setStockFilter] = useState<'all' | 'in_stock' | 'out_of_stock'>('all');
+  
+  // フラグフィルター
+  const [needsCheckFilter, setNeedsCheckFilter] = useState<boolean>(false);
+  const [hideConfirmed, setHideConfirmed] = useState<boolean>(false);
+  
+  // L1-L4フィルター
+  const [l1Filter, setL1Filter] = useState<string>('');
+  const [l2Filter, setL2Filter] = useState<string>('');
+  const [l3Filter, setL3Filter] = useState<string>('');
+  
   // ページネーション
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  
+  // フィルターパネル表示
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  
+  // 統計パネル折りたたみ
+  const [statsCollapsed, setStatsCollapsed] = useState(false);
   
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -85,7 +118,7 @@ export default function StocktakePage() {
   useEffect(() => {
     const timer = setTimeout(() => {
       search(localSearchQuery);
-      setCurrentPage(1); // 検索時は1ページ目に戻る
+      setCurrentPage(1);
     }, 300);
     return () => clearTimeout(timer);
   }, [localSearchQuery, search]);
@@ -99,13 +132,76 @@ export default function StocktakePage() {
       result = result.filter(p => p.isStocktakeRegistered);
     }
     
-    // 保管場所フィルター
+    // 保管場所フィルター（大文字小文字非依存）
     if (locationFilter !== 'all') {
-      result = result.filter(p => p.storage_location === locationFilter);
+      const normalizedFilter = locationFilter.toLowerCase();
+      result = result.filter(p => {
+        const loc = (p.storage_location || '').toLowerCase();
+        return loc === normalizedFilter;
+      });
+    }
+    
+    // 在庫フィルター
+    if (stockFilter === 'in_stock') {
+      result = result.filter(p => (p.physical_quantity || 0) > 0);
+    } else if (stockFilter === 'out_of_stock') {
+      result = result.filter(p => (p.physical_quantity || 0) === 0);
+    }
+    
+    // 要確認フィルター
+    if (needsCheckFilter) {
+      result = result.filter(p => p.needs_count_check);
+    }
+    
+    // 確定済み除外フィルター
+    if (hideConfirmed) {
+      result = result.filter(p => !p.stock_confirmed);
+    }
+    
+    // L1フィルター
+    if (l1Filter) {
+      result = result.filter(p => p.attr_l1 === l1Filter);
+    }
+    
+    // L2フィルター
+    if (l2Filter) {
+      result = result.filter(p => p.attr_l2 === l2Filter);
+    }
+    
+    // L3フィルター
+    if (l3Filter) {
+      result = result.filter(p => p.attr_l3 === l3Filter);
     }
     
     return result;
-  }, [products, filterMode, locationFilter]);
+  }, [products, filterMode, locationFilter, stockFilter, needsCheckFilter, hideConfirmed, l1Filter, l2Filter, l3Filter]);
+
+  // アクティブなフィルター数
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (filterMode !== 'all') count++;
+    if (locationFilter !== 'all') count++;
+    if (stockFilter !== 'all') count++;
+    if (needsCheckFilter) count++;
+    if (hideConfirmed) count++;
+    if (l1Filter) count++;
+    if (l2Filter) count++;
+    if (l3Filter) count++;
+    return count;
+  }, [filterMode, locationFilter, stockFilter, needsCheckFilter, hideConfirmed, l1Filter, l2Filter, l3Filter]);
+
+  // フィルターリセット
+  const resetFilters = useCallback(() => {
+    setFilterMode('all');
+    setLocationFilter('all');
+    setStockFilter('all');
+    setNeedsCheckFilter(false);
+    setHideConfirmed(false);
+    setL1Filter('');
+    setL2Filter('');
+    setL3Filter('');
+    setCurrentPage(1);
+  }, []);
 
   // ページネーション計算
   const totalPages = Math.ceil(filteredProducts.length / pageSize);
@@ -123,7 +219,13 @@ export default function StocktakePage() {
   // フィルター変更時にページリセット
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterMode, locationFilter]);
+  }, [filterMode, locationFilter, stockFilter, needsCheckFilter, hideConfirmed, l1Filter, l2Filter, l3Filter]);
+
+  // 保管場所フィルター変更（統計パネルから）
+  const handleLocationFilterChange = useCallback((location: string) => {
+    setLocationFilter(location);
+    setCurrentPage(1);
+  }, []);
 
   const canFullEdit = (p: StocktakeProduct) => p.isStocktakeRegistered;
 
@@ -216,6 +318,12 @@ export default function StocktakePage() {
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
             <span><strong>{filteredProducts.length}</strong>/{totalCount}件</span>
             <span style={{ color: '#22c55e' }}><strong>{stats.totalQuantity}</strong>個</span>
+            {stats.needsCheckCount > 0 && (
+              <span style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: 2 }}>
+                <AlertTriangle size={10} />
+                <strong>{stats.needsCheckCount}</strong>
+              </span>
+            )}
           </div>
           
           {/* 表示切替 */}
@@ -248,32 +356,189 @@ export default function StocktakePage() {
             <Upload size={12} className={syncingSpreadsheet ? 'animate-spin' : ''} />
           </button>
           
-          <a href="/tools/editing-n3" target="_blank" rel="noopener noreferrer" style={{ width: 26, height: 26, borderRadius: 4, border: '1px solid #e5e7eb', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#6b7280', textDecoration: 'none' }} title="管理ツール">
+          {/* 管理ツールリンク */}
+          <a 
+            href="/tools/editing-n3" 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            style={{ width: 26, height: 26, borderRadius: 4, border: '1px solid #e5e7eb', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#6b7280', textDecoration: 'none' }} 
+            title="管理ツール"
+          >
             <ExternalLink size={12} />
           </a>
         </div>
         
-        {/* 2行目: フィルター + 検索 */}
+        {/* 2行目: フィルターボタン群 */}
         <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
-          {/* タイプフィルター */}
-          <button onClick={() => setFilterMode('all')} style={{ padding: '3px 8px', borderRadius: 4, border: 'none', background: filterMode === 'all' ? '#3b82f6' : '#e5e7eb', color: filterMode === 'all' ? 'white' : '#6b7280', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
-            全商品
+          {/* 在庫フィルター（メイン） */}
+          <button 
+            onClick={() => setStockFilter('all')} 
+            style={{ 
+              padding: '3px 8px', 
+              borderRadius: 4, 
+              border: 'none', 
+              background: stockFilter === 'all' ? '#3b82f6' : '#e5e7eb', 
+              color: stockFilter === 'all' ? 'white' : '#6b7280', 
+              fontSize: 10, 
+              fontWeight: 600, 
+              cursor: 'pointer' 
+            }}
+          >
+            全て
           </button>
-          <button onClick={() => setFilterMode('stocktake')} style={{ padding: '3px 8px', borderRadius: 4, border: 'none', background: filterMode === 'stocktake' ? '#22c55e' : '#e5e7eb', color: filterMode === 'stocktake' ? 'white' : '#6b7280', fontSize: 10, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Camera size={10} />登録分
+          <button 
+            onClick={() => setStockFilter('in_stock')} 
+            style={{ 
+              padding: '3px 8px', 
+              borderRadius: 4, 
+              border: 'none', 
+              background: stockFilter === 'in_stock' ? '#22c55e' : '#e5e7eb', 
+              color: stockFilter === 'in_stock' ? 'white' : '#6b7280', 
+              fontSize: 10, 
+              fontWeight: 600, 
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 2,
+            }}
+          >
+            <PackageCheck size={10} />
+            在庫あり
+          </button>
+          <button 
+            onClick={() => setStockFilter('out_of_stock')} 
+            style={{ 
+              padding: '3px 8px', 
+              borderRadius: 4, 
+              border: 'none', 
+              background: stockFilter === 'out_of_stock' ? '#ef4444' : '#e5e7eb', 
+              color: stockFilter === 'out_of_stock' ? 'white' : '#6b7280', 
+              fontSize: 10, 
+              fontWeight: 600, 
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 2,
+            }}
+          >
+            <PackageX size={10} />
+            在庫0
           </button>
           
-          {/* 保管場所フィルター */}
-          <select 
-            value={locationFilter} 
-            onChange={(e) => setLocationFilter(e.target.value)}
-            style={{ padding: '3px 6px', borderRadius: 4, border: '1px solid #e5e7eb', fontSize: 10, background: 'white', cursor: 'pointer' }}
+          <div style={{ width: 1, height: 16, background: '#e5e7eb', margin: '0 4px' }} />
+          
+          {/* 要確認フィルター */}
+          <button 
+            onClick={() => setNeedsCheckFilter(!needsCheckFilter)} 
+            style={{ 
+              padding: '3px 8px', 
+              borderRadius: 4, 
+              border: needsCheckFilter ? '2px solid #ef4444' : '1px solid #e5e7eb', 
+              background: needsCheckFilter ? '#fef2f2' : 'white', 
+              color: needsCheckFilter ? '#dc2626' : '#6b7280', 
+              fontSize: 10, 
+              fontWeight: 600, 
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 2,
+            }}
           >
-            <option value="all">全場所</option>
-            {STORAGE_LOCATIONS.map(loc => (
-              <option key={loc.value} value={loc.value}>{loc.label}</option>
-            ))}
-          </select>
+            <AlertTriangle size={10} />
+            要確認のみ
+            {stats.needsCheckCount > 0 && (
+              <span style={{ 
+                background: '#ef4444', 
+                color: 'white', 
+                borderRadius: '50%', 
+                width: 14, 
+                height: 14, 
+                fontSize: 9, 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center' 
+              }}>
+                {stats.needsCheckCount}
+              </span>
+            )}
+          </button>
+          
+          {/* 確定済み除外 */}
+          <button 
+            onClick={() => setHideConfirmed(!hideConfirmed)} 
+            style={{ 
+              padding: '3px 8px', 
+              borderRadius: 4, 
+              border: hideConfirmed ? '2px solid #22c55e' : '1px solid #e5e7eb', 
+              background: hideConfirmed ? '#dcfce7' : 'white', 
+              color: hideConfirmed ? '#16a34a' : '#6b7280', 
+              fontSize: 10, 
+              fontWeight: 600, 
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 2,
+            }}
+          >
+            <CheckCircle size={10} />
+            確定除外
+          </button>
+          
+          <div style={{ width: 1, height: 16, background: '#e5e7eb', margin: '0 4px' }} />
+          
+          {/* フィルターボタン */}
+          <button 
+            onClick={() => setShowFilterPanel(!showFilterPanel)} 
+            style={{ 
+              padding: '3px 8px', 
+              borderRadius: 4, 
+              border: '1px solid',
+              borderColor: activeFilterCount > 0 ? '#8b5cf6' : '#e5e7eb', 
+              background: activeFilterCount > 0 ? '#f3e8ff' : 'white', 
+              color: activeFilterCount > 0 ? '#8b5cf6' : '#6b7280', 
+              fontSize: 10, 
+              fontWeight: 600, 
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 2,
+            }}
+          >
+            <Filter size={10} />
+            詳細
+            {activeFilterCount > 0 && (
+              <span style={{ 
+                background: '#8b5cf6', 
+                color: 'white', 
+                borderRadius: '50%', 
+                width: 14, 
+                height: 14, 
+                fontSize: 9, 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center' 
+              }}>
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+          
+          {activeFilterCount > 0 && (
+            <button 
+              onClick={resetFilters} 
+              style={{ 
+                padding: '3px 6px', 
+                borderRadius: 4, 
+                border: 'none', 
+                background: '#fef2f2', 
+                color: '#dc2626', 
+                fontSize: 9, 
+                cursor: 'pointer' 
+              }}
+            >
+              リセット
+            </button>
+          )}
           
           {/* ページサイズ */}
           <select 
@@ -298,10 +563,92 @@ export default function StocktakePage() {
             />
           </div>
         </div>
+        
+        {/* フィルターパネル（詳細） */}
+        {showFilterPanel && (
+          <div style={{ 
+            marginTop: 8, 
+            padding: 10, 
+            background: '#f9fafb', 
+            borderRadius: 8, 
+            border: '1px solid #e5e7eb',
+            display: 'flex',
+            gap: 12,
+            flexWrap: 'wrap',
+            alignItems: 'center',
+          }}>
+            {/* タイプフィルター */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontSize: 10, color: '#6b7280', fontWeight: 600 }}>タイプ:</span>
+              <button onClick={() => setFilterMode('all')} style={{ padding: '2px 6px', borderRadius: 4, border: 'none', background: filterMode === 'all' ? '#3b82f6' : '#e5e7eb', color: filterMode === 'all' ? 'white' : '#6b7280', fontSize: 9, fontWeight: 600, cursor: 'pointer' }}>
+                全商品
+              </button>
+              <button onClick={() => setFilterMode('stocktake')} style={{ padding: '2px 6px', borderRadius: 4, border: 'none', background: filterMode === 'stocktake' ? '#22c55e' : '#e5e7eb', color: filterMode === 'stocktake' ? 'white' : '#6b7280', fontSize: 9, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Camera size={9} />登録分
+              </button>
+            </div>
+            
+            {/* L1フィルター */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontSize: 10, color: '#6b7280', fontWeight: 600 }}>L1:</span>
+              <select 
+                value={l1Filter} 
+                onChange={(e) => setL1Filter(e.target.value)}
+                style={{ padding: '2px 6px', borderRadius: 4, border: '1px solid #e5e7eb', fontSize: 10, background: 'white', cursor: 'pointer' }}
+              >
+                <option value="">全て</option>
+                {L1_OPTIONS.filter(v => v).map(opt => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </div>
+            
+            {/* L2フィルター */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontSize: 10, color: '#6b7280', fontWeight: 600 }}>L2:</span>
+              <select 
+                value={l2Filter} 
+                onChange={(e) => setL2Filter(e.target.value)}
+                style={{ padding: '2px 6px', borderRadius: 4, border: '1px solid #e5e7eb', fontSize: 10, background: 'white', cursor: 'pointer' }}
+              >
+                <option value="">全て</option>
+                {L2_OPTIONS.filter(v => v).map(opt => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </div>
+            
+            {/* L3フィルター */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontSize: 10, color: '#6b7280', fontWeight: 600 }}>L3:</span>
+              <select 
+                value={l3Filter} 
+                onChange={(e) => setL3Filter(e.target.value)}
+                style={{ padding: '2px 6px', borderRadius: 4, border: '1px solid #e5e7eb', fontSize: 10, background: 'white', cursor: 'pointer' }}
+              >
+                <option value="">全て</option>
+                {L3_OPTIONS.filter(v => v).map(opt => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* メインコンテンツ */}
       <main ref={scrollContainerRef} style={{ flex: 1, padding: 6, overflowY: 'auto' }}>
+        {/* 保管場所別統計パネル */}
+        <LocationStatsPanel
+          locationStats={stats.locationStats}
+          totalCount={stats.totalCount}
+          totalQuantity={stats.totalQuantity}
+          currentFilter={locationFilter}
+          onFilterChange={handleLocationFilterChange}
+          collapsed={statsCollapsed}
+          onToggleCollapse={() => setStatsCollapsed(!statsCollapsed)}
+        />
+        
         {loading && products.length === 0 ? (
           <div style={{ padding: 40, textAlign: 'center', color: '#6b7280' }}>
             <RefreshCw size={24} className="animate-spin" />
@@ -315,6 +662,14 @@ export default function StocktakePage() {
           <div style={{ padding: 40, textAlign: 'center', color: '#6b7280' }}>
             <Package size={36} style={{ opacity: 0.5 }} />
             <p style={{ marginTop: 8, fontSize: 12 }}>商品がありません</p>
+            {activeFilterCount > 0 && (
+              <button 
+                onClick={resetFilters}
+                style={{ marginTop: 12, padding: '8px 16px', borderRadius: 6, border: 'none', background: '#3b82f6', color: 'white', fontSize: 12, cursor: 'pointer' }}
+              >
+                フィルターをリセット
+              </button>
+            )}
           </div>
         ) : viewMode === 'list' ? (
           <StocktakeList 
@@ -328,7 +683,7 @@ export default function StocktakePage() {
         ) : (
           <div style={{ 
             display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', // 最小110px、自動調整
+            gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
             gap: 6,
             maxWidth: '100%',
           }}>
@@ -360,7 +715,6 @@ export default function StocktakePage() {
           justifyContent: 'center',
           gap: 10,
         }}>
-          {/* 前へボタン */}
           <button 
             onClick={() => handlePageChange(currentPage - 1)}
             disabled={currentPage === 1}
@@ -382,7 +736,6 @@ export default function StocktakePage() {
             前へ
           </button>
           
-          {/* ページ選択ドロップダウン */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <select
               value={currentPage}
@@ -410,7 +763,6 @@ export default function StocktakePage() {
             </span>
           </div>
           
-          {/* 次へボタン */}
           <button 
             onClick={() => handlePageChange(currentPage + 1)}
             disabled={currentPage === totalPages}
@@ -432,7 +784,6 @@ export default function StocktakePage() {
             <ChevronRight size={18} />
           </button>
           
-          {/* 件数表示 */}
           <span style={{ fontSize: 12, color: '#6b7280', marginLeft: 8 }}>
             （全{filteredProducts.length}件）
           </span>

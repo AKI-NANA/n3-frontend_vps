@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>統合リサーチプラットフォーム - UI統合サンプル</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --primary: #3B82F6;
+            --primary-dark: #2563EB;
+            --secondary: #10B981;
+            --accent: #F59E0B;
+            --danger: #EF4444;
+            --dark: #1E293B;
+            --light: #F8FAFC;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #F8FAFC 0%, #E2E8F0 100%);
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .gradient-header {
+            background: linear-gradient(135deg, var(--primary) 0%, #0EA5E9 100%);
+        }
+
+        .platform-tab {
+            transition: all 0.3s ease;
+        }
+
+        .platform-tab.active {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+        }
+
+        .platform-tab:not(.active):hover {
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .search-type-tab {
+            transition: all 0.2s ease;
+            border-bottom: 3px solid transparent;
+        }
+
+        .search-type-tab.active {
+            border-bottom-color: var(--primary);
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .feature-card {
+            transition: all 0.3s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .result-card {
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        .result-card:hover {
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .profit-badge {
+            animation: pulse-profit 2s infinite;
+        }
+
+        @keyframes pulse-profit {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+
+        .sidebar-panel {
+            transition: transform 0.3s ease;
+        }
+
+        .sidebar-panel.open {
+            transform: translateX(0);
+        }
+
+        .stat-number {
+            font-variant-numeric: tabular-nums;
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+
+    <!-- ヘッダー -->
+    <header class="gradient-header text-white shadow-lg sticky top-0 z-50">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-search-dollar text-xl"></i>
+                        </div>
+                        <div>
+                            <h1 class="text-xl font-bold">統合リサーチプラットフォーム</h1>
+                            <p class="text-xs text-blue-100">AI-Powered Research Suite</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- プラットフォーム切り替え -->
+                <div class="flex items-center gap-2 bg-white/10 rounded-xl p-1">
+                    <button class="platform-tab active px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+                        <i class="fab fa-ebay"></i> eBay
+                    </button>
+                    <button class="platform-tab px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+                        <i class="fab fa-amazon"></i> Amazon
+                    </button>
+                    <button class="platform-tab px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+                        <i class="fas fa-shopping-bag"></i> 楽天
+                    </button>
+                    <button class="platform-tab px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+                        <i class="fas fa-store"></i> BUYMA
+                    </button>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <button class="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition">
+                        <i class="fas fa-history mr-2"></i>履歴
+                    </button>
+                    <button class="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition">
+                        <i class="fas fa-cog mr-2"></i>設定
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-6">
+        <!-- AI機能紹介パネル -->
+        <div class="glass-card rounded-2xl p-6 mb-6 bg-gradient-to-r from-emerald-50 to-cyan-50 border-l-4 border-emerald-500">
+            <div class="flex items-start justify-between">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 bg-emerald-500 rounded-xl flex items-center justify-center text-white">
+                        <i class="fas fa-robot text-xl"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-bold text-gray-800">AI駆動の高度な分析機能</h2>
+                        <p class="text-sm text-gray-600">逆リサーチ、AI売れる理由分析、リスク評価、次世代商品提案</p>
+                    </div>
+                </div>
+                <button class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-4 gap-4 mt-4">
+                <div class="feature-card bg-white rounded-xl p-4 shadow-sm">
+                    <i class="fas fa-exchange-alt text-emerald-500 text-xl mb-2"></i>
+                    <h4 class="font-semibold text-gray-800 text-sm">逆リサーチ機能</h4>
+                    <p class="text-xs text-gray-500 mt-1">商品から最適な仕入先を自動検出</p>
+                </div>
+                <div class="feature-card bg-white rounded-xl p-4 shadow-sm">
+                    <i class="fas fa-brain text-blue-500 text-xl mb-2"></i>
+                    <h4 class="font-semibold text-gray-800 text-sm">AI売れる理由分析</h4>
+                    <p class="text-xs text-gray-500 mt-1">成功パターンをAIが学習・分析</p>
+                </div>
+                <div class="feature-card bg-white rounded-xl p-4 shadow-sm">
+                    <i class="fas fa-shield-alt text-orange-500 text-xl mb-2"></i>
+                    <h4 class="font-semibold text-gray-800 text-sm">リスク評価システム</h4>
+                    <p class="text-xs text-gray-500 mt-1">7要因を定量化してROI評価</p>
+                </div>
+                <div class="feature-card bg-white rounded-xl p-4 shadow-sm">
+                    <i class="fas fa-lightbulb text-yellow-500 text-xl mb-2"></i>
+                    <h4 class="font-semibold text-gray-800 text-sm">次世代商品提案</h4>
+                    <p class="text-xs text-gray-500 mt-1">連想ゲーム式で新市場を発見</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- メイン検索エリア -->
+        <div class="glass-card rounded-2xl shadow-xl overflow-hidden mb-6">
+            <!-- 検索タイプタブ -->
+            <div class="flex border-b bg-gray-50">
+                <button class="search-type-tab active flex-1 py-4 px-6 flex items-center justify-center gap-2 text-sm">
+                    <i class="fas fa-search"></i> 商品リサーチ
+                </button>
+                <button class="search-type-tab flex-1 py-4 px-6 flex items-center justify-center gap-2 text-sm text-gray-500">
+                    <i class="fas fa-user"></i> セラーリサーチ
+                </button>
+                <button class="search-type-tab flex-1 py-4 px-6 flex items-center justify-center gap-2 text-sm text-gray-500">
+                    <i class="fas fa-exchange-alt"></i> 逆リサーチ
+                </button>
+                <button class="search-type-tab flex-1 py-4 px-6 flex items-center justify-center gap-2 text-sm text-gray-500">
+                    <i class="fas fa-robot"></i> AI提案
+                </button>
+                <button class="search-type-tab flex-1 py-4 px-6 flex items-center justify-center gap-2 text-sm text-gray-500">
+                    <i class="fas fa-layer-group"></i> バルクリサーチ
+                </button>
+            </div>
+
+            <!-- 検索フォーム -->
+            <div class="p-6">
+                <!-- 商品リサーチフォーム -->
+                <div class="space-y-6">
+                    <!-- メイン検索入力 -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            <i class="fas fa-search mr-2 text-blue-500"></i>検索キーワード
+                        </label>
+                        <div class="relative">
+                            <input type="text"
+                                   class="w-full px-4 py-3 pr-12 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition text-lg"
+                                   placeholder="商品名、ブランド、モデル名を入力...">
+                            <button class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-500">
+                                <i class="fas fa-microphone"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- フィルターグリッド -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">
+                                <i class="fas fa-tags mr-1"></i>カテゴリー
+                            </label>
+                            <select class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm">
+                                <option>すべて</option>
+                                <option>Electronics</option>
+                                <option>Clothing</option>
+                                <option>Home & Garden</option>
+                                <option>Toys & Hobbies</option>
+                                <option>Collectibles</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">
+                                <i class="fas fa-flag mr-1"></i>セラーの国
+                            </label>
+                            <select class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm">
+                                <option>すべて</option>
+                                <option>日本</option>
+                                <option>アメリカ</option>
+                                <option>中国</option>
+                                <option>イギリス</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">
+                                <i class="fas fa-star mr-1"></i>コンディション
+                            </label>
+                            <select class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm">
+                                <option>すべて</option>
+                                <option>新品</option>
+                                <option>中古</option>
+                                <option>整備済み</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">
+                                <i class="fas fa-dollar-sign mr-1"></i>価格帯
+                            </label>
+                            <div class="flex gap-2">
+                                <input type="number" placeholder="Min" class="w-1/2 px-2 py-2 border border-gray-200 rounded-lg text-sm">
+                                <input type="number" placeholder="Max" class="w-1/2 px-2 py-2 border border-gray-200 rounded-lg text-sm">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">
+                                <i class="fas fa-shopping-cart mr-1"></i>最低売上数
+                            </label>
+                            <input type="number" value="1" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">
+                                <i class="fas fa-calendar mr-1"></i>検索期間
+                            </label>
+                            <select class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm">
+                                <option>過去7日</option>
+                                <option>過去30日</option>
+                                <option>過去60日</option>
+                                <option selected>過去90日</option>
+                                <option>過去180日</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">
+                                <i class="fas fa-database mr-1"></i>取得件数
+                            </label>
+                            <select class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm">
+                                <option>100件</option>
+                                <option selected>200件</option>
+                                <option>500件</option>
+                                <option>1000件</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">
+                                <i class="fas fa-percentage mr-1"></i>最低利益率
+                            </label>
+                            <input type="number" value="15" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">
+                                <i class="fas fa-shield-alt mr-1"></i>リスクレベル
+                            </label>
+                            <select class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm">
+                                <option>すべて</option>
+                                <option>低リスク</option>
+                                <option>中リスク</option>
+                                <option>高リスク</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">
+                                <i class="fas fa-filter mr-1"></i>重複商品
+                            </label>
+                            <select class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm">
+                                <option>すべて表示</option>
+                                <option>一点物のみ</option>
+                                <option>市場商品のみ</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">
+                                <i class="fas fa-sort mr-1"></i>ソート順
+                            </label>
+                            <select class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm">
+                                <option>売上数順</option>
+                                <option>利益率順</option>
+                                <option>価格順</option>
+                                <option>新着順</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">
+                                <i class="fas fa-eye mr-1"></i>出品中のみ
+                            </label>
+                            <div class="flex items-center h-[38px]">
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" class="sr-only peer" checked>
+                                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- アクションボタン -->
+                    <div class="flex items-center justify-center gap-4 pt-4 border-t">
+                        <button class="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-medium transition flex items-center gap-2">
+                            <i class="fas fa-undo"></i> リセット
+                        </button>
+                        <button class="px-8 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white rounded-xl font-semibold shadow-lg transition flex items-center gap-2">
+                            <i class="fas fa-search"></i> 商品検索開始
+                        </button>
+                        <button class="px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium transition flex items-center gap-2">
+                            <i class="fas fa-save"></i> 検索条件保存
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 統計サマリー -->
+        <div class="grid grid-cols-5 gap-4 mb-6">
+            <div class="glass-card rounded-xl p-4 text-center">
+                <div class="text-3xl font-bold text-blue-600 stat-number">1,234</div>
+                <div class="text-xs text-gray-500 mt-1">検索結果</div>
+            </div>
+            <div class="glass-card rounded-xl p-4 text-center">
+                <div class="text-3xl font-bold text-emerald-600 stat-number">¥45,678</div>
+                <div class="text-xs text-gray-500 mt-1">平均価格</div>
+            </div>
+            <div class="glass-card rounded-xl p-4 text-center">
+                <div class="text-3xl font-bold text-orange-600 stat-number">23.5%</div>
+                <div class="text-xs text-gray-500 mt-1">平均利益率</div>
+            </div>
+            <div class="glass-card rounded-xl p-4 text-center">
+                <div class="text-3xl font-bold text-purple-600 stat-number">456</div>
+                <div class="text-xs text-gray-500 mt-1">高利益商品</div>
+            </div>
+            <div class="glass-card rounded-xl p-4 text-center">
+                <div class="text-3xl font-bold text-pink-600 stat-number">89</div>
+                <div class="text-xs text-gray-500 mt-1">AI推奨</div>
+            </div>
+        </div>
+
+        <!-- 結果表示エリア -->
+        <div class="glass-card rounded-2xl shadow-xl overflow-hidden">
+            <div class="bg-gray-50 border-b px-6 py-4 flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <h2 class="text-lg font-bold text-gray-800">
+                        <i class="fas fa-chart-bar mr-2 text-blue-500"></i>検索結果
+                        <span class="text-sm font-normal text-gray-500 ml-2">(1,234件)</span>
+                    </h2>
+                    <div class="flex bg-white rounded-lg p-1 shadow-sm">
+                        <button class="px-3 py-1 bg-blue-500 text-white rounded text-sm">
+                            <i class="fas fa-th"></i>
+                        </button>
+                        <button class="px-3 py-1 text-gray-500 hover:bg-gray-100 rounded text-sm">
+                            <i class="fas fa-list"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button class="px-4 py-2 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg text-sm flex items-center gap-2 transition">
+                        <i class="fas fa-download text-gray-500"></i> CSV出力
+                    </button>
+                    <button class="px-4 py-2 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg text-sm flex items-center gap-2 transition">
+                        <i class="fas fa-file-excel text-green-500"></i> Excel出力
+                    </button>
+                    <button class="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-sm flex items-center gap-2 transition">
+                        <i class="fas fa-magic"></i> AIレポート生成
+                    </button>
+                </div>
+            </div>
+
+            <!-- 結果グリッド -->
+            <div class="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <!-- 商品カード1 -->
+                <div class="result-card bg-white rounded-xl shadow-md overflow-hidden">
+                    <div class="relative h-48">
+                        <img src="https://via.placeholder.com/300x200/E0E0E0/888888?text=Product+Image"
+                             class="w-full h-full object-cover" alt="Product">
+                        <div class="profit-badge absolute top-2 right-2 px-3 py-1 bg-emerald-500 text-white text-xs font-bold rounded-full">
+                            利益率 25.5%
+                        </div>
+                        <div class="absolute top-2 left-2 px-2 py-1 bg-blue-500 text-white text-xs rounded">
+                            <i class="fas fa-fire mr-1"></i>売れ筋
+                        </div>
+                    </div>
+                    <div class="p-4">
+                        <h3 class="font-semibold text-gray-800 text-sm line-clamp-2 mb-2">
+                            Pokemon Trading Card Game - Vintage Collection Set...
+                        </h3>
+                        <p class="text-xs text-gray-400 mb-3 line-clamp-1">
+                            ポケモンカードゲーム ヴィンテージコレクション...
+                        </p>
+                        <div class="grid grid-cols-2 gap-2 mb-3">
+                            <div class="bg-gray-50 rounded-lg p-2 text-center">
+                                <div class="text-lg font-bold text-blue-600">$125</div>
+                                <div class="text-xs text-gray-500">eBay価格</div>
+                            </div>
+                            <div class="bg-gray-50 rounded-lg p-2 text-center">
+                                <div class="text-lg font-bold text-purple-600">234</div>
+                                <div class="text-xs text-gray-500">売上数</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between text-xs text-gray-500 mb-3">
+                            <span><i class="fas fa-users mr-1"></i>競合: 12</span>
+                            <span class="flex items-center">
+                                <span class="w-2 h-2 bg-emerald-500 rounded-full mr-1"></span>
+                                低リスク
+                            </span>
+                        </div>
+                        <div class="flex gap-2">
+                            <button class="flex-1 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm transition">
+                                <i class="fas fa-eye mr-1"></i>詳細
+                            </button>
+                            <button class="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition">
+                                <i class="fas fa-heart"></i>
+                            </button>
+                            <button class="px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm transition">
+                                <i class="fas fa-cart-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 商品カード2 -->
+                <div class="result-card bg-white rounded-xl shadow-md overflow-hidden">
+                    <div class="relative h-48">
+                        <img src="https://via.placeholder.com/300x200/E0E0E0/888888?text=Nintendo+Switch"
+                             class="w-full h-full object-cover" alt="Product">
+                        <div class="profit-badge absolute top-2 right-2 px-3 py-1 bg-orange-500 text-white text-xs font-bold rounded-full">
+                            利益率 18.2%
+                        </div>
+                        <div class="absolute top-2 left-2 px-2 py-1 bg-purple-500 text-white text-xs rounded">
+                            <i class="fas fa-robot mr-1"></i>AI推奨
+                        </div>
+                    </div>
+                    <div class="p-4">
+                        <h3 class="font-semibold text-gray-800 text-sm line-clamp-2 mb-2">
+                            Nintendo Switch OLED Model - Limited Edition...
+                        </h3>
+                        <p class="text-xs text-gray-400 mb-3 line-clamp-1">
+                            Nintendo Switch 有機ELモデル 限定版...
+                        </p>
+                        <div class="grid grid-cols-2 gap-2 mb-3">
+                            <div class="bg-gray-50 rounded-lg p-2 text-center">
+                                <div class="text-lg font-bold text-blue-600">$349</div>
+                                <div class="text-xs text-gray-500">eBay価格</div>
+                            </div>
+                            <div class="bg-gray-50 rounded-lg p-2 text-center">
+                                <div class="text-lg font-bold text-purple-600">567</div>
+                                <div class="text-xs text-gray-500">売上数</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between text-xs text-gray-500 mb-3">
+                            <span><i class="fas fa-users mr-1"></i>競合: 45</span>
+                            <span class="flex items-center">
+                                <span class="w-2 h-2 bg-orange-500 rounded-full mr-1"></span>
+                                中リスク
+                            </span>
+                        </div>
+                        <div class="flex gap-2">
+                            <button class="flex-1 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm transition">
+                                <i class="fas fa-eye mr-1"></i>詳細
+                            </button>
+                            <button class="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition">
+                                <i class="fas fa-heart"></i>
+                            </button>
+                            <button class="px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm transition">
+                                <i class="fas fa-cart-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 商品カード3 -->
+                <div class="result-card bg-white rounded-xl shadow-md overflow-hidden">
+                    <div class="relative h-48">
+                        <img src="https://via.placeholder.com/300x200/E0E0E0/888888?text=Vintage+Camera"
+                             class="w-full h-full object-cover" alt="Product">
+                        <div class="profit-badge absolute top-2 right-2 px-3 py-1 bg-emerald-500 text-white text-xs font-bold rounded-full">
+                            利益率 32.1%
+                        </div>
+                    </div>
+                    <div class="p-4">
+                        <h3 class="font-semibold text-gray-800 text-sm line-clamp-2 mb-2">
+                            Vintage Film Camera - Canon AE-1 Program...
+                        </h3>
+                        <p class="text-xs text-gray-400 mb-3 line-clamp-1">
+                            ヴィンテージフィルムカメラ Canon AE-1...
+                        </p>
+                        <div class="grid grid-cols-2 gap-2 mb-3">
+                            <div class="bg-gray-50 rounded-lg p-2 text-center">
+                                <div class="text-lg font-bold text-blue-600">$189</div>
+                                <div class="text-xs text-gray-500">eBay価格</div>
+                            </div>
+                            <div class="bg-gray-50 rounded-lg p-2 text-center">
+                                <div class="text-lg font-bold text-purple-600">89</div>
+                                <div class="text-xs text-gray-500">売上数</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between text-xs text-gray-500 mb-3">
+                            <span><i class="fas fa-users mr-1"></i>競合: 8</span>
+                            <span class="flex items-center">
+                                <span class="w-2 h-2 bg-emerald-500 rounded-full mr-1"></span>
+                                低リスク
+                            </span>
+                        </div>
+                        <div class="flex gap-2">
+                            <button class="flex-1 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm transition">
+                                <i class="fas fa-eye mr-1"></i>詳細
+                            </button>
+                            <button class="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition">
+                                <i class="fas fa-heart"></i>
+                            </button>
+                            <button class="px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm transition">
+                                <i class="fas fa-cart-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 商品カード4 -->
+                <div class="result-card bg-white rounded-xl shadow-md overflow-hidden">
+                    <div class="relative h-48">
+                        <img src="https://via.placeholder.com/300x200/E0E0E0/888888?text=Japanese+Pottery"
+                             class="w-full h-full object-cover" alt="Product">
+                        <div class="profit-badge absolute top-2 right-2 px-3 py-1 bg-red-500 text-white text-xs font-bold rounded-full">
+                            利益率 8.5%
+                        </div>
+                        <div class="absolute top-2 left-2 px-2 py-1 bg-red-500 text-white text-xs rounded">
+                            <i class="fas fa-exclamation-triangle mr-1"></i>要注意
+                        </div>
+                    </div>
+                    <div class="p-4">
+                        <h3 class="font-semibold text-gray-800 text-sm line-clamp-2 mb-2">
+                            Japanese Handmade Pottery - Traditional...
+                        </h3>
+                        <p class="text-xs text-gray-400 mb-3 line-clamp-1">
+                            日本製手作り陶器 伝統的な...
+                        </p>
+                        <div class="grid grid-cols-2 gap-2 mb-3">
+                            <div class="bg-gray-50 rounded-lg p-2 text-center">
+                                <div class="text-lg font-bold text-blue-600">$45</div>
+                                <div class="text-xs text-gray-500">eBay価格</div>
+                            </div>
+                            <div class="bg-gray-50 rounded-lg p-2 text-center">
+                                <div class="text-lg font-bold text-purple-600">23</div>
+                                <div class="text-xs text-gray-500">売上数</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between text-xs text-gray-500 mb-3">
+                            <span><i class="fas fa-users mr-1"></i>競合: 67</span>
+                            <span class="flex items-center">
+                                <span class="w-2 h-2 bg-red-500 rounded-full mr-1"></span>
+                                高リスク
+                            </span>
+                        </div>
+                        <div class="flex gap-2">
+                            <button class="flex-1 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm transition">
+                                <i class="fas fa-eye mr-1"></i>詳細
+                            </button>
+                            <button class="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition">
+                                <i class="fas fa-heart"></i>
+                            </button>
+                            <button class="px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm transition">
+                                <i class="fas fa-cart-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ページネーション -->
+            <div class="px-6 py-4 border-t bg-gray-50 flex items-center justify-between">
+                <div class="text-sm text-gray-500">
+                    1,234件中 1-20件を表示
+                </div>
+                <div class="flex gap-2">
+                    <button class="px-3 py-1 bg-white border border-gray-200 rounded text-sm hover:bg-gray-50 disabled:opacity-50" disabled>
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <button class="px-3 py-1 bg-blue-500 text-white rounded text-sm">1</button>
+                    <button class="px-3 py-1 bg-white border border-gray-200 rounded text-sm hover:bg-gray-50">2</button>
+                    <button class="px-3 py-1 bg-white border border-gray-200 rounded text-sm hover:bg-gray-50">3</button>
+                    <span class="px-2 py-1 text-gray-400">...</span>
+                    <button class="px-3 py-1 bg-white border border-gray-200 rounded text-sm hover:bg-gray-50">62</button>
+                    <button class="px-3 py-1 bg-white border border-gray-200 rounded text-sm hover:bg-gray-50">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- AI分析サイドパネル (閉じている状態) -->
+    <div class="fixed top-0 right-0 h-full w-96 bg-white shadow-2xl transform translate-x-full sidebar-panel z-50">
+        <div class="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-4 flex items-center justify-between">
+            <h3 class="font-bold"><i class="fas fa-brain mr-2"></i>AI分析パネル</h3>
+            <button class="hover:bg-white/20 rounded p-1">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="p-4">
+            <div class="bg-purple-50 rounded-xl p-4 mb-4 border-l-4 border-purple-500">
+                <h4 class="font-semibold text-purple-800 mb-2">売れる理由分析</h4>
+                <p class="text-sm text-gray-600">この商品が売れている理由をAIが分析中...</p>
+            </div>
+            <div class="bg-blue-50 rounded-xl p-4 mb-4 border-l-4 border-blue-500">
+                <h4 class="font-semibold text-blue-800 mb-2">仕入先候補</h4>
+                <ul class="text-sm text-gray-600 space-y-1">
+                    <li>• Amazon.co.jp: ¥8,500</li>
+                    <li>• 楽天市場: ¥8,800</li>
+                    <li>• メルカリ: ¥7,200</li>
+                </ul>
+            </div>
+            <div class="bg-orange-50 rounded-xl p-4 border-l-4 border-orange-500">
+                <h4 class="font-semibold text-orange-800 mb-2">リスク評価</h4>
+                <div class="space-y-2">
+                    <div class="flex justify-between text-sm">
+                        <span>市場ボラティリティ</span>
+                        <span class="text-emerald-600">低</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span>競合リスク</span>
+                        <span class="text-orange-600">中</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span>偽物リスク</span>
+                        <span class="text-emerald-600">低</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- フローティングアクションボタン -->
+    <button class="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full shadow-lg hover:shadow-xl transition flex items-center justify-center">
+        <i class="fas fa-brain text-xl"></i>
+    </button>
+
+    <script>
+        // タブ切り替え
+        document.querySelectorAll('.platform-tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.platform-tab').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+
+        document.querySelectorAll('.search-type-tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.search-type-tab').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+    </script>
+</body>
+</html>

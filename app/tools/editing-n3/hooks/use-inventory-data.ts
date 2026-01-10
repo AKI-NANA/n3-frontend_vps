@@ -25,6 +25,23 @@ export interface InventoryProduct extends BaseInventoryProduct {
   current_stock?: number; // physical_quantity のエイリアス
   stock_status?: 'in_stock' | 'out_of_stock' | 'low_stock';
   ebay_account?: string; // source_data.ebay_account のエイリアス
+  
+  // L1-L4属性（分類用）
+  attr_l1?: string | null;
+  attr_l2?: string | null;
+  attr_l3?: string | null;
+  attr_l4?: string[]; // 販売予定販路（配列）
+  is_verified?: boolean;
+  
+  // その他経費
+  additional_costs?: Record<string, number>; // JSONB形式: { "国内送料": 500, "検品費": 300 }
+  total_cost_jpy?: number; // 原価 + 経費合計
+  
+  // 棚卸し関連
+  storage_location?: string | null;
+  last_counted_at?: string | null;
+  counted_by?: string | null;
+  inventory_images?: string[];
 }
 
 // フィルター型
@@ -46,6 +63,20 @@ export interface InventoryFilter {
   masterOnly?: boolean;
   /** データ未完成のみ表示（title_en or categoryが未設定） */
   dataIncomplete?: boolean;
+  /** L1属性フィルター */
+  attrL1?: string;
+  /** L2属性フィルター */
+  attrL2?: string;
+  /** L3属性フィルター */
+  attrL3?: string;
+  /** L4属性フィルター（販売予定販路、複数選択） */
+  attrL4?: string[];
+  /** 画像なしのみ */
+  noImages?: boolean;
+  /** 最小在庫数（この数以上の在庫がある商品のみ） */
+  minStock?: number;
+  /** 最大在庫数（この数以下の在庫の商品のみ） */
+  maxStock?: number;
 }
 
 // ソートオプション型
@@ -140,7 +171,8 @@ export function useInventoryData() {
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(DEFAULT_ITEMS_PER_PAGE);
-  const [filter, setFilter] = useState<InventoryFilter>({});
+  // デフォルトで在庫1以上の商品のみ表示（在庫0は絞り込みで表示）
+  const [filter, setFilter] = useState<InventoryFilter>({ minStock: 1 });
   const [pendingCount, setPendingCount] = useState(0);
   const [sortOption, setSortOption] = useState<SortOption>({ field: 'created_at', order: 'desc' });
   
@@ -286,6 +318,32 @@ export function useInventoryData() {
           current_stock: physicalQuantity,
           stock_status: stockStatus,
           ebay_account: account,
+          
+          // L1-L3属性（DBから直接マッピング）
+          attr_l1: item.attr_l1 || null,
+          attr_l2: item.attr_l2 || null,
+          attr_l3: item.attr_l3 || null,
+          is_verified: item.is_verified || false,
+          
+          // L4属性: 販売予定販路（配列）
+          attr_l4: item.attr_l4 || [],
+          
+          // その他経費（JSONB）
+          additional_costs: item.additional_costs || {},
+          
+          // 総原価（原価 + 経費合計）
+          total_cost_jpy: item.total_cost_jpy || 0,
+          
+          // 棚卸し関連
+          storage_location: item.storage_location || null,
+          last_counted_at: item.last_counted_at || null,
+          counted_by: item.counted_by || null,
+          inventory_images: item.inventory_images || [],
+          
+          // フラグ・メモ（棚卸し用）
+          needs_count_check: item.needs_count_check || false,
+          stock_confirmed: item.stock_confirmed || false,
+          stock_memo: item.stock_memo || '',
         };
       });
       
@@ -408,6 +466,42 @@ export function useInventoryData() {
       });
     }
     
+    // L1-L3属性フィルター
+    if (filter.attrL1) {
+      result = result.filter(p => (p as any).attr_l1 === filter.attrL1);
+    }
+    if (filter.attrL2) {
+      result = result.filter(p => (p as any).attr_l2 === filter.attrL2);
+    }
+    if (filter.attrL3) {
+      result = result.filter(p => (p as any).attr_l3 === filter.attrL3);
+    }
+    
+    // 画像なしフィルター
+    if (filter.noImages) {
+      result = result.filter(p => !p.images || !Array.isArray(p.images) || p.images.length === 0);
+    }
+    
+    // L4属性フィルター（販売予定販路、複数選択）
+    if (filter.attrL4 && filter.attrL4.length > 0) {
+      result = result.filter(p => {
+        const productL4 = (p as any).attr_l4;
+        if (!productL4 || !Array.isArray(productL4) || productL4.length === 0) return false;
+        // フィルターで指定された販路のいずれかが含まれているか
+        return filter.attrL4!.some(channel => productL4.includes(channel));
+      });
+    }
+    
+    // 最小在庫数フィルター
+    if (filter.minStock !== undefined && filter.minStock > 0) {
+      result = result.filter(p => (p.physical_quantity || 0) >= filter.minStock!);
+    }
+    
+    // 最大在庫数フィルター
+    if (filter.maxStock !== undefined) {
+      result = result.filter(p => (p.physical_quantity || 0) <= filter.maxStock!);
+    }
+    
     // ソート適用
     result.sort((a, b) => {
       let aVal: any;
@@ -498,6 +592,31 @@ export function useInventoryData() {
     return Array.from(cats).sort();
   }, [products]);
 
+  // L1-L3属性オプション一覧
+  const attributeOptions = useMemo(() => {
+    const l1Set = new Set<string>();
+    const l2Set = new Set<string>();
+    const l3Set = new Set<string>();
+    
+    products.forEach(p => {
+      const pAny = p as any;
+      if (pAny.attr_l1) l1Set.add(pAny.attr_l1);
+      if (pAny.attr_l2) l2Set.add(pAny.attr_l2);
+      if (pAny.attr_l3) l3Set.add(pAny.attr_l3);
+    });
+    
+    return {
+      l1: Array.from(l1Set).sort(),
+      l2: Array.from(l2Set).sort(),
+      l3: Array.from(l3Set).sort(),
+    };
+  }, [products]);
+
+  // 画像なし商品のカウント
+  const noImagesCount = useMemo(() => {
+    return products.filter(p => !p.images || !Array.isArray(p.images) || p.images.length === 0).length;
+  }, [products]);
+
   // ページネーション
   const totalItems = filteredProducts.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -556,6 +675,8 @@ export function useInventoryData() {
     // 統計
     stats,
     categories,
+    attributeOptions,
+    noImagesCount,
     
     // 状態
     loading,

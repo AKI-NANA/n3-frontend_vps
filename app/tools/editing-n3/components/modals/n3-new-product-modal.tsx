@@ -3,13 +3,15 @@
  * 新規商品作成モーダル
  * 
  * inventory_master に新規商品を手動登録するモーダル
+ * L4属性（販売予定販路）とその他経費の入力に対応
  */
 
 'use client';
 
 import React, { useState } from 'react';
-import { X, Package, Plus, Upload, Image as ImageIcon } from 'lucide-react';
+import { X, Package, Plus, Upload, Image as ImageIcon, Store, Trash2 } from 'lucide-react';
 import { N3Button, N3Divider } from '@/components/n3';
+import { SALES_CHANNEL_LABELS, COST_ITEM_PRESETS, type SalesChannel, type AdditionalCosts } from '@/types/inventory';
 
 interface N3NewProductModalProps {
   isOpen: boolean;
@@ -28,6 +30,15 @@ export interface NewProductData {
   notes?: string;
   images?: string[];
   storage_location?: string;  // 保管場所: 'env' | 'plus1'
+  attr_l4?: SalesChannel[];   // 販売予定販路
+  additional_costs?: AdditionalCosts; // その他経費
+}
+
+// 経費項目の型
+interface CostItem {
+  key: string;
+  label: string;
+  amount: number;
 }
 
 export function N3NewProductModal({
@@ -45,9 +56,19 @@ export function N3NewProductModal({
     category: '',
     notes: '',
     storage_location: 'plus1',  // 新規登録はデフォルトplus1
+    attr_l4: [],
+    additional_costs: {},
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // L4属性（販売予定販路）
+  const [selectedChannels, setSelectedChannels] = useState<SalesChannel[]>([]);
+  
+  // その他経費
+  const [costItems, setCostItems] = useState<CostItem[]>([]);
+  const [newCostKey, setNewCostKey] = useState('');
+  const [newCostAmount, setNewCostAmount] = useState('');
 
   if (!isOpen) return null;
 
@@ -55,6 +76,51 @@ export function N3NewProductModal({
     setFormData(prev => ({ ...prev, [field]: value }));
     setError(null);
   };
+
+  // 販路チェックボックスのトグル
+  const toggleChannel = (channel: SalesChannel) => {
+    setSelectedChannels(prev => {
+      if (prev.includes(channel)) {
+        return prev.filter(c => c !== channel);
+      } else {
+        return [...prev, channel];
+      }
+    });
+  };
+
+  // 経費項目の追加
+  const handleAddCostItem = () => {
+    if (!newCostKey || !newCostAmount) return;
+    
+    const amount = parseInt(newCostAmount) || 0;
+    if (amount <= 0) return;
+    
+    const preset = COST_ITEM_PRESETS.find(p => p.key === newCostKey);
+    const existingIndex = costItems.findIndex(item => item.key === newCostKey);
+    
+    if (existingIndex >= 0) {
+      setCostItems(prev => prev.map((item, i) => 
+        i === existingIndex ? { ...item, amount } : item
+      ));
+    } else {
+      setCostItems(prev => [...prev, {
+        key: newCostKey,
+        label: preset?.label || newCostKey,
+        amount,
+      }]);
+    }
+    
+    setNewCostKey('');
+    setNewCostAmount('');
+  };
+
+  // 経費項目の削除
+  const handleRemoveCostItem = (key: string) => {
+    setCostItems(prev => prev.filter(item => item.key !== key));
+  };
+
+  // 経費合計
+  const totalAdditionalCosts = costItems.reduce((sum, item) => sum + item.amount, 0);
 
   const handleSubmit = async () => {
     // バリデーション
@@ -71,7 +137,21 @@ export function N3NewProductModal({
     setError(null);
 
     try {
-      const result = await onSubmit(formData);
+      // additional_costsをオブジェクトに変換
+      const additionalCosts: AdditionalCosts = {};
+      for (const item of costItems) {
+        if (item.amount > 0) {
+          additionalCosts[item.key] = item.amount;
+        }
+      }
+      
+      const submitData: NewProductData = {
+        ...formData,
+        attr_l4: selectedChannels,
+        additional_costs: additionalCosts,
+      };
+      
+      const result = await onSubmit(submitData);
       if (result.success) {
         // 成功したらフォームをリセットして閉じる
         setFormData({
@@ -84,7 +164,11 @@ export function N3NewProductModal({
           category: '',
           notes: '',
           storage_location: 'plus1',
+          attr_l4: [],
+          additional_costs: {},
         });
+        setSelectedChannels([]);
+        setCostItems([]);
         onClose();
       } else {
         setError(result.error || '登録に失敗しました');
@@ -102,6 +186,9 @@ export function N3NewProductModal({
     }
   };
 
+  // 総原価（原価 + 経費）
+  const totalCost = formData.cost_price + totalAdditionalCosts;
+
   return (
     <div 
       className="fixed inset-0 z-[9999] flex items-center justify-center"
@@ -109,7 +196,7 @@ export function N3NewProductModal({
       onClick={handleClose}
     >
       <div 
-        className="relative w-full max-w-lg max-h-[90vh] overflow-hidden rounded-lg shadow-xl"
+        className="relative w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-lg shadow-xl"
         style={{ background: 'var(--panel)' }}
         onClick={e => e.stopPropagation()}
       >
@@ -291,6 +378,159 @@ export function N3NewProductModal({
                 />
               </div>
             </div>
+
+            <N3Divider />
+
+            {/* その他経費セクション */}
+            <div>
+              <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text)' }}>
+                その他経費
+              </label>
+              
+              {/* 経費リスト */}
+              {costItems.length > 0 && (
+                <div className="space-y-2 mb-3">
+                  {costItems.map((item) => (
+                    <div 
+                      key={item.key}
+                      className="flex items-center gap-2 p-2 rounded"
+                      style={{ background: 'var(--highlight)' }}
+                    >
+                      <span className="flex-1 text-sm" style={{ color: 'var(--text)' }}>
+                        {item.label}
+                      </span>
+                      <span className="text-sm font-mono" style={{ color: 'var(--text)' }}>
+                        ¥{item.amount.toLocaleString()}
+                      </span>
+                      <button
+                        onClick={() => handleRemoveCostItem(item.key)}
+                        className="p-1 rounded hover:bg-[var(--panel)]"
+                        style={{ color: 'var(--color-error)' }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* 経費追加フォーム */}
+              <div className="flex items-center gap-2">
+                <select
+                  value={newCostKey}
+                  onChange={(e) => setNewCostKey(e.target.value)}
+                  className="flex-1 px-2 py-1.5 rounded text-sm"
+                  style={{ 
+                    background: 'var(--highlight)', 
+                    color: 'var(--text)',
+                    border: '1px solid var(--panel-border)',
+                  }}
+                >
+                  <option value="">項目を選択...</option>
+                  {COST_ITEM_PRESETS.map((preset) => (
+                    <option key={preset.key} value={preset.key}>
+                      {preset.label}
+                    </option>
+                  ))}
+                </select>
+                <div className="flex items-center">
+                  <span className="text-sm mr-1" style={{ color: 'var(--text-muted)' }}>¥</span>
+                  <input
+                    type="number"
+                    value={newCostAmount}
+                    onChange={(e) => setNewCostAmount(e.target.value)}
+                    placeholder="金額"
+                    className="w-24 px-2 py-1.5 rounded text-sm text-right"
+                    style={{ 
+                      background: 'var(--highlight)', 
+                      color: 'var(--text)',
+                      border: '1px solid var(--panel-border)',
+                    }}
+                  />
+                </div>
+                <N3Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleAddCostItem}
+                  disabled={!newCostKey || !newCostAmount}
+                >
+                  <Plus size={14} />
+                </N3Button>
+              </div>
+              
+              {/* 合計表示 */}
+              {costItems.length > 0 && (
+                <div 
+                  className="mt-2 p-2 rounded flex justify-between items-center"
+                  style={{ background: 'rgba(245, 158, 11, 0.1)' }}
+                >
+                  <span className="text-sm" style={{ color: 'var(--text)' }}>経費合計</span>
+                  <span className="font-bold" style={{ color: 'rgb(245, 158, 11)' }}>
+                    ¥{totalAdditionalCosts.toLocaleString()}
+                  </span>
+                </div>
+              )}
+              
+              {/* 総原価 */}
+              <div 
+                className="mt-2 p-2 rounded flex justify-between items-center"
+                style={{ background: 'rgba(59, 130, 246, 0.1)' }}
+              >
+                <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+                  総原価（原価 + 経費）
+                </span>
+                <span className="font-bold" style={{ color: 'rgb(59, 130, 246)' }}>
+                  ¥{totalCost.toLocaleString()}
+                </span>
+              </div>
+            </div>
+
+            <N3Divider />
+
+            {/* L4属性: 販売予定販路 */}
+            <div>
+              <label className="block text-sm font-medium mb-2 flex items-center gap-2" style={{ color: 'var(--text)' }}>
+                <Store size={14} />
+                販売予定販路 (L4)
+              </label>
+              
+              <div className="grid grid-cols-3 gap-2">
+                {(Object.entries(SALES_CHANNEL_LABELS) as [SalesChannel, string][]).map(([channel, label]) => (
+                  <label
+                    key={channel}
+                    className="flex items-center gap-2 p-2 rounded cursor-pointer transition-all"
+                    style={{ 
+                      background: selectedChannels.includes(channel) 
+                        ? 'rgba(59, 130, 246, 0.15)' 
+                        : 'var(--highlight)',
+                      border: selectedChannels.includes(channel)
+                        ? '1px solid rgba(59, 130, 246, 0.5)'
+                        : '1px solid transparent',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedChannels.includes(channel)}
+                      onChange={() => toggleChannel(channel)}
+                      className="rounded"
+                    />
+                    <span 
+                      className="text-sm"
+                      style={{ 
+                        color: selectedChannels.includes(channel) 
+                          ? 'rgb(59, 130, 246)' 
+                          : 'var(--text)',
+                        fontWeight: selectedChannels.includes(channel) ? 600 : 400,
+                      }}
+                    >
+                      {label}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <N3Divider />
 
             {/* カテゴリ */}
             <div>
