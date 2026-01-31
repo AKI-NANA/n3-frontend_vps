@@ -1,0 +1,23 @@
+# 環境変数（絶対にコミットしない）
+.env
+.env.local
+.env.development
+.env.production
+.env*.local
+
+# 依存関係
+node_modules/
+
+# ビルド
+.next/
+out/
+dist/
+build/
+
+# キャッシュ
+.swc/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
