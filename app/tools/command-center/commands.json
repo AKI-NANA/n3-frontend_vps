@@ -1,6 +1,24 @@
 {
   "categories": [
     {
+      "id": "emergency",
+      "name": "🚨 緊急修正（シークレット漏洩）",
+      "description": "GitHubがシークレット検出でPushをブロックした時",
+      "when": "Push時に「secret scanning」エラーが出た時",
+      "important": "⚠️ 先にこれを実行してからデプロイ！",
+      "commands": [
+        {
+          "id": "fix-secrets",
+          "name": "🔐 Git履歴からシークレット削除 ★今すぐ実行★",
+          "description": ".env.localをGit履歴から完全削除",
+          "command": "bash ~/n3-frontend_new/scripts/n3-fix-git-secrets.sh",
+          "highlight": "red",
+          "tags": ["緊急", "セキュリティ"],
+          "detail": "GitHubがシークレット検出でPushをブロックした時に実行"
+        }
+      ]
+    },
+    {
       "id": "oneclick",
       "name": "⚡ ワンクリック実行",
       "description": "よく使うコマンドをワンクリックで",
@@ -14,7 +32,7 @@
           "command": "bash ~/n3-frontend_new/scripts/n3-nightly.sh",
           "highlight": "green",
           "tags": ["ワンクリック", "推奨"],
-          "detail": "深夜に自動実行されるものを今すぐ実行"
+          "detail": "React/UI、n8n JSON、設定ファイル全て同期"
         },
         {
           "id": "oneclick-promote-prod",
@@ -36,24 +54,24 @@
         {
           "id": "step1",
           "name": "1️⃣ ルート → 01_PRODUCT 同期",
-          "description": "app/, lib/等を01_PRODUCTへ（本番確定）",
-          "command": "cd ~/n3-frontend_new && rsync -av --delete --exclude='node_modules' --exclude='.next' app/ 01_PRODUCT/app/ && rsync -av --delete --exclude='node_modules' lib/ 01_PRODUCT/lib/ && rsync -av --delete --exclude='node_modules' components/ 01_PRODUCT/components/ && for dir in config contexts hooks services store types layouts public; do rsync -av --delete --exclude='node_modules' $dir/ 01_PRODUCT/$dir/ 2>/dev/null || mkdir -p 01_PRODUCT/$dir; done && for file in package.json package-lock.json tsconfig.json next.config.mjs next.config.ts tailwind.config.ts middleware.ts; do [ -f $file ] && cp $file 01_PRODUCT/; done && echo '✅ 1️⃣ 完了'",
+          "description": "app/, lib/, components/等を01_PRODUCTへ（本番確定）",
+          "command": "cd ~/n3-frontend_new && rsync -av --delete --exclude='node_modules' --exclude='.next' app/ 01_PRODUCT/app/ && rsync -av --delete --exclude='node_modules' lib/ 01_PRODUCT/lib/ && rsync -av --delete --exclude='node_modules' components/ 01_PRODUCT/components/ && for dir in config contexts hooks services store types layouts core public; do rsync -av --delete --exclude='node_modules' $dir/ 01_PRODUCT/$dir/ 2>/dev/null || mkdir -p 01_PRODUCT/$dir; done && for file in package.json package-lock.json tsconfig.json next.config.mjs next.config.ts tailwind.config.ts postcss.config.mjs middleware.ts eslint.config.mjs; do [ -f $file ] && cp $file 01_PRODUCT/; done && echo '✅ 1️⃣ 完了（React/UI含む）'",
           "highlight": "blue",
-          "tags": ["1", "同期"]
+          "tags": ["1", "同期", "React"]
         },
         {
           "id": "step2",
           "name": "2️⃣ 02_DEV_LAB → 01_PRODUCT 昇格",
-          "description": "PRODUCTION内のn8n/SQLを01_PRODUCTへ",
-          "command": "cd ~/n3-frontend_new && rsync -av 02_DEV_LAB/n8n-workflows/PRODUCTION/ 01_PRODUCT/n8n-workflows/ 2>/dev/null || mkdir -p 01_PRODUCT/n8n-workflows && rsync -av 02_DEV_LAB/sql/PRODUCTION/ 01_PRODUCT/sql/ 2>/dev/null || mkdir -p 01_PRODUCT/sql && echo '✅ 2️⃣ 完了'",
+          "description": "PRODUCTION内のn8n JSON/SQLを01_PRODUCTへ",
+          "command": "cd ~/n3-frontend_new && rsync -av 02_DEV_LAB/n8n-workflows/PRODUCTION/ 01_PRODUCT/n8n-workflows/ 2>/dev/null || mkdir -p 01_PRODUCT/n8n-workflows && rsync -av 02_DEV_LAB/sql/PRODUCTION/ 01_PRODUCT/sql/ 2>/dev/null || mkdir -p 01_PRODUCT/sql && echo '✅ 2️⃣ 完了（n8n JSON昇格）'",
           "highlight": "blue",
-          "tags": ["2", "昇格"]
+          "tags": ["2", "昇格", "n8n"]
         },
         {
           "id": "step3",
           "name": "3️⃣ 01_PRODUCT → VPSリポジトリ 同期",
-          "description": "01_PRODUCTをn3-frontend_vpsへ",
-          "command": "rsync -av --delete --exclude='.git' --exclude='node_modules' --exclude='.next' --exclude='.env.local' ~/n3-frontend_new/01_PRODUCT/ ~/n3-frontend_vps/ && echo '✅ 3️⃣ 完了'",
+          "description": "01_PRODUCTをn3-frontend_vpsへ（.env除外）",
+          "command": "rsync -av --delete --exclude='.git' --exclude='node_modules' --exclude='.next' --exclude='.env' --exclude='.env.local' --exclude='.env.development' --exclude='.env.production' ~/n3-frontend_new/01_PRODUCT/ ~/n3-frontend_vps/ && echo '✅ 3️⃣ 完了'",
           "highlight": "blue",
           "tags": ["3", "同期"]
         },
@@ -69,7 +87,7 @@
           "id": "step5",
           "name": "5️⃣ VPSリポジトリ → GitHub Push",
           "description": "n3-frontend_vpsをGitHubへ",
-          "command": "cd ~/n3-frontend_vps && git add -A && git commit -m \"deploy: $(date '+%Y%m%d_%H%M%S')\" && git push origin main && echo '✅ 5️⃣ 完了'",
+          "command": "cd ~/n3-frontend_vps && git rm --cached .env.local 2>/dev/null || true && git add -A && git commit -m \"deploy: $(date '+%Y%m%d_%H%M%S')\" && git push origin main && echo '✅ 5️⃣ 完了'",
           "highlight": "blue",
           "tags": ["5", "Push"]
         },
@@ -77,7 +95,7 @@
           "id": "step6",
           "name": "6️⃣ テストVPS Pull & 再起動",
           "description": "テストVPSにデプロイ",
-          "command": "ssh ubuntu@160.16.120.186 'cd ~/n3-frontend-vps && git pull origin main && pm2 restart n3' && echo '✅ 6️⃣ テストVPSデプロイ完了！'",
+          "command": "ssh ubuntu@160.16.120.186 'cd ~/n3-frontend-vps && git pull origin main && pm2 restart n3 2>/dev/null || pm2 start npm --name n3 -- start' && echo '✅ 6️⃣ テストVPSデプロイ完了！'",
           "highlight": "blue",
           "tags": ["6", "VPS"]
         }
@@ -106,14 +124,6 @@
           "command": "bash ~/n3-frontend_new/scripts/n3-promote-production.sh",
           "highlight": "green",
           "tags": ["本番", "昇格"]
-        },
-        {
-          "id": "prod-check",
-          "name": "✅ 本番VPSを確認",
-          "description": "本番が正常に動いているか確認",
-          "command": "https://YOUR_PRODUCTION_DOMAIN",
-          "isLink": true,
-          "tags": ["確認"]
         }
       ]
     },
@@ -169,28 +179,28 @@
         {
           "id": "clean-01product",
           "name": "🧹 01_PRODUCT クリーン",
-          "command": "cd ~/n3-frontend_new && rm -rf 01_PRODUCT/app 01_PRODUCT/lib 01_PRODUCT/components 01_PRODUCT/config 01_PRODUCT/contexts 01_PRODUCT/hooks 01_PRODUCT/services 01_PRODUCT/store 01_PRODUCT/types 01_PRODUCT/layouts 01_PRODUCT/public && echo '✅ 01_PRODUCT クリーン完了'",
+          "command": "cd ~/n3-frontend_new && rm -rf 01_PRODUCT/app 01_PRODUCT/lib 01_PRODUCT/components 01_PRODUCT/config 01_PRODUCT/contexts 01_PRODUCT/hooks 01_PRODUCT/services 01_PRODUCT/store 01_PRODUCT/types 01_PRODUCT/layouts 01_PRODUCT/public 01_PRODUCT/core && echo '✅ 01_PRODUCT クリーン完了'",
           "highlight": "orange",
           "tags": ["クリーン"]
         },
         {
           "id": "clean-vps-repo",
           "name": "🧹 VPSリポジトリ クリーン",
-          "command": "cd ~/n3-frontend_vps && rm -rf app lib components config contexts hooks services store types layouts public && echo '✅ VPSリポジトリ クリーン完了'",
+          "command": "cd ~/n3-frontend_vps && rm -rf app lib components config contexts hooks services store types layouts public core && echo '✅ VPSリポジトリ クリーン完了'",
           "highlight": "orange",
           "tags": ["クリーン"]
         },
         {
           "id": "clean-vps-server",
           "name": "🔥 VPSサーバー クリーン",
-          "command": "ssh ubuntu@160.16.120.186 'cd ~/n3-frontend-vps && rm -rf app lib components config contexts hooks services store types layouts public && git checkout . && git pull origin main && pm2 restart n3'",
+          "command": "ssh ubuntu@160.16.120.186 'cd ~/n3-frontend-vps && rm -rf app lib components config contexts hooks services store types layouts public core && git checkout . && git pull origin main && pm2 restart n3'",
           "highlight": "red",
           "tags": ["クリーン", "VPS"]
         },
         {
           "id": "clean-all",
           "name": "🔥 完全クリーン（全部）",
-          "command": "cd ~/n3-frontend_new && rm -rf 01_PRODUCT/app 01_PRODUCT/lib 01_PRODUCT/components 01_PRODUCT/config 01_PRODUCT/contexts 01_PRODUCT/hooks 01_PRODUCT/services 01_PRODUCT/store 01_PRODUCT/types 01_PRODUCT/layouts 01_PRODUCT/public && cd ~/n3-frontend_vps && rm -rf app lib components config contexts hooks services store types layouts public && echo '✅ 完全クリーン完了。次に全自動処理を実行'",
+          "command": "cd ~/n3-frontend_new && rm -rf 01_PRODUCT/app 01_PRODUCT/lib 01_PRODUCT/components 01_PRODUCT/config 01_PRODUCT/contexts 01_PRODUCT/hooks 01_PRODUCT/services 01_PRODUCT/store 01_PRODUCT/types 01_PRODUCT/layouts 01_PRODUCT/public 01_PRODUCT/core && cd ~/n3-frontend_vps && rm -rf app lib components config contexts hooks services store types layouts public core && echo '✅ 完全クリーン完了。次に全自動処理を実行'",
           "highlight": "red",
           "tags": ["クリーン", "完全"]
         }
@@ -205,7 +215,7 @@
         {
           "id": "setup-chmod",
           "name": "🔧 スクリプトに実行権限付与",
-          "command": "chmod +x ~/n3-frontend_new/scripts/n3-nightly.sh ~/n3-frontend_new/scripts/n3-promote-production.sh",
+          "command": "chmod +x ~/n3-frontend_new/scripts/n3-nightly.sh ~/n3-frontend_new/scripts/n3-promote-production.sh ~/n3-frontend_new/scripts/n3-fix-git-secrets.sh",
           "highlight": "blue",
           "tags": ["セットアップ"]
         },
@@ -228,6 +238,14 @@
           "name": "📜 自動処理ログ確認",
           "command": "tail -100 ~/n3-nightly.log",
           "tags": ["ログ"]
+        },
+        {
+          "id": "setup-vps-pm2",
+          "name": "🖥️ VPSでPM2初期設定",
+          "description": "PM2が未設定の場合",
+          "command": "ssh ubuntu@160.16.120.186 'cd ~/n3-frontend-vps && npm install && npm run build && pm2 start npm --name n3 -- start && pm2 save'",
+          "highlight": "blue",
+          "tags": ["VPS", "PM2"]
         }
       ]
     },
@@ -332,13 +350,23 @@
         "flow": {
           "title": "データの流れ",
           "items": [
-            { "location": "1", "path": "ルート → 01_PRODUCT", "note": "本番確定" },
-            { "location": "2", "path": "02_DEV_LAB/PRODUCTION → 01_PRODUCT", "note": "n8n/SQL昇格" },
+            { "location": "1", "path": "ルート → 01_PRODUCT", "note": "React/UI/設定" },
+            { "location": "2", "path": "02_DEV_LAB/PRODUCTION → 01_PRODUCT", "note": "n8n JSON/SQL昇格" },
             { "location": "3", "path": "01_PRODUCT → n3-frontend_vps", "note": "VPS用リポジトリへ" },
             { "location": "4", "path": "n3-frontend_new → GitHub", "note": "開発バックアップ" },
             { "location": "5", "path": "n3-frontend_vps → GitHub", "note": "VPS用Push" },
             { "location": "6", "path": "GitHub → テストVPS", "note": "自動デプロイ" },
             { "location": "7", "path": "テストVPS → 本番VPS", "note": "手動昇格" }
+          ]
+        },
+        "sync": {
+          "title": "同期される内容",
+          "items": [
+            { "location": "✅", "path": "app/, lib/, components/", "note": "React/UIコンポーネント" },
+            { "location": "✅", "path": "n8n-workflows/", "note": "n8n JSON全て" },
+            { "location": "✅", "path": "package.json, next.config.ts", "note": "設定ファイル" },
+            { "location": "❌", "path": ".env.local", "note": "絶対に同期しない" },
+            { "location": "❌", "path": "node_modules/", "note": "同期しない" }
           ]
         }
       },
