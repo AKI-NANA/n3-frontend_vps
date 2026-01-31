@@ -1,19 +1,22 @@
 'use client'
 
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { useState, type ReactNode } from 'react'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { useState, type ReactNode, useMemo } from 'react'
+import { getQueryClient, CACHE_TIME } from '@/lib/query-client'
 
+/**
+ * N3 Empire OS - Query Provider
+ * 
+ * Phase I Task Group F: UI高速化
+ * 
+ * 機能:
+ * - グローバルキャッシュ
+ * - Layout永続化
+ * - Tab Prefetch対応
+ */
 export function QueryProvider({ children }: { children: ReactNode }) {
-  const [queryClient] = useState(() => new QueryClient({
-    defaultOptions: {
-      queries: {
-        staleTime: 5 * 60 * 1000, // 5分間キャッシュ（高速化）
-        gcTime: 10 * 60 * 1000, // 10分間メモリ保持
-        retry: 1,
-        refetchOnWindowFocus: false,
-      },
-    },
-  }))
+  // シングルトンQueryClientを使用
+  const queryClient = useMemo(() => getQueryClient(), [])
 
   return (
     <QueryClientProvider client={queryClient}>

@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 /**
  * リサーチ結果のDB保存
  */
@@ -92,7 +91,3 @@ export async function getResearchResultsByKeyword(keyword: string): Promise<Rese
     return []
   }
 }
-=======
-export type ResearchResult = any;
-export const saveResearchResults = async (data: any) => {};
->>>>>>> fdea69ee91cbefc7650420e2b4b21ad0cc0488ce

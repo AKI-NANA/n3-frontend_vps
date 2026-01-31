@@ -65,6 +65,12 @@ export type ProductCondition =
   | 'acceptable'
   | 'for_parts';
 
+/** 監査重大度 */
+export type AuditSeverity = 'ok' | 'info' | 'warning' | 'error';
+
+/** データ出所タイプ */
+export type DataProvenanceSource = 'manual' | 'ai_fixed' | 'rule_auto' | 'scraped' | 'api';
+
 // ============================================================
 // サブタイプ（ネストされたオブジェクト）
 // ============================================================
@@ -227,6 +233,56 @@ export interface ListingHistoryEntry {
   ended_at?: ISODateString;
   price?: number;
   currency?: CurrencyCode;
+}
+
+/** 監査ログエントリ */
+export interface AuditLogEntry {
+  timestamp: ISODateString;
+  ruleId: string;
+  severity: AuditSeverity;
+  field: string;
+  currentValue: string | number | null;
+  expectedValue?: string | number | null;
+  message: string;
+}
+
+/** データ出所情報 */
+export interface DataProvenanceEntry {
+  source: DataProvenanceSource;
+  model?: string;
+  updatedAt: ISODateString;
+  updatedBy?: string;
+  confidence?: number;
+}
+
+/** データ出所マップ */
+export interface ProductDataProvenance {
+  hts_code?: DataProvenanceEntry;
+  origin_country?: DataProvenanceEntry;
+  material?: DataProvenanceEntry;
+  weight_g?: DataProvenanceEntry;
+  condition?: DataProvenanceEntry;
+  [key: string]: DataProvenanceEntry | undefined;
+}
+
+/** eBay出品状態（国別） */
+export interface EbayListingStatusEntry {
+  itemId?: string;
+  offerId?: string;
+  status: 'active' | 'ended' | 'draft' | 'error';
+  listingUrl?: string;
+  listedAt?: ISODateString;
+  endedAt?: ISODateString;
+  errorMessage?: string;
+}
+
+/** eBay出品状態マップ */
+export interface EbayListingStatusMap {
+  US?: EbayListingStatusEntry;
+  UK?: EbayListingStatusEntry;
+  DE?: EbayListingStatusEntry;
+  AU?: EbayListingStatusEntry;
+  [country: string]: EbayListingStatusEntry | undefined;
 }
 
 // ============================================================
@@ -481,6 +537,48 @@ export interface Product {
   // ========================================
   total_score?: number | null;
   listing_score?: number | null;
+  
+  // ========================================
+  // 監査・追跡（N3出品監査システム）
+  // ========================================
+  /** 監査ログ配列 */
+  audit_logs?: AuditLogEntry[] | null;
+  /** データ出所マップ */
+  data_provenance?: ProductDataProvenance | null;
+  /** eBay出品状態（国別） */
+  ebay_listing_status?: EbayListingStatusMap | null;
+  /** 生成済みHTMLキャッシュ */
+  generated_html?: string | null;
+  /** HTML生成日時 */
+  generated_html_at?: ISODateString | null;
+  
+  // ========================================
+  // リスクフラグ（監査結果）
+  // ========================================
+  /** 高関税リスク（5%超） */
+  has_high_duty_risk?: boolean | null;
+  /** 素材リスク（革、絹など） */
+  has_material_risk?: boolean | null;
+  /** バッテリーリスク（リチウム電池） */
+  has_battery_risk?: boolean | null;
+  /** 原産国矛盾（タイトルと設定値の不一致） */
+  has_origin_mismatch?: boolean | null;
+  /** タイトルから検出した原産国コード（2桁） */
+  origin_detected?: string | null;
+  /** 原産国検出の信頼度（0.00-1.00） */
+  origin_detection_confidence?: number | null;
+  /** タイトルから検出した素材 */
+  material_detected?: string | null;
+  
+  // ========================================
+  // 監査スコア
+  // ========================================
+  /** 監査スコア（0-100、100が完璧） */
+  audit_score?: number | null;
+  /** 監査重大度（ok, info, warning, error） */
+  audit_severity?: AuditSeverity | null;
+  /** 最終監査日時 */
+  last_audit_at?: ISODateString | null;
   
   // ========================================
   // クライアントサイド専用（Storeでのみ使用）

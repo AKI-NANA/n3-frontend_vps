@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 /**
  * 利益分析・最安値分析
  */
@@ -122,8 +121,3 @@ function estimateShippingCost(weightG: number): number {
   if (weightG <= 2000) return 25
   return 35
 }
-=======
-export type CompetitorData = any;
-export const analyzeLowestPrice = (data: any) => null;
-export const calculateProfitAtLowestPrice = (data: any) => 0;
->>>>>>> fdea69ee91cbefc7650420e2b4b21ad0cc0488ce

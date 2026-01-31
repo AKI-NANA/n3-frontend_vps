@@ -1,5 +1,5 @@
 // lib/services/n8n/index.ts
-// N3 n8n統合サービス - 出品・在庫管理・スケジュールをn8n経由で実行
+// N3 n8n統合サービス - 出品・在庫管理・スケジュール・メディアをn8n経由で実行
 
 const N8N_BASE_URL = process.env.N8N_BASE_URL || process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL || 'http://160.16.120.186:5678';
 const N8N_WEBHOOK_BASE = `${N8N_BASE_URL}/webhook`;
@@ -394,6 +394,35 @@ export const N8nSettingsService = {
     });
   },
 };
+
+// ========================================
+// メディアサービス（27次元準拠）再エクスポート
+// ========================================
+export {
+  N8nMediaService,
+  N8nVideoService,
+  N8nAudioService,
+  N8nAvatarService,
+  N8nAnnotationService,
+  N8nLiveService,
+  N8nAssetService,
+  N8nLMSService,
+  N8nChannelService,
+  N8nContentPipelineService,
+  N8nMediaUtils,
+} from './media-service';
+
+export type {
+  MediaResponse,
+  VideoGenerateRequest,
+  VoiceGenerateRequest,
+  LivePortraitRequest,
+  VisualAnnotationRequest,
+  LiveStreamRequest,
+  AssetRequest,
+  LMSRequest,
+  ChannelRequest,
+} from './media-service';
 
 // デフォルトエクスポート
 export default {

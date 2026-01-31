@@ -144,6 +144,13 @@ export async function POST(request: NextRequest) {
       selectedAt: new Date().toISOString()
     }
 
+    // 🔥 sm_reference_item_id を更新（phase-status.ts で参照される）
+    // 注意: DBに sm_selected_id カラムは存在しない、sm_reference_item_id を使用
+    updates.sm_reference_item_id = competitorData.itemId
+    
+    // listing_dataにもsm_selected_idを保存（後方互換性のため）
+    existingListingData.sm_selected_id = competitorData.itemId
+
     // listing_data更新
     updates.listing_data = existingListingData
     updates.updated_at = new Date().toISOString()

@@ -6,7 +6,7 @@
 
 'use client';
 
-import React, { memo, useState, useCallback, useMemo } from 'react';
+import React, { memo, useState, useCallback, useMemo, useEffect } from 'react';
 import {
   Search,
   Target,
@@ -21,6 +21,8 @@ import {
   ShoppingBag,
   Clock,
   FileText,
+  Cog,
+  Loader2,
 } from 'lucide-react';
 import { N3Button } from '@/components/n3/presentational/n3-button';
 import { N3Input } from '@/components/n3/presentational/n3-input';
@@ -39,13 +41,95 @@ import { useListingIntegrated } from '../hooks';
 import type { ListingL3Tab, Marketplace, ListingItem } from '../types/listing';
 
 // L3タブ設定
-const L3_TABS: { id: ListingL3Tab; label: string; icon: React.ReactNode }[] = [
+const L3_TABS: { id: ListingL3Tab | 'automation'; label: string; icon: React.ReactNode }[] = [
   { id: 'seo', label: 'SEO最適化', icon: <Target size={14} /> },
   { id: 'pricing', label: '価格戦略', icon: <DollarSign size={14} /> },
   { id: 'bulk', label: '一括出品', icon: <Upload size={14} /> },
   { id: 'editor', label: '出品エディタ', icon: <Edit3 size={14} /> },
   { id: 'variations', label: 'バリエーション', icon: <Layers size={14} /> },
+  { id: 'automation', label: 'Automation', icon: <Cog size={14} /> },
 ];
+
+// ============================================================
+// Automation Panel Tab (Extension Slot)
+// ============================================================
+
+const AutomationPanelTab = memo(function AutomationPanelTab() {
+  // Lazy load extension slot components
+  const [AutoListingPanel, setAutoListingPanel] = useState<React.ComponentType | null>(null);
+  const [QueueMonitorPanel, setQueueMonitorPanel] = useState<React.ComponentType | null>(null);
+  const [ErrorRecoveryPanel, setErrorRecoveryPanel] = useState<React.ComponentType | null>(null);
+  const [BatchExecutePanel, setBatchExecutePanel] = useState<React.ComponentType | null>(null);
+  const [activePanel, setActivePanel] = useState<'auto' | 'queue' | 'error' | 'batch'>('auto');
+  
+  useEffect(() => {
+    // Dynamic import for extension slot components
+    import('../extension-slot/auto-listing-panel').then(m => setAutoListingPanel(() => m.AutoListingPanel));
+    import('../extension-slot/queue-monitor-panel').then(m => setQueueMonitorPanel(() => m.QueueMonitorPanel));
+    import('../extension-slot/error-recovery-panel').then(m => setErrorRecoveryPanel(() => m.ErrorRecoveryPanel));
+    import('../extension-slot/batch-execute-panel').then(m => setBatchExecutePanel(() => m.BatchExecutePanel));
+  }, []);
+  
+  const panels = [
+    { id: 'auto' as const, label: 'Auto Listing', icon: <ShoppingBag size={14} />, color: '#3B82F6' },
+    { id: 'queue' as const, label: 'Queue Monitor', icon: <Clock size={14} />, color: '#10B981' },
+    { id: 'error' as const, label: 'Error Recovery', icon: <RefreshCw size={14} />, color: '#EF4444' },
+    { id: 'batch' as const, label: 'Batch Execute', icon: <Package size={14} />, color: '#8B5CF6' },
+  ];
+  
+  return (
+    <div style={{ display: 'flex', height: '100%' }}>
+      {/* 左サイドバー */}
+      <div style={{ 
+        width: 180, borderRight: '1px solid var(--panel-border)', 
+        background: 'var(--panel)', padding: 12, display: 'flex', flexDirection: 'column' 
+      }}>
+        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Cog size={12} /> Automation Tools
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {panels.map(({ id, label, icon, color }) => (
+            <button
+              key={id}
+              onClick={() => setActivePanel(id)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '8px 10px', borderRadius: 6,
+                background: activePanel === id ? `${color}15` : 'transparent',
+                border: activePanel === id ? `1px solid ${color}40` : '1px solid transparent',
+                color: activePanel === id ? color : 'var(--text-muted)',
+                cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
+                fontSize: 11, fontWeight: 500,
+              }}
+            >
+              {icon}
+              {label}
+            </button>
+          ))}
+        </div>
+        
+        <div style={{ marginTop: 'auto', padding: 8, background: 'var(--highlight)', borderRadius: 6 }}>
+          <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>💡 Dispatch API経由</div>
+        </div>
+      </div>
+      
+      {/* メインパネル */}
+      <div style={{ flex: 1, overflow: 'auto' }}>
+        {activePanel === 'auto' && AutoListingPanel && <AutoListingPanel />}
+        {activePanel === 'queue' && QueueMonitorPanel && <QueueMonitorPanel />}
+        {activePanel === 'error' && ErrorRecoveryPanel && <ErrorRecoveryPanel />}
+        {activePanel === 'batch' && BatchExecutePanel && <BatchExecutePanel />}
+        
+        {/* ローディング */}
+        {!AutoListingPanel && !QueueMonitorPanel && !ErrorRecoveryPanel && !BatchExecutePanel && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <Loader2 size={24} className="animate-spin" style={{ color: 'var(--accent)' }} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
 
 // 統計カード
 const StatCard = memo(function StatCard({
@@ -110,7 +194,7 @@ export const ListingN3PageLayout = memo(function ListingN3PageLayout() {
     refresh,
   } = useListingIntegrated();
 
-  const [activeTab, setActiveTab] = useState<ListingL3Tab>('seo');
+  const [activeTab, setActiveTab] = useState<ListingL3Tab | 'automation'>('seo');
   const [searchValue, setSearchValue] = useState('');
 
   // 検索
@@ -163,6 +247,8 @@ export const ListingN3PageLayout = memo(function ListingN3PageLayout() {
             onUpdate={updateListing}
           />
         );
+      case 'automation':
+        return <AutomationPanelTab />;
       default:
         return null;
     }

@@ -1,0 +1,613 @@
+{
+  "name": "【メディア】21_82-メディア-24時間ライブエンコーダー-FFmpeg_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "live-stream",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: live-stream",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "live-stream"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst action = body.action || 'status';\nconst channelId = body.channel_id;\nconst streamId = body.stream_id;\nconst playlistMode = body.playlist_mode || 'revenue_priority';\nconst includeStockOnly = body.include_stock_only !== false;\n\nif (action !== 'status' && !channelId && !streamId) {\n  return [{ json: { error: true, message: 'channel_id または stream_id が必要です', code: 'MISSING_PARAM' } }];\n}\n\nreturn [{ json: { action, channel_id: channelId, stream_id: streamId, playlist_mode: playlistMode, include_stock_only: includeStockOnly, request_id: `LIVE-${Date.now()}` } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "start",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "start"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "stop",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "stop"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "status",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "status"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "route-action",
+      "name": "アクション分岐",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT mc.*, yt.access_token as youtube_stream_key FROM media_channels mc LEFT JOIN youtube_tokens yt ON mc.channel_id = yt.channel_id WHERE mc.channel_id = $1 AND mc.is_active = TRUE",
+        "options": {
+          "queryParams": "={{ [$node['🔐 初期化'].json.channel_id] }}"
+        }
+      },
+      "id": "get-channel-start",
+      "name": "📺 チャンネル取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT mc.id, mc.media_url, mc.title, pm.id as product_id, (SELECT ebay_url FROM products_master WHERE id = pm.id) as product_url, COALESCE((SELECT quantity > 0 FROM inventory_master WHERE product_master_id = pm.id LIMIT 1), true) as in_stock FROM media_content mc LEFT JOIN products_master pm ON mc.product_id = pm.id WHERE mc.publish_status = 'published' AND mc.media_url IS NOT NULL ORDER BY CASE WHEN $1 = 'revenue_priority' THEN mc.clicks WHEN $1 = 'random' THEN RANDOM() ELSE mc.id END DESC LIMIT 100",
+        "options": {
+          "queryParams": "={{ [$node['🔐 初期化'].json.playlist_mode] }}"
+        }
+      },
+      "id": "get-playlist",
+      "name": "📋 プレイリスト取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const initData = $node['🔐 初期化'].json;\nconst channelData = $node['📺 チャンネル取得'].json;\nconst playlistData = $node['📋 プレイリスト取得'].json || [];\n\nconst channel = Array.isArray(channelData) ? channelData[0] : channelData;\nconst playlist = Array.isArray(playlistData) ? playlistData : [playlistData].filter(p => p && p.id);\n\nif (!channel) return [{ json: { error: true, message: 'チャンネルが見つかりません' } }];\nif (playlist.length === 0) return [{ json: { error: true, message: 'プレイリストが空です' } }];\n\nconst streamKey = channel.youtube_stream_key || $env.YOUTUBE_STREAM_KEY;\nif (!streamKey) return [{ json: { error: true, message: 'Stream Key未設定' } }];\n\nconst playlistTxt = playlist.map(v => `file '${v.media_url}'`).join('\\n');\nconst rtmpUrl = `rtmp://a.rtmp.youtube.com/live2/${streamKey}`;\nconst streamId = `LIVE-${channel.channel_id}-${Date.now()}`;\n\nconst ffmpegCmd = `ffmpeg -re -f concat -safe 0 -stream_loop -1 -i /tmp/playlist_${streamId}.txt -c:v libx264 -preset veryfast -maxrate 3000k -bufsize 6000k -pix_fmt yuv420p -g 50 -c:a aac -b:a 128k -ar 44100 -f flv \"${rtmpUrl}\"`;\n\nreturn [{ json: { stream_id: streamId, channel_id: channel.channel_id, channel_name: channel.channel_name, rtmp_url: rtmpUrl, ffmpeg_command: ffmpegCmd, playlist_txt: playlistTxt, playlist_count: playlist.length, playlist_mode: initData.playlist_mode } }];"
+      },
+      "id": "build-ffmpeg",
+      "name": "🎬 FFmpegコマンド生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-build-error",
+      "name": "ビルドエラー？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-build-error",
+      "name": "ビルドエラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO live_streams (stream_id, channel_id, stream_title, stream_type, rtmp_url, playlist_config, status) VALUES ($1, $2, $3, 'playlist', $4, $5::jsonb, 'starting') RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.stream_id, $json.channel_id, $json.channel_name + ' 24時間ライブ', $json.rtmp_url, JSON.stringify({ mode: $json.playlist_mode, count: $json.playlist_count })] }}"
+        }
+      },
+      "id": "save-stream",
+      "name": "💾 ストリーム登録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "command": "={{ 'mkdir -p /tmp && echo \"' + $node['🎬 FFmpegコマンド生成'].json.playlist_txt.replace(/'/g, \"'\") + '\" > /tmp/playlist_' + $node['🎬 FFmpegコマンド生成'].json.stream_id + '.txt && echo \"Playlist created\"' }}"
+      },
+      "id": "create-playlist-file",
+      "name": "📝 プレイリストファイル作成",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const streamData = $node['🎬 FFmpegコマンド生成'].json;\nreturn [{ json: { success: true, action: 'start', stream_id: streamData.stream_id, channel_id: streamData.channel_id, playlist_count: streamData.playlist_count, status: 'ready', message: 'プレイリスト準備完了。VPSでFFmpegを手動起動してください。', ffmpeg_command: streamData.ffmpeg_command, note: 'セキュリティ上、FFmpegはVPSで直接実行してください' } }];"
+      },
+      "id": "format-start-result",
+      "name": "📋 起動結果整形",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT ls.*, (SELECT COUNT(*) FROM live_stream_playlist WHERE stream_id = ls.stream_id) as playlist_count FROM live_streams ls ORDER BY ls.created_at DESC LIMIT 10",
+        "options": {}
+      },
+      "id": "get-status",
+      "name": "📊 ステータス取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const streams = $input.first().json || [];\nconst list = Array.isArray(streams) ? streams : [streams].filter(s => s && s.id);\nreturn [{ json: { success: true, action: 'status', active_streams: list.filter(s => s.status === 'live').length, total_streams: list.length, streams: list.map(s => ({ stream_id: s.stream_id, channel_id: s.channel_id, status: s.status, playlist_count: s.playlist_count, started_at: s.actual_start })) } }];"
+      },
+      "id": "format-status",
+      "name": "📋 ステータス整形",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE live_streams SET status = 'stopped', actual_end = NOW() WHERE stream_id = $1 OR channel_id = $2 RETURNING stream_id",
+        "options": {
+          "queryParams": "={{ [$node['🔐 初期化'].json.stream_id, $node['🔐 初期化'].json.channel_id] }}"
+        }
+      },
+      "id": "stop-stream",
+      "name": "⏹️ ストリーム停止",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const result = $input.first().json;\nconst stopped = Array.isArray(result) ? result : [result].filter(r => r && r.stream_id);\nreturn [{ json: { success: true, action: 'stop', stopped_count: stopped.length, streams: stopped.map(s => s.stream_id), message: 'ストリームを停止しました。VPSでFFmpegプロセスも終了してください。' } }];"
+      },
+      "id": "format-stop-result",
+      "name": "📋 停止結果整形",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: live-stream": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "アクション分岐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "アクション分岐": {
+      "main": [
+        [
+          {
+            "node": "📺 チャンネル取得",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "⏹️ ストリーム停止",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📊 ステータス取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📺 チャンネル取得": {
+      "main": [
+        [
+          {
+            "node": "📋 プレイリスト取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 プレイリスト取得": {
+      "main": [
+        [
+          {
+            "node": "🎬 FFmpegコマンド生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎬 FFmpegコマンド生成": {
+      "main": [
+        [
+          {
+            "node": "ビルドエラー？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ビルドエラー？": {
+      "main": [
+        [
+          {
+            "node": "respond-build-error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💾 ストリーム登録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 ストリーム登録": {
+      "main": [
+        [
+          {
+            "node": "📝 プレイリストファイル作成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 プレイリストファイル作成": {
+      "main": [
+        [
+          {
+            "node": "📋 起動結果整形",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 起動結果整形": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 ステータス取得": {
+      "main": [
+        [
+          {
+            "node": "📋 ステータス整形",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 ステータス整形": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⏹️ ストリーム停止": {
+      "main": [
+        [
+          {
+            "node": "📋 停止結果整形",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 停止結果整形": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 120,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "24h-Live",
+      "color": "#ff0000"
+    },
+    {
+      "name": "FFmpeg",
+      "color": "#007808"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

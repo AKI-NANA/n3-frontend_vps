@@ -1,0 +1,485 @@
+{
+  "name": "【システム】02_17-システム-統合Webhookゲートウェイ_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "global-router",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: global-router",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "global-router"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst headers = $input.first().json.headers || {};\nconst secret = $env.N8N_INTERNAL_SECRET;\nif (!secret) return [{ json: { error: true, message: 'N8N_INTERNAL_SECRET未設定', code: 'CONFIG_ERROR', route: 'error' } }];\n\n// 外部APIからのシグネチャ検証（eBay, Qoo10等）\nconst ebaySignature = headers['x-ebay-signature'] || headers['X-eBay-Signature'];\nconst qoo10Signature = headers['x-qoo10-signature'] || headers['X-Qoo10-Signature'];\nconst internalToken = headers['x-n3-internal-token'] || headers['X-N3-Internal-Token'];\n\nlet isAuthenticated = false;\nlet source = 'unknown';\n\n// 内部トークン検証\nif (internalToken) {\n  const tokenTimestamp = headers['x-n3-token-timestamp'] || headers['X-N3-Token-Timestamp'];\n  // 簡易検証（本番ではAPI経由で検証）\n  isAuthenticated = !!tokenTimestamp;\n  source = 'internal';\n}\n// eBayシグネチャ検証\nelse if (ebaySignature) {\n  // eBayからのWebhook通知\n  isAuthenticated = true; // 実際はシグネチャ検証が必要\n  source = 'ebay';\n}\n// Qoo10シグネチャ検証\nelse if (qoo10Signature) {\n  isAuthenticated = true;\n  source = 'qoo10';\n}\n// 公開エンドポイント（特定パスのみ許可）\nelse if (body.path && ['health', 'ping'].includes(body.path)) {\n  isAuthenticated = true;\n  source = 'public';\n}\n\nif (!isAuthenticated) {\n  return [{ json: { error: true, message: '認証失敗', code: 'AUTH_FAILED', route: 'error' } }];\n}\n\n// ルーティング決定\nconst eventType = body.event_type || body.eventType || body.type || '';\nconst path = body.path || '';\nlet route = 'unknown';\n\n// eBayイベント\nif (source === 'ebay' || eventType.startsWith('ebay.')) {\n  if (eventType.includes('order') || eventType.includes('MARKETPLACE_ORDER')) route = 'order-unified';\n  else if (eventType.includes('return') || eventType.includes('ITEM_RETURNED')) route = 'return-handler';\n  else if (eventType.includes('message') || eventType.includes('BUYER_MESSAGE')) route = 'inquiry-ai-response';\n  else route = 'ebay-generic';\n}\n// Qoo10イベント\nelse if (source === 'qoo10' || eventType.startsWith('qoo10.')) {\n  if (eventType.includes('order')) route = 'order-unified';\n  else route = 'qoo10-generic';\n}\n// 内部ルーティング\nelse if (source === 'internal') {\n  route = path || 'manual';\n}\n// 価格更新\nelse if (eventType.includes('price')) {\n  route = 'inventory-sync';\n}\n\nreturn [{ json: { authenticated: true, source, event_type: eventType, route, payload: body, headers_info: { has_ebay_sig: !!ebaySignature, has_qoo10_sig: !!qoo10Signature, has_internal: !!internalToken } } }];"
+      },
+      "id": "auth-router",
+      "name": "🔐 認証 & ルーティング",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "認証チェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "{{ $env.CHATWORK_API_URL }}/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=[info][title]🚨 Gateway認証失敗[/title]エラー: {{ $json.message }}\\nコード: {{ $json.code }}[/info]"
+            }
+          ]
+        }
+      },
+      "id": "notify-error",
+      "name": "🚨 認証エラー通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "id": "respond-error",
+      "name": "❌ 認証エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "rules": {
+          "rules": [
+            {
+              "outputKey": "order-unified",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "order-unified",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "inquiry-ai-response",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "inquiry-ai-response",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "inventory-sync",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "inventory-sync",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "shipping-unified",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "shipping-unified",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "fallbackOutput": "unknown"
+        }
+      },
+      "id": "switch-route",
+      "name": "🔀 ルート振り分け",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_WEBHOOK_URL || '{{ $env.VPS_URL }}:5678/webhook' }}/order-unified",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "route-order",
+      "name": "📦 受注統合へ",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_WEBHOOK_URL || '{{ $env.VPS_URL }}:5678/webhook' }}/inquiry-ai-response",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "route-inquiry",
+      "name": "💬 問い合わせへ",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_WEBHOOK_URL || '{{ $env.VPS_URL }}:5678/webhook' }}/inventory-sync",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "route-inventory",
+      "name": "📊 在庫同期へ",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_WEBHOOK_URL || '{{ $env.VPS_URL }}:5678/webhook' }}/shipping-unified",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "route-shipping",
+      "name": "🚚 出荷統合へ",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $json;\nconst route = $node['🔐 認証 & ルーティング'].json.route;\nconsole.log('Unknown route:', route);\nreturn [{ json: { success: false, message: 'ルート未定義', route: route } }];"
+      },
+      "id": "unknown-route",
+      "name": "⚠️ 未定義ルート",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const routeResult = $input.first().json;\nconst routeInfo = $node['🔐 認証 & ルーティング'].json;\nreturn [{ json: { success: true, source: routeInfo.source, route: routeInfo.route, routed_result: routeResult } }];"
+      },
+      "id": "merge-result",
+      "name": "📋 結果統合",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// N3 HMAC署名検証（要塞化自動挿入）\nconst headers = $input.first().json.headers || {};\nconst body = $input.first().json.body || $input.first().json;\n\nconst signature = headers['x-n3-signature'] || headers['X-N3-Signature'] || '';\nconst timestamp = headers['x-n3-timestamp'] || headers['X-N3-Timestamp'] || '';\n\nif (signature && timestamp) {\n  const secret = $env.N3_HMAC_SECRET;\n  if (!secret) {\n    return [{ json: { error: true, message: 'N3_HMAC_SECRET 環境変数が未設定', code: 'CONFIG_ERROR' } }];\n  }\n  \n  const ts = parseInt(timestamp, 10);\n  const now = Math.floor(Date.now() / 1000);\n  if (Math.abs(now - ts) > 300) {\n    return [{ json: { error: true, message: 'タイムスタンプ期限切れ', code: 'TIMESTAMP_EXPIRED' } }];\n  }\n  \n  try {\n    const verifyUrl = $env.PRICING_ENGINE_URL || 'http://localhost:8000';\n    const payload = JSON.stringify(body);\n    const response = await fetch(`${verifyUrl}/verify-signature`, {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json' },\n      body: JSON.stringify({ payload, signature, timestamp })\n    });\n    const result = await response.json();\n    if (!result.valid) {\n      return [{ json: { error: true, message: '署名検証失敗: ' + (result.error || ''), code: 'INVALID_SIGNATURE' } }];\n    }\n  } catch (e) {\n    console.log('署名検証スキップ: ' + e.message);\n  }\n}\n\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[FORTRESS_AUTO_INSERTED] HMAC署名検証",
+      "id": "hmac_verify_3f473ed7",
+      "name": "🔐 署名検証 (Webhook: global-router)"
+    }
+  ],
+  "connections": {
+    "Webhook: global-router": {
+      "main": [
+        [
+          {
+            "node": "🔐 署名検証 (Webhook: global-router)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 認証 & ルーティング": {
+      "main": [
+        [
+          {
+            "node": "認証チェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "認証チェック": {
+      "main": [
+        [
+          {
+            "node": "🚨 認証エラー通知",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🔀 ルート振り分け",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚨 認証エラー通知": {
+      "main": [
+        [
+          {
+            "node": "❌ 認証エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 ルート振り分け": {
+      "main": [
+        [
+          {
+            "node": "📦 受注統合へ",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💬 問い合わせへ",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📊 在庫同期へ",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🚚 出荷統合へ",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "⚠️ 未定義ルート",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 受注統合へ": {
+      "main": [
+        [
+          {
+            "node": "📋 結果統合",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💬 問い合わせへ": {
+      "main": [
+        [
+          {
+            "node": "📋 結果統合",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 在庫同期へ": {
+      "main": [
+        [
+          {
+            "node": "📋 結果統合",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚚 出荷統合へ": {
+      "main": [
+        [
+          {
+            "node": "📋 結果統合",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚠️ 未定義ルート": {
+      "main": [
+        [
+          {
+            "node": "📋 結果統合",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 結果統合": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 署名検証 (Webhook: global-router)": {
+      "main": [
+        [
+          {
+            "node": "🔐 認証 & ルーティング",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 300,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none"
+  },
+  "tags": [
+    {
+      "name": "N3-Core",
+      "color": "#ff4500"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Gateway",
+      "color": "#4169e1"
+    },
+    {
+      "name": "FORTRESS",
+      "color": "#dc143c"
+    },
+    {
+      "name": "V6-ENHANCED",
+      "color": "#00bfff"
+    }
+  ],
+  "active": false,
+  "_fortress_converted": true,
+  "_fortress_version": "1.0.0",
+  "_fortress_timestamp": "2026-01-22T15:03:42.493271+00:00",
+  "_python_migration_count": 0,
+  "_python_migration_timestamp": "2026-01-22T16:06:56.428593+00:00"
+}

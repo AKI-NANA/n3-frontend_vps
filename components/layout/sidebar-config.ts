@@ -28,12 +28,48 @@ export interface NavigationItem {
 // ==============================================
 
 export const navigationItems: NavigationItem[] = [
+  // ==============================================
+  // 🏰 帝国中央コクピット（最優先）
+  // ==============================================
+  {
+    id: "empire-cockpit",
+    label: "🏰 帝国コクピット",
+    icon: "castle",
+    link: "/empire-cockpit",
+    priority: 0
+  },
   {
     id: "dashboard",
     label: "ダッシュボード",
     icon: "home",
     link: "/",
     priority: 1
+  },
+
+  // ==============================================
+  // 統合ワークスペース（Phase I追加）
+  // ==============================================
+  {
+    id: "workspace",
+    label: "統合ワークスペース",
+    icon: "layout-grid",
+    link: "/tools/workspace",
+    priority: 1.5
+  },
+
+  // ==============================================
+  // Documentation（Phase I追加）
+  // ==============================================
+  {
+    id: "documentation",
+    label: "Documentation",
+    icon: "book-open",
+    priority: 1.8,
+    submenu: [
+      { text: "N3 Manual", link: "/docs", icon: "book", status: "new", priority: 1 },
+      { text: "ドキュメント管理", link: "/tools/docs-n3", icon: "file-text", status: "ready", priority: 2 },
+      { text: "開発指示書", link: "/dev-instructions", icon: "code", status: "ready", priority: 3 },
+    ]
   },
 
   // ==============================================
@@ -322,8 +358,10 @@ export const navigationItems: NavigationItem[] = [
     icon: "settings",
     priority: 13,
     submenu: [
+      { text: "コマンドセンター", link: "/tools/command-center", icon: "terminal", status: "new", priority: -1 },
       { text: "設定(N3)", link: "/tools/settings-n3", icon: "sparkles", status: "new", priority: 0 },
       { text: "システムヘルス", link: "/system-health", icon: "check-circle", status: "ready", priority: 1 },
+      { text: "監視ダッシュボード", link: "/tools/monitoring-n3", icon: "activity", status: "new", priority: 1.5 },
       { text: "認証管理", link: "/tools/credential-manager", icon: "key", status: "new", priority: 2 },
       { text: "ガバナンスルール", link: "/tools/governance-rules", icon: "shield", status: "new", priority: 3 },
       { text: "Vercel環境設定", link: "/tools/vercel-env", icon: "cloud", status: "new", priority: 4 },

@@ -3,9 +3,11 @@
  * リサーチ結果をproducts_masterへ転送するAPI
  * 
  * 機能:
- * - research_repositoryから承認済みアイテムを取得
+ * - research_repositoryから承認済み(research_pending)アイテムを取得
  * - スコア順にソートしてproducts_masterへ挿入
  * - 重複チェック（ASIN/source_url）
+ * 
+ * 🔥 v2: research_pending ステータスを追加
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -26,11 +28,12 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient();
 
     // 1. 対象のリサーチアイテムを取得（スコア順）
+    // 🔥 research_pending を追加
     const { data: researchItems, error: fetchError } = await supabase
       .from('research_repository')
       .select('*')
       .in('id', ids)
-      .in('status', ['approved', 'new', 'analyzing'])
+      .in('status', ['approved', 'new', 'analyzing', 'research_pending'])
       .order('total_score', { ascending: false });
 
     if (fetchError) {
@@ -47,12 +50,15 @@ export async function POST(request: NextRequest) {
     // 2. products_masterへ挿入するデータを準備
     const productsToInsert = researchItems.map((item, index) => ({
       // 基本情報
+      title: item.title,
       title_ja: item.title,
       title_en: item.english_title || '',
+      english_title: item.english_title || '',
       description_ja: item.title,
       description_en: item.english_title || '',
       
       // 画像
+      primary_image_url: item.image_url,
       image_url: item.image_url,
       images: item.image_urls ? JSON.stringify(item.image_urls) : JSON.stringify([item.image_url].filter(Boolean)),
       
@@ -60,16 +66,19 @@ export async function POST(request: NextRequest) {
       price_jpy: item.supplier_price_jpy || 0,
       price_usd: item.sold_price_usd || 0,
       cost_jpy: item.supplier_price_jpy || 0,
+      cost_price: item.supplier_price_jpy || 0,
       estimated_profit_usd: item.estimated_profit_usd || 0,
       profit_margin: item.profit_margin || 0,
       
       // 分類
       category_name: item.category_name || '',
       brand: item.brand || '',
+      brand_name: item.brand || '',
       condition: item.condition_name || 'Used',
       
       // 仕入先情報
       supplier_url: item.supplier_url || '',
+      source_url: item.source_url || item.supplier_url || '',
       supplier_name: item.supplier_name || '',
       supplier_source: item.supplier_source || '',
       
@@ -88,17 +97,25 @@ export async function POST(request: NextRequest) {
       profit_score: item.profit_score || 0,
       risk_score: item.risk_score || 0,
       
+      // SM分析参照用
+      sm_lowest_price: item.sold_price_usd || null,
+      sm_sales_count: item.sold_count || null,
+      sm_competitor_count: item.competitor_count || null,
+      
       // リスク
       risk_level: item.risk_level || 'low',
       vero_risk: item.vero_risk || false,
+      is_vero_brand: item.vero_risk || false,
       section_301_risk: item.section_301_risk || false,
       
       // ステータス
       status: 'draft',
-      workflow_status: 'research_promoted',
+      listing_status: 'draft',
+      workflow_status: 'translation', // 翻訳工程から開始
       
       // メタ
       source: 'research_n3',
+      research_repository_id: item.id,
       research_item_id: item.id,
       sort_order: index,
       

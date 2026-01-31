@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 /**
  * API呼び出し追跡システム
  */
@@ -144,9 +143,3 @@ function getTimeUntilNextHour(): number {
   nextHour.setHours(now.getHours() + 1, 0, 0, 0)
   return nextHour.getTime() - now.getTime()
 }
-=======
-export const incrementApiCallCount = async (apiName: string) => {};
-export const getApiCallStatus = async (apiName: string) => ({ count: 0, limit: 5000 });
-export const canMakeApiCallSafely = async (apiName: string) => true;
-export const waitBeforeApiCall = async (apiName: string) => {};
->>>>>>> fdea69ee91cbefc7650420e2b4b21ad0cc0488ce

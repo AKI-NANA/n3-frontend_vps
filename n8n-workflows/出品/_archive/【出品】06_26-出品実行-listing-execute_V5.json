@@ -1,0 +1,449 @@
+{
+  "name": "【出品】06_26-出品実行-listing-execute_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "listing-execute-v5",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: listing-execute-v5",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "listing-execute-v5"
+    },
+    {
+      "parameters": {
+        "jsCode": "// N3-26 V5: 出品実行 - 鉄の掟準拠\nconst apiUrl = $env.N3_API_URL || $env.API_BASE_URL;\nif (!apiUrl) return [{ json: { error: true, message: 'N3_API_URL未設定', code: 'CONFIG_ERROR' } }];\n\nconst body = $input.first().json.body || $input.first().json || {};\n\nconst productId = body.product_id;\nconst marketplace = body.marketplace || 'ebay'; // ebay, qoo10, shopify, amazon\nconst account = body.account || 'default';\nconst listingMode = body.listing_mode || 'standard'; // standard, auction, bulk\nconst scheduledAt = body.scheduled_at;\nconst priority = body.priority || 'normal';\n\nif (!productId) return [{ json: { error: true, message: 'product_id必須', code: 'MISSING_PARAM' } }];\n\nreturn [{ json: { product_id: productId, marketplace, account, listing_mode: listingMode, scheduled_at: scheduledAt, priority, api_url: apiUrl, timestamp: new Date().toISOString() } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化（鉄の掟）",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT pm.*, pm.title_en, pm.description_en, im.quantity, im.purchase_price, im.status as inv_status FROM products_master pm JOIN inventory_master im ON pm.id = im.product_id WHERE pm.id = $1",
+        "options": {
+          "queryParams": "={{ [$json.product_id] }}"
+        }
+      },
+      "id": "get-product",
+      "name": "📦 商品取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const init = $node['🔐 初期化（鉄の掟）'].json;\nconst product = $input.first().json;\n\nif (!product || !product.id) return [{ json: { ...init, error: true, message: '商品が見つかりません' } }];\nif (product.inv_status === 'out_of_stock') return [{ json: { ...init, error: true, message: '在庫切れのため出品不可' } }];\nif (!product.title_en) return [{ json: { ...init, error: true, message: '英語タイトル未設定' } }];\n\nreturn [{ json: { ...init, product, ready_to_list: true } }];"
+      },
+      "id": "validate-product",
+      "name": "✅ 商品検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "ready",
+              "leftValue": "={{ $json.ready_to_list }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-ready",
+      "name": "出品可？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst mp = data.marketplace;\n\n// マーケットプレイス別のWebhookパスを決定\nconst webhookPaths = {\n  ebay: '/webhook/ebay-listing',\n  qoo10: '/webhook/qoo10-listing',\n  shopify: '/webhook/shopify-listing',\n  amazon: '/webhook/amazon-listing',\n  shopee: '/webhook/shopee-listing',\n  lazada: '/webhook/lazada-listing'\n};\n\nconst webhookPath = webhookPaths[mp] || webhookPaths.ebay;\n\nreturn [{ json: { ...data, webhook_path: webhookPath, target_url: data.api_url + webhookPath } }];"
+      },
+      "id": "route-marketplace",
+      "name": "🔀 販路ルーティング",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.target_url }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ product_id: $json.product_id, account: $json.account, listing_mode: $json.listing_mode, product_data: $json.product, scheduled_at: $json.scheduled_at }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "call-listing-api",
+      "name": "📤 出品API呼出",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const result = $input.first().json;\nconst prevData = $node['🔀 販路ルーティング'].json;\n\nconst success = result.success !== false && !result.error;\nconst listingId = result.listing_id || result.item_id || result.ebay_item_id;\n\nreturn [{ json: { ...prevData, listing_result: { success, listing_id: listingId, error: result.error || result.message, raw: result } } }];"
+      },
+      "id": "process-result",
+      "name": "📋 結果処理",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO listing_execution_logs (product_id, marketplace, account, listing_mode, success, listing_id, error_message, executed_at) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW()) RETURNING log_id",
+        "options": {
+          "queryParams": "={{ [$json.product_id, $json.marketplace, $json.account, $json.listing_mode, $json.listing_result.success, $json.listing_result.listing_id, $json.listing_result.error] }}"
+        }
+      },
+      "id": "log-execution",
+      "name": "📝 実行ログ",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "output": "single"
+      },
+      "id": "merge",
+      "name": "🔀 統合",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $input.first().json;\nconst result = d.listing_result || {};\nreturn [{ json: { success: result.success || false, action: 'listing_executed', product_id: d.product_id, marketplace: d.marketplace, account: d.account, listing_id: result.listing_id, error: result.error, timestamp: new Date().toISOString() } }];"
+      },
+      "id": "response",
+      "name": "📋 レスポンス",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": "={{ $json.success ? 200 : 500 }}"
+        }
+      },
+      "id": "respond-ok",
+      "name": "📤 応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: listing-execute-v5": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化（鉄の掟）": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📦 商品取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 商品取得": {
+      "main": [
+        [
+          {
+            "node": "✅ 商品検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ 商品検証": {
+      "main": [
+        [
+          {
+            "node": "出品可？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "出品可？": {
+      "main": [
+        [
+          {
+            "node": "🔀 販路ルーティング",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🔀 統合",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "🔀 販路ルーティング": {
+      "main": [
+        [
+          {
+            "node": "📤 出品API呼出",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📤 出品API呼出": {
+      "main": [
+        [
+          {
+            "node": "📋 結果処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 結果処理": {
+      "main": [
+        [
+          {
+            "node": "📝 実行ログ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 実行ログ": {
+      "main": [
+        [
+          {
+            "node": "🔀 統合",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 統合": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス": {
+      "main": [
+        [
+          {
+            "node": "📤 応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化（鉄の掟）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 180,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Commerce",
+      "color": "#3498db"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Listing",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "IronRule",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false,
+  "meta": {
+    "description": "N3-26 V5 出品実行 - 多販路ルーティング対応",
+    "version": "5.0",
+    "iron_rules_compliant": [
+      "no_hardcoded_urls",
+      "query_params_only",
+      "no_crypto_require"
+    ]
+  }
+}

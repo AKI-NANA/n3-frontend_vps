@@ -20,12 +20,35 @@ const DEFAULT_EXCLUDE_WORDS = ['PSA', 'BGS', 'CGC', 'Graded', 'Lot', 'Bundle', '
 
 export interface TabCompetitorsProps {
   product: Product | null;
+  /** 連続選択モード用コールバック */
+  onSelectComplete?: (selectedCompetitorId: string) => void;
+  /** スキップ用コールバック */
+  onSkip?: () => void;
+  /** 連続選択モードかどうか */
+  isSequentialMode?: boolean;
+  /** 連続選択の進捗 */
+  sequentialProgress?: { current: number; total: number };
+  /** 前の商品へ */
+  onPrev?: () => void;
+  /** 次の商品へ */
+  onNext?: () => void;
 }
 
-export function TabCompetitors({ product }: TabCompetitorsProps) {
+export function TabCompetitors({ 
+  product,
+  onSelectComplete,
+  onSkip,
+  isSequentialMode = false,
+  sequentialProgress,
+  onPrev,
+  onNext,
+}: TabCompetitorsProps) {
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [dbSelectedItem, setDbSelectedItem] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isFetchingDetails, setIsFetchingDetails] = useState(false);
+  const [fetchedDetails, setFetchedDetails] = useState<any>(null);
+  const [isFetchingCompetitors, setIsFetchingCompetitors] = useState(false);
   
   // 除外機能の状態
   const [excludeWords, setExcludeWords] = useState<string>('');
@@ -74,7 +97,40 @@ export function TabCompetitors({ product }: TabCompetitorsProps) {
     return <div style={{ padding: '2rem', textAlign: 'center', color: T.textMuted }}>商品データがありません</div>;
   }
 
-  const referenceItems = (product as any)?.ebay_api_data?.listing_reference?.referenceItems || [];
+  // n8nからのデータ（browse_result）と既存データ（listing_reference）を統合
+  const browseItems = (product as any)?.ebay_api_data?.browse_result?.items || [];
+  const legacyItems = (product as any)?.ebay_api_data?.listing_reference?.referenceItems || [];
+  
+  // ✅ 両方のデータソースを統合（重複除外）
+  const referenceItems = useMemo(() => {
+    const existingIds = new Set(browseItems.map((item: any) => item.itemId));
+    const additionalLegacy = legacyItems
+      .filter((item: any) => !existingIds.has(item.itemId))
+      .map((item: any) => ({
+        ...item,
+        price: typeof item.price === 'object' ? item.price?.value : item.price,
+        image: typeof item.image === 'object' ? item.image?.imageUrl : item.image,
+        condition: item.condition || item.conditionNormalized,
+        isFromLegacy: true,
+      }));
+    
+    return [...browseItems.map((item: any) => ({
+      ...item,
+      price: typeof item.price === 'object' ? item.price?.value : item.price,
+      image: typeof item.image === 'object' ? item.image?.imageUrl : item.image,
+      isFromBrowse: true,
+    })), ...additionalLegacy];
+  }, [browseItems, legacyItems]);
+  
+  const dataSource = browseItems.length > 0 && legacyItems.length > 0 
+    ? 'both' 
+    : browseItems.length > 0 
+      ? 'n8n' 
+      : legacyItems.length > 0 
+        ? 'legacy' 
+        : 'none';
+  const syncStatus = (product as any)?.sync_status || 'idle';
+  
   const myCondition = ((product as any)?.condition || 'Used').toLowerCase().includes('new') ? 'New' : 'Used';
 
   // 除外ワードでフィルタ + 個別除外を適用
@@ -306,7 +362,7 @@ export function TabCompetitors({ product }: TabCompetitorsProps) {
     }
   }, [excludeWords, excludedItemIds, hasInitialized, product, saveExcludeSettings]);
 
-  const saveTargetPrice = useCallback(async (item: any) => {
+  const saveTargetPrice = useCallback(async (item: any, triggerSequential: boolean = false) => {
     try {
       const response = await fetch(`/api/products/${product.id}/price-target`, {
         method: 'POST',
@@ -322,6 +378,11 @@ export function TabCompetitors({ product }: TabCompetitorsProps) {
 
       if (response.ok) {
         const result = await response.json();
+        
+        // ✅ 連続選択モードの場合、コールバックを呼ぶ
+        if (triggerSequential && isSequentialMode && onSelectComplete) {
+          onSelectComplete(item.itemId);
+        }
         if (result.success) {
           setDbSelectedItem({
             itemId: item.itemId,
@@ -335,7 +396,7 @@ export function TabCompetitors({ product }: TabCompetitorsProps) {
     } catch (error) {
       console.error('❌ 価格ターゲット保存エラー:', error);
     }
-  }, [product?.id]);
+  }, [product?.id, isSequentialMode, onSelectComplete]);
 
   // デフォルト選択
   useEffect(() => {
@@ -356,8 +417,159 @@ export function TabCompetitors({ product }: TabCompetitorsProps) {
 
   const handleSelect = (item: any) => {
     setSelectedItemId(item.itemId);
-    saveTargetPrice(item);
+    // 連続選択モードの場合は、保存後に次に進む
+    saveTargetPrice(item, isSequentialMode);
   };
+
+  // ✅ 選択した競合商品の詳細を取得（Item Specifics、カテゴリ等）
+  const handleFetchDetails = useCallback(async () => {
+    if (!selectedItemId || !product) {
+      toast.warning('競合商品を選択してください');
+      return;
+    }
+
+    setIsFetchingDetails(true);
+    toast.info('詳細情報を取得中...');
+
+    let itemDetails: any = null;
+    let dataSource = 'none';
+
+    try {
+      // 1. まずTrading APIを試す
+      console.log('🔍 Trading API で詳細取得を試行...');
+      try {
+        const tradingResponse = await fetch('/api/ebay/get-item-details-trading', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itemId: selectedItemId })
+        });
+        const tradingData = await tradingResponse.json();
+        
+        if (tradingData.success && tradingData.itemDetails) {
+          console.log('✅ Trading API 成功');
+          itemDetails = tradingData.itemDetails;
+          dataSource = 'trading_api';
+        }
+      } catch (tradingErr) {
+        console.log('⚠️ Trading API 失敗、Browse APIにフォールバック');
+      }
+
+      // 2. Trading APIが失敗した場合、Browse APIを試す
+      if (!itemDetails) {
+        console.log('🔍 Browse API で詳細取得...');
+        const browseResponse = await fetch('/api/ebay/get-item-details', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itemId: selectedItemId })
+        });
+        const browseData = await browseResponse.json();
+        
+        if (browseData.success && browseData.itemDetails) {
+          console.log('✅ Browse API 成功');
+          itemDetails = browseData.itemDetails;
+          dataSource = 'browse_api';
+        }
+      }
+
+      // 3. 詳細が取得できた場合、DBに保存
+      if (itemDetails) {
+        console.log('💾 競合データをDBに保存...');
+        const selectedItem = sortedItems.find((item: any) => item.itemId === selectedItemId);
+        
+        const saveResponse = await fetch('/api/products/save-competitor-data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            productId: product.id,
+            competitorData: {
+              itemId: selectedItemId,
+              title: itemDetails.title || selectedItem?.title,
+              itemSpecifics: itemDetails.itemSpecifics || {},
+              weight: itemDetails.weight,
+              dimensions: itemDetails.dimensions,
+              categoryId: itemDetails.categoryId,
+              categoryName: itemDetails.categoryName,
+              brand: itemDetails.brand,
+              model: itemDetails.model,
+              countryOfManufacture: itemDetails.countryOfManufacture,
+              condition: itemDetails.condition,
+              conditionId: itemDetails.conditionId,
+              price: selectedItem?.priceNum || parseFloat(itemDetails.price?.value || '0'),
+              currency: itemDetails.currency || 'USD',
+              image: itemDetails.image,
+              dataSource
+            },
+            overwrite: false
+          })
+        });
+        const saveData = await saveResponse.json();
+        
+        if (saveData.success) {
+          const specsCount = Object.keys(itemDetails.itemSpecifics || {}).length;
+          setFetchedDetails(itemDetails);
+          toast.success(`✅ 詳細取得完了！Item Specifics ${specsCount}件、カテゴリ: ${itemDetails.categoryId || '-'}`);
+          console.log('✅ 保存完了:', saveData.savedFields);
+        } else {
+          toast.warning('詳細は取得しましたが、保存に失敗しました');
+          console.warn('⚠️ 保存失敗:', saveData.error);
+        }
+      } else {
+        toast.error('詳細取得に失敗しました');
+      }
+    } catch (error: any) {
+      console.error('❌ 詳細取得エラー:', error);
+      toast.error(`エラー: ${error.message}`);
+    } finally {
+      setIsFetchingDetails(false);
+    }
+  }, [selectedItemId, product, sortedItems]);
+
+  // ✅ 競合価格を取得（Browse APIで現在出品中の同じ商品を検索）
+  const handleFetchCompetitors = useCallback(async () => {
+    if (!product) {
+      toast.warning('商品を選択してください');
+      return;
+    }
+
+    const ebayTitle = (product as any)?.english_title || product?.title;
+    if (!ebayTitle) {
+      toast.warning('英語タイトルがありません');
+      return;
+    }
+
+    setIsFetchingCompetitors(true);
+    toast.info('🔍 競合価格を取得中（Browse API）...');
+
+    try {
+      const response = await fetch('/api/ebay/browse/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId: product.id,
+          ebayTitle,
+          ebayCategoryId: (product as any)?.ebay_category_id,
+          itemSpecifics: (product as any)?.listing_data?.competitor_item_specifics || {},
+          weightG: (product as any)?.listing_data?.weight_g || 500,
+          actualCostJPY: (product as any)?.cost_price || 0
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast.success(`✅ 競合価格取得完了！${result.competitorCount}件の競合、最安値: ${result.lowestPrice?.toFixed(2) || '0.00'}`);
+        // ページをリロードして最新データを取得
+        window.location.reload();
+      } else {
+        toast.error(result.error || '競合価格取得に失敗しました');
+      }
+    } catch (error: any) {
+      console.error('❌ 競合価格取得エラー:', error);
+      toast.error(`エラー: ${error.message}`);
+    } finally {
+      setIsFetchingCompetitors(false);
+    }
+  }, [product]);
 
   if (isLoading) {
     return (
@@ -392,6 +604,170 @@ export function TabCompetitors({ product }: TabCompetitorsProps) {
   return (
     <div style={{ padding: '1rem', background: T.bg, height: '100%', overflow: 'auto' }}>
       
+      {/* ===== 連続選択モードナビゲーション ===== */}
+      {isSequentialMode && sequentialProgress && (
+        <div style={{
+          marginBottom: '0.75rem',
+          padding: '0.75rem',
+          borderRadius: '6px',
+          background: '#eff6ff',
+          border: '2px solid #3b82f6',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <i className="fas fa-list-ol" style={{ color: '#3b82f6' }}></i>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#1e40af' }}>
+              連続選択モード: {sequentialProgress.current} / {sequentialProgress.total}
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {onPrev && (
+              <button
+                onClick={onPrev}
+                disabled={sequentialProgress.current <= 1}
+                style={{
+                  padding: '0.375rem 0.75rem',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  background: sequentialProgress.current > 1 ? 'white' : '#e5e7eb',
+                  color: sequentialProgress.current > 1 ? '#1e40af' : '#9ca3af',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '4px',
+                  cursor: sequentialProgress.current > 1 ? 'pointer' : 'not-allowed',
+                }}
+              >
+                <i className="fas fa-chevron-left" style={{ marginRight: '0.25rem' }}></i>
+                前へ
+              </button>
+            )}
+            {onSkip && (
+              <button
+                onClick={onSkip}
+                style={{
+                  padding: '0.375rem 0.75rem',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  background: '#fef3c7',
+                  color: '#92400e',
+                  border: '1px solid #fcd34d',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                }}
+              >
+                <i className="fas fa-forward" style={{ marginRight: '0.25rem' }}></i>
+                スキップ
+              </button>
+            )}
+            {onNext && (
+              <button
+                onClick={onNext}
+                disabled={sequentialProgress.current >= sequentialProgress.total}
+                style={{
+                  padding: '0.375rem 0.75rem',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  background: sequentialProgress.current < sequentialProgress.total ? '#3b82f6' : '#e5e7eb',
+                  color: sequentialProgress.current < sequentialProgress.total ? 'white' : '#9ca3af',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: sequentialProgress.current < sequentialProgress.total ? 'pointer' : 'not-allowed',
+                }}
+              >
+                次へ
+                <i className="fas fa-chevron-right" style={{ marginLeft: '0.25rem' }}></i>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ===== データソース情報 ===== */}
+      <div style={{
+        marginBottom: '0.5rem',
+        padding: '0.375rem 0.5rem',
+        borderRadius: '4px',
+        background: dataSource === 'both' ? '#dbeafe' : (dataSource === 'n8n' ? '#dcfce7' : '#fef3c7'),
+        border: `1px solid ${dataSource === 'both' ? '#93c5fd' : (dataSource === 'n8n' ? '#86efac' : '#fcd34d')}`,
+        fontSize: '9px',
+        color: dataSource === 'both' ? '#1e40af' : (dataSource === 'n8n' ? '#166534' : '#92400e'),
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+      }}>
+        <span>
+          <i className="fas fa-database" style={{ marginRight: '0.25rem' }}></i>
+          データソース: {dataSource === 'both' ? 'n8n + legacy' : dataSource} ({referenceItems.length}件)
+        </span>
+        <span>
+          n8n: {browseItems.length}件 / legacy: {legacyItems.length}件
+        </span>
+      </div>
+      
+      {/* ===== 競合価格取得ボタン ===== */}
+      <div style={{
+        marginBottom: '0.75rem',
+        padding: '0.75rem',
+        borderRadius: '6px',
+        background: '#eff6ff',
+        border: '2px solid #3b82f6',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+          <div style={{ fontSize: '11px', fontWeight: 700, color: '#1e40af' }}>
+            <i className="fas fa-search-dollar" style={{ marginRight: '0.5rem' }}></i>
+            競合価格リサーチ（Browse API）
+          </div>
+          <button
+            onClick={handleFetchCompetitors}
+            disabled={isFetchingCompetitors}
+            style={{
+              padding: '0.5rem 1rem',
+              fontSize: '11px',
+              fontWeight: 600,
+              background: isFetchingCompetitors ? T.highlight : '#3b82f6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: isFetchingCompetitors ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {isFetchingCompetitors ? (
+              <><i className="fas fa-spinner fa-spin" style={{ marginRight: '0.25rem' }}></i>取得中...</>
+            ) : (
+              <><i className="fas fa-sync-alt" style={{ marginRight: '0.25rem' }}></i>競合価格を取得</>
+            )}
+          </button>
+        </div>
+        <div style={{ fontSize: '9px', color: '#1e40af' }}>
+          <i className="fas fa-info-circle" style={{ marginRight: '0.25rem' }}></i>
+          SM分析後に実行してください。現在出品中の同じ商品の価格リストを取得します。
+        </div>
+        {/* Browse結果のサマリー */}
+        {(product as any)?.ebay_api_data?.browse_result && (
+          <div style={{ marginTop: '0.5rem', padding: '0.5rem', borderRadius: '4px', background: 'white' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem', fontSize: '10px' }}>
+              <div>
+                <div style={{ color: T.textMuted }}>競合数</div>
+                <div style={{ fontWeight: 700, color: T.text }}>{(product as any)?.ebay_api_data?.browse_result?.competitorCount || 0}件</div>
+              </div>
+              <div>
+                <div style={{ color: T.textMuted }}>最安値</div>
+                <div style={{ fontWeight: 700, color: T.success }}>${(product as any)?.ebay_api_data?.browse_result?.lowestPrice?.toFixed(2) || '0.00'}</div>
+              </div>
+              <div>
+                <div style={{ color: T.textMuted }}>平均</div>
+                <div style={{ fontWeight: 700, color: T.text }}>${(product as any)?.ebay_api_data?.browse_result?.averagePrice?.toFixed(2) || '0.00'}</div>
+              </div>
+              <div>
+                <div style={{ color: T.textMuted }}>中央値</div>
+                <div style={{ fontWeight: 700, color: T.accent }}>${(product as any)?.ebay_api_data?.browse_result?.medianPrice?.toFixed(2) || '0.00'}</div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* ===== 除外ワード入力セクション ===== */}
       <div style={{
         marginBottom: '0.75rem',
@@ -533,8 +909,29 @@ export function TabCompetitors({ product }: TabCompetitorsProps) {
           background: `${T.accent}10`,
           border: `2px solid ${T.accent}`,
         }}>
-          <div style={{ fontSize: '10px', fontWeight: 700, color: T.accent, marginBottom: '0.5rem' }}>
-            🎯 価格ターゲット（{myCondition}の最安値）
+          <div style={{ fontSize: '10px', fontWeight: 700, color: T.accent, marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>🎯 価格ターゲット（{myCondition}の最安値）</span>
+            {/* ✅ 詳細取得ボタン */}
+            <button
+              onClick={handleFetchDetails}
+              disabled={isFetchingDetails}
+              style={{
+                padding: '0.375rem 0.75rem',
+                fontSize: '10px',
+                fontWeight: 600,
+                background: isFetchingDetails ? T.highlight : T.success,
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: isFetchingDetails ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {isFetchingDetails ? (
+                <><i className="fas fa-spinner fa-spin" style={{ marginRight: '0.25rem' }}></i>取得中...</>
+              ) : (
+                <><i className="fas fa-download" style={{ marginRight: '0.25rem' }}></i>詳細取得</>
+              )}
+            </button>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontSize: '11px', color: T.text, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -544,6 +941,21 @@ export function TabCompetitors({ product }: TabCompetitorsProps) {
               ${selectedItem.priceNum.toFixed(2)}
             </div>
           </div>
+          {/* ✅ 取得済み詳細の表示 */}
+          {fetchedDetails && (
+            <div style={{ marginTop: '0.5rem', padding: '0.5rem', borderRadius: '4px', background: '#dcfce7', border: '1px solid #86efac' }}>
+              <div style={{ fontSize: '9px', color: '#166534', fontWeight: 600, marginBottom: '0.25rem' }}>
+                <i className="fas fa-check-circle" style={{ marginRight: '0.25rem' }}></i>
+                詳細取得済み（{Object.keys(fetchedDetails.itemSpecifics || {}).length}件のItem Specifics）
+              </div>
+              <div style={{ fontSize: '8px', color: '#166534', display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                {fetchedDetails.categoryId && <span>カテゴリ: {fetchedDetails.categoryId}</span>}
+                {fetchedDetails.brand && <span>ブランド: {fetchedDetails.brand}</span>}
+                {fetchedDetails.countryOfManufacture && <span>原産国: {fetchedDetails.countryOfManufacture}</span>}
+                {fetchedDetails.weight && <span>重量: {fetchedDetails.weight}g</span>}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

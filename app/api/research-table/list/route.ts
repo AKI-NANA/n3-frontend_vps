@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (keyword) {
-      query = query.or(`title.ilike.%${keyword}%,english_title.ilike.%${keyword}%`)
+      query = query.or(`title.ilike.%${keyword}%,english_title.ilike.%${keyword}%,asin.ilike.%${keyword}%`)
     }
 
     if (source) {
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
     // 統計計算
     const statsQuery = await supabase
       .from('research_repository')
-      .select('status, total_score, supplier_source')
+      .select('status, total_score, supplier_source, risk_score')
 
     const statsData = statsQuery.data || []
     const stats = {
@@ -57,8 +57,16 @@ export async function GET(request: NextRequest) {
       analyzingCount: statsData.filter(i => i.status === 'analyzing').length,
       approvedCount: statsData.filter(i => i.status === 'approved').length,
       rejectedCount: statsData.filter(i => i.status === 'rejected').length,
+      promotedCount: statsData.filter(i => i.status === 'promoted').length,
+      researchPendingCount: statsData.filter(i => i.status === 'research_pending').length,
       highScoreCount: statsData.filter(i => (i.total_score || 0) >= 70).length,
-      supplierFoundCount: statsData.filter(i => i.supplier_source).length
+      supplierFoundCount: statsData.filter(i => i.supplier_source).length,
+      // 自動承認候補: ai_score >= 85 AND risk_score < 30
+      autoApproveCandidate: statsData.filter(i => 
+        i.status === 'new' && 
+        (i.total_score || 0) >= 85 && 
+        ((i.risk_score || 0) < 30)
+      ).length,
     }
 
     return NextResponse.json({

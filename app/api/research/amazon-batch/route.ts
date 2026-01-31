@@ -6,6 +6,8 @@
  * - PA-API / SP-API からデータ取得
  * - N3スコア計算
  * - DB保存
+ * 
+ * v2: テーブル未作成時のフォールバック対応
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -15,6 +17,9 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
+
+// モックモード設定（テーブルなし時に有効）
+const USE_MOCK_DATA = process.env.USE_MOCK_DATA === 'true';
 
 // PA-API設定（将来的に使用）
 const PA_API_CONFIG = {
@@ -48,14 +53,22 @@ export async function POST(request: NextRequest) {
     const results: any[] = [];
     const errors: { asin: string; error: string }[] = [];
     
+    // テーブル存在確認
+    const tableExists = await checkTableExists();
+    
     for (const asin of uniqueAsins) {
       try {
-        // 既存データ確認
-        const { data: existing } = await supabase
-          .from('amazon_research')
-          .select('*')
-          .eq('asin', asin)
-          .single();
+        let existing = null;
+        
+        // テーブルがあれば既存データ確認
+        if (tableExists && !USE_MOCK_DATA) {
+          const { data } = await supabase
+            .from('amazon_research')
+            .select('*')
+            .eq('asin', asin)
+            .single();
+          existing = data;
+        }
         
         if (existing && !options.forceRefresh) {
           // 24時間以内のデータは再利用
@@ -78,27 +91,37 @@ export async function POST(request: NextRequest) {
         // N3スコア計算
         const enrichedData = calculateScores(productData);
         
-        // DB保存
-        const { data: saved, error: saveError } = await supabase
-          .from('amazon_research')
-          .upsert({
+        // テーブルがあればDB保存
+        if (tableExists && !USE_MOCK_DATA) {
+          const { data: saved, error: saveError } = await supabase
+            .from('amazon_research')
+            .upsert({
+              ...enrichedData,
+              asin,
+              updated_at: new Date().toISOString(),
+            }, { onConflict: 'asin' })
+            .select()
+            .single();
+          
+          if (saveError) {
+            console.error(`DB save error for ${asin}:`, saveError);
+          }
+          
+          results.push({
             ...enrichedData,
+            id: saved?.id || `${asin}-${Date.now()}`,
             asin,
-            updated_at: new Date().toISOString(),
-          }, { onConflict: 'asin' })
-          .select()
-          .single();
-        
-        if (saveError) {
-          console.error(`DB save error for ${asin}:`, saveError);
+            source: 'api',
+          });
+        } else {
+          // モックモード：メモリ内のみ
+          results.push({
+            ...enrichedData,
+            id: `mock-${asin}-${Date.now()}`,
+            asin,
+            source: 'mock',
+          });
         }
-        
-        results.push({
-          ...enrichedData,
-          id: saved?.id || `${asin}-${Date.now()}`,
-          asin,
-          source: 'api',
-        });
         
       } catch (err: any) {
         console.error(`Error processing ${asin}:`, err);
@@ -113,6 +136,7 @@ export async function POST(request: NextRequest) {
       failed: errors.length,
       results,
       errors: errors.length > 0 ? errors : undefined,
+      _mock: USE_MOCK_DATA || !tableExists,
     });
     
   } catch (error: any) {
@@ -132,6 +156,23 @@ export async function GET(request: NextRequest) {
     const offset = parseInt(searchParams.get('offset') || '0');
     const status = searchParams.get('status');
     const minScore = searchParams.get('minScore');
+    const mock = searchParams.get('mock') === 'true';
+    
+    // モックモードまたはテーブルなし
+    const tableExists = await checkTableExists();
+    
+    if (USE_MOCK_DATA || mock || !tableExists) {
+      // モックデータを返す
+      const mockData = generateMockItems(limit);
+      return NextResponse.json({
+        success: true,
+        data: mockData,
+        total: mockData.length,
+        limit,
+        offset,
+        _mock: true,
+      });
+    }
     
     let query = supabase
       .from('amazon_research')
@@ -150,6 +191,19 @@ export async function GET(request: NextRequest) {
     const { data, error, count } = await query;
     
     if (error) {
+      // テーブルがない場合はモックデータを返す
+      if (error.code === '42P01') {
+        const mockData = generateMockItems(limit);
+        return NextResponse.json({
+          success: true,
+          data: mockData,
+          total: mockData.length,
+          limit,
+          offset,
+          _mock: true,
+          _note: 'テーブル未作成のためモックデータを表示中'
+        });
+      }
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
     
@@ -172,29 +226,65 @@ export async function GET(request: NextRequest) {
 // ============================================================
 
 /**
- * PA-APIからデータ取得（現在はモックデータ）
- * 将来的にPA-API/SP-API連携
+ * テーブル存在確認
  */
-async function fetchProductData(asin: string): Promise<any> {
-  // TODO: 実際のPA-API呼び出し実装
-  // 現在はモックデータを返す
-  
+async function checkTableExists(): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('amazon_research')
+      .select('id')
+      .limit(1);
+    
+    // テーブルが存在しない場合のエラーコード
+    if (error?.code === '42P01') {
+      return false;
+    }
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * モックアイテム生成
+ */
+function generateMockItems(count: number): any[] {
+  const items: any[] = [];
   const categories = ['おもちゃ', 'ホーム＆キッチン', '家電&カメラ', 'ビューティー', 'ペット用品', 'スポーツ&アウトドア'];
-  const brands = ['Anker', 'ELECOM', 'Buffalo', 'Panasonic', 'Sony', 'IRIS OHYAMA', 'YAMAZEN', 'サンワ'];
-  
+  const brands = ['Anker', 'ELECOM', 'Buffalo', 'Panasonic', 'Sony', 'IRIS OHYAMA', 'YAMAZEN', 'サンワ', 'UGREEN', 'JBL'];
   const rand = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
+  
+  for (let i = 0; i < count; i++) {
+    const asin = `B${String(rand(10000000, 99999999)).padStart(9, '0')}`;
+    const data = fetchProductDataSync(asin, brands, categories, rand);
+    const enriched = calculateScores(data);
+    items.push({
+      ...enriched,
+      id: `mock-${i}-${asin}`,
+    });
+  }
+  
+  // スコア順でソート
+  items.sort((a, b) => (b.n3_score || 0) - (a.n3_score || 0));
+  
+  return items;
+}
+
+function fetchProductDataSync(asin: string, brands: string[], categories: string[], rand: (min: number, max: number) => number): any {
   const randFloat = (min: number, max: number) => Math.random() * (max - min) + min;
   
   const price = rand(1000, 20000);
   const bsr = rand(500, 200000);
   const sales = Math.round(100000 / Math.sqrt(bsr));
+  const brand = brands[rand(0, brands.length - 1)];
+  const category = categories[rand(0, categories.length - 1)];
   
   return {
     asin,
-    title: `${brands[rand(0, brands.length - 1)]} 商品 ${asin.slice(-4)}`,
-    brand: brands[rand(0, brands.length - 1)],
-    manufacturer: brands[rand(0, brands.length - 1)],
-    category: categories[rand(0, categories.length - 1)],
+    title: `${brand} ${category}向け商品 ${asin.slice(-4)} - 高品質`,
+    brand,
+    manufacturer: brand,
+    category,
     main_image_url: `https://picsum.photos/seed/${asin}/200/200`,
     
     amazon_price_jpy: price,
@@ -230,7 +320,21 @@ async function fetchProductData(asin: string): Promise<any> {
     out_of_stock_percentage_30d: randFloat(0, 0.3),
     
     status: 'completed',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   };
+}
+
+/**
+ * PA-APIからデータ取得（現在はモックデータ）
+ * 将来的にPA-API/SP-API連携
+ */
+async function fetchProductData(asin: string): Promise<any> {
+  const categories = ['おもちゃ', 'ホーム＆キッチン', '家電&カメラ', 'ビューティー', 'ペット用品', 'スポーツ&アウトドア'];
+  const brands = ['Anker', 'ELECOM', 'Buffalo', 'Panasonic', 'Sony', 'IRIS OHYAMA', 'YAMAZEN', 'サンワ'];
+  const rand = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
+  
+  return fetchProductDataSync(asin, brands, categories, rand);
 }
 
 /**

@@ -1,0 +1,130 @@
+{
+  "name": "N3-SUB-DECISION-TRACE",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "sub-decision-trace",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "n3_sub_dt_webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [250, 300],
+      "webhookId": "n3-sub-decision-trace"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ログハッシュ生成（改ざん防止）\nconst crypto = require('crypto');\nconst input = $input.all()[0].json;\n\nconst hashContent = JSON.stringify({\n  timestamp: new Date().toISOString(),\n  workflow_name: input.workflow_name,\n  job_id: input.job_id,\n  action: input.action,\n  success: input.success\n});\n\nconst log_hash = crypto.createHash('sha256').update(hashContent).digest('hex');\n\nreturn [{\n  json: {\n    ...input,\n    log_hash: log_hash,\n    timezone: 'Asia/Tokyo',\n    processed_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "n3_sub_dt_hash",
+      "name": "Generate Hash",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO n3_audit_logs (\n  tenant_id,\n  user_id,\n  workflow_name,\n  job_id,\n  action,\n  request_data,\n  response_data,\n  execution_time_ms,\n  success,\n  error_message,\n  log_hash,\n  timezone\n) VALUES (\n  '{{ $json.tenant_id || \"default\" }}',\n  '{{ $json.user_id }}',\n  '{{ $json.workflow_name }}',\n  '{{ $json.job_id }}'::uuid,\n  '{{ $json.action }}',\n  '{{ JSON.stringify($json.request_data || {}) }}'::jsonb,\n  '{{ JSON.stringify($json.response_data || {}) }}'::jsonb,\n  {{ $json.execution_time_ms || 0 }},\n  {{ $json.success }},\n  {{ $json.error_message ? \"'\" + $json.error_message + \"'\" : 'NULL' }},\n  '{{ $json.log_hash }}',\n  '{{ $json.timezone }}'\n)\nRETURNING id;",
+        "options": {}
+      },
+      "id": "n3_sub_dt_insert_audit",
+      "name": "Insert Audit Log",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [650, 300],
+      "credentials": { "postgres": { "id": "n3-supabase-postgres", "name": "N3 Supabase Postgres" } }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "has_ai_context",
+              "leftValue": "={{ $('Generate Hash').item.json.ai_context }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "n3_sub_dt_has_ai",
+      "name": "Has AI Context?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO n3_ai_decision_traces (\n  tenant_id,\n  user_id,\n  workflow_name,\n  node_name,\n  request_id,\n  input_data,\n  output_data,\n  model_used,\n  reasoning,\n  confidence_score,\n  tokens_used,\n  cost_usd,\n  execution_time_ms\n) VALUES (\n  '{{ $('Generate Hash').item.json.tenant_id || \"default\" }}',\n  '{{ $('Generate Hash').item.json.user_id }}',\n  '{{ $('Generate Hash').item.json.workflow_name }}',\n  '{{ $('Generate Hash').item.json.action }}',\n  '{{ $('Generate Hash').item.json.job_id }}',\n  '{{ JSON.stringify($('Generate Hash').item.json.request_data || {}) }}'::jsonb,\n  '{{ JSON.stringify($('Generate Hash').item.json.response_data || {}) }}'::jsonb,\n  '{{ $('Generate Hash').item.json.ai_context?.model_used || \"unknown\" }}',\n  '{{ $('Generate Hash').item.json.ai_context?.reasoning || \"\" }}',\n  {{ $('Generate Hash').item.json.ai_context?.confidence_score || 0 }},\n  {{ $('Generate Hash').item.json.ai_context?.tokens_used || 0 }},\n  {{ $('Generate Hash').item.json.ai_context?.cost_usd || 0 }},\n  {{ $('Generate Hash').item.json.execution_time_ms || 0 }}\n)\nRETURNING id;",
+        "options": {}
+      },
+      "id": "n3_sub_dt_insert_ai",
+      "name": "Insert AI Trace",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1050, 200],
+      "credentials": { "postgres": { "id": "n3-supabase-postgres", "name": "N3 Supabase Postgres" } }
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "logged"
+            },
+            {
+              "name": "audit_log_id",
+              "value": "={{ $('Insert Audit Log').item.json.id }}"
+            },
+            {
+              "name": "log_hash",
+              "value": "={{ $('Generate Hash').item.json.log_hash }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "n3_sub_dt_set_result",
+      "name": "Set Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [1250, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Generate Hash", "type": "main", "index": 0 }]] },
+    "Generate Hash": { "main": [[{ "node": "Insert Audit Log", "type": "main", "index": 0 }]] },
+    "Insert Audit Log": { "main": [[{ "node": "Has AI Context?", "type": "main", "index": 0 }]] },
+    "Has AI Context?": {
+      "main": [
+        [{ "node": "Insert AI Trace", "type": "main", "index": 0 }],
+        [{ "node": "Set Result", "type": "main", "index": 0 }]
+      ]
+    },
+    "Insert AI Trace": { "main": [[{ "node": "Set Result", "type": "main", "index": 0 }]] }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "v8.3.0",
+  "meta": {
+    "n3_version": "V8.3",
+    "description": "非同期監査ログ記録 - 法廷耐性ハッシュ付き",
+    "execution_mode": "async",
+    "created_at": "2026-01-25"
+  },
+  "tags": [
+    { "name": "V8.3" },
+    { "name": "SUB" },
+    { "name": "Audit" }
+  ]
+}

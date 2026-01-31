@@ -24,7 +24,9 @@ export async function GET(request: NextRequest) {
       headers: {
         'Authorization': `Bearer ${userToken}`,
         'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'Content-Language': 'en-US',
+        'Accept-Language': 'en-US'
       }
     })
 

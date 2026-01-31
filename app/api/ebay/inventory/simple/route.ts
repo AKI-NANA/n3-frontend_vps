@@ -68,7 +68,9 @@ export async function GET(request: NextRequest) {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          'Content-Language': 'en-US',
+          'Accept-Language': 'en-US'
         }
       }
     )
@@ -98,7 +100,9 @@ export async function GET(request: NextRequest) {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          'Content-Language': 'en-US',
+          'Accept-Language': 'en-US'
         }
       }
     )

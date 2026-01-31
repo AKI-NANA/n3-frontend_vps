@@ -10,6 +10,10 @@ import type { Product, ProductUpdate } from '../types/product';
 export const productApi = {
   /**
    * 商品リストを取得する
+   * 
+   * 🔥 v2: エラーハンドリング強化
+   * - HTTP 500エラー時は空配列を返す（UI崩壊防止）
+   * - Supabase制限エラーを明示的にハンドリング
    */
   fetchProducts: async (params: { page: number; pageSize: number; filters?: Record<string, any>; listFilter?: string }): Promise<{ products: Product[]; total: number }> => {
     const { page, pageSize, filters = {}, listFilter } = params;
@@ -35,8 +39,29 @@ export const productApi = {
       console.log('[productApi] Fetching:', url);
       const response = await fetch(url);
 
+      // 🔥 v2: HTTPエラー時は空配列を返す（throwしない）
       if (!response.ok) {
-        throw new Error(`APIリクエスト失敗: ${response.statusText}`);
+        // エラーレスポンスの詳細を取得試行
+        let errorDetail = response.statusText;
+        try {
+          const errorBody = await response.text();
+          if (errorBody && !errorBody.startsWith('<!DOCTYPE')) {
+            const errorJson = JSON.parse(errorBody);
+            errorDetail = errorJson.error || errorBody.substring(0, 100);
+          }
+        } catch {
+          // JSONパース失敗は無視
+        }
+        
+        console.error(`[productApi] ❌ APIエラー (HTTP ${response.status}):`, errorDetail);
+        
+        // 🔥 Supabase制限エラーの場合は特別なメッセージ
+        if (errorDetail.includes('restricted') || errorDetail.includes('violation')) {
+          console.warn('[productApi] ⚠️ Supabaseサービス制限中 - 一時的なエラーです');
+        }
+        
+        // UIが壊れないように空配列を返す
+        return { products: [], total: 0 };
       }
 
       const result = await response.json();
@@ -49,7 +74,8 @@ export const productApi = {
       });
       
       if (!result.success) {
-        throw new Error(result.error || 'APIエラー');
+        console.error('[productApi] ❌ APIレスポンスエラー:', result.error);
+        return { products: [], total: 0 };
       }
       
       return {
@@ -57,7 +83,7 @@ export const productApi = {
         total: result.pagination?.total || 0,
       };
     } catch (error) {
-      console.error('[productApi] Fetch Products Error:', error);
+      console.error('[productApi] ❌ Fetch Products Error:', error);
       // エラー発生時は空配列を返す
       return {
         products: [], 

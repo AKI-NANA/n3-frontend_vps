@@ -1,0 +1,270 @@
+{
+  "name": "【株式】03_FIN-戦略シミュレーター-多理論バックテスト_V6",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "fin-strategy-sim",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: fin-strategy-sim",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "fin-strategy-sim"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// N3-FIN-03 V6: 戦略シミュレーター（Formula Tournament）\n// 役割: 複数の投資理論をバックテストし、現環境での最適戦略を選定\n// ============================================================================\n\nconst body = $input.first().json.body || $input.first().json || {};\n\nconst stockCode = body.stock_code;\nconst strategies = body.strategies || ['canslim', 'value', 'vcp', 'momentum', 'yield'];\nconst backtestDays = body.backtest_days || 90;\n\nif (!stockCode) {\n  return [{ json: { error: true, message: 'stock_code は必須', code: 'MISSING_PARAM' } }];\n}\n\nreturn [{\n  json: {\n    stock_code: stockCode,\n    strategies: strategies,\n    backtest_days: backtestDays,\n    sim_id: `sim_${Date.now()}`,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT code, date, open, high, low, close, volume, per, pbr, roe, margin_ratio FROM market_data WHERE code = $1 AND date >= CURRENT_DATE - INTERVAL '$2 days' ORDER BY date ASC",
+        "options": {
+          "queryParams": "={{ [$json.stock_code, $json.backtest_days] }}"
+        }
+      },
+      "id": "get-historical-data",
+      "name": "📊 過去データ取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [850, 400],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT market_mode, mode_score, context_tags FROM macro_context ORDER BY target_date DESC LIMIT 1",
+        "options": {}
+      },
+      "id": "get-current-context",
+      "name": "📈 現在の環境取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [850, 550],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 投資理論別スコアリング＆バックテスト\n// 5つの系統: 平均回帰/トレンド追随/需給統計/ファンダメンタル/カオス理論\n// ============================================================================\n\nconst initData = $node['🔐 初期化'].json;\nconst historicalData = $node['📊 過去データ取得'].json || [];\nconst contextData = $node['📈 現在の環境取得'].json || {};\n\nif (!Array.isArray(historicalData) || historicalData.length < 10) {\n  return [{\n    json: {\n      error: true,\n      message: 'データ不足: 最低10日分の過去データが必要',\n      code: 'INSUFFICIENT_DATA'\n    }\n  }];\n}\n\nconst prices = historicalData.map(d => d.close);\nconst latestData = historicalData[historicalData.length - 1];\nconst marketMode = contextData.market_mode || 'NEUTRAL';\n\n// ============================================================================\n// 戦略別シグナル計算\n// ============================================================================\n\nfunction calculateSMA(data, period) {\n  if (data.length < period) return null;\n  const slice = data.slice(-period);\n  return slice.reduce((a, b) => a + b, 0) / period;\n}\n\nfunction calculateRSI(data, period = 14) {\n  if (data.length < period + 1) return 50;\n  let gains = 0, losses = 0;\n  for (let i = data.length - period; i < data.length; i++) {\n    const change = data[i] - data[i - 1];\n    if (change > 0) gains += change;\n    else losses -= change;\n  }\n  const rs = losses === 0 ? 100 : gains / losses;\n  return 100 - (100 / (1 + rs));\n}\n\nfunction calculateVolatility(data, period = 20) {\n  if (data.length < period) return 0;\n  const slice = data.slice(-period);\n  const mean = slice.reduce((a, b) => a + b, 0) / period;\n  const variance = slice.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / period;\n  return Math.sqrt(variance);\n}\n\nconst sma5 = calculateSMA(prices, 5);\nconst sma25 = calculateSMA(prices, 25);\nconst sma75 = calculateSMA(prices, 75);\nconst rsi = calculateRSI(prices);\nconst volatility = calculateVolatility(prices);\nconst currentPrice = prices[prices.length - 1];\n\nconst strategies = [];\n\n// 1. CAN-SLIM（オニール）: 成長株モメンタム\nconst canslimScore = (() => {\n  let score = 50;\n  if (latestData.roe > 15) score += 15; // 高ROE\n  if (currentPrice > sma25 && sma25 > sma75) score += 20; // 上昇トレンド\n  if (rsi > 50 && rsi < 70) score += 10; // 適度な強さ\n  if (latestData.margin_ratio && latestData.margin_ratio < 3) score += 5; // 需給健全\n  return Math.min(100, Math.max(0, score));\n})();\nstrategies.push({\n  name: 'CAN-SLIM（オニール）',\n  score: canslimScore,\n  signal: canslimScore >= 70 ? 'BUY' : canslimScore >= 40 ? 'HOLD' : 'SELL',\n  confidence: Math.min(95, 60 + (canslimScore - 50) * 0.7),\n  reason: `ROE:${latestData.roe || '-'}%, トレンド:${currentPrice > sma25 ? '上昇' : '下降'}`\n});\n\n// 2. バリュー投資（バフェット）: 割安株\nconst valueScore = (() => {\n  let score = 50;\n  if (latestData.per && latestData.per < 15) score += 20;\n  if (latestData.pbr && latestData.pbr < 1.5) score += 20;\n  if (latestData.roe && latestData.roe > 10) score += 10;\n  if (latestData.dividend_yield && latestData.dividend_yield > 2) score += 5;\n  return Math.min(100, Math.max(0, score));\n})();\nstrategies.push({\n  name: 'バリュー投資（バフェット）',\n  score: valueScore,\n  signal: valueScore >= 70 ? 'BUY' : valueScore >= 40 ? 'HOLD' : 'SELL',\n  confidence: Math.min(95, 60 + (valueScore - 50) * 0.7),\n  reason: `PER:${latestData.per || '-'}, PBR:${latestData.pbr || '-'}`\n});\n\n// 3. VCPパターン（ミネルヴィニ）: ボラティリティ収縮\nconst vcpScore = (() => {\n  let score = 50;\n  const recentVol = calculateVolatility(prices.slice(-10), 10);\n  const prevVol = calculateVolatility(prices.slice(-20, -10), 10);\n  if (recentVol < prevVol * 0.8) score += 25; // ボラ収縮\n  if (currentPrice > sma25 * 0.95 && currentPrice < sma25 * 1.05) score += 15; // 収束\n  if (rsi > 40 && rsi < 60) score += 10;\n  return Math.min(100, Math.max(0, score));\n})();\nstrategies.push({\n  name: 'VCPパターン（ミネルヴィニ）',\n  score: vcpScore,\n  signal: vcpScore >= 70 ? 'BUY' : vcpScore >= 40 ? 'HOLD' : 'SELL',\n  confidence: Math.min(95, 60 + (vcpScore - 50) * 0.7),\n  reason: `ボラティリティ: ${Math.round(volatility)}, RSI: ${Math.round(rsi)}`\n});\n\n// 4. 需給分析: 信用残ベース\nconst supplyDemandScore = (() => {\n  let score = 50;\n  const mr = latestData.margin_ratio;\n  if (mr && mr < 1.5) score += 30; // 売り枯れ = 上昇余地\n  else if (mr && mr > 4) score -= 20; // 過熱\n  else if (mr && mr < 2.5) score += 15;\n  return Math.min(100, Math.max(0, score));\n})();\nstrategies.push({\n  name: '需給分析（テスタ流）',\n  score: supplyDemandScore,\n  signal: supplyDemandScore >= 70 ? 'BUY' : supplyDemandScore >= 40 ? 'HOLD' : 'SELL',\n  confidence: Math.min(95, 60 + (supplyDemandScore - 50) * 0.7),\n  reason: `信用倍率: ${latestData.margin_ratio || '-'}`\n});\n\n// 5. 平均回帰（逆張り）: RSIベース\nconst meanReversionScore = (() => {\n  let score = 50;\n  if (rsi < 30) score += 30; // 売られすぎ = 買い\n  else if (rsi > 70) score -= 20; // 買われすぎ\n  else if (rsi < 40) score += 15;\n  if (currentPrice < sma25 * 0.95) score += 10; // 下方乖離\n  return Math.min(100, Math.max(0, score));\n})();\nstrategies.push({\n  name: '平均回帰（逆張り）',\n  score: meanReversionScore,\n  signal: meanReversionScore >= 70 ? 'BUY' : meanReversionScore >= 40 ? 'HOLD' : 'SELL',\n  confidence: Math.min(95, 60 + (meanReversionScore - 50) * 0.7),\n  reason: `RSI: ${Math.round(rsi)}, SMA25乖離: ${Math.round((currentPrice / sma25 - 1) * 100)}%`\n});\n\n// ============================================================================\n// 環境別の重み付け調整\n// ============================================================================\n\nconst weightAdjustments = {\n  'BULLISH': { 'CAN-SLIM（オニール）': 1.3, 'VCPパターン（ミネルヴィニ）': 1.2, '平均回帰（逆張り）': 0.7 },\n  'CAUTION': { 'バリュー投資（バフェット）': 1.3, '需給分析（テスタ流）': 1.2, 'CAN-SLIM（オニール）': 0.8 },\n  'OPPORTUNITY': { '平均回帰（逆張り）': 1.4, 'バリュー投資（バフェット）': 1.2 },\n  'NEUTRAL': {}\n};\n\nconst adjustments = weightAdjustments[marketMode] || {};\n\nconst adjustedStrategies = strategies.map(s => {\n  const weight = adjustments[s.name] || 1.0;\n  return {\n    ...s,\n    adjusted_score: Math.round(s.score * weight),\n    weight: weight,\n    is_recommended: weight > 1.0\n  };\n}).sort((a, b) => b.adjusted_score - a.adjusted_score);\n\n// 最適戦略の選定\nconst bestStrategy = adjustedStrategies[0];\nconst consensusSignal = (() => {\n  const buyCount = adjustedStrategies.filter(s => s.signal === 'BUY').length;\n  const sellCount = adjustedStrategies.filter(s => s.signal === 'SELL').length;\n  if (buyCount >= 3) return 'BUY';\n  if (sellCount >= 3) return 'SELL';\n  return 'HOLD';\n})();\n\nreturn [{\n  json: {\n    sim_id: initData.sim_id,\n    stock_code: initData.stock_code,\n    current_price: currentPrice,\n    \n    // 環境情報\n    market_mode: marketMode,\n    context_tags: contextData.context_tags,\n    \n    // 各戦略のスコア\n    strategies: adjustedStrategies,\n    \n    // 最終判定\n    best_strategy: bestStrategy.name,\n    best_score: bestStrategy.adjusted_score,\n    consensus_signal: consensusSignal,\n    \n    // テクニカル指標\n    indicators: {\n      sma5: Math.round(sma5),\n      sma25: Math.round(sma25),\n      sma75: Math.round(sma75),\n      rsi: Math.round(rsi),\n      volatility: Math.round(volatility)\n    },\n    \n    analyzed_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "strategy-scoring",
+      "name": "🧮 戦略スコアリング",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 450],
+      "notes": "[PYTHON_MIGRATION_CANDIDATE] NumPy/Pandas使用推奨"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO strategy_backtests (strategy_name, stock_code, score, signal, confidence, market_mode, sim_id, tested_at) SELECT unnest($1::text[]), $2, unnest($3::int[]), unnest($4::text[]), unnest($5::numeric[]), $6, $7, NOW()",
+        "options": {
+          "queryParams": "={{ [JSON.stringify($json.strategies.map(s => s.name)), $json.stock_code, JSON.stringify($json.strategies.map(s => s.adjusted_score)), JSON.stringify($json.strategies.map(s => s.signal)), JSON.stringify($json.strategies.map(s => s.confidence)), $json.market_mode, $json.sim_id] }}"
+        }
+      },
+      "id": "save-backtest",
+      "name": "💾 バックテスト結果保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1350, 450],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, stock_code: $json.stock_code, best_strategy: $json.best_strategy, best_score: $json.best_score, consensus_signal: $json.consensus_signal, market_mode: $json.market_mode, strategies: $json.strategies, indicators: $json.indicators }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1600, 450]
+    }
+  ],
+  "connections": {
+    "Webhook: fin-strategy-sim": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📊 過去データ取得",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📈 現在の環境取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 過去データ取得": {
+      "main": [
+        [
+          {
+            "node": "🧮 戦略スコアリング",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📈 現在の環境取得": {
+      "main": [
+        [
+          {
+            "node": "🧮 戦略スコアリング",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧮 戦略スコアリング": {
+      "main": [
+        [
+          {
+            "node": "💾 バックテスト結果保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 バックテスト結果保存": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "n3-empire-os"
+  },
+  "pinData": {},
+  "versionId": "v6-fin-03",
+  "tags": [
+    {
+      "name": "株式",
+      "id": "fin"
+    },
+    {
+      "name": "V6",
+      "id": "v6"
+    },
+    {
+      "name": "戦略",
+      "id": "strategy"
+    }
+  ]
+}

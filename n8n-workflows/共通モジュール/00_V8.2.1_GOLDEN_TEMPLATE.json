@@ -1,0 +1,333 @@
+{
+  "name": "【V8.2.1金型】GOLDEN_TEMPLATE_最終不沈艦",
+  "description": "N3 Empire OS V8.2.1: Smart Risk-Leveling / Night-Shift / Cost-Save / Async Audit / Error Self-Recovery 完全準拠テンプレート。152ツール全てにこの金型を適用する。",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "{{WEBHOOK_PATH}}",
+        "options": { "responseMode": "responseNode" }
+      },
+      "id": "webhook-entry",
+      "name": "🚪 Entry",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "{{WEBHOOK_PATH}}",
+      "position": [220, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// V8.2.1 AUTH-GATE: Smart Risk-Leveling / Night-Shift / Cost-Save\nconst crypto = require('crypto');\n\nconst RISK = {\n  LOW: { skip_policy: true, skip_hitl: true, skip_evidence: true, async_audit: true, path: 'FAST', premium: false },\n  MID: { skip_policy: false, skip_hitl: true, skip_evidence: false, async_audit: true, path: 'STANDARD', premium: false },\n  HIGH: { skip_policy: false, skip_hitl: false, skip_evidence: false, async_audit: true, path: 'FULL', premium: true },\n  CRITICAL: { skip_policy: false, skip_hitl: false, skip_evidence: false, async_audit: false, path: 'MAX', premium: true }\n};\n\nconst PATTERNS = [\n  { p: /^(read|get|list|search|status|check|fetch)\\./i, r: 'LOW' },\n  { p: /^(update|edit|create|add)\\./i, r: 'MID' },\n  { p: /^listing\\.single/i, r: 'MID' },\n  { p: /^(delete|remove)\\./i, r: 'HIGH' },\n  { p: /^listing\\.bulk/i, r: 'HIGH' },\n  { p: /^payment\\./i, r: 'HIGH' },\n  { p: /^(payment\\.large|account\\.delete|admin\\.)/i, r: 'CRITICAL' }\n];\n\nconst MODELS = { premium: 'gpt-4o', standard: 'gpt-4o-mini', economy: 'gpt-3.5-turbo' };\nconst COSTS = { 'gpt-4o': 0.03, 'gpt-4o-mini': 0.0015, 'gpt-3.5-turbo': 0.0005 };\n\nconst body = $input.first().json.body || $input.first().json || {};\nconst hdrs = $input.first().json.headers || {};\nconst tid = body.tenant_id || hdrs['x-tenant-id'] || 'default';\nconst sid = body.staff_id || hdrs['x-staff-id'];\nconst sig = hdrs['x-n3-signature'], ts = hdrs['x-n3-timestamp'];\n\nif ($env.N8N_HMAC_SECRET && sig && ts) {\n  if (Date.now() - parseInt(ts) > 300000) return [{ json: { _auth_error: true, code: 'TS_EXPIRED' } }];\n  const exp = crypto.createHmac('sha256', $env.N8N_HMAC_SECRET).update(ts + '.' + JSON.stringify(body)).digest('hex');\n  if (sig !== exp) return [{ json: { _auth_error: true, code: 'HMAC_FAIL' } }];\n}\n\nconst action = body.action || 'unknown';\nconst amt = Number(body.amount || body.price || 0);\nconst batch = Number(body.batch_size || body.items?.length || 1);\nconst urgent = Boolean(body.urgent || hdrs['x-urgent'] === 'true');\n\nlet rl = 'MID';\nfor (const r of PATTERNS) { if (r.p.test(action)) { rl = r.r; break; } }\nif (amt > 100000 || batch > 50) { const o = ['LOW','MID','HIGH','CRITICAL']; rl = o[Math.min(o.indexOf(rl)+1, 3)]; }\n\nconst cfg = RISK[rl];\nlet ns = { q: false, at: null, r: 'immediate' };\nif (!urgent && rl !== 'CRITICAL' && rl !== 'LOW' && $env.NIGHT_SHIFT_ENABLED === 'true') {\n  const h = new Date().getHours(), s = parseInt($env.NIGHT_SHIFT_START||'2'), e = parseInt($env.NIGHT_SHIFT_END||'5');\n  if (h < s || h >= e) {\n    const d = new Date(); if (h >= e) d.setDate(d.getDate()+1); d.setHours(s, Math.floor(Math.random()*15), 0, 0);\n    ns = { q: true, at: d.toISOString(), r: 'night_shift' };\n  }\n}\n\nconst cm = $env.COST_SAVE_MODE || 'balanced';\nlet model = MODELS.standard;\nif (rl === 'CRITICAL' || cfg.premium) model = MODELS.premium;\nelse if (rl === 'LOW') model = cm === 'performance' ? MODELS.standard : MODELS.economy;\n\nconst rid = `v821-${rl.toLowerCase()}-${Date.now()}-${Math.random().toString(36).substr(2,9)}`;\n\nreturn [{ json: {\n  _ok: true, _tid: tid, _sid: sid, _rid: rid, _ts: new Date().toISOString(),\n  _risk: { lv: rl, ...cfg },\n  _ns: ns,\n  _cost: { model, cost: COSTS[model], mode: cm },\n  payload: body\n} }];"
+      },
+      "id": "auth-gate",
+      "name": "🔐 Auth-Gate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 500]
+    },
+    {
+      "parameters": {
+        "conditions": { "conditions": [{ "leftValue": "={{ $json._auth_error }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }] }
+      },
+      "id": "auth-check",
+      "name": "Auth?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [660, 500]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.code }) }}",
+        "options": { "responseCode": 401 }
+      },
+      "id": "auth-err",
+      "name": "❌ 401",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, 400]
+    },
+    {
+      "parameters": {
+        "conditions": { "conditions": [{ "leftValue": "={{ $json._ns.q }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }] }
+      },
+      "id": "ns-check",
+      "name": "🌙 NS?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [880, 600]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO core.night_shift_queue (tenant_id, request_id, workflow_name, action, payload, scheduled_for, estimated_cost) SELECT t.id, $2, $3, $4, $5::jsonb, $6::timestamptz, $7 FROM core.tenants t WHERE t.tenant_code = $1 RETURNING id",
+        "options": { "queryParams": "={{ [$json._tid, $json._rid, '{{WORKFLOW_NAME}}', $json.payload.action, JSON.stringify($json.payload), $json._ns.at, $json._cost.cost] }}" }
+      },
+      "id": "ns-queue",
+      "name": "💤 Queue",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "supabase", "name": "Supabase" } },
+      "position": [1100, 500],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, status: 'queued', request_id: $json._rid, scheduled: $json._ns.at }) }}",
+        "options": { "responseCode": 202 }
+      },
+      "id": "ns-resp",
+      "name": "📥 Queued",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1320, 500]
+    },
+    {
+      "parameters": {
+        "conditions": { "conditions": [{ "leftValue": "={{ $json._risk.skip_policy }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }] }
+      },
+      "id": "policy-skip",
+      "name": "🚀 Skip?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1100, 700]
+    },
+    {
+      "parameters": {
+        "jsCode": "// POLICY-VALIDATOR\nconst d = $input.first().json, p = d.payload || {}, r = d._risk;\nconst policies = [];\nlet approval = false;\n\nconst amt = p.price || p.amount || 0;\nif (amt > 100000) { policies.push({ rule: 'HIGH_VALUE', v: amt }); approval = true; }\nif (amt > 500000) { policies.push({ rule: 'CRITICAL_VALUE', v: amt }); approval = true; }\n\nconst batch = p.items?.length || p.product_ids?.length || 1;\nif (batch > 50) { policies.push({ rule: 'BULK_OP', v: batch }); approval = true; }\n\nconst prohibited = ['replica', 'fake', 'counterfeit'];\nconst title = (p.title || '').toLowerCase();\nconst found = prohibited.filter(w => title.includes(w));\nif (found.length) { policies.push({ rule: 'PROHIBITED', v: found }); approval = true; }\n\nreturn [{ json: { ...d, _policy: { ok: true, policies, approval: approval && !r.skip_hitl } } }];"
+      },
+      "id": "policy",
+      "name": "🛡️ Policy",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 800]
+    },
+    {
+      "parameters": {
+        "conditions": { "conditions": [{ "leftValue": "={{ $json._policy?.approval }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }] }
+      },
+      "id": "hitl-check",
+      "name": "⏸️ HitL?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1540, 800]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO audit.approval_queue (tenant_id, workflow_name, request_id, payload, risk_level, policies) SELECT t.id, $2, $3, $4::jsonb, $5, $6::jsonb FROM core.tenants t WHERE t.tenant_code = $1 RETURNING id",
+        "options": { "queryParams": "={{ [$json._tid, '{{WORKFLOW_NAME}}', $json._rid, JSON.stringify($json.payload), $json._risk.lv, JSON.stringify($json._policy.policies)] }}" }
+      },
+      "id": "hitl-queue",
+      "name": "⏸️ Approval",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "supabase", "name": "Supabase" } },
+      "position": [1760, 700]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "X-ChatWorkToken", "value": "={{ $env.CHATWORK_API_KEY }}" }] },
+        "sendBody": true,
+        "bodyParameters": { "parameters": [{ "name": "body", "value": "[info][title]⚠️ V8.2.1承認[/title]{{ '{{WORKFLOW_NAME}}' }}\\nID: {{ $json._rid }}\\nリスク: {{ $json._risk.lv }}\\n{{ $json._policy.policies.map(p => p.rule).join(', ') }}[/info]" }] }
+      },
+      "id": "hitl-notify",
+      "name": "📢 Notify",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1980, 700],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, status: 'pending', request_id: $json._rid }) }}",
+        "options": { "responseCode": 202 }
+      },
+      "id": "hitl-resp",
+      "name": "⏳ Pending",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2200, 700]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// ⚡ V8.2.1 MAIN-LOGIC SKELETON\n// このノードに各ツール固有のロジックを実装\n// ============================================================================\nconst d = $input.first().json;\nconst p = d.payload;\nconst cost = d._cost;\n\n// === MAIN LOGIC START ===\n// AI呼び出し時: cost.model を使用\n// 例: await callOpenAI({ model: cost.model, ... })\n\nconst result = {\n  success: true,\n  action: p.action || '{{DEFAULT_ACTION}}',\n  data: {\n    // TODO: 実装結果\n  },\n  performance: {\n    ai_model: cost.model,\n    estimated_cost: cost.cost\n  }\n};\n// === MAIN LOGIC END ===\n\nreturn [{ json: { ...d, _result: result, _error: null } }];"
+      },
+      "id": "main-logic",
+      "name": "⚡ MAIN",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1760, 900],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": { "conditions": [{ "leftValue": "={{ $json._error }}", "rightValue": "", "operator": { "type": "string", "operation": "notEmpty" } }] }
+      },
+      "id": "error-check",
+      "name": "❓ Error?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1980, 900]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ERROR SELF-RECOVERY (OpenHands Sentinel連携)\nconst d = $input.first().json;\nconst err = d._error;\nconst maxRetry = 3;\nconst retryCount = d._retry_count || 0;\n\nlet strategy = 'notify';\nlet shouldRetry = false;\n\n// リトライ可能なエラー判定\nconst retryableErrors = ['TIMEOUT', 'RATE_LIMIT', 'NETWORK_ERROR', 'API_UNAVAILABLE'];\nif (retryableErrors.includes(err?.code) && retryCount < maxRetry) {\n  strategy = 'retry';\n  shouldRetry = true;\n}\n\n// 致命的エラー\nconst criticalErrors = ['AUTH_FAILED', 'PERMISSION_DENIED', 'DATA_CORRUPTION'];\nif (criticalErrors.includes(err?.code)) {\n  strategy = 'escalate';\n}\n\nreturn [{ json: {\n  ...d,\n  _recovery: {\n    strategy,\n    should_retry: shouldRetry,\n    retry_count: retryCount + 1,\n    max_retries: maxRetry,\n    error_type: err?.code,\n    sentinel_ticket: `SEN-${Date.now()}`\n  }\n} }];"
+      },
+      "id": "error-recovery",
+      "name": "🔧 Recovery",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2200, 800]
+    },
+    {
+      "parameters": {
+        "conditions": { "conditions": [{ "leftValue": "={{ $json._recovery?.should_retry }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }] }
+      },
+      "id": "retry-check",
+      "name": "🔄 Retry?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2420, 800]
+    },
+    {
+      "parameters": {
+        "assignments": { "assignments": [{ "name": "_retry_count", "value": "={{ $json._recovery.retry_count }}" }] }
+      },
+      "id": "set-retry",
+      "name": "Set Retry",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [2640, 700]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO audit.error_recovery_log (tenant_id, original_request_id, workflow_name, error_type, error_message, recovery_strategy, retry_count, sentinel_ticket_id) SELECT t.id, $2, $3, $4, $5, $6, $7, $8 FROM core.tenants t WHERE t.tenant_code = $1",
+        "options": { "queryParams": "={{ [$json._tid, $json._rid, '{{WORKFLOW_NAME}}', $json._error?.code, $json._error?.message, $json._recovery.strategy, $json._recovery.retry_count, $json._recovery.sentinel_ticket] }}" }
+      },
+      "id": "log-error",
+      "name": "📝 Log Error",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "supabase", "name": "Supabase" } },
+      "position": [2640, 900],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "X-ChatWorkToken", "value": "={{ $env.CHATWORK_API_KEY }}" }] },
+        "sendBody": true,
+        "bodyParameters": { "parameters": [{ "name": "body", "value": "[info][title]🚨 V8.2.1エラー[/title]{{ '{{WORKFLOW_NAME}}' }}\\nID: {{ $json._rid }}\\nエラー: {{ $json._error?.code }}\\n{{ $json._error?.message }}\\n\\nSentinel: {{ $json._recovery.sentinel_ticket }}[/info]" }] }
+      },
+      "id": "error-notify",
+      "name": "🚨 Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2860, 900],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": { "conditions": [{ "leftValue": "={{ $json._risk?.async_audit }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }] }
+      },
+      "id": "async-audit-check",
+      "name": "📝 Async?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2200, 1000]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Fire & Forget: 非同期監査ログ\nconst d = $input.item.json;\n\n// このノードの完了を待たずに次へ進む\nsetTimeout(async () => {\n  try {\n    // 実際の実装ではSupabase直接呼び出し\n    console.log('[ASYNC_AUDIT]', d._rid, d._result?.success);\n  } catch (e) {\n    console.error('[ASYNC_AUDIT_ERROR]', e);\n  }\n}, 0);\n\nreturn $input.item;"
+      },
+      "id": "async-audit",
+      "name": "🔥 Fire&Forget",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2420, 1100]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT audit.log_async($1::uuid, $2, $3, $4, $5, $6::jsonb, $7, $8, $9)",
+        "options": { "queryParams": "={{ [(SELECT id FROM core.tenants WHERE tenant_code = $json._tid), '{{WORKFLOW_NAME}}', $json._rid, $json.payload.action, $json._risk.lv, JSON.stringify({result: $json._result?.success}), $json._result?.success ? 'success' : 'error', $json._cost.model, $json._cost.cost] }}" }
+      },
+      "id": "sync-audit",
+      "name": "📝 Sync Log",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "supabase", "name": "Supabase" } },
+      "position": [2420, 1000],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// FINAL RESPONSE\nconst d = $input.first().json;\nconst r = d._result || {};\n\nreturn [{ json: {\n  success: r.success !== false,\n  request_id: d._rid,\n  risk_level: d._risk?.lv,\n  execution_path: d._risk?.path,\n  data: r.data || {},\n  performance: {\n    ai_model: d._cost?.model,\n    cost: d._cost?.cost\n  },\n  timestamp: new Date().toISOString()\n} }];"
+      },
+      "id": "final-response",
+      "name": "📊 Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2640, 1000]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": { "responseCode": "={{ $json.success ? 200 : 500 }}" }
+      },
+      "id": "respond",
+      "name": "✅ Send",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2860, 1000]
+    }
+  ],
+  "connections": {
+    "🚪 Entry": { "main": [[{ "node": "🔐 Auth-Gate", "type": "main", "index": 0 }]] },
+    "🔐 Auth-Gate": { "main": [[{ "node": "Auth?", "type": "main", "index": 0 }]] },
+    "Auth?": { "main": [[{ "node": "❌ 401", "type": "main", "index": 0 }], [{ "node": "🌙 NS?", "type": "main", "index": 0 }]] },
+    "🌙 NS?": { "main": [[{ "node": "💤 Queue", "type": "main", "index": 0 }], [{ "node": "🚀 Skip?", "type": "main", "index": 0 }]] },
+    "💤 Queue": { "main": [[{ "node": "📥 Queued", "type": "main", "index": 0 }]] },
+    "🚀 Skip?": { "main": [[{ "node": "⚡ MAIN", "type": "main", "index": 0 }], [{ "node": "🛡️ Policy", "type": "main", "index": 0 }]] },
+    "🛡️ Policy": { "main": [[{ "node": "⏸️ HitL?", "type": "main", "index": 0 }]] },
+    "⏸️ HitL?": { "main": [[{ "node": "⏸️ Approval", "type": "main", "index": 0 }], [{ "node": "⚡ MAIN", "type": "main", "index": 0 }]] },
+    "⏸️ Approval": { "main": [[{ "node": "📢 Notify", "type": "main", "index": 0 }]] },
+    "📢 Notify": { "main": [[{ "node": "⏳ Pending", "type": "main", "index": 0 }]] },
+    "⚡ MAIN": { "main": [[{ "node": "❓ Error?", "type": "main", "index": 0 }]] },
+    "❓ Error?": { "main": [[{ "node": "🔧 Recovery", "type": "main", "index": 0 }], [{ "node": "📝 Async?", "type": "main", "index": 0 }]] },
+    "🔧 Recovery": { "main": [[{ "node": "🔄 Retry?", "type": "main", "index": 0 }]] },
+    "🔄 Retry?": { "main": [[{ "node": "Set Retry", "type": "main", "index": 0 }], [{ "node": "📝 Log Error", "type": "main", "index": 0 }]] },
+    "Set Retry": { "main": [[{ "node": "⚡ MAIN", "type": "main", "index": 0 }]] },
+    "📝 Log Error": { "main": [[{ "node": "🚨 Alert", "type": "main", "index": 0 }]] },
+    "🚨 Alert": { "main": [[{ "node": "📊 Response", "type": "main", "index": 0 }]] },
+    "📝 Async?": { "main": [[{ "node": "📝 Sync Log", "type": "main", "index": 0 }], [{ "node": "🔥 Fire&Forget", "type": "main", "index": 0 }]] },
+    "🔥 Fire&Forget": { "main": [[{ "node": "📊 Response", "type": "main", "index": 0 }]] },
+    "📝 Sync Log": { "main": [[{ "node": "📊 Response", "type": "main", "index": 0 }]] },
+    "📊 Response": { "main": [[{ "node": "✅ Send", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionTimeout": 300, "saveDataErrorExecution": "all", "errorWorkflow": "" },
+  "tags": [{ "name": "V8.2.1-FINAL" }, { "name": "GOLDEN-TEMPLATE" }, { "name": "UNSINKABLE" }],
+  "active": false,
+  "_v8_version": "8.2.1",
+  "_template_vars": {
+    "WEBHOOK_PATH": "変更必須: 例 listing-reserve",
+    "WORKFLOW_NAME": "変更必須: 例 N3-出品予約",
+    "DEFAULT_ACTION": "変更必須: 例 list_now"
+  },
+  "_design_principles": {
+    "堅牢": "36次元技術防衛完全準拠",
+    "軽快": "LOW→FAST路（検閲スキップ）、HIGH→FULL路",
+    "安価": "Night-Shift遅延、AIモデル動的切替"
+  }
+}

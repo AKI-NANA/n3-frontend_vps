@@ -7,7 +7,7 @@
  * - 出品ボタン（今すぐ出品/スケジュール追加）
  * - 保存ボタン
  * 
- * 全てN3コンポーネントで構築
+ * v2.0: 全ボタンにN3FeatureTooltip適用
  */
 
 'use client';
@@ -18,6 +18,8 @@ import { N3Button } from './presentational/n3-button';
 import { N3Panel } from './presentational/n3-panel';
 import { N3Divider } from './presentational/n3-divider';
 import { N3Badge } from './presentational/n3-badge';
+import { N3FeatureTooltip } from './presentational/n3-tooltip';
+import { APPROVAL_TOOLTIPS, ACTION_TOOLTIPS } from '@/lib/tooltip-contents';
 
 export interface N3ApprovalActionBarProps {
   /** 選択中の件数 */
@@ -98,22 +100,40 @@ export const N3ApprovalActionBar = memo(function N3ApprovalActionBar({
           >
             全て
           </N3Button>
-          <N3Button
-            variant={dataFilter === 'complete' ? 'success' : 'ghost'}
-            size="xs"
-            onClick={() => onDataFilterChange('complete')}
-            leftIcon={<CheckCircle size={12} />}
+          <N3FeatureTooltip
+            title="完全データ"
+            description="全ての必須フィールドが入力済みの商品だけを表示します。"
+            hint="出品可能な商品"
+            position="bottom"
           >
-            完全 ({completeCount})
-          </N3Button>
-          <N3Button
-            variant={dataFilter === 'incomplete' ? 'danger' : 'ghost'}
-            size="xs"
-            onClick={() => onDataFilterChange('incomplete')}
-            leftIcon={<XCircle size={12} />}
+            <span>
+              <N3Button
+                variant={dataFilter === 'complete' ? 'success' : 'ghost'}
+                size="xs"
+                onClick={() => onDataFilterChange('complete')}
+                leftIcon={<CheckCircle size={12} />}
+              >
+                完全 ({completeCount})
+              </N3Button>
+            </span>
+          </N3FeatureTooltip>
+          <N3FeatureTooltip
+            title="不完全データ"
+            description="必須フィールドが不足している商品だけを表示します。"
+            hint="修正が必要な商品"
+            position="bottom"
           >
-            不完全 ({incompleteCount})
-          </N3Button>
+            <span>
+              <N3Button
+                variant={dataFilter === 'incomplete' ? 'danger' : 'ghost'}
+                size="xs"
+                onClick={() => onDataFilterChange('incomplete')}
+                leftIcon={<XCircle size={12} />}
+              >
+                不完全 ({incompleteCount})
+              </N3Button>
+            </span>
+          </N3FeatureTooltip>
         </div>
       )}
 
@@ -150,24 +170,40 @@ export const N3ApprovalActionBar = memo(function N3ApprovalActionBar({
       {/* アクションボタン */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
         {/* 選択操作 */}
-        <N3Button
-          variant="ghost"
-          size="xs"
-          onClick={onSelectAll}
-          disabled={processing}
+        <N3FeatureTooltip
+          title={APPROVAL_TOOLTIPS.selectAll.title}
+          description={APPROVAL_TOOLTIPS.selectAll.description}
+          position="bottom"
         >
-          全選択
-        </N3Button>
+          <span>
+            <N3Button
+              variant="ghost"
+              size="xs"
+              onClick={onSelectAll}
+              disabled={processing}
+            >
+              全選択
+            </N3Button>
+          </span>
+        </N3FeatureTooltip>
 
         {hasSelection && (
-          <N3Button
-            variant="ghost"
-            size="xs"
-            onClick={onDeselectAll}
-            disabled={processing}
+          <N3FeatureTooltip
+            title={APPROVAL_TOOLTIPS.deselectAll.title}
+            description={APPROVAL_TOOLTIPS.deselectAll.description}
+            position="bottom"
           >
-            解除
-          </N3Button>
+            <span>
+              <N3Button
+                variant="ghost"
+                size="xs"
+                onClick={onDeselectAll}
+                disabled={processing}
+              >
+                解除
+              </N3Button>
+            </span>
+          </N3FeatureTooltip>
         )}
 
         <N3Divider orientation="vertical" style={{ height: '20px', margin: '0 4px' }} />
@@ -175,25 +211,43 @@ export const N3ApprovalActionBar = memo(function N3ApprovalActionBar({
         {/* 承認・却下ボタン（承認待ちタブのみ） */}
         {!isApprovedTab && (
           <>
-            <N3Button
-              variant="success"
-              size="xs"
-              onClick={onApprove}
-              disabled={!hasSelection || processing}
-              leftIcon={<Check size={12} strokeWidth={3} />}
+            <N3FeatureTooltip
+              title={APPROVAL_TOOLTIPS.approve.title}
+              description={APPROVAL_TOOLTIPS.approve.description}
+              hint={APPROVAL_TOOLTIPS.approve.hint}
+              position="bottom"
             >
-              承認
-            </N3Button>
+              <span>
+                <N3Button
+                  variant="success"
+                  size="xs"
+                  onClick={onApprove}
+                  disabled={!hasSelection || processing}
+                  leftIcon={<Check size={12} strokeWidth={3} />}
+                >
+                  承認
+                </N3Button>
+              </span>
+            </N3FeatureTooltip>
 
-            <N3Button
-              variant="outline-danger"
-              size="xs"
-              onClick={onReject}
-              disabled={!hasSelection || processing}
-              leftIcon={<X size={12} strokeWidth={3} />}
+            <N3FeatureTooltip
+              title={APPROVAL_TOOLTIPS.reject.title}
+              description={APPROVAL_TOOLTIPS.reject.description}
+              hint={APPROVAL_TOOLTIPS.reject.hint}
+              position="bottom"
             >
-              却下
-            </N3Button>
+              <span>
+                <N3Button
+                  variant="outline-danger"
+                  size="xs"
+                  onClick={onReject}
+                  disabled={!hasSelection || processing}
+                  leftIcon={<X size={12} strokeWidth={3} />}
+                >
+                  却下
+                </N3Button>
+              </span>
+            </N3FeatureTooltip>
 
             <N3Divider orientation="vertical" style={{ height: '20px', margin: '0 4px' }} />
           </>
@@ -202,30 +256,48 @@ export const N3ApprovalActionBar = memo(function N3ApprovalActionBar({
         {/* 出品ボタン群 */}
         <div style={{ display: 'flex', gap: '4px', alignItems: 'center', position: 'relative' }}>
           {/* 今すぐ出品ボタン */}
-          <N3Button
-            variant={canList ? 'primary' : 'ghost'}
-            size="xs"
-            onClick={onListNow || onScheduleListing}
-            disabled={!canList}
-            leftIcon={<Zap size={12} />}
-            style={{
-              background: canList ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : undefined,
-              borderColor: canList ? '#d97706' : undefined,
-            }}
+          <N3FeatureTooltip
+            title="今すぐ出品"
+            description="選択した商品を即座にeBayに出品します。"
+            hint="承認済みの商品のみ出品可能"
+            position="bottom"
           >
-            今すぐ出品
-          </N3Button>
+            <span>
+              <N3Button
+                variant={canList ? 'primary' : 'ghost'}
+                size="xs"
+                onClick={onListNow || onScheduleListing}
+                disabled={!canList}
+                leftIcon={<Zap size={12} />}
+                style={{
+                  background: canList ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : undefined,
+                  borderColor: canList ? '#d97706' : undefined,
+                }}
+              >
+                今すぐ出品
+              </N3Button>
+            </span>
+          </N3FeatureTooltip>
 
           {/* スケジュール追加ボタン */}
-          <N3Button
-            variant={canList ? 'secondary' : 'ghost'}
-            size="xs"
-            onClick={onScheduleListing}
-            disabled={!canList}
-            leftIcon={<Calendar size={12} />}
+          <N3FeatureTooltip
+            title={APPROVAL_TOOLTIPS.scheduleListing.title}
+            description={APPROVAL_TOOLTIPS.scheduleListing.description}
+            hint={APPROVAL_TOOLTIPS.scheduleListing.hint}
+            position="bottom"
           >
-            スケジュール
-          </N3Button>
+            <span>
+              <N3Button
+                variant={canList ? 'secondary' : 'ghost'}
+                size="xs"
+                onClick={onScheduleListing}
+                disabled={!canList}
+                leftIcon={<Calendar size={12} />}
+              >
+                スケジュール
+              </N3Button>
+            </span>
+          </N3FeatureTooltip>
 
           {/* 出品ボタンが無効な場合のヒント（承認待ちタブのみ） */}
           {!isApprovedTab && hasSelection && !hasListableSelection && (
@@ -240,15 +312,24 @@ export const N3ApprovalActionBar = memo(function N3ApprovalActionBar({
         </div>
 
         {/* 保存 */}
-        <N3Button
-          variant={hasModified ? 'info' : 'ghost'}
-          size="xs"
-          onClick={onSave}
-          disabled={!hasModified || processing}
-          leftIcon={<Save size={12} />}
+        <N3FeatureTooltip
+          title={ACTION_TOOLTIPS.save.title}
+          description={ACTION_TOOLTIPS.save.description}
+          hint={ACTION_TOOLTIPS.save.hint}
+          position="bottom"
         >
-          保存 ({modifiedCount})
-        </N3Button>
+          <span>
+            <N3Button
+              variant={hasModified ? 'info' : 'ghost'}
+              size="xs"
+              onClick={onSave}
+              disabled={!hasModified || processing}
+              leftIcon={<Save size={12} />}
+            >
+              保存 ({modifiedCount})
+            </N3Button>
+          </span>
+        </N3FeatureTooltip>
       </div>
     </N3Panel>
   );

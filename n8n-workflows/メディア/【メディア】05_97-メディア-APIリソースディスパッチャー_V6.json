@@ -1,0 +1,409 @@
+{
+  "name": "【メディア】05_97-メディア-APIリソースディスパッチャー_V6",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "⏰ 6時間毎実行",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "api-resource-dispatch-v6",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: dispatch-v6",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "api-resource-dispatch-v6"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// N3-97 V6: APIリソースディスパッチャー - スマートクォータセレクター\n// Gemini指示: api_quota_usageテーブルを参照し、最も余裕のあるAPIキーを動的選択\n// ============================================================================\n\nconst apiUrl = $env.N3_API_URL || $env.API_BASE_URL;\n\nif (!apiUrl) {\n  return [{ json: { error: true, message: 'N3_API_URL環境変数が未設定', code: 'CONFIG_ERROR' } }];\n}\n\nconst body = $input.first().json.body || $input.first().json || {};\n\nconst channelId = body.channel_id;\nconst serviceName = body.service_name; // elevenlabs, openai, gemini, anthropic, etc.\nconst requestType = body.request_type || 'voice_generation'; // voice_generation, video_render, ai_audit, etc.\nconst estimatedTokens = body.estimated_tokens || 1000;\nconst priority = body.priority || 'normal'; // low, normal, high, critical\nconst forceReevaluate = body.force_reevaluate || false;\n\nreturn [{\n  json: {\n    channel_id: channelId,\n    service_name: serviceName,\n    request_type: requestType,\n    estimated_tokens: estimatedTokens,\n    priority: priority,\n    force_reevaluate: forceReevaluate,\n    api_url: apiUrl,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT project_id, service_name, api_key_id, quota_limit, current_usage, (quota_limit - current_usage) as remaining_quota, ROUND(((quota_limit - current_usage)::numeric / NULLIF(quota_limit, 0)) * 100, 2) as remaining_percent, cost_per_unit, reset_at, priority_tier, CASE WHEN reset_at <= NOW() THEN 'reset_needed' WHEN (quota_limit - current_usage) < quota_limit * 0.1 THEN 'low' WHEN (quota_limit - current_usage) < quota_limit * 0.3 THEN 'medium' ELSE 'high' END as availability_status FROM api_quota_usage WHERE ($1::text IS NULL OR service_name = $1) AND (quota_limit - current_usage) > $2 ORDER BY CASE WHEN $3 = 'critical' THEN priority_tier ELSE remaining_percent END DESC, cost_per_unit ASC LIMIT 10",
+        "options": {
+          "queryParams": "={{ [$json.service_name || null, $json.estimated_tokens, $json.priority] }}"
+        }
+      },
+      "id": "get-available-quotas",
+      "name": "📊 利用可能クォータ取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// スマートAPIキー選択ロジック\n// - 最も余裕のあるキーを優先\n// - コスト効率も考慮\n// - 優先度に応じた選択\n// ============================================================================\n\nconst initData = $node['🔐 初期化'].json;\nconst quotas = $input.all().map(item => item.json);\n\nif (!quotas || quotas.length === 0) {\n  return [{\n    json: {\n      ...initData,\n      selected_key: null,\n      selection_status: 'no_available_quota',\n      message: '利用可能なAPIクォータがありません',\n      fallback_action: 'queue_for_later'\n    }\n  }];\n}\n\n// 選択基準\n// 1. critical優先度: 最も容量の多いキー\n// 2. high優先度: 容量とコストのバランス\n// 3. normal/low優先度: コスト優先\n\nlet selectedQuota;\n\nswitch (initData.priority) {\n  case 'critical':\n    // 最も残量の多いキー（信頼性重視）\n    selectedQuota = quotas[0];\n    break;\n  case 'high':\n    // 残量30%以上で最もコスト効率の良いキー\n    selectedQuota = quotas.find(q => q.remaining_percent >= 30) || quotas[0];\n    break;\n  case 'normal':\n  case 'low':\n  default:\n    // 残量10%以上で最もコスト効率の良いキー\n    selectedQuota = quotas.find(q => q.remaining_percent >= 10 && q.cost_per_unit) || quotas[0];\n    break;\n}\n\n// 選択理由の記録\nconst selectionReason = {\n  priority: initData.priority,\n  selected_by: initData.priority === 'critical' ? 'max_remaining' : 'cost_efficiency',\n  alternatives_count: quotas.length - 1,\n  total_remaining_across_keys: quotas.reduce((sum, q) => sum + (q.remaining_quota || 0), 0)\n};\n\nreturn [{\n  json: {\n    ...initData,\n    selected_key: {\n      project_id: selectedQuota.project_id,\n      service_name: selectedQuota.service_name,\n      api_key_id: selectedQuota.api_key_id,\n      remaining_quota: selectedQuota.remaining_quota,\n      remaining_percent: selectedQuota.remaining_percent,\n      cost_per_unit: selectedQuota.cost_per_unit,\n      availability_status: selectedQuota.availability_status\n    },\n    selection_status: 'success',\n    selection_reason: selectionReason,\n    all_available_quotas: quotas.length\n  }\n}];"
+      },
+      "id": "smart-select",
+      "name": "🎯 スマートキー選択",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-key",
+              "leftValue": "={{ $json.selected_key }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-selection",
+      "name": "選択成功？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE api_quota_usage SET current_usage = current_usage + $1, last_used_at = NOW(), usage_count = usage_count + 1 WHERE api_key_id = $2 AND service_name = $3 RETURNING api_key_id, current_usage, (quota_limit - current_usage) as new_remaining",
+        "options": {
+          "queryParams": "={{ [$json.estimated_tokens, $json.selected_key.api_key_id, $json.selected_key.service_name] }}"
+        }
+      },
+      "id": "update-usage",
+      "name": "📈 使用量更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO api_dispatch_logs (channel_id, service_name, api_key_id, request_type, estimated_tokens, priority, selection_reason, selected_at) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, NOW()) RETURNING log_id",
+        "options": {
+          "queryParams": "={{ [$json.channel_id || null, $json.selected_key.service_name, $json.selected_key.api_key_id, $json.request_type, $json.estimated_tokens, $json.priority, JSON.stringify($json.selection_reason)] }}"
+        }
+      },
+      "id": "log-dispatch",
+      "name": "📝 ディスパッチログ",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst updateResult = $node['📈 使用量更新'].json;\n\nreturn [{\n  json: {\n    success: true,\n    action: 'api_key_dispatched',\n    channel_id: data.channel_id,\n    service_name: data.selected_key.service_name,\n    dispatched_key: {\n      api_key_id: data.selected_key.api_key_id,\n      project_id: data.selected_key.project_id,\n      remaining_after_use: updateResult?.new_remaining || data.selected_key.remaining_quota - data.estimated_tokens\n    },\n    request_info: {\n      type: data.request_type,\n      estimated_tokens: data.estimated_tokens,\n      priority: data.priority\n    },\n    selection_reason: data.selection_reason,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "format-success",
+      "name": "📋 成功レスポンス",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\n// クォータ不足時の対応策\nconst fallbackActions = {\n  queue_for_later: 'リクエストをキューに追加し、クォータリセット後に処理',\n  downgrade_service: '代替サービス（例: ElevenLabs→OpenAI TTS）に切り替え',\n  alert_admin: '管理者にアラート送信',\n  reject: 'リクエストを拒否'\n};\n\nreturn [{\n  json: {\n    success: false,\n    action: 'no_quota_available',\n    channel_id: data.channel_id,\n    service_name: data.service_name,\n    request_type: data.request_type,\n    estimated_tokens: data.estimated_tokens,\n    fallback_action: data.fallback_action || 'queue_for_later',\n    fallback_description: fallbackActions[data.fallback_action || 'queue_for_later'],\n    recommendation: 'Consider adding more API keys or waiting for quota reset',\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "format-failure",
+      "name": "⚠️ 失敗レスポンス",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "output": "single"
+      },
+      "id": "merge-responses",
+      "name": "🔀 レスポンス統合",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": "={{ $json.success ? 200 : 503 }}"
+        }
+      },
+      "id": "respond",
+      "name": "📤 応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "⏰ 6時間毎実行": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook: dispatch-v6": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "📊 利用可能クォータ取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 利用可能クォータ取得": {
+      "main": [
+        [
+          {
+            "node": "🎯 スマートキー選択",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎯 スマートキー選択": {
+      "main": [
+        [
+          {
+            "node": "選択成功？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "選択成功？": {
+      "main": [
+        [
+          {
+            "node": "📈 使用量更新",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "⚠️ 失敗レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📈 使用量更新": {
+      "main": [
+        [
+          {
+            "node": "📝 ディスパッチログ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 ディスパッチログ": {
+      "main": [
+        [
+          {
+            "node": "📋 成功レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 成功レスポンス": {
+      "main": [
+        [
+          {
+            "node": "🔀 レスポンス統合",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚠️ 失敗レスポンス": {
+      "main": [
+        [
+          {
+            "node": "🔀 レスポンス統合",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "🔀 レスポンス統合": {
+      "main": [
+        [
+          {
+            "node": "📤 応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 120,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "V6-SmartQuota",
+      "color": "#00ff00"
+    },
+    {
+      "name": "API-Management",
+      "color": "#e67e22"
+    },
+    {
+      "name": "IronRule",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false,
+  "meta": {
+    "description": "N3-97 V6 APIリソースディスパッチャー - api_quota_usageテーブル参照でスマートキー選択",
+    "version": "6.0",
+    "changelog": "2026-01-20: Gemini指示実装 - 最も余裕のあるAPIキーを動的選択",
+    "iron_rules_compliant": [
+      "no_hardcoded_urls",
+      "query_params_only",
+      "no_crypto_require"
+    ],
+    "gemini_instructions": [
+      "api_quota_dynamic_selection",
+      "cost_efficiency_balance",
+      "priority_based_routing"
+    ]
+  }
+}

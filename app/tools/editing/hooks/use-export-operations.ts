@@ -5,6 +5,7 @@
  * 責務:
  * - 各種エクスポート機能
  * - AIエクスポート（プロンプト生成）
+ * - 🔥 AI監査用JSONエクスポート
  */
 
 import { useCallback } from 'react';
@@ -47,6 +48,11 @@ export function useExportOperations({
     showToast('メルカリエクスポート機能は実装予定です');
   }, [showToast]);
 
+  /**
+   * 🔥 AI監査用エクスポート
+   * - 選択商品の監査用JSONデータ + 検証プロンプトをコピー
+   * - HTSコード、利益計算、配送設定の妥当性をAIがチェック
+   */
   const handleAIExport = useCallback(() => {
     if (selectedIds.size === 0) {
       showToast('商品を選択してください', 'error');
@@ -56,15 +62,18 @@ export function useExportOperations({
     const selectedProducts = products.filter(p => selectedIds.has(String(p.id)));
     
     try {
-      const { generateAIExportPrompt } = require('../lib/ai-export-prompt');
-      const prompt = generateAIExportPrompt(selectedProducts);
+      // 🔥 AI監査用プロンプトを生成（新機能）
+      const { generateAIAuditPrompt } = require('../lib/ai-export-prompt');
+      const prompt = generateAIAuditPrompt(selectedProducts);
       
       navigator.clipboard.writeText(prompt).then(() => {
-        showToast(`✅ ${selectedProducts.length}件の商品データをコピーしました！`, 'success');
+        showToast(`✅ ${selectedProducts.length}件のAI監査データをコピーしました！Gemini/Claudeに貼り付けてください。`, 'success');
       }).catch(err => {
+        console.error('コピーエラー:', err);
         showToast('コピーに失敗しました', 'error');
       });
     } catch (error) {
+      console.error('AIエクスポートエラー:', error);
       showToast('AIエクスポートに失敗しました', 'error');
     }
   }, [selectedIds, products, showToast]);

@@ -1,15 +1,32 @@
 // app/api/n8n-proxy/route.ts
-// n8n Webhookへのプロキシ（CORS回避用）
+/**
+ * N3 n8n Proxy API
+ * 
+ * フロントエンドからn8n Webhookへのプロキシ
+ * - セキュリティ: 直接Webhook URLを公開しない
+ * - ロギング: すべてのワークフロー実行を記録
+ * - レート制限: 過剰な実行を防止
+ */
 
 import { NextRequest, NextResponse } from 'next/server';
 
 const N8N_BASE_URL = process.env.N8N_BASE_URL || 'http://160.16.120.186:5678';
+const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || 'http://160.16.120.186:5678/webhook';
+
+// レート制限用（簡易実装）
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+interface N8nProxyRequest {
+  endpoint: string;  // Webhook Path (例: '/webhook/listing-reserve')
+  data: Record<string, unknown>;
+}
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const body = await request.json() as N8nProxyRequest;
     const { endpoint, data } = body;
 
+    // バリデーション
     if (!endpoint) {
       return NextResponse.json(
         { success: false, error: 'endpoint is required' },
@@ -17,61 +34,118 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const webhookUrl = `${N8N_BASE_URL}/webhook/${endpoint}`;
-    console.log(`[n8n-proxy] Forwarding to: ${webhookUrl}`);
+    // レート制限チェック（簡易版）
+    const clientId = request.headers.get('x-forwarded-for') || 'unknown';
+    const now = Date.now();
+    const limit = rateLimitMap.get(clientId);
+    
+    if (limit) {
+      if (now < limit.resetAt) {
+        if (limit.count >= 100) {
+          return NextResponse.json(
+            { success: false, error: 'Rate limit exceeded. Try again later.' },
+            { status: 429 }
+          );
+        }
+        limit.count++;
+      } else {
+        rateLimitMap.set(clientId, { count: 1, resetAt: now + 60000 }); // 1分間
+      }
+    } else {
+      rateLimitMap.set(clientId, { count: 1, resetAt: now + 60000 });
+    }
 
-    const response = await fetch(webhookUrl, {
+    // n8n Webhook呼び出し
+    const webhookUrl = `${N8N_WEBHOOK_URL}${endpoint}`;
+    
+    console.log('[n8n-proxy] Calling n8n webhook:', {
+      url: webhookUrl,
+      endpoint,
+      dataKeys: Object.keys(data),
+    });
+
+    const n8nResponse = await fetch(webhookUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(data || {}),
+      body: JSON.stringify(data),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[n8n-proxy] Error: ${response.status}`, errorText);
+    // n8nからのレスポンスを取得
+    const responseText = await n8nResponse.text();
+    let responseData;
+    
+    try {
+      responseData = JSON.parse(responseText);
+    } catch {
+      responseData = { message: responseText };
+    }
+
+    if (!n8nResponse.ok) {
+      console.error('[n8n-proxy] n8n error:', {
+        status: n8nResponse.status,
+        statusText: n8nResponse.statusText,
+        response: responseData,
+      });
+
       return NextResponse.json(
-        { success: false, error: `n8n error: ${response.status}`, details: errorText },
-        { status: response.status }
+        { 
+          success: false, 
+          error: `n8n error: ${n8nResponse.statusText}`,
+          details: responseData,
+        },
+        { status: n8nResponse.status }
       );
     }
 
-    const result = await response.json();
-    console.log(`[n8n-proxy] Success:`, result);
+    console.log('[n8n-proxy] n8n success:', {
+      endpoint,
+      status: n8nResponse.status,
+    });
 
     return NextResponse.json({
       success: true,
-      data: result,
+      data: responseData,
+      message: responseData.message || 'Workflow executed successfully',
     });
+
   } catch (error) {
-    console.error('[n8n-proxy] Error:', error);
+    console.error('[n8n-proxy] Proxy error:', error);
+    
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
+      { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error',
+      },
       { status: 500 }
     );
   }
 }
 
-export async function GET(request: NextRequest) {
-  // n8nのヘルスチェック
+// GET: ヘルスチェック
+export async function GET() {
   try {
-    const response = await fetch(`${N8N_BASE_URL}/healthz`, {
+    const healthUrl = `${N8N_BASE_URL}/healthz`;
+    const response = await fetch(healthUrl, {
       method: 'GET',
-      signal: AbortSignal.timeout(5000),
+      headers: { 'Accept': 'application/json' },
     });
 
+    const isHealthy = response.ok;
+
     return NextResponse.json({
-      success: response.ok,
-      status: response.status,
+      success: true,
+      n8nStatus: isHealthy ? 'healthy' : 'unhealthy',
       n8nUrl: N8N_BASE_URL,
-      message: response.ok ? 'n8n is healthy' : 'n8n is not responding',
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     return NextResponse.json({
       success: false,
-      error: error instanceof Error ? error.message : 'Connection failed',
-      n8nUrl: N8N_BASE_URL,
+      n8nStatus: 'unreachable',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString(),
     });
   }
 }

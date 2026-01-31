@@ -17,6 +17,7 @@ import {
   Users,
   Layers,
   Clock,
+  ListChecks,
 } from 'lucide-react';
 import {
   N3TabsRoot as N3Tabs,
@@ -39,6 +40,9 @@ import { OrderDetailPanel, ShippingWorkPanel, InquiryResponsePanel } from '../co
 
 // Linked Panels
 import { ProductInfoPanel, InventoryStatusPanel, CustomerInfoPanel, HistoryPanel } from '../components/linked';
+
+// Phase 9-11: 出品キュー管理パネル
+import { ListingQueuePanel } from '@/app/tools/editing-n3/components/panels';
 
 import type { Order, ShippingItem, Inquiry, OperationsTab } from '../types/operations';
 
@@ -192,6 +196,7 @@ export const OperationsN3PageLayout = memo(function OperationsN3PageLayout({
     closeLinkedPanel();
   }, [setCurrentTab, closeLinkedPanel]);
 
+  // 🔥 v3: height: 100% に変更（workspaceからの埋め込み時に親要素に従う）
   return (
     <div
       className={className}
@@ -199,6 +204,7 @@ export const OperationsN3PageLayout = memo(function OperationsN3PageLayout({
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
+        minHeight: '100vh',
         background: 'var(--bg)',
       }}
     >
@@ -255,6 +261,11 @@ export const OperationsN3PageLayout = memo(function OperationsN3PageLayout({
                   {stats.inquiries.unread}
                 </span>
               ) : null}
+            </N3TabsTrigger>
+            {/* Phase 9-11: 出品キュータブ */}
+            <N3TabsTrigger value="listing-queue">
+              <ListChecks size={16} />
+              出品キュー
             </N3TabsTrigger>
           </N3TabsList>
         </div>
@@ -421,6 +432,11 @@ export const OperationsN3PageLayout = memo(function OperationsN3PageLayout({
                 onOpenLinkedData={handleInquiryOpenLinkedData}
               />
             </div>
+          </N3TabsContent>
+
+          {/* Phase 9-11: 出品キュータブ */}
+          <N3TabsContent value="listing-queue" style={{ flex: 1, overflow: 'auto', padding: '16px' }}>
+            <ListingQueuePanel compact={false} />
           </N3TabsContent>
         </div>
       </N3Tabs>

@@ -1,0 +1,474 @@
+{
+  "name": "【防衛】01_140-防衛-C2PAメタデータ完全除去-AIウォーターマーク消去_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "c2pa-purify",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "name": "Webhook: c2pa-purify",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "c2pa-purify"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// C2PAメタデータ完全除去 初期化\n// AI生成コンテンツの痕跡（ウォーターマーク、署名）を消去\n// ============================================================================\n\nconst body = $input.first().json.body || $input.first().json || {};\n\nconst inputUrl = body.input_url;\nconst inputPath = body.input_path;\nconst contentId = body.content_id;\nconst mediaType = body.media_type || 'video'; // 'video', 'image', 'audio'\n\n// 除去オプション\nconst purifyOptions = {\n  strip_c2pa: body.strip_c2pa !== false,\n  strip_exif: body.strip_exif !== false,\n  strip_xmp: body.strip_xmp !== false,\n  strip_iptc: body.strip_iptc !== false,\n  strip_ai_watermark: body.strip_ai_watermark !== false,\n  pixel_scramble: body.pixel_scramble !== false, // 不可視ウォーターマーク対策\n  audio_scramble: body.audio_scramble !== false, // 音声ウォーターマーク対策\n  re_encode: body.re_encode !== false // 完全再エンコード\n};\n\nif (!inputUrl && !inputPath) {\n  return [{ json: { error: true, message: 'input_url または input_path は必須です' } }];\n}\n\nconst jobId = 'c2pa_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);\n\nreturn [{\n  json: {\n    job_id: jobId,\n    input_url: inputUrl,\n    input_path: inputPath,\n    content_id: contentId,\n    media_type: mediaType,\n    purify_options: purifyOptions,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO c2pa_purification_jobs (content_id, input_url, input_path, purification_method, status) VALUES ($1, $2, $3, 'full', 'processing') RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.content_id, $json.input_url, $json.input_path] }}"
+        }
+      },
+      "name": "💾 ジョブ登録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// C2PA検出スキャン\n// exiftool, c2patool を使用してメタデータを解析\n// ============================================================================\n\nconst data = $node['🔧 初期化'].json;\nconst dbResult = $input.first().json;\n\nconst inputFile = data.input_path || `/tmp/input_${data.job_id}.${data.media_type === 'video' ? 'mp4' : data.media_type === 'audio' ? 'mp3' : 'jpg'}`;\n\n// exiftoolコマンド（全メタデータ抽出）\nconst exiftoolCmd = `exiftool -json -all \"${inputFile}\"`;\n\n// c2patoolコマンド（C2PA署名検出）\nconst c2patoolCmd = `c2patool \"${inputFile}\" --info 2>/dev/null || echo '{}'`;\n\nreturn [{\n  json: {\n    ...data,\n    db_id: dbResult[0]?.id,\n    input_file: inputFile,\n    exiftool_cmd: exiftoolCmd,\n    c2patool_cmd: c2patoolCmd\n  }\n}];"
+      },
+      "name": "📋 スキャン準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.input_url }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ]
+        }
+      },
+      "name": "ダウンロード必要？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "command": "={{ 'curl -L -o \"' + $json.input_file + '\" \"' + $json.input_url + '\"' }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "name": "📥 ダウンロード",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "command": "={{ $json.exiftool_cmd }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "name": "🔍 exiftool スキャン",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// メタデータ解析 & 除去コマンド生成\n// ============================================================================\n\nconst data = $node['📋 スキャン準備'].json;\nconst exifResult = $input.first().json.stdout || '{}';\n\nlet detectedMetadata = {};\ntry {\n  detectedMetadata = JSON.parse(exifResult);\n  if (Array.isArray(detectedMetadata)) detectedMetadata = detectedMetadata[0] || {};\n} catch (e) {\n  detectedMetadata = { parse_error: exifResult };\n}\n\n// AI生成の痕跡を検出\nconst aiIndicators = [];\nconst metaKeys = Object.keys(detectedMetadata);\n\n// 一般的なAI生成メタデータキーワード\nconst aiKeywords = ['midjourney', 'dalle', 'stable diffusion', 'openai', 'anthropic', 'elevenlabs', 'synthesia', 'runway', 'pika', 'suno', 'udio', 'c2pa', 'content credentials', 'ai generated', 'machine generated'];\n\nfor (const key of metaKeys) {\n  const value = String(detectedMetadata[key]).toLowerCase();\n  for (const keyword of aiKeywords) {\n    if (value.includes(keyword) || key.toLowerCase().includes(keyword)) {\n      aiIndicators.push({ key, value: detectedMetadata[key], matched: keyword });\n    }\n  }\n}\n\n// 除去コマンド生成\nconst outputFile = `/tmp/purified_${data.job_id}.${data.media_type === 'video' ? 'mp4' : data.media_type === 'audio' ? 'mp3' : 'jpg'}`;\n\nlet purifyCommands = [];\n\nif (data.media_type === 'video') {\n  // 動画の完全再エンコード（全メタデータ削除）\n  const ffmpegCmd = [\n    'ffmpeg -y',\n    `-i \"${data.input_file}\"`,\n    '-map_metadata -1', // 全メタデータ削除\n    '-fflags +bitexact', // ビット単位で異なる出力\n    '-flags:v +bitexact',\n    '-flags:a +bitexact',\n    // ピクセル微調整（不可視ウォーターマーク破壊）\n    '-vf \"noise=alls=1:allf=t,hue=h=0.5,eq=brightness=0.01\"',\n    // 音声微調整（音声ウォーターマーク破壊）\n    '-af \"asetrate=44100*1.0005,aresample=44100,highpass=f=20,lowpass=f=19000\"',\n    '-c:v libx264 -preset slow -crf 18',\n    '-c:a aac -b:a 192k',\n    '-movflags +faststart',\n    `\"${outputFile}\"`\n  ].join(' ');\n  \n  purifyCommands.push(ffmpegCmd);\n  \n  // exiftoolで残存メタデータも削除\n  purifyCommands.push(`exiftool -all= -overwrite_original \"${outputFile}\"`);\n  \n} else if (data.media_type === 'image') {\n  // 画像のピクセル操作 + メタデータ削除\n  const convertCmd = [\n    'convert',\n    `\"${data.input_file}\"`,\n    '-strip', // 全メタデータ削除\n    '-quality 95',\n    '+noise Gaussian -evaluate Multiply 0.999', // 微細ノイズ\n    '-modulate 100.5,100.5,100', // 微細な色調変更\n    `\"${outputFile}\"`\n  ].join(' ');\n  \n  purifyCommands.push(convertCmd);\n  purifyCommands.push(`exiftool -all= -overwrite_original \"${outputFile}\"`);\n  \n} else if (data.media_type === 'audio') {\n  // 音声の再エンコード\n  const ffmpegCmd = [\n    'ffmpeg -y',\n    `-i \"${data.input_file}\"`,\n    '-map_metadata -1',\n    '-af \"asetrate=44100*1.0003,aresample=44100,highpass=f=15,lowpass=f=19500\"',\n    '-c:a libmp3lame -b:a 320k',\n    `\"${outputFile}\"`\n  ].join(' ');\n  \n  purifyCommands.push(ffmpegCmd);\n}\n\nreturn [{\n  json: {\n    ...data,\n    detected_metadata: detectedMetadata,\n    ai_indicators: aiIndicators,\n    ai_detected: aiIndicators.length > 0,\n    output_file: outputFile,\n    purify_commands: purifyCommands\n  }\n}];"
+      },
+      "name": "🔬 メタデータ解析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "command": "={{ $json.purify_commands[0] }}",
+        "options": {
+          "timeout": 600000
+        }
+      },
+      "name": "🧹 メイン除去処理",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "command": "={{ $json.purify_commands[1] || 'echo done' }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "name": "🧹 exiftool最終クリーン",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "command": "={{ 'exiftool -json \"' + $node['🔬 メタデータ解析'].json.output_file + '\"' }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "name": "✅ 検証スキャン",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 最終検証 & 結果まとめ\n// ============================================================================\n\nconst data = $node['🔬 メタデータ解析'].json;\nconst verifyResult = $input.first().json.stdout || '{}';\n\nlet remainingMetadata = {};\ntry {\n  remainingMetadata = JSON.parse(verifyResult);\n  if (Array.isArray(remainingMetadata)) remainingMetadata = remainingMetadata[0] || {};\n} catch (e) {\n  remainingMetadata = {};\n}\n\n// AI痕跡の残存チェック\nconst aiKeywords = ['midjourney', 'dalle', 'stable diffusion', 'openai', 'anthropic', 'elevenlabs', 'c2pa', 'ai generated'];\nlet aiRemainsDetected = false;\n\nfor (const key of Object.keys(remainingMetadata)) {\n  const value = String(remainingMetadata[key]).toLowerCase();\n  for (const keyword of aiKeywords) {\n    if (value.includes(keyword) || key.toLowerCase().includes(keyword)) {\n      aiRemainsDetected = true;\n      break;\n    }\n  }\n}\n\nconst success = !aiRemainsDetected;\n\nreturn [{\n  json: {\n    job_id: data.job_id,\n    db_id: data.db_id,\n    content_id: data.content_id,\n    input_file: data.input_file,\n    output_file: data.output_file,\n    media_type: data.media_type,\n    original_ai_indicators: data.ai_indicators,\n    remaining_metadata_keys: Object.keys(remainingMetadata).length,\n    ai_traces_removed: !aiRemainsDetected,\n    success: success,\n    purification_complete: true\n  }\n}];"
+      },
+      "name": "📋 結果まとめ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE c2pa_purification_jobs SET status = $2, output_path = $3, detected_c2pa = $4, purification_result = $5, completed_at = NOW() WHERE id = $1",
+        "options": {
+          "queryParams": "={{ [$json.db_id, $json.success ? 'completed' : 'failed', $json.output_file, JSON.stringify({ ai_indicators: $json.original_ai_indicators }), JSON.stringify({ ai_traces_removed: $json.ai_traces_removed, remaining_keys: $json.remaining_metadata_keys })] }}"
+        }
+      },
+      "name": "💾 結果保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: $json.success, job_id: $json.job_id, output_file: $json.output_file, ai_traces_removed: $json.ai_traces_removed, original_ai_indicators_count: $json.original_ai_indicators?.length || 0 }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: c2pa-purify": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💾 ジョブ登録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 ジョブ登録": {
+      "main": [
+        [
+          {
+            "node": "📋 スキャン準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 スキャン準備": {
+      "main": [
+        [
+          {
+            "node": "ダウンロード必要？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ダウンロード必要？": {
+      "main": [
+        [
+          {
+            "node": "📥 ダウンロード",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🔍 exiftool スキャン",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📥 ダウンロード": {
+      "main": [
+        [
+          {
+            "node": "🔍 exiftool スキャン",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 exiftool スキャン": {
+      "main": [
+        [
+          {
+            "node": "🔬 メタデータ解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔬 メタデータ解析": {
+      "main": [
+        [
+          {
+            "node": "🧹 メイン除去処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧹 メイン除去処理": {
+      "main": [
+        [
+          {
+            "node": "🧹 exiftool最終クリーン",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧹 exiftool最終クリーン": {
+      "main": [
+        [
+          {
+            "node": "✅ 検証スキャン",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ 検証スキャン": {
+      "main": [
+        [
+          {
+            "node": "📋 結果まとめ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 結果まとめ": {
+      "main": [
+        [
+          {
+            "node": "💾 結果保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 結果保存": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 900,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Defense",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "C2PA",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "Phase-14",
+      "color": "#f39c12"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

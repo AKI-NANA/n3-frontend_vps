@@ -1,9 +1,11 @@
 // lib/n8n/workflows/listing-workflows.ts
 /**
  * 出品関連のn8nワークフロー定義
+ * 
+ * Phase A-2: 全実行を dispatchService 経由に統一
  */
 
-import { n8nClient } from '../n8n-client';
+import { dispatchService } from '../n8n-client';
 
 export interface ListingRequest {
   productId: string;
@@ -21,18 +23,18 @@ export class ListingWorkflows {
    * 商品を出品
    */
   async executeListing(request: ListingRequest) {
-    return n8nClient.execute({
-      workflow: 'listing-execute',
+    return dispatchService.execute({
+      toolId: 'listing-execute',
       action: `list-to-${request.platform}`,
-      data: {
+      params: {
         product_id: request.productId,
         platform: request.platform,
         test_mode: request.options?.testMode || false,
         scheduled_time: request.options?.scheduled?.toISOString(),
       },
       options: {
-        priority: request.options?.priority,
-        async: !request.options?.immediate,
+        priority: request.options?.priority === 'high' ? 1 : 
+                  request.options?.priority === 'low' ? 10 : 5,
       }
     });
   }
@@ -41,18 +43,17 @@ export class ListingWorkflows {
    * バッチ出品（複数商品を一括）
    */
   async executeBatchListing(productIds: string[], platform: string) {
-    return n8nClient.execute({
-      workflow: 'listing-batch',
+    return dispatchService.execute({
+      toolId: 'listing-execute',
       action: 'batch-list',
-      data: {
+      params: {
         product_ids: productIds,
         platform,
         batch_size: 10,
         interval_seconds: 30,
       },
       options: {
-        async: true,
-        timeout: 300000, // 5分
+        timeout: 300, // 5分
       }
     });
   }
@@ -66,10 +67,10 @@ export class ListingWorkflows {
     startTime: Date;
     interval: number;
   }) {
-    return n8nClient.execute({
-      workflow: 'listing-schedule',
+    return dispatchService.execute({
+      toolId: 'listing-execute',
       action: 'create-schedule',
-      data: {
+      params: {
         product_ids: schedule.productIds,
         platform: schedule.platform,
         start_time: schedule.startTime.toISOString(),
@@ -82,17 +83,17 @@ export class ListingWorkflows {
    * 出品ステータスを確認
    */
   async checkListingStatus(jobId: string) {
-    return n8nClient.getJobStatus(jobId);
+    return dispatchService.getJobStatus(jobId);
   }
 
   /**
    * エラー商品を再出品
    */
   async retryFailedListings(platform?: string) {
-    return n8nClient.execute({
-      workflow: 'listing-retry',
+    return dispatchService.execute({
+      toolId: 'listing-error-recovery',
       action: 'retry-failed',
-      data: {
+      params: {
         platform: platform || 'all',
         max_retry: 3,
       }
@@ -103,10 +104,10 @@ export class ListingWorkflows {
    * 出品を終了
    */
   async endListing(itemId: string, platform: string) {
-    return n8nClient.execute({
-      workflow: 'listing-end',
+    return dispatchService.execute({
+      toolId: 'ebay-listing',
       action: 'end-item',
-      data: {
+      params: {
         item_id: itemId,
         platform,
         reason: 'NotAvailable',
@@ -123,10 +124,10 @@ export class ListingWorkflows {
     title?: string;
     description?: string;
   }) {
-    return n8nClient.execute({
-      workflow: 'listing-update',
+    return dispatchService.execute({
+      toolId: 'ebay-listing',
       action: 'revise-item',
-      data: {
+      params: {
         item_id: itemId,
         platform,
         updates,

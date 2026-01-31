@@ -12,7 +12,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 
-export type L2TabId = 'basic-edit' | 'logistics' | 'compliance' | 'media' | 'history';
+export type L2TabId = 'basic-edit' | 'logistics' | 'compliance' | 'media' | 'history' | 'inventory-ai';
 export type ViewMode = 'list' | 'card';
 export type Language = 'ja' | 'en';
 

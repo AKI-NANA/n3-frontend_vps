@@ -1,9 +1,0 @@
-node_modules/
-.next/
-.env*
-_backup/
-_archives/
-*.log
-.DS_Store
-.pm2/
-.vercel/

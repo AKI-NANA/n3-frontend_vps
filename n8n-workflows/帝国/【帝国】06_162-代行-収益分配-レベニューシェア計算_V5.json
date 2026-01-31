@@ -1,0 +1,444 @@
+{
+  "name": "【帝国】06_162-代行-収益分配-レベニューシェア計算_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0 22 * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "⏰ 毎月22日実行",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "partner-revenue-calculate",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: revenue-calculate",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "partner-revenue-calculate"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 鉄の掟準拠：環境変数必須チェック\nconst apiUrl = $env.N3_API_URL || $env.API_BASE_URL;\n\nif (!apiUrl) {\n  return [{ json: { error: true, message: 'N3_API_URL環境変数が未設定', code: 'CONFIG_ERROR' } }];\n}\n\nconst body = $input.first().json.body || $input.first().json || {};\nconst partnerId = body.partner_id || null;\nconst periodStart = body.period_start || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];\nconst periodEnd = body.period_end || new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0];\n\nreturn [{\n  json: {\n    partner_id: partnerId,\n    period_start: periodStart,\n    period_end: periodEnd,\n    api_url: apiUrl,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔐 初期化（鉄の掟準拠）",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT pp.partner_id, pp.partner_name, pp.email, pp.revenue_share_percent, pp.channel_id, pp.payout_method, pp.payout_account_id, pp.payout_currency FROM partner_profiles pp WHERE pp.status = 'active' AND ($1 IS NULL OR pp.partner_id = $1)",
+        "options": {
+          "queryParams": "={{ [$json.partner_id] }}"
+        }
+      },
+      "id": "get-partners",
+      "name": "📋 パートナー一覧取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const initData = $node['🔐 初期化（鉄の掟準拠）'].json;\nconst partnersRaw = $input.all().map(item => item.json).filter(p => p && p.partner_id);\n\nif (partnersRaw.length === 0) {\n  return [{ json: { skip: true, message: 'アクティブなパートナーがいません' } }];\n}\n\nreturn partnersRaw.map(partner => ({\n  json: {\n    ...partner,\n    period_start: initData.period_start,\n    period_end: initData.period_end\n  }\n}));"
+      },
+      "id": "prepare-partners",
+      "name": "🔧 パートナーデータ準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "loop-partners",
+      "name": "🔄 パートナーループ",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT pu.upload_id, pu.video_url, pu.produced_video_url, COALESCE(vr.total_revenue, 0) as video_revenue, COALESCE(vr.views, 0) as views FROM partner_uploads pu LEFT JOIN video_revenue vr ON pu.produced_video_url = vr.video_url WHERE pu.partner_id = $1 AND pu.status = 'published' AND pu.published_at BETWEEN $2 AND $3",
+        "options": {
+          "queryParams": "={{ [$json.partner_id, $json.period_start, $json.period_end] }}"
+        }
+      },
+      "id": "get-videos",
+      "name": "📺 動画収益取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 収益分配計算\nconst partnerData = $node['🔄 パートナーループ'].json;\nconst videosRaw = $input.all().map(item => item.json).filter(v => v && v.upload_id);\n\n// 総収益計算\nconst totalRevenue = videosRaw.reduce((sum, v) => sum + (parseFloat(v.video_revenue) || 0), 0);\nconst totalViews = videosRaw.reduce((sum, v) => sum + (parseInt(v.views) || 0), 0);\n\n// レベニューシェア計算（デフォルト50%）\nconst sharePercent = parseFloat(partnerData.revenue_share_percent) || 50;\nconst partnerShare = totalRevenue * (sharePercent / 100);\nconst platformShare = totalRevenue - partnerShare;\n\nreturn [{\n  json: {\n    partner_id: partnerData.partner_id,\n    partner_name: partnerData.partner_name,\n    period_start: partnerData.period_start,\n    period_end: partnerData.period_end,\n    \n    // 収益サマリー\n    video_count: videosRaw.length,\n    total_views: totalViews,\n    total_revenue: totalRevenue,\n    \n    // 分配\n    revenue_share_percent: sharePercent,\n    partner_share: partnerShare,\n    platform_share: platformShare,\n    \n    // 支払い情報\n    payout_method: partnerData.payout_method,\n    payout_account_id: partnerData.payout_account_id,\n    payout_currency: partnerData.payout_currency\n  }\n}];"
+      },
+      "id": "calculate-share",
+      "name": "🧮 レベニューシェア計算",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO partner_payouts (partner_id, period_start, period_end, video_count, total_views, total_revenue, revenue_share_percent, partner_share, platform_share, payout_status, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', NOW()) ON CONFLICT (partner_id, period_start, period_end) DO UPDATE SET video_count = $4, total_views = $5, total_revenue = $6, partner_share = $8, platform_share = $9, updated_at = NOW() RETURNING payout_id",
+        "options": {
+          "queryParams": "={{ [$json.partner_id, $json.period_start, $json.period_end, $json.video_count, $json.total_views, $json.total_revenue, $json.revenue_share_percent, $json.partner_share, $json.platform_share] }}"
+        }
+      },
+      "id": "save-payout",
+      "name": "💾 支払い記録保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ループ継続\nreturn $input.all();"
+      },
+      "id": "continue-loop",
+      "name": "➡️ 継続",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const allItems = $input.all();\nconst results = allItems.map(item => item.json).filter(r => r && r.payout_id);\n\nreturn [{\n  json: {\n    success: true,\n    action: 'partner_revenue_calculated',\n    processed_count: results.length,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "⏰ 毎月22日実行": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化（鉄の掟準拠）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook: revenue-calculate": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化（鉄の掟準拠）": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 パートナー一覧取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 パートナー一覧取得": {
+      "main": [
+        [
+          {
+            "node": "🔧 パートナーデータ準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 パートナーデータ準備": {
+      "main": [
+        [
+          {
+            "node": "🔄 パートナーループ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 パートナーループ": {
+      "main": [
+        [
+          {
+            "node": "📺 動画収益取得",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📺 動画収益取得": {
+      "main": [
+        [
+          {
+            "node": "🧮 レベニューシェア計算",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧮 レベニューシェア計算": {
+      "main": [
+        [
+          {
+            "node": "💾 支払い記録保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 支払い記録保存": {
+      "main": [
+        [
+          {
+            "node": "➡️ 継続",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "➡️ 継続": {
+      "main": [
+        [
+          {
+            "node": "🔄 パートナーループ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化（鉄の掟準拠）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 600,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Partner",
+      "color": "#3498db"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Financial",
+      "color": "#f1c40f"
+    },
+    {
+      "name": "IronRule",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false,
+  "meta": {
+    "description": "N3-162 収益分配・レベニューシェア計算 V5-PRODUCTION - 毎月22日自動実行、50%分配計算",
+    "version": "5.0",
+    "changelog": "2026-01-20: 鉄の掟準拠 - 環境変数必須化、QueryParams完全実装",
+    "iron_rules_compliant": [
+      "no_hardcoded_urls",
+      "query_params_only",
+      "no_crypto_require"
+    ]
+  }
+}

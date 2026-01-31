@@ -1,9 +1,11 @@
 // lib/n8n/workflows/inventory-workflows.ts
 /**
  * 在庫管理関連のn8nワークフロー定義
+ * 
+ * Phase A-2: 全実行を dispatchService 経由に統一
  */
 
-import { n8nClient } from '../n8n-client';
+import { dispatchService } from '../n8n-client';
 
 export interface InventorySyncRequest {
   platforms?: string[];
@@ -16,16 +18,16 @@ export class InventoryWorkflows {
    * 在庫同期を実行
    */
   async syncInventory(request: InventorySyncRequest = {}) {
-    return n8nClient.execute({
-      workflow: 'inventory-sync',
+    return dispatchService.execute({
+      toolId: 'stock-killer',
       action: 'sync-all',
-      data: {
+      params: {
         platforms: request.platforms || ['ebay', 'amazon'],
         skus: request.skus,
         full_sync: request.fullSync || false,
       },
       options: {
-        timeout: 120000, // 2分
+        timeout: 120,
       }
     });
   }
@@ -34,10 +36,10 @@ export class InventoryWorkflows {
    * プラットフォーム別在庫取得
    */
   async getInventory(platform: string, sku?: string) {
-    return n8nClient.execute({
-      workflow: 'inventory-get',
+    return dispatchService.execute({
+      toolId: 'inventory-monitoring',
       action: `get-${platform}-inventory`,
-      data: {
+      params: {
         platform,
         sku,
       }
@@ -52,10 +54,10 @@ export class InventoryWorkflows {
     quantity: number;
     platforms?: string[];
   }>) {
-    return n8nClient.execute({
-      workflow: 'inventory-update',
+    return dispatchService.execute({
+      toolId: 'stock-killer',
       action: 'update-stock',
-      data: {
+      params: {
         updates,
         sync_immediately: true,
       }
@@ -66,10 +68,10 @@ export class InventoryWorkflows {
    * 在庫アラート設定
    */
   async setStockAlert(sku: string, threshold: number) {
-    return n8nClient.execute({
-      workflow: 'inventory-alert',
+    return dispatchService.execute({
+      toolId: 'inventory-monitoring',
       action: 'set-alert',
-      data: {
+      params: {
         sku,
         threshold,
         notification_channel: 'slack',
@@ -84,10 +86,10 @@ export class InventoryWorkflows {
     format: 'csv' | 'excel' | 'json';
     dateRange?: { start: Date; end: Date };
   }) {
-    return n8nClient.execute({
-      workflow: 'inventory-report',
+    return dispatchService.execute({
+      toolId: 'inventory-monitoring',
       action: 'generate-report',
-      data: {
+      params: {
         format: options.format,
         start_date: options.dateRange?.start.toISOString(),
         end_date: options.dateRange?.end.toISOString(),
@@ -99,10 +101,10 @@ export class InventoryWorkflows {
    * FBA在庫を同期
    */
   async syncFBAInventory() {
-    return n8nClient.execute({
-      workflow: 'inventory-fba',
+    return dispatchService.execute({
+      toolId: 'stock-killer',
       action: 'sync-fba',
-      data: {
+      params: {
         marketplace_id: 'ATVPDKIKX0DER',
       }
     });
@@ -112,10 +114,10 @@ export class InventoryWorkflows {
    * 在庫履歴を取得
    */
   async getInventoryHistory(sku: string, days: number = 30) {
-    return n8nClient.execute({
-      workflow: 'inventory-history',
+    return dispatchService.execute({
+      toolId: 'inventory-monitoring',
       action: 'get-history',
-      data: {
+      params: {
         sku,
         days,
       }
@@ -126,12 +128,25 @@ export class InventoryWorkflows {
    * 在庫予測
    */
   async predictStockout(skus?: string[]) {
-    return n8nClient.execute({
-      workflow: 'inventory-prediction',
+    return dispatchService.execute({
+      toolId: 'price-defense',
       action: 'predict-stockout',
-      data: {
+      params: {
         skus: skus || 'all',
         forecast_days: 30,
+      }
+    });
+  }
+
+  /**
+   * USA仕入れ監視
+   */
+  async monitorUSASupplier(productIds?: string[]) {
+    return dispatchService.execute({
+      toolId: 'usa-supplier-monitor',
+      action: 'check-prices',
+      params: {
+        product_ids: productIds,
       }
     });
   }

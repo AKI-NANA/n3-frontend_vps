@@ -1,0 +1,12200 @@
+module.exports = [
+"[project]/n3-frontend_vps/components/n3/container/n3-filter-bar.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * N3FilterBar - Container Component
+ *
+ * フィルターバー（L3ListFilterの共通版）
+ *
+ * 設計ルール:
+ * - 状態とロジックを子に注入
+ * - 子要素間のgap/marginを定義（Container責務）
+ * - Hooksを呼び出せる
+ *
+ * @example
+ * <N3FilterBar
+ *   filters={filters}
+ *   activeFilter={activeFilter}
+ *   onFilterChange={setActiveFilter}
+ *   leftActions={<N3Button>Fast</N3Button>}
+ * />
+ */ __turbopack_context__.s([
+    "N3FilterBar",
+    ()=>N3FilterBar
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$presentational$2f$n3$2d$filter$2d$tab$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/components/n3/presentational/n3-filter-tab.tsx [app-ssr] (ecmascript)");
+'use client';
+;
+;
+;
+const N3FilterBar = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3FilterBar({ filters, activeFilter, onFilterChange, leftActions, rightActions, className = '' }) {
+    const classes = [
+        'n3-l3-filter-bar',
+        className
+    ].filter(Boolean).join(' ');
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: classes,
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "flex items-center gap-3",
+                children: [
+                    leftActions && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "flex items-center gap-2 flex-shrink-0",
+                        children: leftActions
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-filter-bar.tsx",
+                        lineNumber: 71,
+                        columnNumber: 11
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "n3-filter-tabs",
+                        children: filters.map((filter)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$presentational$2f$n3$2d$filter$2d$tab$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["N3FilterTab"], {
+                                label: filter.label,
+                                count: filter.count,
+                                icon: filter.icon,
+                                active: activeFilter === filter.id,
+                                disabled: filter.disabled,
+                                onClick: ()=>onFilterChange(filter.id)
+                            }, filter.id, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-filter-bar.tsx",
+                                lineNumber: 77,
+                                columnNumber: 13
+                            }, this))
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-filter-bar.tsx",
+                        lineNumber: 75,
+                        columnNumber: 9
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-filter-bar.tsx",
+                lineNumber: 69,
+                columnNumber: 7
+            }, this),
+            rightActions && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "flex items-center gap-2 flex-shrink-0",
+                children: rightActions
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-filter-bar.tsx",
+                lineNumber: 92,
+                columnNumber: 9
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-filter-bar.tsx",
+        lineNumber: 67,
+        columnNumber: 5
+    }, this);
+});
+N3FilterBar.displayName = 'N3FilterBar';
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-toolbar.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * N3Toolbar - Container Component
+ *
+ * ツールバー（ToolPanelの共通版）
+ *
+ * 設計ルール:
+ * - 状態とロジックを子に注入
+ * - 子要素間のgap/marginを定義（Container責務）
+ * - Hooksを呼び出せる
+ *
+ * @example
+ * <N3Toolbar>
+ *   <N3Toolbar.Group>
+ *     <N3Button>Action 1</N3Button>
+ *     <N3Button>Action 2</N3Button>
+ *   </n3-toolbar.Group>
+ *   <N3Toolbar.Divider />
+ *   <N3Toolbar.Group>
+ *     <N3Button>Action 3</N3Button>
+ *   </n3-toolbar.Group>
+ * </N3Toolbar>
+ */ __turbopack_context__.s([
+    "N3Toolbar",
+    ()=>N3Toolbar
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+'use client';
+;
+;
+// ============================================================
+// Sub Components
+// ============================================================
+const ToolbarGroup = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function ToolbarGroup({ children, label, className = '' }) {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `flex items-center gap-1 ${className}`,
+        children: [
+            label && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                className: "text-[10px] font-semibold text-[var(--text-muted)] mr-1",
+                children: label
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-toolbar.tsx",
+                lineNumber: 60,
+                columnNumber: 9
+            }, this),
+            children
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-toolbar.tsx",
+        lineNumber: 58,
+        columnNumber: 5
+    }, this);
+});
+const ToolbarDivider = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function ToolbarDivider() {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: "n3-toolbar-divider"
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-toolbar.tsx",
+        lineNumber: 70,
+        columnNumber: 10
+    }, this);
+});
+const ToolbarSpacer = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function ToolbarSpacer() {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: "flex-1"
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-toolbar.tsx",
+        lineNumber: 74,
+        columnNumber: 10
+    }, this);
+});
+const N3Toolbar = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3Toolbar({ children, className = '' }) {
+    const classes = [
+        'n3-toolbar',
+        className
+    ].filter(Boolean).join(' ');
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: classes,
+        children: children
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-toolbar.tsx",
+        lineNumber: 87,
+        columnNumber: 10
+    }, this);
+});
+// Attach sub-components
+const N3ToolbarBase = N3Toolbar;
+N3Toolbar.Group = ToolbarGroup;
+N3Toolbar.Divider = ToolbarDivider;
+N3Toolbar.Spacer = ToolbarSpacer;
+N3Toolbar.displayName = 'N3Toolbar';
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-pagination.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * N3Pagination - Container Component
+ *
+ * ページネーション（Paginationの共通版）
+ *
+ * 設計ルール:
+ * - 状態とロジックを子に注入
+ * - 子要素間のgap/marginを定義（Container責務）
+ * - Hooksを呼び出せる
+ *
+ * @example
+ * <N3Pagination
+ *   total={1000}
+ *   pageSize={50}
+ *   currentPage={1}
+ *   onPageChange={setPage}
+ *   onPageSizeChange={setPageSize}
+ * />
+ */ __turbopack_context__.s([
+    "N3Pagination",
+    ()=>N3Pagination
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevron$2d$left$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronLeft$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/chevron-left.js [app-ssr] (ecmascript) <export default as ChevronLeft>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevron$2d$right$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronRight$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/chevron-right.js [app-ssr] (ecmascript) <export default as ChevronRight>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevrons$2d$left$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronsLeft$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/chevrons-left.js [app-ssr] (ecmascript) <export default as ChevronsLeft>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevrons$2d$right$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronsRight$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/chevrons-right.js [app-ssr] (ecmascript) <export default as ChevronsRight>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$presentational$2f$n3$2d$select$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/components/n3/presentational/n3-select.tsx [app-ssr] (ecmascript)");
+'use client';
+;
+;
+;
+;
+const N3Pagination = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3Pagination({ total = 0, pageSize = 50, currentPage = 1, onPageChange, onPageSizeChange, pageSizeOptions = [
+    25,
+    50,
+    100,
+    500,
+    1000
+], showAllOption = true, className = '' }) {
+    // NaN対策: 数値が無効な場合はデフォルト値を使用
+    const safeTotal = Number.isFinite(total) ? total : 0;
+    const safePageSize = Number.isFinite(pageSize) && pageSize > 0 ? pageSize : 50;
+    const safeCurrentPage = Number.isFinite(currentPage) && currentPage > 0 ? currentPage : 1;
+    const totalPages = Math.ceil(safeTotal / safePageSize) || 1;
+    const startItem = safeTotal === 0 ? 0 : (safeCurrentPage - 1) * safePageSize + 1;
+    const endItem = Math.min(safeCurrentPage * safePageSize, safeTotal);
+    // ページ番号の配列を生成
+    const pageNumbers = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useMemo"])(()=>{
+        const pages = [];
+        if (totalPages <= 7) {
+            for(let i = 1; i <= totalPages; i++){
+                pages.push(i);
+            }
+        } else {
+            pages.push(1);
+            if (safeCurrentPage > 3) pages.push('...');
+            const start = Math.max(2, safeCurrentPage - 1);
+            const end = Math.min(totalPages - 1, safeCurrentPage + 1);
+            for(let i = start; i <= end; i++){
+                if (!pages.includes(i)) pages.push(i);
+            }
+            if (safeCurrentPage < totalPages - 2) pages.push('...');
+            if (!pages.includes(totalPages)) pages.push(totalPages);
+        }
+        return pages;
+    }, [
+        totalPages,
+        safeCurrentPage
+    ]);
+    // ページサイズオプションを変換
+    const sizeOptions = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useMemo"])(()=>{
+        const options = pageSizeOptions.map((size)=>({
+                value: size.toString(),
+                label: `${size}件`
+            }));
+        if (showAllOption) {
+            options.push({
+                value: '99999',
+                label: '全件'
+            });
+        }
+        return options;
+    }, [
+        pageSizeOptions,
+        showAllOption
+    ]);
+    const classes = [
+        'n3-pagination',
+        className
+    ].filter(Boolean).join(' ');
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: classes,
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "n3-pagination__info",
+                children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("strong", {
+                        children: startItem
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-pagination.tsx",
+                        lineNumber: 117,
+                        columnNumber: 9
+                    }, this),
+                    " - ",
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("strong", {
+                        children: endItem
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-pagination.tsx",
+                        lineNumber: 117,
+                        columnNumber: 40
+                    }, this),
+                    " / 全",
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("strong", {
+                        children: safeTotal
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-pagination.tsx",
+                        lineNumber: 118,
+                        columnNumber: 9
+                    }, this),
+                    "件"
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-pagination.tsx",
+                lineNumber: 116,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "n3-pagination__controls",
+                children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$presentational$2f$n3$2d$select$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["N3Select"], {
+                        value: safePageSize.toString(),
+                        onValueChange: (v)=>onPageSizeChange(Number(v)),
+                        options: sizeOptions,
+                        size: "xs"
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-pagination.tsx",
+                        lineNumber: 124,
+                        columnNumber: 9
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "n3-pagination__pages",
+                        children: [
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                onClick: ()=>onPageChange(1),
+                                disabled: safeCurrentPage === 1,
+                                className: "n3-pagination__btn",
+                                title: "最初のページへ",
+                                children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevrons$2d$left$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronsLeft$3e$__["ChevronsLeft"], {
+                                    size: 14
+                                }, void 0, false, {
+                                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-pagination.tsx",
+                                    lineNumber: 140,
+                                    columnNumber: 13
+                                }, this)
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-pagination.tsx",
+                                lineNumber: 134,
+                                columnNumber: 11
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                onClick: ()=>onPageChange(safeCurrentPage - 1),
+                                disabled: safeCurrentPage === 1,
+                                className: "n3-pagination__btn",
+                                title: "前のページへ",
+                                children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevron$2d$left$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronLeft$3e$__["ChevronLeft"], {
+                                    size: 14
+                                }, void 0, false, {
+                                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-pagination.tsx",
+                                    lineNumber: 150,
+                                    columnNumber: 13
+                                }, this)
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-pagination.tsx",
+                                lineNumber: 144,
+                                columnNumber: 11
+                            }, this),
+                            pageNumbers.map((page, index)=>{
+                                if (page === '...') {
+                                    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                        className: "n3-pagination__ellipsis",
+                                        children: "..."
+                                    }, `ellipsis-${index}`, false, {
+                                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-pagination.tsx",
+                                        lineNumber: 157,
+                                        columnNumber: 17
+                                    }, this);
+                                }
+                                const pageNum = page;
+                                return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                    onClick: ()=>onPageChange(pageNum),
+                                    className: `n3-pagination__btn ${safeCurrentPage === pageNum ? 'active' : ''}`,
+                                    children: pageNum
+                                }, pageNum, false, {
+                                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-pagination.tsx",
+                                    lineNumber: 165,
+                                    columnNumber: 15
+                                }, this);
+                            }),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                onClick: ()=>onPageChange(safeCurrentPage + 1),
+                                disabled: safeCurrentPage >= totalPages,
+                                className: "n3-pagination__btn",
+                                title: "次のページへ",
+                                children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevron$2d$right$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronRight$3e$__["ChevronRight"], {
+                                    size: 14
+                                }, void 0, false, {
+                                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-pagination.tsx",
+                                    lineNumber: 184,
+                                    columnNumber: 13
+                                }, this)
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-pagination.tsx",
+                                lineNumber: 178,
+                                columnNumber: 11
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                onClick: ()=>onPageChange(totalPages),
+                                disabled: safeCurrentPage >= totalPages,
+                                className: "n3-pagination__btn",
+                                title: "最後のページへ",
+                                children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevrons$2d$right$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronsRight$3e$__["ChevronsRight"], {
+                                    size: 14
+                                }, void 0, false, {
+                                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-pagination.tsx",
+                                    lineNumber: 194,
+                                    columnNumber: 13
+                                }, this)
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-pagination.tsx",
+                                lineNumber: 188,
+                                columnNumber: 11
+                            }, this)
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-pagination.tsx",
+                        lineNumber: 132,
+                        columnNumber: 9
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-pagination.tsx",
+                lineNumber: 122,
+                columnNumber: 7
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-pagination.tsx",
+        lineNumber: 114,
+        columnNumber: 5
+    }, this);
+});
+N3Pagination.displayName = 'N3Pagination';
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-button-group.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * N3ButtonGroup - Container Component
+ *
+ * ボタングループ
+ *
+ * 設計ルール:
+ * - 状態とロジックを子に注入
+ * - 子要素間のgap/marginを定義（Container責務）
+ *
+ * @example
+ * <N3ButtonGroup>
+ *   <N3Button variant="ghost">Left</N3Button>
+ *   <N3Button variant="ghost">Center</N3Button>
+ *   <N3Button variant="ghost">Right</N3Button>
+ * </N3ButtonGroup>
+ */ __turbopack_context__.s([
+    "N3ButtonGroup",
+    ()=>N3ButtonGroup
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+'use client';
+;
+;
+const N3ButtonGroup = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3ButtonGroup({ children, vertical = false, className = '' }) {
+    const classes = [
+        'n3-btn-group',
+        vertical && 'n3-btn-group-vertical',
+        className
+    ].filter(Boolean).join(' ');
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: classes,
+        children: children
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-button-group.tsx",
+        lineNumber: 52,
+        columnNumber: 10
+    }, this);
+});
+N3ButtonGroup.displayName = 'N3ButtonGroup';
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-table.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "N3Table",
+    ()=>N3Table,
+    "N3TableCell",
+    ()=>N3TableCell,
+    "N3TableFooter",
+    ()=>N3TableFooter,
+    "N3TableHeader",
+    ()=>N3TableHeader,
+    "N3TableRow",
+    ()=>N3TableRow,
+    "N3TableToolbar",
+    ()=>N3TableToolbar,
+    "default",
+    ()=>__TURBOPACK__default__export__
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+'use client';
+;
+;
+const N3Table = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3Table({ children, variant = 'default', density = 'default', loading = false, empty = false, emptyText = 'データがありません', className = '' }) {
+    const tableStyle = {
+        display: 'flex',
+        flexDirection: 'column',
+        background: 'var(--panel, #ffffff)',
+        border: '1px solid var(--panel-border, #e5e7eb)',
+        borderRadius: 'var(--radius-md, 8px)',
+        overflow: 'hidden',
+        fontSize: density === 'compact' ? '11px' : density === 'comfortable' ? '14px' : '12px'
+    };
+    if (loading) {
+        return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            style: tableStyle,
+            className: className,
+            children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    padding: '48px',
+                    textAlign: 'center',
+                    color: 'var(--text-muted, #6b7280)'
+                },
+                children: "読み込み中..."
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-table.tsx",
+                lineNumber: 46,
+                columnNumber: 9
+            }, this)
+        }, void 0, false, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-table.tsx",
+            lineNumber: 45,
+            columnNumber: 7
+        }, this);
+    }
+    if (empty) {
+        return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            style: tableStyle,
+            className: className,
+            children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '48px 16px',
+                    color: 'var(--text-muted, #6b7280)'
+                },
+                children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                    style: {
+                        fontSize: '14px'
+                    },
+                    children: emptyText
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-table.tsx",
+                    lineNumber: 64,
+                    columnNumber: 11
+                }, this)
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-table.tsx",
+                lineNumber: 56,
+                columnNumber: 9
+            }, this)
+        }, void 0, false, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-table.tsx",
+            lineNumber: 55,
+            columnNumber: 7
+        }, this);
+    }
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        style: tableStyle,
+        className: className,
+        "data-variant": variant,
+        "data-density": density,
+        children: children
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-table.tsx",
+        lineNumber: 71,
+        columnNumber: 5
+    }, this);
+});
+const N3TableHeader = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3TableHeader({ columns, selectable = false, allSelected = false, indeterminate = false, onSelectAll, sortColumn, sortDirection, onSort, variant = 'default', density = 'default', className = '' }) {
+    const heightMap = {
+        compact: 24,
+        default: 28,
+        comfortable: 36
+    };
+    const height = heightMap[density];
+    const headerStyle = {
+        display: 'flex',
+        alignItems: 'center',
+        height: `${height}px`,
+        background: 'var(--highlight, #f9fafb)',
+        borderBottom: '1px solid var(--panel-border, #e5e7eb)',
+        fontSize: density === 'compact' ? '10px' : '11px',
+        fontWeight: 500,
+        color: 'var(--text-muted, #6b7280)',
+        flexShrink: 0
+    };
+    const cellStyle = (col)=>({
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: col.align === 'left' ? 'flex-start' : col.align === 'right' ? 'flex-end' : 'center',
+            height: '100%',
+            flexShrink: 0,
+            width: col.width ? typeof col.width === 'number' ? `${col.width}px` : col.width : undefined,
+            minWidth: col.minWidth,
+            flex: col.flex,
+            padding: col.align === 'left' ? '0 4px 0 8px' : col.align === 'right' ? '0 8px 0 4px' : '0 4px',
+            cursor: col.sortable ? 'pointer' : 'default'
+        });
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        style: headerStyle,
+        className: className,
+        children: [
+            selectable && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    width: density === 'compact' ? '24px' : '32px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                },
+                children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
+                    type: "checkbox",
+                    checked: allSelected,
+                    ref: (el)=>{
+                        if (el) el.indeterminate = indeterminate;
+                    },
+                    onChange: (e)=>onSelectAll?.(e.target.checked),
+                    style: {
+                        width: '14px',
+                        height: '14px',
+                        cursor: 'pointer'
+                    }
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-table.tsx",
+                    lineNumber: 149,
+                    columnNumber: 11
+                }, this)
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-table.tsx",
+                lineNumber: 148,
+                columnNumber: 9
+            }, this),
+            columns.map((col)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                    style: cellStyle(col),
+                    onClick: ()=>col.sortable && onSort?.(col.id),
+                    children: [
+                        col.label,
+                        col.sortable && sortColumn === col.id && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                            style: {
+                                marginLeft: '4px'
+                            },
+                            children: sortDirection === 'asc' ? '↑' : '↓'
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-table.tsx",
+                            lineNumber: 166,
+                            columnNumber: 13
+                        }, this)
+                    ]
+                }, col.id, true, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-table.tsx",
+                    lineNumber: 159,
+                    columnNumber: 9
+                }, this))
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-table.tsx",
+        lineNumber: 146,
+        columnNumber: 5
+    }, this);
+});
+const N3TableRow = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3TableRow({ children, selected = false, modified = false, expanded = false, fast = false, onClick, density = 'default', className = '' }) {
+    const [hovered, setHovered] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false);
+    const heightMap = {
+        compact: 26,
+        default: 36,
+        comfortable: 48
+    };
+    const height = fast ? 26 : heightMap[density];
+    const rowStyle = {
+        display: 'flex',
+        alignItems: 'center',
+        height: `${height}px`,
+        borderBottom: '1px solid var(--panel-border, #e5e7eb)',
+        background: selected ? 'rgba(99, 102, 241, 0.08)' : modified ? 'rgba(245, 158, 11, 0.08)' : hovered ? 'var(--highlight, #f9fafb)' : 'transparent',
+        transition: 'background 0.1s ease',
+        cursor: onClick ? 'pointer' : 'default'
+    };
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        style: rowStyle,
+        className: className,
+        onClick: onClick,
+        onMouseEnter: ()=>setHovered(true),
+        onMouseLeave: ()=>setHovered(false),
+        children: children
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-table.tsx",
+        lineNumber: 222,
+        columnNumber: 5
+    }, this);
+});
+const N3TableCell = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3TableCell({ children, width, minWidth, flex, align = 'center', className = '' }) {
+    const cellStyle = {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center',
+        height: '100%',
+        flexShrink: 0,
+        width: width ? typeof width === 'number' ? `${width}px` : width : undefined,
+        minWidth,
+        flex,
+        padding: align === 'left' ? '0 4px 0 8px' : align === 'right' ? '0 8px 0 4px' : '0 4px',
+        overflow: 'hidden'
+    };
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        style: cellStyle,
+        className: className,
+        children: children
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-table.tsx",
+        lineNumber: 268,
+        columnNumber: 5
+    }, this);
+});
+const N3TableToolbar = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3TableToolbar({ children, left, right, density = 'default', className = '' }) {
+    const height = density === 'compact' ? 24 : 28;
+    const toolbarStyle = {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        height: `${height}px`,
+        padding: '0 8px',
+        background: 'var(--highlight, #f9fafb)',
+        borderBottom: '1px solid var(--panel-border, #e5e7eb)',
+        flexShrink: 0
+    };
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        style: toolbarStyle,
+        className: className,
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                },
+                children: left
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-table.tsx",
+                lineNumber: 307,
+                columnNumber: 7
+            }, this),
+            children,
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                },
+                children: right
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-table.tsx",
+                lineNumber: 311,
+                columnNumber: 7
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-table.tsx",
+        lineNumber: 306,
+        columnNumber: 5
+    }, this);
+});
+const N3TableFooter = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3TableFooter({ children, left, right, density = 'default', className = '' }) {
+    const height = density === 'compact' ? 22 : 26;
+    const footerStyle = {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        height: `${height}px`,
+        padding: '0 8px',
+        background: 'var(--highlight, #f9fafb)',
+        borderTop: '1px solid var(--panel-border, #e5e7eb)',
+        flexShrink: 0,
+        fontSize: '10px',
+        color: 'var(--text-muted, #6b7280)'
+    };
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        style: footerStyle,
+        className: className,
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                },
+                children: left
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-table.tsx",
+                lineNumber: 353,
+                columnNumber: 7
+            }, this),
+            children,
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                },
+                children: right
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-table.tsx",
+                lineNumber: 357,
+                columnNumber: 7
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-table.tsx",
+        lineNumber: 352,
+        columnNumber: 5
+    }, this);
+});
+const __TURBOPACK__default__export__ = N3Table;
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-profit-cell.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "N3MarginCell",
+    ()=>N3MarginCell,
+    "N3PriceCell",
+    ()=>N3PriceCell,
+    "N3ProfitCell",
+    ()=>N3ProfitCell,
+    "N3StockCell",
+    ()=>N3StockCell,
+    "default",
+    ()=>__TURBOPACK__default__export__
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+'use client';
+;
+;
+const N3ProfitCell = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3ProfitCell({ value, currency = '¥', showZero = true, decimals = 0, tooltip, className = '' }) {
+    if (!showZero && value === 0) {
+        return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            className: `n3-table-cell n3-col-profit ${className}`,
+            children: "-"
+        }, void 0, false, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-cell.tsx",
+            lineNumber: 26,
+            columnNumber: 12
+        }, this);
+    }
+    const isPositive = value > 0;
+    const isNegative = value < 0;
+    const formattedValue = Math.abs(value).toLocaleString('ja-JP', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals
+    });
+    let valueClass = 'n3-value-profit';
+    if (isPositive) valueClass += ' positive';
+    if (isNegative) valueClass += ' negative';
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-table-cell n3-col-profit right ${className}`,
+        title: tooltip,
+        children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+            className: valueClass,
+            children: [
+                isNegative && '-',
+                currency,
+                formattedValue
+            ]
+        }, void 0, true, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-cell.tsx",
+            lineNumber: 46,
+            columnNumber: 7
+        }, this)
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-cell.tsx",
+        lineNumber: 42,
+        columnNumber: 5
+    }, this);
+});
+const N3MarginCell = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3MarginCell({ value, showZero = true, decimals = 1, warningThreshold = 10, dangerThreshold = 5, tooltip, className = '' }) {
+    if (!showZero && value === 0) {
+        return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            className: `n3-table-cell n3-col-rate ${className}`,
+            children: "-"
+        }, void 0, false, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-cell.tsx",
+            lineNumber: 78,
+            columnNumber: 12
+        }, this);
+    }
+    const isPositive = value > 0;
+    const isNegative = value < 0;
+    const isWarning = value <= warningThreshold && value > dangerThreshold;
+    const isDanger = value <= dangerThreshold;
+    const formattedValue = Math.abs(value).toFixed(decimals);
+    let valueClass = 'n3-value-margin';
+    if (isNegative || isDanger) valueClass += ' negative';
+    else if (isWarning) valueClass += ' warning';
+    else if (isPositive) valueClass += ' positive';
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-table-cell n3-col-rate right ${className}`,
+        title: tooltip,
+        children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+            className: valueClass,
+            children: [
+                isNegative && '-',
+                formattedValue,
+                "%"
+            ]
+        }, void 0, true, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-cell.tsx",
+            lineNumber: 98,
+            columnNumber: 7
+        }, this)
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-cell.tsx",
+        lineNumber: 94,
+        columnNumber: 5
+    }, this);
+});
+const N3PriceCell = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3PriceCell({ value, currency = '¥', decimals = 0, strikethrough = false, originalValue, tooltip, className = '' }) {
+    const formattedValue = value.toLocaleString('ja-JP', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals
+    });
+    const hasDiscount = originalValue !== undefined && originalValue > value;
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-table-cell n3-col-price right ${className}`,
+        title: tooltip,
+        children: [
+            hasDiscount && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                className: "n3-price-original",
+                children: [
+                    currency,
+                    originalValue.toLocaleString('ja-JP')
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-cell.tsx",
+                lineNumber: 141,
+                columnNumber: 9
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                className: `n3-value-price ${strikethrough ? 'strikethrough' : ''}`,
+                children: [
+                    currency,
+                    formattedValue
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-cell.tsx",
+                lineNumber: 146,
+                columnNumber: 7
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-cell.tsx",
+        lineNumber: 136,
+        columnNumber: 5
+    }, this);
+});
+const N3StockCell = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3StockCell({ value, lowStockThreshold = 3, tooltip, className = '' }) {
+    const isOutOfStock = value === 0;
+    const isLowStock = value > 0 && value <= lowStockThreshold;
+    let valueClass = 'n3-value-stock';
+    if (isOutOfStock) valueClass += ' out-of-stock';
+    else if (isLowStock) valueClass += ' low-stock';
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-table-cell n3-col-stock right ${className}`,
+        title: tooltip,
+        children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+            className: valueClass,
+            children: value
+        }, void 0, false, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-cell.tsx",
+            lineNumber: 182,
+            columnNumber: 7
+        }, this)
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-cell.tsx",
+        lineNumber: 178,
+        columnNumber: 5
+    }, this);
+});
+const __TURBOPACK__default__export__ = N3ProfitCell;
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-product-cell.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "N3ProductCell",
+    ()=>N3ProductCell,
+    "default",
+    ()=>__TURBOPACK__default__export__
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+/**
+ * N3ProductCell - 商品セル（画像 + 2行タイトル）
+ * 
+ * 用途:
+ * - テーブル行での商品情報表示
+ * - 日本語タイトル + 英語タイトルの2行表示
+ * - 画像クリックでモーダル/アクション
+ * 
+ * Design Spec:
+ * - 画像: 32x32px (default), 40x40px (large), 22x22px (compact)
+ * - タイトル: 11px (main), 10px (sub)
+ * - ホバー時: 画像にリング表示
+ */ var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$image$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Image$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/image.js [app-ssr] (ecmascript) <export default as Image>");
+'use client';
+;
+;
+;
+const LazyImage = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function LazyImage({ src, alt = '', size = 32, onClick, className = '' }) {
+    const [isVisible, setIsVisible] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false);
+    const [isLoaded, setIsLoaded] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false);
+    const [hasError, setHasError] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false);
+    const imgRef = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useRef"])(null);
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useEffect"])(()=>{
+        const observer = new IntersectionObserver(([entry])=>{
+            if (entry.isIntersecting) {
+                setIsVisible(true);
+                observer.disconnect();
+            }
+        }, {
+            rootMargin: '100px',
+            threshold: 0.1
+        });
+        if (imgRef.current) observer.observe(imgRef.current);
+        return ()=>observer.disconnect();
+    }, []);
+    const containerStyle = {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: `${size}px`,
+        height: `${size}px`,
+        flexShrink: 0,
+        borderRadius: 'var(--radius-sm, 4px)',
+        overflow: 'hidden',
+        background: 'var(--highlight, #f3f4f6)',
+        cursor: onClick ? 'pointer' : 'default',
+        transition: 'box-shadow 0.15s ease'
+    };
+    const hoverStyle = {
+        boxShadow: '0 0 0 2px var(--accent, #6366f1)'
+    };
+    const [hovered, setHovered] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false);
+    if (!src || hasError) {
+        return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            ref: imgRef,
+            onClick: onClick,
+            className: className,
+            style: {
+                ...containerStyle,
+                ...hovered ? hoverStyle : {}
+            },
+            onMouseEnter: ()=>setHovered(true),
+            onMouseLeave: ()=>setHovered(false),
+            children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$image$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Image$3e$__["Image"], {
+                size: size * 0.4,
+                style: {
+                    color: 'var(--text-subtle, #9ca3af)'
+                }
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-cell.tsx",
+                lineNumber: 87,
+                columnNumber: 9
+            }, this)
+        }, void 0, false, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-cell.tsx",
+            lineNumber: 79,
+            columnNumber: 7
+        }, this);
+    }
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        ref: imgRef,
+        onClick: onClick,
+        className: className,
+        style: {
+            ...containerStyle,
+            ...hovered ? hoverStyle : {}
+        },
+        onMouseEnter: ()=>setHovered(true),
+        onMouseLeave: ()=>setHovered(false),
+        children: isVisible ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("img", {
+            src: src,
+            alt: alt,
+            loading: "lazy",
+            decoding: "async",
+            style: {
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                opacity: isLoaded ? 1 : 0,
+                transition: 'opacity 0.3s'
+            },
+            onLoad: ()=>setIsLoaded(true),
+            onError: ()=>setHasError(true)
+        }, void 0, false, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-cell.tsx",
+            lineNumber: 102,
+            columnNumber: 9
+        }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            style: {
+                width: '100%',
+                height: '100%',
+                background: 'var(--highlight, #e5e7eb)',
+                animation: 'pulse 2s infinite'
+            }
+        }, void 0, false, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-cell.tsx",
+            lineNumber: 118,
+            columnNumber: 9
+        }, this)
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-cell.tsx",
+        lineNumber: 93,
+        columnNumber: 5
+    }, this);
+});
+const N3ProductCell = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3ProductCell({ imageUrl, title, subTitle, imageSize = 'md', wrapText = false, onImageClick, editable = false, onTitleChange, onSubTitleChange, className = '' }) {
+    const sizeMap = {
+        sm: 22,
+        md: 32,
+        lg: 40
+    };
+    const size = sizeMap[imageSize];
+    const containerStyle = {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        width: '100%',
+        height: '100%',
+        padding: '0 4px',
+        minWidth: 0
+    };
+    const titleContainerStyle = {
+        flex: 1,
+        minWidth: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        gap: '1px'
+    };
+    const titleStyle = {
+        fontSize: '11px',
+        fontWeight: 500,
+        color: 'var(--text, #1f2937)',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: wrapText ? 'normal' : 'nowrap',
+        lineHeight: '1.3'
+    };
+    const subTitleStyle = {
+        fontSize: '10px',
+        color: 'var(--text-muted, #6b7280)',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: wrapText ? 'normal' : 'nowrap',
+        lineHeight: '1.3'
+    };
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        style: containerStyle,
+        className: className,
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(LazyImage, {
+                src: imageUrl || null,
+                alt: title,
+                size: size,
+                onClick: onImageClick
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-cell.tsx",
+                lineNumber: 211,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: titleContainerStyle,
+                children: [
+                    editable ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
+                        type: "text",
+                        value: title,
+                        onChange: (e)=>onTitleChange?.(e.target.value),
+                        style: {
+                            ...titleStyle,
+                            background: 'transparent',
+                            border: 'none',
+                            outline: 'none',
+                            width: '100%',
+                            padding: 0,
+                            cursor: 'text'
+                        }
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-cell.tsx",
+                        lineNumber: 219,
+                        columnNumber: 11
+                    }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        style: titleStyle,
+                        title: title,
+                        children: title || '-'
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-cell.tsx",
+                        lineNumber: 234,
+                        columnNumber: 11
+                    }, this),
+                    subTitle !== undefined && (editable ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
+                        type: "text",
+                        value: subTitle,
+                        onChange: (e)=>onSubTitleChange?.(e.target.value),
+                        style: {
+                            ...subTitleStyle,
+                            background: 'transparent',
+                            border: 'none',
+                            outline: 'none',
+                            width: '100%',
+                            padding: 0,
+                            cursor: 'text'
+                        },
+                        placeholder: "English title"
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-cell.tsx",
+                        lineNumber: 240,
+                        columnNumber: 13
+                    }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        style: subTitleStyle,
+                        title: subTitle,
+                        children: subTitle || '-'
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-cell.tsx",
+                        lineNumber: 256,
+                        columnNumber: 13
+                    }, this))
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-cell.tsx",
+                lineNumber: 217,
+                columnNumber: 7
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-cell.tsx",
+        lineNumber: 210,
+        columnNumber: 5
+    }, this);
+});
+const __TURBOPACK__default__export__ = N3ProductCell;
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-editable-cell.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "N3EditableCell",
+    ()=>N3EditableCell,
+    "default",
+    ()=>__TURBOPACK__default__export__
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+/**
+ * N3EditableCell - ダブルクリック編集セル
+ * 
+ * 用途:
+ * - テーブルセルでの直接編集
+ * - クリックで編集モード
+ * - Enter/Tab で保存、Escape でキャンセル
+ * 
+ * Design Spec:
+ * - 編集時: 青いボーダー表示
+ * - 数値: 右寄せ、等幅フォント
+ * - 通貨: ¥ or $ プレフィックス
+ */ var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+'use client';
+;
+;
+const N3EditableCell = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3EditableCell({ value, field, id, type = 'text', currency = 'JPY', onChange, placeholder = '-', disabled = false, alignRight = false, mono = false, className = '', fontSize, textColor }) {
+    // ============================================
+    // すべてのフックをトップレベルに配置（Reactルール）
+    // ============================================
+    const [editing, setEditing] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false);
+    const [editValue, setEditValue] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(value ?? '');
+    const [hovered, setHovered] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false); // ← 早期リターン前に移動
+    const inputRef = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useRef"])(null);
+    // 編集開始時にフォーカス
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useEffect"])(()=>{
+        if (editing && inputRef.current) {
+            inputRef.current.focus();
+            inputRef.current.select();
+        }
+    }, [
+        editing
+    ]);
+    // 外部値が変更された場合に同期
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useEffect"])(()=>{
+        if (!editing) {
+            setEditValue(value ?? '');
+        }
+    }, [
+        value,
+        editing
+    ]);
+    // 保存処理
+    const handleSave = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])(()=>{
+        setEditing(false);
+        let finalValue = editValue;
+        if (type === 'number' || type === 'currency') {
+            // 数値に変換
+            const parsed = parseFloat(String(editValue).replace(/[^\d.-]/g, ''));
+            finalValue = isNaN(parsed) ? 0 : parsed;
+        }
+        // 値が変更された場合のみコールバック
+        if (String(finalValue) !== String(value)) {
+            onChange?.(id, field, finalValue);
+        }
+    }, [
+        editValue,
+        value,
+        type,
+        id,
+        field,
+        onChange
+    ]);
+    // キーボードイベント
+    const handleKeyDown = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])((e)=>{
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            handleSave();
+        }
+        if (e.key === 'Escape') {
+            setEditValue(value ?? '');
+            setEditing(false);
+        }
+        if (e.key === 'Tab') {
+            handleSave();
+        }
+    }, [
+        handleSave,
+        value
+    ]);
+    // 表示値のフォーマット
+    const formatDisplayValue = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])((val)=>{
+        if (val == null || val === '') return placeholder;
+        if (type === 'currency') {
+            const num = Number(val);
+            if (isNaN(num)) return placeholder;
+            if (currency === 'JPY') {
+                return `¥${num.toLocaleString()}`;
+            } else {
+                return `$${num.toFixed(2)}`;
+            }
+        }
+        if (type === 'number') {
+            const num = Number(val);
+            if (isNaN(num)) return placeholder;
+            return num.toLocaleString();
+        }
+        return String(val);
+    }, [
+        type,
+        currency,
+        placeholder
+    ]);
+    // ============================================
+    // レンダリング（条件分岐はフックの後）
+    // ============================================
+    // 編集モード
+    if (editing && !disabled) {
+        const inputStyle = {
+            width: '100%',
+            height: '100%',
+            padding: '2px 6px',
+            fontSize: fontSize || '11px',
+            fontFamily: mono ? 'var(--font-mono, monospace)' : 'inherit',
+            textAlign: alignRight || type === 'number' || type === 'currency' ? 'right' : 'left',
+            border: '2px solid var(--accent, #6366f1)',
+            borderRadius: 'var(--radius-sm, 4px)',
+            outline: 'none',
+            background: 'white',
+            color: textColor || 'var(--text, #1f2937)',
+            minWidth: '40px'
+        };
+        return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
+            ref: inputRef,
+            type: "text",
+            inputMode: type === 'number' || type === 'currency' ? 'numeric' : 'text',
+            value: editValue,
+            onChange: (e)=>setEditValue(e.target.value),
+            onBlur: handleSave,
+            onKeyDown: handleKeyDown,
+            style: inputStyle,
+            className: className
+        }, void 0, false, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-editable-cell.tsx",
+            lineNumber: 172,
+            columnNumber: 7
+        }, this);
+    }
+    // 表示モード
+    const displayStyle = {
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: alignRight || type === 'number' || type === 'currency' ? 'flex-end' : 'flex-start',
+        padding: '0 4px',
+        fontSize: fontSize || '11px',
+        fontFamily: mono || type === 'number' || type === 'currency' ? 'var(--font-mono, monospace)' : 'inherit',
+        color: value == null || value === '' ? 'var(--text-subtle, #9ca3af)' : textColor || 'var(--text, #1f2937)',
+        cursor: disabled ? 'default' : 'text',
+        borderRadius: 'var(--radius-sm, 4px)',
+        transition: 'background 0.1s ease',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap'
+    };
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        onClick: ()=>!disabled && setEditing(true),
+        style: {
+            ...displayStyle,
+            background: hovered && !disabled ? 'var(--highlight, #f3f4f6)' : 'transparent'
+        },
+        className: className,
+        title: disabled ? undefined : 'クリックで編集',
+        onMouseEnter: ()=>setHovered(true),
+        onMouseLeave: ()=>setHovered(false),
+        children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+            style: {
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+            },
+            children: formatDisplayValue(value)
+        }, void 0, false, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-editable-cell.tsx",
+            lineNumber: 217,
+            columnNumber: 7
+        }, this)
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-editable-cell.tsx",
+        lineNumber: 206,
+        columnNumber: 5
+    }, this);
+});
+const __TURBOPACK__default__export__ = N3EditableCell;
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * N3ExpandPanel - テーブル行展開パネル
+ * 
+ * EditingTableV2から抽出
+ * テーブル行をクリックした時に展開される詳細パネル
+ * 6列グリッド: SKU/画像 | 市場データ | サイズ | HTS | VERO | アクション
+ * 
+ * CSS: app/styles/components/table.css の .n3-expanded-* を使用
+ */ __turbopack_context__.s([
+    "N3ExpandPanel",
+    ()=>N3ExpandPanel,
+    "default",
+    ()=>__TURBOPACK__default__export__
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chart$2d$column$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__BarChart3$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/chart-column.js [app-ssr] (ecmascript) <export default as BarChart3>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$package$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Package$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/package.js [app-ssr] (ecmascript) <export default as Package>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$triangle$2d$alert$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__AlertTriangle$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/triangle-alert.js [app-ssr] (ecmascript) <export default as AlertTriangle>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$external$2d$link$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ExternalLink$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/external-link.js [app-ssr] (ecmascript) <export default as ExternalLink>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$pen$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Edit2$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/pen.js [app-ssr] (ecmascript) <export default as Edit2>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$trash$2d$2$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Trash2$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/trash-2.js [app-ssr] (ecmascript) <export default as Trash2>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$image$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Image$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/image.js [app-ssr] (ecmascript) <export default as Image>");
+'use client';
+;
+;
+;
+// ============================================
+// EditableCell - インライン編集セル
+// ============================================
+const EditableCell = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function EditableCell({ value, field, productId, type = 'text', currency, onCellChange, placeholder = '-' }) {
+    const [editing, setEditing] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false);
+    const [editValue, setEditValue] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(value ?? '');
+    const inputRef = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useRef"])(null);
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useEffect"])(()=>{
+        if (editing && inputRef.current) {
+            inputRef.current.focus();
+            inputRef.current.select();
+        }
+    }, [
+        editing
+    ]);
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useEffect"])(()=>{
+        if (!editing) setEditValue(value ?? '');
+    }, [
+        value,
+        editing
+    ]);
+    const handleSave = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])(()=>{
+        setEditing(false);
+        let finalValue = editValue;
+        if (type === 'number' || type === 'currency') {
+            finalValue = parseFloat(editValue) || 0;
+        }
+        if (String(finalValue) !== String(value) && onCellChange) {
+            onCellChange(productId, field, finalValue);
+        }
+    }, [
+        editValue,
+        value,
+        type,
+        productId,
+        field,
+        onCellChange
+    ]);
+    const handleKeyDown = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])((e)=>{
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            handleSave();
+        }
+        if (e.key === 'Escape') {
+            setEditValue(value ?? '');
+            setEditing(false);
+        }
+        if (e.key === 'Tab') handleSave();
+    }, [
+        handleSave,
+        value
+    ]);
+    if (editing) {
+        return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
+            ref: inputRef,
+            type: "text",
+            inputMode: type === 'number' || type === 'currency' ? 'numeric' : 'text',
+            value: editValue,
+            onChange: (e)=>setEditValue(e.target.value),
+            onBlur: handleSave,
+            onKeyDown: handleKeyDown,
+            style: {
+                width: '100%',
+                height: '24px',
+                padding: '0 8px',
+                fontSize: '12px',
+                border: '2px solid var(--accent)',
+                borderRadius: 'var(--radius-sm, 4px)',
+                background: 'var(--panel)',
+                color: 'var(--text)',
+                outline: 'none'
+            }
+        }, void 0, false, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+            lineNumber: 140,
+            columnNumber: 7
+        }, this);
+    }
+    let displayValue = value;
+    if (type === 'currency' && value != null) {
+        displayValue = currency === 'JPY' ? `¥${Number(value).toLocaleString()}` : `$${Number(value).toFixed(2)}`;
+    }
+    if (!displayValue && displayValue !== 0) displayValue = placeholder;
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        onClick: ()=>onCellChange && setEditing(true),
+        style: {
+            padding: '2px 4px',
+            cursor: onCellChange ? 'text' : 'default',
+            borderRadius: 'var(--radius-sm)',
+            transition: 'background 0.1s ease'
+        },
+        onMouseEnter: (e)=>onCellChange && (e.currentTarget.style.background = 'var(--highlight)'),
+        onMouseLeave: (e)=>e.currentTarget.style.background = 'transparent',
+        title: onCellChange ? 'クリックで編集' : undefined,
+        children: displayValue
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+        lineNumber: 170,
+        columnNumber: 5
+    }, this);
+});
+// ============================================
+// DataRow - データ行
+// ============================================
+const DataRow = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function DataRow({ label, value, valueColor, mono = false, editable, field, productId, type, currency, onCellChange }) {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: "n3-expanded-row",
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                className: "n3-expanded-label",
+                children: label
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                lineNumber: 215,
+                columnNumber: 7
+            }, this),
+            editable && field && productId ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(EditableCell, {
+                value: value,
+                field: field,
+                productId: productId,
+                type: type,
+                currency: currency,
+                onCellChange: onCellChange
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                lineNumber: 217,
+                columnNumber: 9
+            }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                className: mono ? 'n3-expanded-value' : '',
+                style: {
+                    color: valueColor
+                },
+                children: value ?? '-'
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                lineNumber: 226,
+                columnNumber: 9
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+        lineNumber: 214,
+        columnNumber: 5
+    }, this);
+});
+// ============================================
+// SectionCard - セクションカード
+// ============================================
+const SectionCard = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function SectionCard({ icon: Icon, title, color, children }) {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: "n3-expanded-section",
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "n3-expanded-section-header",
+                style: {
+                    color
+                },
+                children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(Icon, {
+                        size: 12
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                        lineNumber: 254,
+                        columnNumber: 9
+                    }, this),
+                    title
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                lineNumber: 253,
+                columnNumber: 7
+            }, this),
+            children
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+        lineNumber: 252,
+        columnNumber: 5
+    }, this);
+});
+const N3ExpandPanel = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3ExpandPanel({ product, onEdit, onDelete, onEbaySearch, onCellChange, customActions, className = '' }) {
+    const productId = String(product.id);
+    const handleEbaySearch = ()=>{
+        if (onEbaySearch) {
+            onEbaySearch();
+        } else {
+            const query = product.englishTitle || product.title || '';
+            window.open(`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(query)}`, '_blank');
+        }
+    };
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-expanded-panel ${className}`,
+        children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            className: "grid",
+            children: [
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                    style: {
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px'
+                    },
+                    children: [
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                            className: "n3-expanded-section",
+                            style: {
+                                fontSize: '12px'
+                            },
+                            children: [
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                    style: {
+                                        color: 'var(--text-muted)',
+                                        fontSize: '10px',
+                                        marginBottom: '4px'
+                                    },
+                                    children: "SKU / Master Key"
+                                }, void 0, false, {
+                                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                                    lineNumber: 291,
+                                    columnNumber: 13
+                                }, this),
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                    style: {
+                                        fontFamily: 'var(--font-mono)',
+                                        color: 'var(--text)'
+                                    },
+                                    children: product.sku || '-'
+                                }, void 0, false, {
+                                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                                    lineNumber: 294,
+                                    columnNumber: 13
+                                }, this),
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                    style: {
+                                        fontFamily: 'var(--font-mono)',
+                                        color: 'var(--text-muted)',
+                                        fontSize: '11px'
+                                    },
+                                    children: product.masterKey || '-'
+                                }, void 0, false, {
+                                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                                    lineNumber: 297,
+                                    columnNumber: 13
+                                }, this)
+                            ]
+                        }, void 0, true, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                            lineNumber: 290,
+                            columnNumber: 11
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                            className: "n3-expanded-main-image",
+                            children: product.mainImageUrl ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("img", {
+                                src: product.mainImageUrl,
+                                alt: "",
+                                loading: "lazy"
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                                lineNumber: 305,
+                                columnNumber: 15
+                            }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                style: {
+                                    width: '100%',
+                                    height: '100%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    background: 'var(--highlight)'
+                                },
+                                children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$image$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Image$3e$__["Image"], {
+                                    size: 24,
+                                    style: {
+                                        color: 'var(--text-subtle)'
+                                    }
+                                }, void 0, false, {
+                                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                                    lineNumber: 315,
+                                    columnNumber: 17
+                                }, this)
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                                lineNumber: 307,
+                                columnNumber: 15
+                            }, this)
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                            lineNumber: 303,
+                            columnNumber: 11
+                        }, this),
+                        product.galleryImages && product.galleryImages.length > 0 && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                            className: "n3-expanded-gallery",
+                            children: product.galleryImages.slice(0, 4).map((url, i)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("img", {
+                                    src: url,
+                                    alt: "",
+                                    loading: "lazy",
+                                    onClick: ()=>window.open(url, '_blank')
+                                }, i, false, {
+                                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                                    lineNumber: 324,
+                                    columnNumber: 17
+                                }, this))
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                            lineNumber: 322,
+                            columnNumber: 13
+                        }, this)
+                    ]
+                }, void 0, true, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                    lineNumber: 289,
+                    columnNumber: 9
+                }, this),
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(SectionCard, {
+                    icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chart$2d$column$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__BarChart3$3e$__["BarChart3"],
+                    title: "市場データ + DDU",
+                    color: "#3b82f6",
+                    children: [
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(DataRow, {
+                            label: "最安値",
+                            value: product.market?.lowestPrice ? `$${product.market.lowestPrice.toFixed(2)}` : null,
+                            valueColor: "var(--success)",
+                            mono: true
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                            lineNumber: 338,
+                            columnNumber: 11
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(DataRow, {
+                            label: "平均",
+                            value: product.market?.avgPrice ? `$${product.market.avgPrice.toFixed(2)}` : null,
+                            mono: true
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                            lineNumber: 344,
+                            columnNumber: 11
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(DataRow, {
+                            label: "競合",
+                            value: product.market?.competitorCount,
+                            valueColor: "#d97706",
+                            mono: true
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                            lineNumber: 349,
+                            columnNumber: 11
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(DataRow, {
+                            label: "販売",
+                            value: product.market?.salesCount,
+                            valueColor: "var(--success)",
+                            mono: true
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                            lineNumber: 355,
+                            columnNumber: 11
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                            className: "n3-expanded-divider"
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                            lineNumber: 361,
+                            columnNumber: 11
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(DataRow, {
+                            label: "販売(円)",
+                            value: product.priceJpy,
+                            mono: true,
+                            editable: !!onCellChange,
+                            field: "priceJpy",
+                            productId: productId,
+                            type: "currency",
+                            currency: "JPY",
+                            onCellChange: onCellChange
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                            lineNumber: 362,
+                            columnNumber: 11
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(DataRow, {
+                            label: "DDU利益",
+                            value: product.dduProfitUsd ? `$${product.dduProfitUsd.toFixed(0)}` : null,
+                            valueColor: "var(--success)",
+                            mono: true
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                            lineNumber: 373,
+                            columnNumber: 11
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(DataRow, {
+                            label: "DDU率",
+                            value: product.dduProfitMargin ? `${product.dduProfitMargin.toFixed(0)}%` : null,
+                            valueColor: "var(--success)",
+                            mono: true
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                            lineNumber: 379,
+                            columnNumber: 11
+                        }, this)
+                    ]
+                }, void 0, true, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                    lineNumber: 337,
+                    columnNumber: 9
+                }, this),
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(SectionCard, {
+                    icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$package$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Package$3e$__["Package"],
+                    title: "サイズ・重量",
+                    color: "#d97706",
+                    children: [
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(DataRow, {
+                            label: "幅(cm)",
+                            value: product.size?.widthCm,
+                            mono: true,
+                            editable: !!onCellChange,
+                            field: "widthCm",
+                            productId: productId,
+                            type: "number",
+                            onCellChange: onCellChange
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                            lineNumber: 389,
+                            columnNumber: 11
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(DataRow, {
+                            label: "奥行(cm)",
+                            value: product.size?.lengthCm,
+                            mono: true,
+                            editable: !!onCellChange,
+                            field: "lengthCm",
+                            productId: productId,
+                            type: "number",
+                            onCellChange: onCellChange
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                            lineNumber: 399,
+                            columnNumber: 11
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(DataRow, {
+                            label: "高さ(cm)",
+                            value: product.size?.heightCm,
+                            mono: true,
+                            editable: !!onCellChange,
+                            field: "heightCm",
+                            productId: productId,
+                            type: "number",
+                            onCellChange: onCellChange
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                            lineNumber: 409,
+                            columnNumber: 11
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(DataRow, {
+                            label: "重量(g)",
+                            value: product.size?.weightG,
+                            mono: true,
+                            editable: !!onCellChange,
+                            field: "weightG",
+                            productId: productId,
+                            type: "number",
+                            onCellChange: onCellChange
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                            lineNumber: 419,
+                            columnNumber: 11
+                        }, this)
+                    ]
+                }, void 0, true, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                    lineNumber: 388,
+                    columnNumber: 9
+                }, this),
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(SectionCard, {
+                    icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$package$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Package$3e$__["Package"],
+                    title: "HTS・関税",
+                    color: "#d97706",
+                    children: [
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(DataRow, {
+                            label: "HTSコード",
+                            value: product.hts?.htsCode,
+                            mono: true,
+                            editable: !!onCellChange,
+                            field: "htsCode",
+                            productId: productId,
+                            onCellChange: onCellChange
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                            lineNumber: 433,
+                            columnNumber: 11
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(DataRow, {
+                            label: "HTS関税率",
+                            value: product.hts?.htsDutyRate,
+                            mono: true,
+                            editable: !!onCellChange,
+                            field: "htsDutyRate",
+                            productId: productId,
+                            type: "number",
+                            onCellChange: onCellChange
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                            lineNumber: 442,
+                            columnNumber: 11
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(DataRow, {
+                            label: "原産国",
+                            value: product.hts?.originCountry,
+                            editable: !!onCellChange,
+                            field: "originCountry",
+                            productId: productId,
+                            onCellChange: onCellChange
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                            lineNumber: 452,
+                            columnNumber: 11
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(DataRow, {
+                            label: "原産国関税",
+                            value: product.hts?.originDutyRate ? `${product.hts.originDutyRate}%` : null,
+                            valueColor: "#d97706",
+                            mono: true
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                            lineNumber: 460,
+                            columnNumber: 11
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(DataRow, {
+                            label: "素材",
+                            value: product.hts?.material,
+                            editable: !!onCellChange,
+                            field: "material",
+                            productId: productId,
+                            onCellChange: onCellChange
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                            lineNumber: 466,
+                            columnNumber: 11
+                        }, this)
+                    ]
+                }, void 0, true, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                    lineNumber: 432,
+                    columnNumber: 9
+                }, this),
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(SectionCard, {
+                    icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$triangle$2d$alert$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__AlertTriangle$3e$__["AlertTriangle"],
+                    title: "VERO・カテゴリ",
+                    color: "#ef4444",
+                    children: [
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(DataRow, {
+                            label: "VERO",
+                            value: product.vero?.isVeroBrand ? '要注意' : 'OK',
+                            valueColor: product.vero?.isVeroBrand ? '#ef4444' : 'var(--success)'
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                            lineNumber: 478,
+                            columnNumber: 11
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(DataRow, {
+                            label: "カテゴリID",
+                            value: product.vero?.categoryId,
+                            mono: true
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                            lineNumber: 483,
+                            columnNumber: 11
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(DataRow, {
+                            label: "カテゴリ",
+                            value: product.vero?.categoryName
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                            lineNumber: 484,
+                            columnNumber: 11
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(DataRow, {
+                            label: "HTML",
+                            value: product.vero?.hasHtml ? '✓ 生成済み' : '未生成',
+                            valueColor: product.vero?.hasHtml ? 'var(--success)' : 'var(--text-subtle)'
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                            lineNumber: 485,
+                            columnNumber: 11
+                        }, this)
+                    ]
+                }, void 0, true, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                    lineNumber: 477,
+                    columnNumber: 9
+                }, this),
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                    style: {
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px'
+                    },
+                    children: [
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                            style: {
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                color: 'var(--text-muted)',
+                                marginBottom: '4px'
+                            },
+                            children: "ACTIONS"
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                            lineNumber: 494,
+                            columnNumber: 11
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                            className: "n3-expanded-btn secondary",
+                            onClick: handleEbaySearch,
+                            children: [
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$external$2d$link$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ExternalLink$3e$__["ExternalLink"], {
+                                    size: 12
+                                }, void 0, false, {
+                                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                                    lineNumber: 499,
+                                    columnNumber: 13
+                                }, this),
+                                " eBay検索"
+                            ]
+                        }, void 0, true, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                            lineNumber: 498,
+                            columnNumber: 11
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                            className: "n3-expanded-btn primary",
+                            onClick: onEdit,
+                            children: [
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$pen$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Edit2$3e$__["Edit2"], {
+                                    size: 12
+                                }, void 0, false, {
+                                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                                    lineNumber: 503,
+                                    columnNumber: 13
+                                }, this),
+                                " 編集"
+                            ]
+                        }, void 0, true, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                            lineNumber: 502,
+                            columnNumber: 11
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                            className: "n3-expanded-btn danger",
+                            onClick: onDelete,
+                            children: [
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$trash$2d$2$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Trash2$3e$__["Trash2"], {
+                                    size: 12
+                                }, void 0, false, {
+                                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                                    lineNumber: 507,
+                                    columnNumber: 13
+                                }, this),
+                                " 削除"
+                            ]
+                        }, void 0, true, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                            lineNumber: 506,
+                            columnNumber: 11
+                        }, this),
+                        customActions
+                    ]
+                }, void 0, true, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+                    lineNumber: 493,
+                    columnNumber: 9
+                }, this)
+            ]
+        }, void 0, true, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+            lineNumber: 287,
+            columnNumber: 7
+        }, this)
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-expand-panel.tsx",
+        lineNumber: 286,
+        columnNumber: 5
+    }, this);
+});
+const __TURBOPACK__default__export__ = N3ExpandPanel;
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-modal.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "N3ConfirmModal",
+    ()=>N3ConfirmModal,
+    "N3Modal",
+    ()=>N3Modal,
+    "default",
+    ()=>__TURBOPACK__default__export__
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$dom$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-dom.js [app-ssr] (ecmascript)");
+'use client';
+;
+;
+;
+const N3Modal = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3Modal({ open, onClose, title, description, children, footer, size = 'md', closeOnOverlay = true, closeOnEsc = true, showCloseButton = true, centered = true, className = '' }) {
+    const modalRef = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useRef"])(null);
+    const [portalTarget, setPortalTarget] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(null);
+    // ポータルターゲットを設定（テーマが適用された要素を優先）
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useEffect"])(()=>{
+        if (typeof document !== 'undefined') {
+            // data-theme 属性を持つ要素を探す
+            const themeRoot = document.querySelector('[data-theme]') || document.body;
+            setPortalTarget(themeRoot);
+        }
+    }, []);
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useEffect"])(()=>{
+        if (!open || !closeOnEsc) return;
+        const handleKeyDown = (e)=>{
+            if (e.key === 'Escape') {
+                onClose();
+            }
+        };
+        document.addEventListener('keydown', handleKeyDown);
+        return ()=>document.removeEventListener('keydown', handleKeyDown);
+    }, [
+        open,
+        closeOnEsc,
+        onClose
+    ]);
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useEffect"])(()=>{
+        if (open) {
+            const originalOverflow = document.body.style.overflow;
+            document.body.style.overflow = 'hidden';
+            return ()=>{
+                document.body.style.overflow = originalOverflow;
+            };
+        }
+    }, [
+        open
+    ]);
+    const handleOverlayClick = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])((e)=>{
+        if (closeOnOverlay && e.target === e.currentTarget) {
+            onClose();
+        }
+    }, [
+        closeOnOverlay,
+        onClose
+    ]);
+    if (!open) return null;
+    const sizeClass = {
+        sm: 'n3-modal-sm',
+        md: 'n3-modal-md',
+        lg: 'n3-modal-lg',
+        xl: 'n3-modal-xl',
+        full: 'n3-modal-full'
+    }[size];
+    const modal = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-modal-overlay ${centered ? 'centered' : ''}`,
+        onClick: handleOverlayClick,
+        role: "dialog",
+        "aria-modal": "true",
+        children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            ref: modalRef,
+            className: `n3-modal ${sizeClass} ${className}`,
+            onClick: (e)=>e.stopPropagation(),
+            children: [
+                (title || showCloseButton) && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                    className: "n3-modal-header",
+                    children: [
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                            className: "n3-modal-header-content",
+                            children: [
+                                title && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("h2", {
+                                    className: "n3-modal-title",
+                                    children: title
+                                }, void 0, false, {
+                                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal.tsx",
+                                    lineNumber: 107,
+                                    columnNumber: 25
+                                }, this),
+                                description && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                                    className: "n3-modal-description",
+                                    children: description
+                                }, void 0, false, {
+                                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal.tsx",
+                                    lineNumber: 108,
+                                    columnNumber: 31
+                                }, this)
+                            ]
+                        }, void 0, true, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal.tsx",
+                            lineNumber: 106,
+                            columnNumber: 13
+                        }, this),
+                        showCloseButton && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                            className: "n3-modal-close",
+                            onClick: onClose,
+                            "aria-label": "閉じる",
+                            children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("svg", {
+                                width: "20",
+                                height: "20",
+                                viewBox: "0 0 24 24",
+                                fill: "none",
+                                stroke: "currentColor",
+                                strokeWidth: "2",
+                                children: [
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("line", {
+                                        x1: "18",
+                                        y1: "6",
+                                        x2: "6",
+                                        y2: "18"
+                                    }, void 0, false, {
+                                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal.tsx",
+                                        lineNumber: 113,
+                                        columnNumber: 19
+                                    }, this),
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("line", {
+                                        x1: "6",
+                                        y1: "6",
+                                        x2: "18",
+                                        y2: "18"
+                                    }, void 0, false, {
+                                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal.tsx",
+                                        lineNumber: 114,
+                                        columnNumber: 19
+                                    }, this)
+                                ]
+                            }, void 0, true, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal.tsx",
+                                lineNumber: 112,
+                                columnNumber: 17
+                            }, this)
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal.tsx",
+                            lineNumber: 111,
+                            columnNumber: 15
+                        }, this)
+                    ]
+                }, void 0, true, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal.tsx",
+                    lineNumber: 105,
+                    columnNumber: 11
+                }, this),
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                    className: "n3-modal-body",
+                    children: children
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal.tsx",
+                    lineNumber: 121,
+                    columnNumber: 9
+                }, this),
+                footer && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                    className: "n3-modal-footer",
+                    children: footer
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal.tsx",
+                    lineNumber: 123,
+                    columnNumber: 20
+                }, this)
+            ]
+        }, void 0, true, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal.tsx",
+            lineNumber: 99,
+            columnNumber: 7
+        }, this)
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal.tsx",
+        lineNumber: 93,
+        columnNumber: 5
+    }, this);
+    if (typeof document !== 'undefined' && portalTarget) {
+        return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$dom$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["createPortal"])(modal, portalTarget);
+    }
+    return modal;
+});
+const N3ConfirmModal = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3ConfirmModal({ open, onClose, onConfirm, title = '確認', message, confirmLabel = 'OK', cancelLabel = 'キャンセル', variant = 'default', loading = false }) {
+    const confirmButtonClass = {
+        default: 'n3-btn-primary',
+        danger: 'n3-btn-danger',
+        warning: 'n3-btn-warning'
+    }[variant];
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(N3Modal, {
+        open: open,
+        onClose: onClose,
+        title: title,
+        size: "sm",
+        footer: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            className: "n3-modal-footer-buttons",
+            children: [
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                    className: "n3-btn n3-btn-secondary",
+                    onClick: onClose,
+                    disabled: loading,
+                    children: cancelLabel
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal.tsx",
+                    lineNumber: 175,
+                    columnNumber: 11
+                }, void 0),
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                    className: `n3-btn ${confirmButtonClass}`,
+                    onClick: onConfirm,
+                    disabled: loading,
+                    children: loading ? '処理中...' : confirmLabel
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal.tsx",
+                    lineNumber: 178,
+                    columnNumber: 11
+                }, void 0)
+            ]
+        }, void 0, true, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal.tsx",
+            lineNumber: 174,
+            columnNumber: 9
+        }, void 0),
+        children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+            className: "n3-confirm-message",
+            children: message
+        }, void 0, false, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal.tsx",
+            lineNumber: 184,
+            columnNumber: 7
+        }, this)
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal.tsx",
+        lineNumber: 168,
+        columnNumber: 5
+    }, this);
+});
+const __TURBOPACK__default__export__ = N3Modal;
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-tabs.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "N3Tabs",
+    ()=>N3Tabs,
+    "N3TabsContent",
+    ()=>N3TabsContent,
+    "N3TabsList",
+    ()=>N3TabsList,
+    "N3TabsRoot",
+    ()=>N3TabsRoot,
+    "N3TabsTrigger",
+    ()=>N3TabsTrigger,
+    "default",
+    ()=>__TURBOPACK__default__export__
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+'use client';
+;
+;
+const TabsContext = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["createContext"])(null);
+const useTabsContext = ()=>{
+    const context = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useContext"])(TabsContext);
+    if (!context) {
+        throw new Error('Tabs components must be used within N3Tabs');
+    }
+    return context;
+};
+const N3TabsRoot = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3TabsRoot({ defaultValue, value: controlledValue, onValueChange, children, className = '' }) {
+    const [internalValue, setInternalValue] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(defaultValue || '');
+    const activeTab = controlledValue ?? internalValue;
+    const handleTabChange = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])((tabId)=>{
+        setInternalValue(tabId);
+        onValueChange?.(tabId);
+    }, [
+        onValueChange
+    ]);
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(TabsContext.Provider, {
+        value: {
+            activeTab,
+            onTabChange: handleTabChange
+        },
+        children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            className: `n3-tabs-root ${className}`,
+            children: children
+        }, void 0, false, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tabs.tsx",
+            lineNumber: 54,
+            columnNumber: 7
+        }, this)
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tabs.tsx",
+        lineNumber: 53,
+        columnNumber: 5
+    }, this);
+});
+const N3TabsList = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3TabsList({ children, className = '', style }) {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-tabs-list ${className}`,
+        role: "tablist",
+        style: style,
+        children: children
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tabs.tsx",
+        lineNumber: 74,
+        columnNumber: 5
+    }, this);
+});
+const N3TabsTrigger = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3TabsTrigger({ value, children, disabled = false, className = '' }) {
+    const { activeTab, onTabChange } = useTabsContext();
+    const isActive = activeTab === value;
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+        className: `n3-tab-trigger ${isActive ? 'active' : ''} ${disabled ? 'disabled' : ''} ${className}`,
+        role: "tab",
+        "aria-selected": isActive,
+        "aria-disabled": disabled,
+        disabled: disabled,
+        onClick: ()=>!disabled && onTabChange(value),
+        children: children
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tabs.tsx",
+        lineNumber: 100,
+        columnNumber: 5
+    }, this);
+});
+const N3TabsContent = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3TabsContent({ value, children, className = '', style }) {
+    const { activeTab } = useTabsContext();
+    if (activeTab !== value) return null;
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-tabs-content ${className}`,
+        role: "tabpanel",
+        style: style,
+        children: children
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tabs.tsx",
+        lineNumber: 134,
+        columnNumber: 5
+    }, this);
+});
+const N3Tabs = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3Tabs({ tabs, activeTab: controlledActiveTab, defaultActiveTab, onChange, variant = 'default', size = 'md', fullWidth = false, children, className = '' }) {
+    const [internalActiveTab, setInternalActiveTab] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(defaultActiveTab || tabs[0]?.id);
+    const activeTab = controlledActiveTab ?? internalActiveTab;
+    const handleTabClick = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])((tabId)=>{
+        if (tabs.find((t)=>t.id === tabId)?.disabled) return;
+        setInternalActiveTab(tabId);
+        onChange?.(tabId);
+    }, [
+        tabs,
+        onChange
+    ]);
+    const activeTabContent = tabs.find((t)=>t.id === activeTab)?.content;
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-tabs ${className}`,
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: `n3-tabs-list ${variant} ${size} ${fullWidth ? 'full-width' : ''}`,
+                role: "tablist",
+                children: tabs.map((tab)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                        className: `n3-tab ${activeTab === tab.id ? 'active' : ''} ${tab.disabled ? 'disabled' : ''}`,
+                        role: "tab",
+                        "aria-selected": activeTab === tab.id,
+                        "aria-disabled": tab.disabled,
+                        tabIndex: tab.disabled ? -1 : 0,
+                        onClick: ()=>handleTabClick(tab.id),
+                        children: [
+                            tab.icon && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                className: "n3-tab-icon",
+                                children: tab.icon
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tabs.tsx",
+                                lineNumber: 211,
+                                columnNumber: 26
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                className: "n3-tab-label",
+                                children: tab.label
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tabs.tsx",
+                                lineNumber: 212,
+                                columnNumber: 13
+                            }, this),
+                            tab.badge !== undefined && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                className: "n3-tab-badge",
+                                children: tab.badge
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tabs.tsx",
+                                lineNumber: 214,
+                                columnNumber: 15
+                            }, this)
+                        ]
+                    }, tab.id, true, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tabs.tsx",
+                        lineNumber: 200,
+                        columnNumber: 11
+                    }, this))
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tabs.tsx",
+                lineNumber: 195,
+                columnNumber: 7
+            }, this),
+            (activeTabContent || children) && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "n3-tabs-content",
+                role: "tabpanel",
+                children: activeTabContent || children
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tabs.tsx",
+                lineNumber: 221,
+                columnNumber: 9
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tabs.tsx",
+        lineNumber: 194,
+        columnNumber: 5
+    }, this);
+});
+const __TURBOPACK__default__export__ = N3Tabs;
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-dropdown.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "N3Dropdown",
+    ()=>N3Dropdown,
+    "default",
+    ()=>__TURBOPACK__default__export__
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+'use client';
+;
+;
+const N3Dropdown = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3Dropdown({ trigger, items, placement = 'bottom-start', closeOnClick = true, closeOnOutsideClick = true, width, minWidth = 160, className = '' }) {
+    const [isOpen, setIsOpen] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false);
+    const dropdownRef = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useRef"])(null);
+    const triggerRef = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useRef"])(null);
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useEffect"])(()=>{
+        if (!isOpen || !closeOnOutsideClick) return;
+        const handleClickOutside = (e)=>{
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target) && triggerRef.current && !triggerRef.current.contains(e.target)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return ()=>document.removeEventListener('mousedown', handleClickOutside);
+    }, [
+        isOpen,
+        closeOnOutsideClick
+    ]);
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useEffect"])(()=>{
+        if (!isOpen) return;
+        const handleKeyDown = (e)=>{
+            if (e.key === 'Escape') {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('keydown', handleKeyDown);
+        return ()=>document.removeEventListener('keydown', handleKeyDown);
+    }, [
+        isOpen
+    ]);
+    const handleItemClick = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])((item)=>{
+        if (item.disabled) return;
+        item.onClick?.();
+        if (closeOnClick) {
+            setIsOpen(false);
+        }
+    }, [
+        closeOnClick
+    ]);
+    const placementClass = {
+        'bottom-start': 'placement-bottom-start',
+        'bottom-end': 'placement-bottom-end',
+        'top-start': 'placement-top-start',
+        'top-end': 'placement-top-end'
+    }[placement];
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-dropdown ${className}`,
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                ref: triggerRef,
+                className: "n3-dropdown-trigger",
+                onClick: ()=>setIsOpen(!isOpen),
+                children: trigger
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-dropdown.tsx",
+                lineNumber: 95,
+                columnNumber: 7
+            }, this),
+            isOpen && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                ref: dropdownRef,
+                className: `n3-dropdown-menu ${placementClass}`,
+                style: {
+                    width,
+                    minWidth
+                },
+                children: items.map((item)=>item.divider ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "n3-dropdown-divider"
+                    }, item.id, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-dropdown.tsx",
+                        lineNumber: 111,
+                        columnNumber: 15
+                    }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                        className: `n3-dropdown-item ${item.disabled ? 'disabled' : ''} ${item.danger ? 'danger' : ''}`,
+                        onClick: ()=>handleItemClick(item),
+                        disabled: item.disabled,
+                        children: [
+                            item.icon && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                className: "n3-dropdown-item-icon",
+                                children: item.icon
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-dropdown.tsx",
+                                lineNumber: 121,
+                                columnNumber: 31
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                className: "n3-dropdown-item-label",
+                                children: item.label
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-dropdown.tsx",
+                                lineNumber: 122,
+                                columnNumber: 17
+                            }, this)
+                        ]
+                    }, item.id, true, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-dropdown.tsx",
+                        lineNumber: 113,
+                        columnNumber: 15
+                    }, this))
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-dropdown.tsx",
+                lineNumber: 104,
+                columnNumber: 9
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-dropdown.tsx",
+        lineNumber: 94,
+        columnNumber: 5
+    }, this);
+});
+const __TURBOPACK__default__export__ = N3Dropdown;
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-card.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "N3Card",
+    ()=>N3Card,
+    "N3StatCard",
+    ()=>N3StatCard,
+    "default",
+    ()=>__TURBOPACK__default__export__
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+'use client';
+;
+;
+const N3Card = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3Card({ children, title, subtitle, headerActions, footer, padding = 'md', bordered = true, shadow = 'sm', hoverable = false, clickable = false, onClick, className = '' }) {
+    const cardClass = [
+        'n3-card',
+        `padding-${padding}`,
+        bordered && 'bordered',
+        shadow !== 'none' && `shadow-${shadow}`,
+        hoverable && 'hoverable',
+        clickable && 'clickable',
+        className
+    ].filter(Boolean).join(' ');
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: cardClass,
+        onClick: clickable ? onClick : undefined,
+        role: clickable ? 'button' : undefined,
+        tabIndex: clickable ? 0 : undefined,
+        children: [
+            (title || subtitle || headerActions) && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "n3-card-header",
+                children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "n3-card-header-content",
+                        children: [
+                            title && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("h3", {
+                                className: "n3-card-title",
+                                children: title
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card.tsx",
+                                lineNumber: 59,
+                                columnNumber: 23
+                            }, this),
+                            subtitle && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                                className: "n3-card-subtitle",
+                                children: subtitle
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card.tsx",
+                                lineNumber: 60,
+                                columnNumber: 26
+                            }, this)
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card.tsx",
+                        lineNumber: 58,
+                        columnNumber: 11
+                    }, this),
+                    headerActions && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "n3-card-header-actions",
+                        children: headerActions
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card.tsx",
+                        lineNumber: 63,
+                        columnNumber: 13
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card.tsx",
+                lineNumber: 57,
+                columnNumber: 9
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "n3-card-body",
+                children: children
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card.tsx",
+                lineNumber: 68,
+                columnNumber: 7
+            }, this),
+            footer && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "n3-card-footer",
+                children: footer
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card.tsx",
+                lineNumber: 70,
+                columnNumber: 18
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card.tsx",
+        lineNumber: 50,
+        columnNumber: 5
+    }, this);
+});
+const N3StatCard = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3StatCard({ label, value, change, changeLabel, icon, color = 'default', showTrend = true, className = '' }) {
+    const isPositive = change !== undefined && change >= 0;
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-stat-card ${color} ${className}`,
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "n3-stat-card-header",
+                children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                        className: "n3-stat-card-label",
+                        children: label
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card.tsx",
+                        lineNumber: 104,
+                        columnNumber: 9
+                    }, this),
+                    icon && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                        className: "n3-stat-card-icon",
+                        children: icon
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card.tsx",
+                        lineNumber: 105,
+                        columnNumber: 18
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card.tsx",
+                lineNumber: 103,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "n3-stat-card-value",
+                children: value
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card.tsx",
+                lineNumber: 108,
+                columnNumber: 7
+            }, this),
+            change !== undefined && showTrend && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: `n3-stat-card-change ${isPositive ? 'positive' : 'negative'}`,
+                children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                        className: "n3-stat-card-change-icon",
+                        children: isPositive ? '↑' : '↓'
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card.tsx",
+                        lineNumber: 112,
+                        columnNumber: 11
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                        className: "n3-stat-card-change-value",
+                        children: [
+                            Math.abs(change),
+                            "%"
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card.tsx",
+                        lineNumber: 115,
+                        columnNumber: 11
+                    }, this),
+                    changeLabel && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                        className: "n3-stat-card-change-label",
+                        children: changeLabel
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card.tsx",
+                        lineNumber: 119,
+                        columnNumber: 13
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card.tsx",
+                lineNumber: 111,
+                columnNumber: 9
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card.tsx",
+        lineNumber: 102,
+        columnNumber: 5
+    }, this);
+});
+const __TURBOPACK__default__export__ = N3Card;
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-card-list.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * N3CardList - 商品カードリストコンポーネント
+ * 
+ * 汎用的なカードグリッド表示
+ * /approval や /zaiko/tanaoroshi などで使用
+ */ __turbopack_context__.s([
+    "N3CardList",
+    ()=>N3CardList,
+    "default",
+    ()=>__TURBOPACK__default__export__
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$presentational$2f$n3$2d$badge$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/components/n3/presentational/n3-badge.tsx [app-ssr] (ecmascript)");
+'use client';
+;
+;
+// ============================================================
+// Status Config
+// ============================================================
+const STATUS_CONFIG = {
+    pending: {
+        bg: 'rgba(245, 158, 11, 0.1)',
+        text: '#d97706',
+        border: '#fcd34d',
+        label: '⏳ 保留中'
+    },
+    approved: {
+        bg: 'rgba(34, 197, 94, 0.1)',
+        text: '#16a34a',
+        border: '#86efac',
+        label: '✅ 承認済み'
+    },
+    rejected: {
+        bg: 'rgba(239, 68, 68, 0.1)',
+        text: '#dc2626',
+        border: '#fca5a5',
+        label: '❌ 否認済み'
+    },
+    active: {
+        bg: 'rgba(59, 130, 246, 0.1)',
+        text: '#2563eb',
+        border: '#93c5fd',
+        label: '🟢 有効'
+    },
+    inactive: {
+        bg: 'rgba(107, 114, 128, 0.1)',
+        text: '#6b7280',
+        border: '#d1d5db',
+        label: '⚪ 無効'
+    }
+};
+function N3CardList({ items, selectedIds = new Set(), onSelect, onItemClick, columns = 'auto', cardSize = 'md', selectable = false, renderActions, emptyMessage = '表示するアイテムがありません' }) {
+    // サイズ設定
+    const sizeConfig = {
+        sm: {
+            minWidth: 180,
+            imageHeight: 120,
+            padding: 12,
+            fontSize: 11
+        },
+        md: {
+            minWidth: 240,
+            imageHeight: 160,
+            padding: 16,
+            fontSize: 13
+        },
+        lg: {
+            minWidth: 300,
+            imageHeight: 200,
+            padding: 20,
+            fontSize: 14
+        }
+    };
+    const config = sizeConfig[cardSize];
+    // グリッドスタイル
+    const gridStyle = {
+        display: 'grid',
+        gap: 16,
+        gridTemplateColumns: columns === 'auto' ? `repeat(auto-fill, minmax(${config.minWidth}px, 1fr))` : `repeat(${columns}, 1fr)`
+    };
+    if (items.length === 0) {
+        return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            className: "flex items-center justify-center py-12 text-[var(--text-muted)]",
+            children: emptyMessage
+        }, void 0, false, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card-list.tsx",
+            lineNumber: 89,
+            columnNumber: 7
+        }, this);
+    }
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        style: gridStyle,
+        children: items.map((item)=>{
+            const isSelected = selectedIds.has(item.id);
+            const statusConfig = item.status ? STATUS_CONFIG[item.status] : null;
+            return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "relative bg-[var(--panel)] border border-[var(--panel-border)] rounded-lg overflow-hidden transition-all hover:shadow-lg cursor-pointer",
+                style: {
+                    boxShadow: isSelected ? '0 0 0 3px var(--accent)' : undefined
+                },
+                onClick: ()=>onItemClick?.(item),
+                children: [
+                    selectable && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "absolute top-3 left-3 z-10",
+                        children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
+                            type: "checkbox",
+                            checked: isSelected,
+                            onChange: (e)=>{
+                                e.stopPropagation();
+                                onSelect?.(item.id);
+                            },
+                            className: "w-5 h-5 cursor-pointer accent-[var(--accent)]",
+                            style: {
+                                accentColor: 'var(--accent)'
+                            }
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card-list.tsx",
+                            lineNumber: 113,
+                            columnNumber: 17
+                        }, this)
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card-list.tsx",
+                        lineNumber: 112,
+                        columnNumber: 15
+                    }, this),
+                    statusConfig && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "absolute top-3 right-3 z-10",
+                        children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                            className: "px-2 py-1 rounded-full text-xs font-bold",
+                            style: {
+                                background: statusConfig.bg,
+                                color: statusConfig.text,
+                                border: `1px solid ${statusConfig.border}`
+                            },
+                            children: item.statusLabel || statusConfig.label
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card-list.tsx",
+                            lineNumber: 129,
+                            columnNumber: 17
+                        }, this)
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card-list.tsx",
+                        lineNumber: 128,
+                        columnNumber: 15
+                    }, this),
+                    item.image && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "bg-[var(--highlight)]",
+                        style: {
+                            height: config.imageHeight
+                        },
+                        children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("img", {
+                            src: item.image,
+                            alt: item.title,
+                            className: "w-full h-full object-cover",
+                            onError: (e)=>{
+                                e.target.src = '/placeholder-product.png';
+                            }
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card-list.tsx",
+                            lineNumber: 148,
+                            columnNumber: 17
+                        }, this)
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card-list.tsx",
+                        lineNumber: 144,
+                        columnNumber: 15
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        style: {
+                            padding: config.padding
+                        },
+                        children: [
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("h3", {
+                                className: "font-bold text-[var(--text)] line-clamp-2",
+                                style: {
+                                    fontSize: config.fontSize + 1,
+                                    minHeight: '2.5em'
+                                },
+                                title: item.title,
+                                children: item.title
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card-list.tsx",
+                                lineNumber: 162,
+                                columnNumber: 15
+                            }, this),
+                            item.subtitle && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                                className: "text-[var(--text-muted)] mt-1 line-clamp-1",
+                                style: {
+                                    fontSize: config.fontSize - 1
+                                },
+                                children: item.subtitle
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card-list.tsx",
+                                lineNumber: 172,
+                                columnNumber: 17
+                            }, this),
+                            item.badges && item.badges.length > 0 && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                className: "flex flex-wrap gap-1 mt-2",
+                                children: item.badges.map((badge, idx)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$presentational$2f$n3$2d$badge$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["N3Badge"], {
+                                        variant: badge.variant || 'muted',
+                                        size: "sm",
+                                        children: badge.label
+                                    }, idx, false, {
+                                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card-list.tsx",
+                                        lineNumber: 184,
+                                        columnNumber: 21
+                                    }, this))
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card-list.tsx",
+                                lineNumber: 182,
+                                columnNumber: 17
+                            }, this),
+                            item.metrics && item.metrics.length > 0 && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                className: "grid grid-cols-2 gap-2 mt-3",
+                                children: item.metrics.map((metric, idx)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                        className: "text-center p-2 bg-[var(--highlight)] rounded",
+                                        children: [
+                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                className: "font-bold",
+                                                style: {
+                                                    fontSize: config.fontSize + 2,
+                                                    color: metric.color || 'var(--text)'
+                                                },
+                                                children: metric.value
+                                            }, void 0, false, {
+                                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card-list.tsx",
+                                                lineNumber: 199,
+                                                columnNumber: 23
+                                            }, this),
+                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                className: "text-[var(--text-muted)]",
+                                                style: {
+                                                    fontSize: config.fontSize - 2
+                                                },
+                                                children: metric.label
+                                            }, void 0, false, {
+                                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card-list.tsx",
+                                                lineNumber: 208,
+                                                columnNumber: 23
+                                            }, this)
+                                        ]
+                                    }, idx, true, {
+                                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card-list.tsx",
+                                        lineNumber: 195,
+                                        columnNumber: 21
+                                    }, this))
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card-list.tsx",
+                                lineNumber: 193,
+                                columnNumber: 17
+                            }, this),
+                            item.metadata && Object.keys(item.metadata).length > 0 && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                className: "mt-3 space-y-1",
+                                children: Object.entries(item.metadata).map(([key, value])=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                        className: "flex justify-between text-[var(--text-muted)]",
+                                        style: {
+                                            fontSize: config.fontSize - 2
+                                        },
+                                        children: [
+                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                                children: [
+                                                    key,
+                                                    ":"
+                                                ]
+                                            }, void 0, true, {
+                                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card-list.tsx",
+                                                lineNumber: 228,
+                                                columnNumber: 23
+                                            }, this),
+                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                                className: "font-medium",
+                                                children: value
+                                            }, void 0, false, {
+                                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card-list.tsx",
+                                                lineNumber: 229,
+                                                columnNumber: 23
+                                            }, this)
+                                        ]
+                                    }, key, true, {
+                                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card-list.tsx",
+                                        lineNumber: 223,
+                                        columnNumber: 21
+                                    }, this))
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card-list.tsx",
+                                lineNumber: 221,
+                                columnNumber: 17
+                            }, this),
+                            renderActions && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                className: "mt-3 pt-3 border-t border-[var(--panel-border)]",
+                                children: renderActions(item)
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card-list.tsx",
+                                lineNumber: 237,
+                                columnNumber: 17
+                            }, this)
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card-list.tsx",
+                        lineNumber: 160,
+                        columnNumber: 13
+                    }, this)
+                ]
+            }, item.id, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card-list.tsx",
+                lineNumber: 102,
+                columnNumber: 11
+            }, this);
+        })
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-card-list.tsx",
+        lineNumber: 96,
+        columnNumber: 5
+    }, this);
+}
+const __TURBOPACK__default__export__ = N3CardList;
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-toast.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "N3ToastContainer",
+    ()=>N3ToastContainer,
+    "default",
+    ()=>__TURBOPACK__default__export__,
+    "useToast",
+    ()=>useToast
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$dom$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-dom.js [app-ssr] (ecmascript)");
+'use client';
+;
+;
+;
+const N3ToastItem = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3ToastItem({ toast, onClose }) {
+    const [isExiting, setIsExiting] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false);
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useEffect"])(()=>{
+        if (toast.duration && toast.duration > 0) {
+            const timer = setTimeout(()=>{
+                handleClose();
+            }, toast.duration);
+            return ()=>clearTimeout(timer);
+        }
+    }, [
+        toast.duration
+    ]);
+    const handleClose = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])(()=>{
+        setIsExiting(true);
+        setTimeout(()=>{
+            onClose(toast.id);
+        }, 300);
+    }, [
+        toast.id,
+        onClose
+    ]);
+    const icons = {
+        info: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("svg", {
+            width: "20",
+            height: "20",
+            viewBox: "0 0 24 24",
+            fill: "currentColor",
+            children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("path", {
+                d: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-toast.tsx",
+                lineNumber: 50,
+                columnNumber: 9
+            }, this)
+        }, void 0, false, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-toast.tsx",
+            lineNumber: 49,
+            columnNumber: 7
+        }, this),
+        success: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("svg", {
+            width: "20",
+            height: "20",
+            viewBox: "0 0 24 24",
+            fill: "currentColor",
+            children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("path", {
+                d: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-toast.tsx",
+                lineNumber: 55,
+                columnNumber: 9
+            }, this)
+        }, void 0, false, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-toast.tsx",
+            lineNumber: 54,
+            columnNumber: 7
+        }, this),
+        warning: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("svg", {
+            width: "20",
+            height: "20",
+            viewBox: "0 0 24 24",
+            fill: "currentColor",
+            children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("path", {
+                d: "M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-toast.tsx",
+                lineNumber: 60,
+                columnNumber: 9
+            }, this)
+        }, void 0, false, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-toast.tsx",
+            lineNumber: 59,
+            columnNumber: 7
+        }, this),
+        error: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("svg", {
+            width: "20",
+            height: "20",
+            viewBox: "0 0 24 24",
+            fill: "currentColor",
+            children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("path", {
+                d: "M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z"
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-toast.tsx",
+                lineNumber: 65,
+                columnNumber: 9
+            }, this)
+        }, void 0, false, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-toast.tsx",
+            lineNumber: 64,
+            columnNumber: 7
+        }, this)
+    };
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-toast ${toast.type} ${isExiting ? 'exiting' : ''}`,
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "n3-toast-icon",
+                children: icons[toast.type]
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-toast.tsx",
+                lineNumber: 72,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "n3-toast-content",
+                children: [
+                    toast.title && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "n3-toast-title",
+                        children: toast.title
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-toast.tsx",
+                        lineNumber: 74,
+                        columnNumber: 25
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "n3-toast-message",
+                        children: toast.message
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-toast.tsx",
+                        lineNumber: 75,
+                        columnNumber: 9
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-toast.tsx",
+                lineNumber: 73,
+                columnNumber: 7
+            }, this),
+            toast.closable !== false && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                className: "n3-toast-close",
+                onClick: handleClose,
+                children: "×"
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-toast.tsx",
+                lineNumber: 78,
+                columnNumber: 9
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-toast.tsx",
+        lineNumber: 71,
+        columnNumber: 5
+    }, this);
+});
+const N3ToastContainer = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3ToastContainer({ toasts, onClose, position = 'top-right' }) {
+    if (!toasts || toasts.length === 0) return null;
+    const container = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-toast-container ${position}`,
+        children: toasts.map((toast)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(N3ToastItem, {
+                toast: toast,
+                onClose: onClose
+            }, toast.id, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-toast.tsx",
+                lineNumber: 103,
+                columnNumber: 9
+            }, this))
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-toast.tsx",
+        lineNumber: 101,
+        columnNumber: 5
+    }, this);
+    if (typeof document !== 'undefined') {
+        return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$dom$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["createPortal"])(container, document.body);
+    }
+    return container;
+});
+// ============================================
+// useToast - トースト管理フック
+// ============================================
+let toastId = 0;
+function useToast() {
+    const [toasts, setToasts] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])([]);
+    const addToast = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])((toast)=>{
+        const id = `toast-${++toastId}`;
+        setToasts((prev)=>[
+                ...prev,
+                {
+                    ...toast,
+                    id
+                }
+            ]);
+        return id;
+    }, []);
+    const removeToast = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])((id)=>{
+        setToasts((prev)=>prev.filter((t)=>t.id !== id));
+    }, []);
+    const toast = {
+        info: (message, options)=>addToast({
+                type: 'info',
+                message,
+                duration: 5000,
+                ...options
+            }),
+        success: (message, options)=>addToast({
+                type: 'success',
+                message,
+                duration: 5000,
+                ...options
+            }),
+        warning: (message, options)=>addToast({
+                type: 'warning',
+                message,
+                duration: 7000,
+                ...options
+            }),
+        error: (message, options)=>addToast({
+                type: 'error',
+                message,
+                duration: 10000,
+                ...options
+            })
+    };
+    return {
+        toasts,
+        addToast,
+        removeToast,
+        toast
+    };
+}
+const __TURBOPACK__default__export__ = N3ToastContainer;
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-loading.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "N3Loading",
+    ()=>N3Loading,
+    "N3LoadingDots",
+    ()=>N3LoadingDots,
+    "default",
+    ()=>__TURBOPACK__default__export__
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+'use client';
+;
+;
+const N3Loading = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3Loading({ size = 'md', color = 'primary', text, fullScreen = false, overlay = false, centered = false, className = '' }) {
+    const sizeMap = {
+        xs: 16,
+        sm: 20,
+        md: 28,
+        lg: 36,
+        xl: 48
+    };
+    const spinnerSize = sizeMap[size];
+    const colorMap = {
+        primary: 'var(--accent, #6366f1)',
+        secondary: 'var(--text-muted, #6b7280)',
+        white: '#ffffff',
+        current: 'currentColor'
+    };
+    const spinnerStyle = {
+        width: spinnerSize,
+        height: spinnerSize,
+        animation: 'n3-spinner-rotate 1s linear infinite'
+    };
+    const circleStyle = {
+        stroke: colorMap[color],
+        strokeLinecap: 'round',
+        animation: 'n3-spinner-dash 1.5s ease-in-out infinite'
+    };
+    const containerStyle = {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '8px',
+        ...centered && {
+            justifyContent: 'center'
+        }
+    };
+    const content = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Fragment"], {
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("style", {
+                children: `
+        @keyframes n3-spinner-rotate {
+          100% { transform: rotate(360deg); }
+        }
+        @keyframes n3-spinner-dash {
+          0% { stroke-dasharray: 1, 150; stroke-dashoffset: 0; }
+          50% { stroke-dasharray: 90, 150; stroke-dashoffset: -35; }
+          100% { stroke-dasharray: 90, 150; stroke-dashoffset: -124; }
+        }
+      `
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-loading.tsx",
+                lineNumber: 59,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: containerStyle,
+                className: className,
+                children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("svg", {
+                        style: spinnerStyle,
+                        viewBox: "0 0 50 50",
+                        children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("circle", {
+                            cx: "25",
+                            cy: "25",
+                            r: "20",
+                            fill: "none",
+                            strokeWidth: "4",
+                            style: circleStyle
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-loading.tsx",
+                            lineNumber: 71,
+                            columnNumber: 11
+                        }, this)
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-loading.tsx",
+                        lineNumber: 70,
+                        columnNumber: 9
+                    }, this),
+                    text && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                        style: {
+                            fontSize: '14px',
+                            color: 'var(--text-muted, #6b7280)'
+                        },
+                        children: text
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-loading.tsx",
+                        lineNumber: 81,
+                        columnNumber: 11
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-loading.tsx",
+                lineNumber: 69,
+                columnNumber: 7
+            }, this)
+        ]
+    }, void 0, true);
+    if (fullScreen) {
+        return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            style: {
+                position: 'fixed',
+                inset: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'rgba(0, 0, 0, 0.5)',
+                zIndex: 9999
+            },
+            children: content
+        }, void 0, false, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-loading.tsx",
+            lineNumber: 91,
+            columnNumber: 7
+        }, this);
+    }
+    if (overlay) {
+        return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            style: {
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'rgba(255, 255, 255, 0.8)',
+                zIndex: 10
+            },
+            children: content
+        }, void 0, false, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-loading.tsx",
+            lineNumber: 107,
+            columnNumber: 7
+        }, this);
+    }
+    return content;
+});
+const N3LoadingDots = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3LoadingDots({ size = 'md', color = 'primary', className = '' }) {
+    const sizeMap = {
+        sm: 6,
+        md: 8,
+        lg: 10
+    };
+    const dotSize = sizeMap[size];
+    const colorMap = {
+        primary: 'var(--accent, #6366f1)',
+        secondary: 'var(--text-muted, #6b7280)',
+        white: '#ffffff',
+        current: 'currentColor'
+    };
+    const dotStyle = {
+        width: dotSize,
+        height: dotSize,
+        borderRadius: '50%',
+        background: colorMap[color]
+    };
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Fragment"], {
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("style", {
+                children: `
+        @keyframes n3-dot-bounce {
+          0%, 80%, 100% { transform: scale(0); }
+          40% { transform: scale(1); }
+        }
+      `
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-loading.tsx",
+                lineNumber: 157,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    display: 'flex',
+                    gap: '4px'
+                },
+                className: className,
+                children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                        style: {
+                            ...dotStyle,
+                            animation: 'n3-dot-bounce 1.4s infinite ease-in-out',
+                            animationDelay: '-0.32s'
+                        }
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-loading.tsx",
+                        lineNumber: 164,
+                        columnNumber: 9
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                        style: {
+                            ...dotStyle,
+                            animation: 'n3-dot-bounce 1.4s infinite ease-in-out',
+                            animationDelay: '-0.16s'
+                        }
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-loading.tsx",
+                        lineNumber: 165,
+                        columnNumber: 9
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                        style: {
+                            ...dotStyle,
+                            animation: 'n3-dot-bounce 1.4s infinite ease-in-out'
+                        }
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-loading.tsx",
+                        lineNumber: 166,
+                        columnNumber: 9
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-loading.tsx",
+                lineNumber: 163,
+                columnNumber: 7
+            }, this)
+        ]
+    }, void 0, true);
+});
+const __TURBOPACK__default__export__ = N3Loading;
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-empty-state.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "N3EmptyError",
+    ()=>N3EmptyError,
+    "N3EmptySearch",
+    ()=>N3EmptySearch,
+    "N3EmptyState",
+    ()=>N3EmptyState,
+    "default",
+    ()=>__TURBOPACK__default__export__
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+'use client';
+;
+;
+const N3EmptyState = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3EmptyState({ icon, title = 'データがありません', description, action, size = 'md', className = '' }) {
+    const defaultIcon = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("svg", {
+        width: "64",
+        height: "64",
+        viewBox: "0 0 24 24",
+        fill: "none",
+        stroke: "currentColor",
+        strokeWidth: "1.5",
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("path", {
+                d: "M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2Z"
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-empty-state.tsx",
+                lineNumber: 27,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("path", {
+                d: "M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-empty-state.tsx",
+                lineNumber: 28,
+                columnNumber: 7
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-empty-state.tsx",
+        lineNumber: 26,
+        columnNumber: 5
+    }, this);
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-empty-state ${size} ${className}`,
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "n3-empty-state-icon",
+                children: icon || defaultIcon
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-empty-state.tsx",
+                lineNumber: 34,
+                columnNumber: 7
+            }, this),
+            title && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("h3", {
+                className: "n3-empty-state-title",
+                children: title
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-empty-state.tsx",
+                lineNumber: 35,
+                columnNumber: 17
+            }, this),
+            description && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                className: "n3-empty-state-description",
+                children: description
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-empty-state.tsx",
+                lineNumber: 36,
+                columnNumber: 23
+            }, this),
+            action && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "n3-empty-state-action",
+                children: action
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-empty-state.tsx",
+                lineNumber: 37,
+                columnNumber: 18
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-empty-state.tsx",
+        lineNumber: 33,
+        columnNumber: 5
+    }, this);
+});
+const N3EmptySearch = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3EmptySearch({ query, onClear }) {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(N3EmptyState, {
+        icon: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("svg", {
+            width: "64",
+            height: "64",
+            viewBox: "0 0 24 24",
+            fill: "none",
+            stroke: "currentColor",
+            strokeWidth: "1.5",
+            children: [
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("circle", {
+                    cx: "11",
+                    cy: "11",
+                    r: "8"
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-empty-state.tsx",
+                    lineNumber: 57,
+                    columnNumber: 11
+                }, void 0),
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("path", {
+                    d: "m21 21-4.35-4.35"
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-empty-state.tsx",
+                    lineNumber: 58,
+                    columnNumber: 11
+                }, void 0),
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("path", {
+                    d: "M8 8l6 6M14 8l-6 6"
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-empty-state.tsx",
+                    lineNumber: 59,
+                    columnNumber: 11
+                }, void 0)
+            ]
+        }, void 0, true, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-empty-state.tsx",
+            lineNumber: 56,
+            columnNumber: 9
+        }, void 0),
+        title: "検索結果がありません",
+        description: query ? `「${query}」に一致する結果が見つかりませんでした。` : '条件を変更して再度お試しください。',
+        action: onClear && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+            className: "n3-btn n3-btn-secondary",
+            onClick: onClear,
+            children: "検索条件をクリア"
+        }, void 0, false, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-empty-state.tsx",
+            lineNumber: 66,
+            columnNumber: 11
+        }, void 0)
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-empty-state.tsx",
+        lineNumber: 54,
+        columnNumber: 5
+    }, this);
+});
+const N3EmptyError = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3EmptyError({ message, onRetry }) {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(N3EmptyState, {
+        icon: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("svg", {
+            width: "64",
+            height: "64",
+            viewBox: "0 0 24 24",
+            fill: "none",
+            stroke: "currentColor",
+            strokeWidth: "1.5",
+            children: [
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("circle", {
+                    cx: "12",
+                    cy: "12",
+                    r: "10"
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-empty-state.tsx",
+                    lineNumber: 86,
+                    columnNumber: 11
+                }, void 0),
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("path", {
+                    d: "M12 8v4M12 16h.01"
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-empty-state.tsx",
+                    lineNumber: 87,
+                    columnNumber: 11
+                }, void 0)
+            ]
+        }, void 0, true, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-empty-state.tsx",
+            lineNumber: 85,
+            columnNumber: 9
+        }, void 0),
+        title: "エラーが発生しました",
+        description: message || 'データの読み込みに失敗しました。',
+        action: onRetry && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+            className: "n3-btn n3-btn-primary",
+            onClick: onRetry,
+            children: "再試行"
+        }, void 0, false, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-empty-state.tsx",
+            lineNumber: 94,
+            columnNumber: 11
+        }, void 0)
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-empty-state.tsx",
+        lineNumber: 83,
+        columnNumber: 5
+    }, this);
+});
+const __TURBOPACK__default__export__ = N3EmptyState;
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-stats-grid.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * N3StatsGrid - 汎用統計グリッドコンポーネント
+ * 
+ * 統計カードをグリッドレイアウトで表示する純粋なレイアウトコンポーネント
+ * N3サイズシステム対応（--n3-* 変数を参照）
+ * 
+ * @example
+ * <N3StatsGrid columns={4}>
+ *   <N3StatItem label="総数" value={1234} icon={Package} color="blue" />
+ *   <N3StatItem label="売上" value="$45,678" color="green" />
+ * </N3StatsGrid>
+ */ __turbopack_context__.s([
+    "N3StatItem",
+    ()=>N3StatItem,
+    "N3StatsGrid",
+    ()=>N3StatsGrid,
+    "N3StatsSection",
+    ()=>N3StatsSection
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+'use client';
+;
+;
+// N3StatsCardと同じカラースタイル
+const colorStyles = {
+    default: {
+        border: 'var(--panel-border)',
+        text: 'var(--text)'
+    },
+    blue: {
+        border: 'rgba(59, 130, 246, 0.5)',
+        text: '#3b82f6'
+    },
+    green: {
+        border: 'rgba(34, 197, 94, 0.5)',
+        text: '#22c55e'
+    },
+    yellow: {
+        border: 'rgba(234, 179, 8, 0.5)',
+        text: '#ca8a04'
+    },
+    red: {
+        border: 'rgba(239, 68, 68, 0.5)',
+        text: '#ef4444'
+    },
+    purple: {
+        border: 'rgba(168, 85, 247, 0.5)',
+        text: '#a855f7'
+    }
+};
+const N3StatItem = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3StatItem({ label, value, icon, subLabel, color = 'default', borderLeft = false, footer, onClick, currency, className = '' }) {
+    const colorStyle = colorStyles[color];
+    // 値のフォーマット
+    const formatValue = (val)=>{
+        if (typeof val === 'string') return val;
+        if (currency === 'JPY') return `¥${val.toLocaleString()}`;
+        if (currency === 'USD') return `${val.toLocaleString()}`;
+        return val.toLocaleString();
+    };
+    // アイコンがコンポーネントかReactNodeかを判定
+    const renderIcon = ()=>{
+        if (!icon) return null;
+        // LucideIconコンポーネントの場合
+        if (typeof icon === 'function') {
+            const IconComponent = icon;
+            return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(IconComponent, {
+                style: {
+                    width: 'var(--n3-icon)',
+                    height: 'var(--n3-icon)',
+                    color: colorStyle.text,
+                    opacity: 0.7
+                }
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-stats-grid.tsx",
+                lineNumber: 92,
+                columnNumber: 9
+            }, this);
+        }
+        // ReactNodeの場合（既にJSX要素）
+        return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            style: {
+                color: colorStyle.text,
+                opacity: 0.7
+            },
+            children: icon
+        }, void 0, false, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-stats-grid.tsx",
+            lineNumber: 104,
+            columnNumber: 12
+        }, this);
+    };
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-stat-item ${onClick ? 'n3-stat-item--clickable' : ''} ${className}`,
+        onClick: onClick,
+        style: {
+            background: 'var(--panel)',
+            border: `1px solid ${colorStyle.border}`,
+            borderLeft: borderLeft ? `3px solid ${colorStyle.text}` : `1px solid ${colorStyle.border}`,
+            borderRadius: 'var(--style-radius-sm, 4px)',
+            padding: 'var(--n3-px)',
+            textAlign: 'center',
+            cursor: onClick ? 'pointer' : 'default',
+            transition: 'all 0.15s ease'
+        },
+        children: [
+            icon && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    marginBottom: 'calc(var(--n3-gap) * 0.5)'
+                },
+                children: renderIcon()
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-stats-grid.tsx",
+                lineNumber: 124,
+                columnNumber: 9
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    fontSize: 'calc(var(--n3-font) * 1.6)',
+                    fontWeight: 700,
+                    color: colorStyle.text,
+                    fontFamily: 'var(--font-mono, monospace)',
+                    lineHeight: 1.2
+                },
+                children: formatValue(value)
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-stats-grid.tsx",
+                lineNumber: 130,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    fontSize: 'calc(var(--n3-font) * 0.85)',
+                    color: 'var(--text-muted)',
+                    marginTop: 'calc(var(--n3-gap) * 0.25)'
+                },
+                children: label
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-stats-grid.tsx",
+                lineNumber: 143,
+                columnNumber: 7
+            }, this),
+            subLabel && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    fontSize: 'calc(var(--n3-font) * 0.75)',
+                    color: 'var(--text-muted)',
+                    marginTop: 'calc(var(--n3-gap) * 0.125)',
+                    opacity: 0.7
+                },
+                children: subLabel
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-stats-grid.tsx",
+                lineNumber: 155,
+                columnNumber: 9
+            }, this),
+            footer && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    marginTop: 'calc(var(--n3-gap) * 0.5)',
+                    fontSize: 'calc(var(--n3-font) * 0.8)'
+                },
+                children: footer
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-stats-grid.tsx",
+                lineNumber: 169,
+                columnNumber: 9
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-stats-grid.tsx",
+        lineNumber: 108,
+        columnNumber: 5
+    }, this);
+});
+N3StatItem.displayName = 'N3StatItem';
+const N3StatsGrid = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3StatsGrid({ children, columns = 4, gap = 'sm', className = '' }) {
+    // ギャップはN3サイズシステムに連動
+    const gapStyles = {
+        xs: 'calc(var(--n3-gap) * 0.5)',
+        sm: 'var(--n3-gap)',
+        md: 'calc(var(--n3-gap) * 1.5)'
+    };
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-stats-grid ${className}`,
+        style: {
+            display: 'grid',
+            gridTemplateColumns: `repeat(${columns}, 1fr)`,
+            gap: gapStyles[gap]
+        },
+        children: children
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-stats-grid.tsx",
+        lineNumber: 208,
+        columnNumber: 5
+    }, this);
+});
+N3StatsGrid.displayName = 'N3StatsGrid';
+const N3StatsSection = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3StatsSection({ title, titleIcon: TitleIcon, children, className = '' }) {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-stats-section ${className}`,
+        style: {
+            marginBottom: 'var(--n3-px)'
+        },
+        children: [
+            title && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("h3", {
+                style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'calc(var(--n3-gap) * 0.5)',
+                    fontSize: 'var(--n3-font)',
+                    fontWeight: 600,
+                    color: 'var(--text)',
+                    marginBottom: 'var(--n3-gap)'
+                },
+                children: [
+                    TitleIcon && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(TitleIcon, {
+                        style: {
+                            width: 'var(--n3-icon)',
+                            height: 'var(--n3-icon)',
+                            color: 'var(--text-muted)'
+                        }
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-stats-grid.tsx",
+                        lineNumber: 258,
+                        columnNumber: 25
+                    }, this),
+                    title
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-stats-grid.tsx",
+                lineNumber: 247,
+                columnNumber: 9
+            }, this),
+            children
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-stats-grid.tsx",
+        lineNumber: 245,
+        columnNumber: 5
+    }, this);
+});
+N3StatsSection.displayName = 'N3StatsSection';
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-filter-grid.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * N3FilterGrid - 汎用フィルターグリッドコンポーネント
+ * 
+ * フィルター要素を複数行グリッドで配置するレイアウトコンポーネント
+ * ToolPanelのタブ内に収まるようにコンパクト設計
+ * 
+ * @example
+ * <N3FilterGrid>
+ *   <N3FilterRow columns={4}>
+ *     <N3FilterField label="検索">
+ *       <N3Input value={search} onChange={setSearch} />
+ *     </N3FilterField>
+ *     <N3FilterField label="ステータス">
+ *       <N3Select options={statusOptions} value={status} onChange={setStatus} />
+ *     </N3FilterField>
+ *   </N3FilterRow>
+ * </N3FilterGrid>
+ */ __turbopack_context__.s([
+    "N3FilterDivider",
+    ()=>N3FilterDivider,
+    "N3FilterField",
+    ()=>N3FilterField,
+    "N3FilterGrid",
+    ()=>N3FilterGrid,
+    "N3FilterHint",
+    ()=>N3FilterHint,
+    "N3FilterRow",
+    ()=>N3FilterRow
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+'use client';
+;
+;
+const N3FilterField = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3FilterField({ label, icon: Icon, children, span, className = '' }) {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-filter-field ${className}`,
+        style: {
+            display: 'flex',
+            flexDirection: 'column',
+            gridColumn: span ? `span ${span}` : undefined
+        },
+        children: [
+            label && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
+                style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontSize: '11px',
+                    fontWeight: 500,
+                    color: 'var(--text)',
+                    marginBottom: '4px'
+                },
+                children: [
+                    Icon && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(Icon, {
+                        size: 12,
+                        style: {
+                            color: 'var(--text-muted)'
+                        }
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-filter-grid.tsx",
+                        lineNumber: 70,
+                        columnNumber: 20
+                    }, this),
+                    label
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-filter-grid.tsx",
+                lineNumber: 59,
+                columnNumber: 9
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    flex: 1
+                },
+                children: children
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-filter-grid.tsx",
+                lineNumber: 74,
+                columnNumber: 7
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-filter-grid.tsx",
+        lineNumber: 50,
+        columnNumber: 5
+    }, this);
+});
+N3FilterField.displayName = 'N3FilterField';
+const N3FilterRow = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3FilterRow({ children, columns = 4, className = '' }) {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-filter-row ${className}`,
+        style: {
+            display: 'grid',
+            gridTemplateColumns: `repeat(${columns}, 1fr)`,
+            gap: '12px'
+        },
+        children: children
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-filter-grid.tsx",
+        lineNumber: 102,
+        columnNumber: 5
+    }, this);
+});
+N3FilterRow.displayName = 'N3FilterRow';
+const N3FilterDivider = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3FilterDivider() {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        style: {
+            borderTop: '1px solid var(--panel-border)',
+            margin: '8px 0'
+        }
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-filter-grid.tsx",
+        lineNumber: 123,
+        columnNumber: 5
+    }, this);
+});
+N3FilterDivider.displayName = 'N3FilterDivider';
+const hintColors = {
+    default: {
+        bg: 'var(--highlight)',
+        border: 'var(--panel-border)',
+        text: 'var(--text-muted)'
+    },
+    primary: {
+        bg: 'rgba(59, 130, 246, 0.1)',
+        border: 'rgba(59, 130, 246, 0.3)',
+        text: '#3b82f6'
+    },
+    success: {
+        bg: 'rgba(34, 197, 94, 0.1)',
+        border: 'rgba(34, 197, 94, 0.3)',
+        text: '#22c55e'
+    },
+    warning: {
+        bg: 'rgba(234, 179, 8, 0.1)',
+        border: 'rgba(234, 179, 8, 0.3)',
+        text: '#ca8a04'
+    },
+    error: {
+        bg: 'rgba(239, 68, 68, 0.1)',
+        border: 'rgba(239, 68, 68, 0.3)',
+        text: '#ef4444'
+    },
+    info: {
+        bg: 'rgba(59, 130, 246, 0.1)',
+        border: 'rgba(59, 130, 246, 0.3)',
+        text: '#3b82f6'
+    },
+    purple: {
+        bg: 'rgba(168, 85, 247, 0.1)',
+        border: 'rgba(168, 85, 247, 0.3)',
+        text: '#a855f7'
+    }
+};
+const N3FilterHint = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3FilterHint({ message, icon: Icon, color = 'purple', className = '' }) {
+    const colorStyle = hintColors[color];
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-filter-hint ${className}`,
+        style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '6px 10px',
+            borderRadius: '4px',
+            fontSize: '11px',
+            background: colorStyle.bg,
+            border: `1px solid ${colorStyle.border}`,
+            color: colorStyle.text
+        },
+        children: [
+            Icon && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(Icon, {
+                size: 12
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-filter-grid.tsx",
+                lineNumber: 182,
+                columnNumber: 16
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                children: message
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-filter-grid.tsx",
+                lineNumber: 183,
+                columnNumber: 7
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-filter-grid.tsx",
+        lineNumber: 168,
+        columnNumber: 5
+    }, this);
+});
+N3FilterHint.displayName = 'N3FilterHint';
+const N3FilterGrid = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3FilterGrid({ children, showReset = false, onReset, resetLabel = 'リセット', header, footer, compact = false, className = '' }) {
+    // compactモードではパネルスタイルなし
+    if (compact) {
+        return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            className: `n3-filter-grid n3-filter-grid--compact ${className}`,
+            children: [
+                (header || showReset) && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                    style: {
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        marginBottom: '8px'
+                    },
+                    children: [
+                        header,
+                        showReset && onReset && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                            type: "button",
+                            onClick: onReset,
+                            className: "n3-btn n3-btn-ghost n3-btn-xs",
+                            children: resetLabel
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-filter-grid.tsx",
+                            lineNumber: 231,
+                            columnNumber: 15
+                        }, this)
+                    ]
+                }, void 0, true, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-filter-grid.tsx",
+                    lineNumber: 228,
+                    columnNumber: 11
+                }, this),
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                    style: {
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '10px'
+                    },
+                    children: children
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-filter-grid.tsx",
+                    lineNumber: 241,
+                    columnNumber: 9
+                }, this),
+                footer && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                    style: {
+                        marginTop: '10px'
+                    },
+                    children: footer
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-filter-grid.tsx",
+                    lineNumber: 244,
+                    columnNumber: 20
+                }, this)
+            ]
+        }, void 0, true, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-filter-grid.tsx",
+            lineNumber: 226,
+            columnNumber: 7
+        }, this);
+    }
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-filter-grid ${className}`,
+        style: {
+            background: 'var(--panel)',
+            border: '1px solid var(--panel-border)',
+            borderRadius: 'var(--style-radius-md, 6px)',
+            padding: '12px'
+        },
+        children: [
+            (header || showReset) && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: '10px'
+                },
+                children: [
+                    header,
+                    showReset && onReset && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                        type: "button",
+                        onClick: onReset,
+                        className: "n3-btn n3-btn-ghost n3-btn-xs",
+                        children: resetLabel
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-filter-grid.tsx",
+                        lineNumber: 263,
+                        columnNumber: 13
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-filter-grid.tsx",
+                lineNumber: 260,
+                columnNumber: 9
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px'
+                },
+                children: children
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-filter-grid.tsx",
+                lineNumber: 273,
+                columnNumber: 7
+            }, this),
+            footer && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    marginTop: '10px'
+                },
+                children: footer
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-filter-grid.tsx",
+                lineNumber: 276,
+                columnNumber: 18
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-filter-grid.tsx",
+        lineNumber: 250,
+        columnNumber: 5
+    }, this);
+});
+N3FilterGrid.displayName = 'N3FilterGrid';
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-selection-panel.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * N3SelectionPanel - 汎用選択パネルコンポーネント
+ * 
+ * 選択されたアイテムを表示するサイドパネル
+ * 用途（バリエーション作成、セット作成など）は呼び出し側で定義
+ * 
+ * @example
+ * <N3SelectionPanel
+ *   items={selectedItems}
+ *   renderItem={(item) => <MyItemCard item={item} />}
+ *   onClear={handleClear}
+ *   emptyMessage="アイテムを選択してください"
+ *   actions={<button onClick={handleSubmit}>確定</button>}
+ * />
+ */ __turbopack_context__.s([
+    "N3SelectionItemCard",
+    ()=>N3SelectionItemCard,
+    "N3SelectionPanel",
+    ()=>N3SelectionPanel
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$package$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Package$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/package.js [app-ssr] (ecmascript) <export default as Package>");
+'use client';
+;
+;
+;
+const N3SelectionPanel = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3SelectionPanel({ items, renderItem, onClear, title = 'Selection', titleIcon: TitleIcon, emptyMessage = 'No items selected', emptyHint, emptyIcon: EmptyIcon = __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$package$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Package$3e$__["Package"], headerActions, summary, actions, width = 384, className = '' }) {
+    const isEmpty = items.length === 0;
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-selection-panel ${className}`,
+        style: {
+            width: typeof width === 'number' ? `${width}px` : width
+        },
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "n3-selection-panel__header",
+                children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "n3-selection-panel__title-row",
+                        children: [
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("h3", {
+                                className: "n3-selection-panel__title",
+                                children: [
+                                    TitleIcon && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(TitleIcon, {
+                                        className: "n3-selection-panel__title-icon"
+                                    }, void 0, false, {
+                                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-selection-panel.tsx",
+                                        lineNumber: 91,
+                                        columnNumber: 27
+                                    }, this),
+                                    title
+                                ]
+                            }, void 0, true, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-selection-panel.tsx",
+                                lineNumber: 90,
+                                columnNumber: 11
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                className: "n3-selection-panel__header-actions",
+                                children: [
+                                    headerActions,
+                                    !isEmpty && onClear && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                        onClick: onClear,
+                                        className: "n3-btn n3-btn-ghost n3-btn-sm",
+                                        children: "クリア"
+                                    }, void 0, false, {
+                                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-selection-panel.tsx",
+                                        lineNumber: 97,
+                                        columnNumber: 15
+                                    }, this)
+                                ]
+                            }, void 0, true, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-selection-panel.tsx",
+                                lineNumber: 94,
+                                columnNumber: 11
+                            }, this)
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-selection-panel.tsx",
+                        lineNumber: 89,
+                        columnNumber: 9
+                    }, this),
+                    !isEmpty && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                        className: "n3-selection-panel__count",
+                        children: [
+                            items.length,
+                            "個のアイテムを選択中"
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-selection-panel.tsx",
+                        lineNumber: 104,
+                        columnNumber: 11
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-selection-panel.tsx",
+                lineNumber: 88,
+                columnNumber: 7
+            }, this),
+            isEmpty ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "n3-selection-panel__empty",
+                children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(EmptyIcon, {
+                        className: "n3-selection-panel__empty-icon"
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-selection-panel.tsx",
+                        lineNumber: 113,
+                        columnNumber: 11
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                        className: "n3-selection-panel__empty-title",
+                        children: emptyMessage
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-selection-panel.tsx",
+                        lineNumber: 114,
+                        columnNumber: 11
+                    }, this),
+                    emptyHint && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                        className: "n3-selection-panel__empty-hint",
+                        children: emptyHint
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-selection-panel.tsx",
+                        lineNumber: 116,
+                        columnNumber: 13
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-selection-panel.tsx",
+                lineNumber: 112,
+                columnNumber: 9
+            }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Fragment"], {
+                children: [
+                    summary && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "n3-selection-panel__summary",
+                        children: summary
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-selection-panel.tsx",
+                        lineNumber: 123,
+                        columnNumber: 13
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "n3-selection-panel__items",
+                        children: items.map((item, index)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                className: "n3-selection-panel__item",
+                                children: renderItem(item, index)
+                            }, item.id, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-selection-panel.tsx",
+                                lineNumber: 131,
+                                columnNumber: 15
+                            }, this))
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-selection-panel.tsx",
+                        lineNumber: 129,
+                        columnNumber: 11
+                    }, this),
+                    actions && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "n3-selection-panel__actions",
+                        children: actions
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-selection-panel.tsx",
+                        lineNumber: 139,
+                        columnNumber: 13
+                    }, this)
+                ]
+            }, void 0, true)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-selection-panel.tsx",
+        lineNumber: 83,
+        columnNumber: 5
+    }, this);
+});
+N3SelectionPanel.displayName = 'N3SelectionPanel';
+const N3SelectionItemCard = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3SelectionItemCard({ image, title, subtitle, badges, onRemove, className = '' }) {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-selection-item-card ${className}`,
+        children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            className: "n3-selection-item-card__content",
+            children: [
+                image ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("img", {
+                    src: image,
+                    alt: title,
+                    className: "n3-selection-item-card__image",
+                    onError: (e)=>{
+                        e.currentTarget.style.display = 'none';
+                    }
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-selection-panel.tsx",
+                    lineNumber: 182,
+                    columnNumber: 11
+                }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                    className: "n3-selection-item-card__image n3-selection-item-card__image--placeholder",
+                    children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$package$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Package$3e$__["Package"], {
+                        style: {
+                            width: 16,
+                            height: 16,
+                            color: 'var(--text-muted)'
+                        }
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-selection-panel.tsx",
+                        lineNumber: 192,
+                        columnNumber: 13
+                    }, this)
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-selection-panel.tsx",
+                    lineNumber: 191,
+                    columnNumber: 11
+                }, this),
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                    className: "n3-selection-item-card__info",
+                    children: [
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                            className: "n3-selection-item-card__title",
+                            children: title
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-selection-panel.tsx",
+                            lineNumber: 196,
+                            columnNumber: 11
+                        }, this),
+                        subtitle && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                            className: "n3-selection-item-card__subtitle",
+                            children: subtitle
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-selection-panel.tsx",
+                            lineNumber: 198,
+                            columnNumber: 13
+                        }, this),
+                        badges && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                            className: "n3-selection-item-card__badges",
+                            children: badges
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-selection-panel.tsx",
+                            lineNumber: 201,
+                            columnNumber: 13
+                        }, this)
+                    ]
+                }, void 0, true, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-selection-panel.tsx",
+                    lineNumber: 195,
+                    columnNumber: 9
+                }, this),
+                onRemove && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                    onClick: onRemove,
+                    className: "n3-selection-item-card__remove n3-btn n3-btn-ghost n3-btn-xs",
+                    "aria-label": "Remove",
+                    children: "×"
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-selection-panel.tsx",
+                    lineNumber: 205,
+                    columnNumber: 11
+                }, this)
+            ]
+        }, void 0, true, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-selection-panel.tsx",
+            lineNumber: 180,
+            columnNumber: 7
+        }, this)
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-selection-panel.tsx",
+        lineNumber: 179,
+        columnNumber: 5
+    }, this);
+});
+N3SelectionItemCard.displayName = 'N3SelectionItemCard';
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-product-card.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * N3ProductCard - 汎用商品カードコンポーネント
+ * 
+ * 商品情報を表示するカード。バッジやアクションはスロットで渡す
+ * マーケットプレイス固有のロジックは含まない
+ * 
+ * @example
+ * <N3ProductCard
+ *   image={product.image}
+ *   title={product.name}
+ *   subtitle={product.sku}
+ *   topBadges={<N3Badge>eBay</N3Badge>}
+ *   bottomLeftBadges={<N3Badge>45日経過</N3Badge>}
+ *   priceDisplay={<PriceRow price={299.99} />}
+ *   tags={[<N3Tag>New</N3Tag>, <N3Tag>利益率 25%</N3Tag>]}
+ *   actions={<button>編集</button>}
+ *   isSelected={isSelected}
+ *   onClick={handleClick}
+ * />
+ */ __turbopack_context__.s([
+    "N3ProductCard",
+    ()=>N3ProductCard,
+    "N3ProductCardGrid",
+    ()=>N3ProductCardGrid,
+    "N3ProductCardPriceRow",
+    ()=>N3ProductCardPriceRow
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$package$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Package$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/package.js [app-ssr] (ecmascript) <export default as Package>");
+'use client';
+;
+;
+;
+const N3ProductCard = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3ProductCard({ image, title, subtitle, topBadges, bottomLeftBadges, bottomRightBadges, priceDisplay, tags, actions, isSelected = false, onClick, hoverZoom = true, aspectRatio = '1', className = '' }) {
+    const classes = [
+        'n3-product-card',
+        isSelected && 'n3-product-card--selected',
+        onClick && 'n3-product-card--clickable',
+        hoverZoom && 'n3-product-card--hover-zoom',
+        className
+    ].filter(Boolean).join(' ');
+    const handleClick = (e)=>{
+        // ボタンクリック時はカード全体のクリックを無効化
+        if (e.target.closest('button, a')) return;
+        onClick?.();
+    };
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: classes,
+        onClick: handleClick,
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "n3-product-card__image-wrapper",
+                style: {
+                    aspectRatio
+                },
+                children: [
+                    image ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("img", {
+                        src: image,
+                        alt: title,
+                        className: "n3-product-card__image",
+                        onError: (e)=>{
+                            e.currentTarget.src = 'https://placehold.co/400x400/e2e8f0/64748b?text=No+Image';
+                        }
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-card.tsx",
+                        lineNumber: 100,
+                        columnNumber: 11
+                    }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "n3-product-card__image-placeholder",
+                        children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$package$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Package$3e$__["Package"], {
+                            className: "n3-product-card__image-placeholder-icon"
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-card.tsx",
+                            lineNumber: 110,
+                            columnNumber: 13
+                        }, this)
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-card.tsx",
+                        lineNumber: 109,
+                        columnNumber: 11
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "n3-product-card__overlay"
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-card.tsx",
+                        lineNumber: 113,
+                        columnNumber: 9
+                    }, this),
+                    topBadges && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "n3-product-card__top-badges",
+                        children: topBadges
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-card.tsx",
+                        lineNumber: 117,
+                        columnNumber: 11
+                    }, this),
+                    bottomLeftBadges && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "n3-product-card__bottom-left",
+                        children: bottomLeftBadges
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-card.tsx",
+                        lineNumber: 120,
+                        columnNumber: 11
+                    }, this),
+                    bottomRightBadges && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "n3-product-card__bottom-right",
+                        children: bottomRightBadges
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-card.tsx",
+                        lineNumber: 123,
+                        columnNumber: 11
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-card.tsx",
+                lineNumber: 95,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "n3-product-card__body",
+                children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("h3", {
+                        className: "n3-product-card__title",
+                        children: title
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-card.tsx",
+                        lineNumber: 129,
+                        columnNumber: 9
+                    }, this),
+                    subtitle && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                        className: "n3-product-card__subtitle",
+                        children: subtitle
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-card.tsx",
+                        lineNumber: 130,
+                        columnNumber: 22
+                    }, this),
+                    priceDisplay && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "n3-product-card__prices",
+                        children: priceDisplay
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-card.tsx",
+                        lineNumber: 134,
+                        columnNumber: 11
+                    }, this),
+                    tags && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "n3-product-card__tags",
+                        children: tags
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-card.tsx",
+                        lineNumber: 139,
+                        columnNumber: 11
+                    }, this),
+                    actions && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "n3-product-card__actions",
+                        children: actions
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-card.tsx",
+                        lineNumber: 144,
+                        columnNumber: 11
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-card.tsx",
+                lineNumber: 128,
+                columnNumber: 7
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-card.tsx",
+        lineNumber: 93,
+        columnNumber: 5
+    }, this);
+});
+N3ProductCard.displayName = 'N3ProductCard';
+const N3ProductCardGrid = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3ProductCardGrid({ children, columns = 4, gap = 'md', className = '' }) {
+    const gapSizes = {
+        sm: '8px',
+        md: '16px',
+        lg: '24px'
+    };
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-product-card-grid ${className}`,
+        style: {
+            display: 'grid',
+            gridTemplateColumns: `repeat(${columns}, 1fr)`,
+            gap: gapSizes[gap]
+        },
+        children: children
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-card.tsx",
+        lineNumber: 173,
+        columnNumber: 5
+    }, this);
+});
+N3ProductCardGrid.displayName = 'N3ProductCardGrid';
+const N3ProductCardPriceRow = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3ProductCardPriceRow({ label, value, color = 'default' }) {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: "n3-product-card__price-row",
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                className: "n3-product-card__price-label",
+                children: label
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-card.tsx",
+                lineNumber: 205,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                className: `n3-product-card__price-value n3-product-card__price-value--${color}`,
+                children: value
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-card.tsx",
+                lineNumber: 206,
+                columnNumber: 7
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-card.tsx",
+        lineNumber: 204,
+        columnNumber: 5
+    }, this);
+});
+N3ProductCardPriceRow.displayName = 'N3ProductCardPriceRow';
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-grid-selector.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * N3GridSelector - 汎用グリッド選択コンポーネント
+ * 
+ * チェックボックス付きグリッド選択。承認/在庫管理に限定しない汎用実装
+ * 
+ * @example
+ * <N3GridSelector
+ *   items={products}
+ *   selectedIds={selectedIds}
+ *   onToggleSelect={handleToggle}
+ *   renderItem={(item) => <ProductThumbnail item={item} />}
+ *   getItemId={(item) => item.id}
+ *   columns={5}
+ * />
+ */ __turbopack_context__.s([
+    "N3GridSelector",
+    ()=>N3GridSelector,
+    "N3GridSelectorToolbar",
+    ()=>N3GridSelectorToolbar
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$package$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Package$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/package.js [app-ssr] (ecmascript) <export default as Package>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$refresh$2d$cw$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__RefreshCw$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/refresh-cw.js [app-ssr] (ecmascript) <export default as RefreshCw>");
+'use client';
+;
+;
+;
+const N3GridSelector = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3GridSelector({ items, selectedIds, onToggleSelect, renderItem, getItemId = (item)=>item.id, onSelectAll, loading = false, emptyMessage = 'No items found', emptyHint, columns = 'auto', minCardWidth = 180, gap = 'md', toolbar, className = '' }) {
+    const gapSizes = {
+        sm: 8,
+        md: 12,
+        lg: 16
+    };
+    const gridStyle = {
+        display: 'grid',
+        gap: gapSizes[gap],
+        gridTemplateColumns: columns === 'auto' ? `repeat(auto-fill, minmax(${minCardWidth}px, 1fr))` : `repeat(${columns}, 1fr)`
+    };
+    // ローディング
+    if (loading) {
+        return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            className: `n3-grid-selector ${className}`,
+            children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "n3-grid-selector__loading",
+                children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$refresh$2d$cw$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__RefreshCw$3e$__["RefreshCw"], {
+                        className: "n3-grid-selector__loading-icon"
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-grid-selector.tsx",
+                        lineNumber: 97,
+                        columnNumber: 11
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                        className: "n3-grid-selector__loading-text",
+                        children: "読み込み中..."
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-grid-selector.tsx",
+                        lineNumber: 98,
+                        columnNumber: 11
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-grid-selector.tsx",
+                lineNumber: 96,
+                columnNumber: 9
+            }, this)
+        }, void 0, false, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-grid-selector.tsx",
+            lineNumber: 95,
+            columnNumber: 7
+        }, this);
+    }
+    // 空状態
+    if (items.length === 0) {
+        return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            className: `n3-grid-selector ${className}`,
+            children: [
+                toolbar && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                    className: "n3-grid-selector__toolbar",
+                    children: toolbar
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-grid-selector.tsx",
+                    lineNumber: 108,
+                    columnNumber: 21
+                }, this),
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                    className: "n3-grid-selector__empty",
+                    children: [
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$package$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Package$3e$__["Package"], {
+                            className: "n3-grid-selector__empty-icon"
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-grid-selector.tsx",
+                            lineNumber: 110,
+                            columnNumber: 11
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                            className: "n3-grid-selector__empty-title",
+                            children: emptyMessage
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-grid-selector.tsx",
+                            lineNumber: 111,
+                            columnNumber: 11
+                        }, this),
+                        emptyHint && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                            className: "n3-grid-selector__empty-hint",
+                            children: emptyHint
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-grid-selector.tsx",
+                            lineNumber: 113,
+                            columnNumber: 13
+                        }, this)
+                    ]
+                }, void 0, true, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-grid-selector.tsx",
+                    lineNumber: 109,
+                    columnNumber: 9
+                }, this)
+            ]
+        }, void 0, true, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-grid-selector.tsx",
+            lineNumber: 107,
+            columnNumber: 7
+        }, this);
+    }
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-grid-selector ${className}`,
+        children: [
+            toolbar && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "n3-grid-selector__toolbar",
+                children: toolbar
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-grid-selector.tsx",
+                lineNumber: 122,
+                columnNumber: 19
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "n3-grid-selector__count",
+                children: [
+                    "選択: ",
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("strong", {
+                        children: selectedIds.size
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-grid-selector.tsx",
+                        lineNumber: 125,
+                        columnNumber: 13
+                    }, this),
+                    " / ",
+                    items.length,
+                    " 件",
+                    onSelectAll && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                        onClick: onSelectAll,
+                        className: "n3-btn n3-btn-ghost n3-btn-sm",
+                        style: {
+                            marginLeft: 'var(--n3-gap)'
+                        },
+                        children: selectedIds.size === items.length ? '全解除' : '全選択'
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-grid-selector.tsx",
+                        lineNumber: 127,
+                        columnNumber: 11
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-grid-selector.tsx",
+                lineNumber: 124,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "n3-grid-selector__grid",
+                style: gridStyle,
+                children: items.map((item)=>{
+                    const id = getItemId(item);
+                    const isSelected = selectedIds.has(id);
+                    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: `n3-grid-selector__item ${isSelected ? 'n3-grid-selector__item--selected' : ''}`,
+                        onClick: ()=>onToggleSelect(id),
+                        children: renderItem(item, isSelected)
+                    }, id, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-grid-selector.tsx",
+                        lineNumber: 143,
+                        columnNumber: 13
+                    }, this);
+                })
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-grid-selector.tsx",
+                lineNumber: 137,
+                columnNumber: 7
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-grid-selector.tsx",
+        lineNumber: 121,
+        columnNumber: 5
+    }, this);
+});
+N3GridSelector.displayName = 'N3GridSelector';
+const N3GridSelectorToolbar = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3GridSelectorToolbar({ children, className = '' }) {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-grid-selector-toolbar ${className}`,
+        children: children
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-grid-selector.tsx",
+        lineNumber: 173,
+        columnNumber: 5
+    }, this);
+});
+N3GridSelectorToolbar.displayName = 'N3GridSelectorToolbar';
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-alert-banner.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * N3AlertBanner - 汎用アラートバナーコンポーネント
+ * 
+ * ページ上部やセクション内に表示するアラートバナー
+ * 
+ * @example
+ * <N3AlertBanner
+ *   type="warning"
+ *   title="警告"
+ *   description="期限が近づいています"
+ *   count={5}
+ *   action={{ label: '詳細', onClick: handleClick }}
+ * />
+ */ __turbopack_context__.s([
+    "N3AlertBanner",
+    ()=>N3AlertBanner,
+    "N3AlertBannerGroup",
+    ()=>N3AlertBannerGroup
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$triangle$2d$alert$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__AlertTriangle$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/triangle-alert.js [app-ssr] (ecmascript) <export default as AlertTriangle>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$circle$2d$alert$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__AlertCircle$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/circle-alert.js [app-ssr] (ecmascript) <export default as AlertCircle>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$info$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Info$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/info.js [app-ssr] (ecmascript) <export default as Info>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$circle$2d$check$2d$big$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__CheckCircle$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/circle-check-big.js [app-ssr] (ecmascript) <export default as CheckCircle>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$arrow$2d$right$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ArrowRight$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/arrow-right.js [app-ssr] (ecmascript) <export default as ArrowRight>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$x$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__X$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/x.js [app-ssr] (ecmascript) <export default as X>");
+'use client';
+;
+;
+;
+const defaultIcons = {
+    info: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$info$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Info$3e$__["Info"],
+    success: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$circle$2d$check$2d$big$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__CheckCircle$3e$__["CheckCircle"],
+    warning: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$triangle$2d$alert$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__AlertTriangle$3e$__["AlertTriangle"],
+    error: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$circle$2d$alert$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__AlertCircle$3e$__["AlertCircle"]
+};
+const N3AlertBanner = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3AlertBanner({ type, title, description, count, icon, action, dismissible = false, onDismiss, className = '' }) {
+    const Icon = icon || defaultIcons[type];
+    const classes = [
+        'n3-alert-banner',
+        `n3-alert-banner--${type}`,
+        className
+    ].filter(Boolean).join(' ');
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: classes,
+        role: "alert",
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(Icon, {
+                className: "n3-alert-banner__icon"
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-alert-banner.tsx",
+                lineNumber: 86,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "n3-alert-banner__content",
+                children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "n3-alert-banner__title",
+                        children: [
+                            title,
+                            count !== undefined && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                className: "n3-alert-banner__count",
+                                children: [
+                                    count,
+                                    "件"
+                                ]
+                            }, void 0, true, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-alert-banner.tsx",
+                                lineNumber: 92,
+                                columnNumber: 13
+                            }, this)
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-alert-banner.tsx",
+                        lineNumber: 89,
+                        columnNumber: 9
+                    }, this),
+                    description && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                        className: "n3-alert-banner__description",
+                        children: description
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-alert-banner.tsx",
+                        lineNumber: 96,
+                        columnNumber: 11
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-alert-banner.tsx",
+                lineNumber: 88,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "n3-alert-banner__actions",
+                children: [
+                    action && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                        onClick: action.onClick,
+                        className: "n3-alert-banner__action n3-btn n3-btn-ghost n3-btn-sm",
+                        children: [
+                            action.label,
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$arrow$2d$right$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ArrowRight$3e$__["ArrowRight"], {
+                                className: "n3-alert-banner__action-icon"
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-alert-banner.tsx",
+                                lineNumber: 107,
+                                columnNumber: 13
+                            }, this)
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-alert-banner.tsx",
+                        lineNumber: 102,
+                        columnNumber: 11
+                    }, this),
+                    dismissible && onDismiss && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                        onClick: onDismiss,
+                        className: "n3-alert-banner__dismiss n3-btn n3-btn-ghost n3-btn-sm",
+                        "aria-label": "閉じる",
+                        children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$x$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__X$3e$__["X"], {
+                            className: "n3-alert-banner__dismiss-icon"
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-alert-banner.tsx",
+                            lineNumber: 116,
+                            columnNumber: 13
+                        }, this)
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-alert-banner.tsx",
+                        lineNumber: 111,
+                        columnNumber: 11
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-alert-banner.tsx",
+                lineNumber: 100,
+                columnNumber: 7
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-alert-banner.tsx",
+        lineNumber: 85,
+        columnNumber: 5
+    }, this);
+});
+N3AlertBanner.displayName = 'N3AlertBanner';
+const N3AlertBannerGroup = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3AlertBannerGroup({ alerts, dismissible = false, onDismiss, className = '' }) {
+    if (alerts.length === 0) return null;
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-alert-banner-group ${className}`,
+        children: alerts.map((alert, index)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(N3AlertBanner, {
+                type: alert.type,
+                title: alert.title,
+                description: alert.description,
+                count: alert.count,
+                action: alert.action,
+                dismissible: dismissible,
+                onDismiss: onDismiss ? ()=>onDismiss(index) : undefined
+            }, alert.id ?? index, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-alert-banner.tsx",
+                lineNumber: 160,
+                columnNumber: 9
+            }, this))
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-alert-banner.tsx",
+        lineNumber: 158,
+        columnNumber: 5
+    }, this);
+});
+N3AlertBannerGroup.displayName = 'N3AlertBannerGroup';
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-modal-header.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * N3ModalHeader - モーダルヘッダーコンポーネント
+ * 
+ * /tools/editing の ProductModal で使用
+ * ステータスバッジ + SKU + タイトル + 言語切替 + 閉じるボタン
+ */ __turbopack_context__.s([
+    "N3ModalHeader",
+    ()=>N3ModalHeader
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$x$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__X$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/x.js [app-ssr] (ecmascript) <export default as X>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$presentational$2f$n3$2d$badge$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/components/n3/presentational/n3-badge.tsx [app-ssr] (ecmascript)");
+'use client';
+;
+;
+;
+;
+const STATUS_VARIANTS = {
+    active: 'success',
+    draft: 'warning',
+    ended: 'error',
+    pending: 'muted'
+};
+const N3ModalHeader = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3ModalHeader({ status = 'active', sku, title, language = 'ja', onLanguageChange, onClose, rightContent }) {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("header", {
+        style: {
+            background: 'var(--panel)',
+            borderBottom: '1px solid var(--panel-border)',
+            padding: '0.75rem 1rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexShrink: 0
+        },
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    minWidth: 0
+                },
+                children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$presentational$2f$n3$2d$badge$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["N3Badge"], {
+                        variant: STATUS_VARIANTS[status] || 'muted',
+                        size: "sm",
+                        children: status.charAt(0).toUpperCase() + status.slice(1)
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-header.tsx",
+                        lineNumber: 61,
+                        columnNumber: 9
+                    }, this),
+                    sku && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                        style: {
+                            fontFamily: 'monospace',
+                            fontSize: '11px',
+                            color: 'var(--text-muted)'
+                        },
+                        children: sku
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-header.tsx",
+                        lineNumber: 66,
+                        columnNumber: 11
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                        style: {
+                            fontWeight: 600,
+                            fontSize: '13px',
+                            color: 'var(--text)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            maxWidth: '400px'
+                        },
+                        children: title
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-header.tsx",
+                        lineNumber: 77,
+                        columnNumber: 9
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-header.tsx",
+                lineNumber: 60,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                },
+                children: [
+                    rightContent,
+                    onLanguageChange && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        style: {
+                            display: 'flex',
+                            padding: '2px',
+                            borderRadius: '6px',
+                            background: 'var(--highlight)',
+                            border: '1px solid var(--panel-border)'
+                        },
+                        children: [
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                onClick: ()=>onLanguageChange('ja'),
+                                style: {
+                                    padding: '0.25rem 0.5rem',
+                                    fontSize: '10px',
+                                    fontWeight: 600,
+                                    borderRadius: '4px',
+                                    border: 'none',
+                                    background: language === 'ja' ? 'var(--accent-bg)' : 'transparent',
+                                    color: language === 'ja' ? 'var(--accent-text)' : 'var(--text-muted)',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease'
+                                },
+                                children: "日本語"
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-header.tsx",
+                                lineNumber: 107,
+                                columnNumber: 13
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                onClick: ()=>onLanguageChange('en'),
+                                style: {
+                                    padding: '0.25rem 0.5rem',
+                                    fontSize: '10px',
+                                    fontWeight: 600,
+                                    borderRadius: '4px',
+                                    border: 'none',
+                                    background: language === 'en' ? 'var(--accent-bg)' : 'transparent',
+                                    color: language === 'en' ? 'var(--accent-text)' : 'var(--text-muted)',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease'
+                                },
+                                children: "EN"
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-header.tsx",
+                                lineNumber: 123,
+                                columnNumber: 13
+                            }, this)
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-header.tsx",
+                        lineNumber: 98,
+                        columnNumber: 11
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                        onClick: onClose,
+                        "aria-label": "閉じる",
+                        style: {
+                            padding: '0.375rem',
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--text-muted)',
+                            fontSize: '14px',
+                            cursor: 'pointer',
+                            borderRadius: '4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.15s ease'
+                        },
+                        onMouseEnter: (e)=>{
+                            e.currentTarget.style.background = 'var(--highlight)';
+                            e.currentTarget.style.color = 'var(--text)';
+                        },
+                        onMouseLeave: (e)=>{
+                            e.currentTarget.style.background = 'transparent';
+                            e.currentTarget.style.color = 'var(--text-muted)';
+                        },
+                        children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$x$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__X$3e$__["X"], {
+                            size: 16
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-header.tsx",
+                            lineNumber: 168,
+                            columnNumber: 11
+                        }, this)
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-header.tsx",
+                        lineNumber: 143,
+                        columnNumber: 9
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-header.tsx",
+                lineNumber: 93,
+                columnNumber: 7
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-header.tsx",
+        lineNumber: 48,
+        columnNumber: 5
+    }, this);
+});
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-modal-footer.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * N3ModalFooter - モーダルフッターコンポーネント
+ * 
+ * /tools/editing の ProductModal で使用
+ * 更新日時 + ナビゲーション(Prev/Next) + 操作ボタン(Cancel/Save)
+ */ __turbopack_context__.s([
+    "N3ModalFooter",
+    ()=>N3ModalFooter
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevron$2d$left$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronLeft$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/chevron-left.js [app-ssr] (ecmascript) <export default as ChevronLeft>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevron$2d$right$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronRight$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/chevron-right.js [app-ssr] (ecmascript) <export default as ChevronRight>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$save$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Save$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/save.js [app-ssr] (ecmascript) <export default as Save>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$clock$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Clock$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/clock.js [app-ssr] (ecmascript) <export default as Clock>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$presentational$2f$n3$2d$button$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/components/n3/presentational/n3-button.tsx [app-ssr] (ecmascript)");
+'use client';
+;
+;
+;
+;
+const N3ModalFooter = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3ModalFooter({ updatedAt, showPrev = false, showNext = false, onPrev, onNext, onCancel, onSave, saving = false, saveText = 'Save', leftContent, rightContent }) {
+    const formatDate = (date)=>{
+        if (!date) return '-';
+        const d = typeof date === 'string' ? new Date(date) : date;
+        return d.toLocaleDateString('ja-JP');
+    };
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("footer", {
+        style: {
+            background: 'var(--panel)',
+            borderTop: '1px solid var(--panel-border)',
+            padding: '0.5rem 1rem',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexShrink: 0
+        },
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                },
+                children: leftContent || /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                    style: {
+                        fontSize: '10px',
+                        color: 'var(--text-subtle)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.25rem'
+                    },
+                    children: [
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$clock$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Clock$3e$__["Clock"], {
+                            size: 12
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-footer.tsx",
+                            lineNumber: 82,
+                            columnNumber: 13
+                        }, this),
+                        "Last updated: ",
+                        formatDate(updatedAt)
+                    ]
+                }, void 0, true, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-footer.tsx",
+                    lineNumber: 73,
+                    columnNumber: 11
+                }, this)
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-footer.tsx",
+                lineNumber: 71,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                },
+                children: [
+                    rightContent,
+                    showPrev && onPrev && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$presentational$2f$n3$2d$button$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["N3Button"], {
+                        variant: "secondary",
+                        size: "sm",
+                        onClick: onPrev,
+                        children: [
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevron$2d$left$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronLeft$3e$__["ChevronLeft"], {
+                                size: 14
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-footer.tsx",
+                                lineNumber: 94,
+                                columnNumber: 13
+                            }, this),
+                            "Prev"
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-footer.tsx",
+                        lineNumber: 93,
+                        columnNumber: 11
+                    }, this),
+                    showNext && onNext && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$presentational$2f$n3$2d$button$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["N3Button"], {
+                        variant: "secondary",
+                        size: "sm",
+                        onClick: onNext,
+                        children: [
+                            "Next",
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevron$2d$right$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronRight$3e$__["ChevronRight"], {
+                                size: 14
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-footer.tsx",
+                                lineNumber: 102,
+                                columnNumber: 13
+                            }, this)
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-footer.tsx",
+                        lineNumber: 100,
+                        columnNumber: 11
+                    }, this),
+                    onCancel && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$presentational$2f$n3$2d$button$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["N3Button"], {
+                        variant: "ghost",
+                        size: "sm",
+                        onClick: onCancel,
+                        children: "Cancel"
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-footer.tsx",
+                        lineNumber: 107,
+                        columnNumber: 11
+                    }, this),
+                    onSave && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$presentational$2f$n3$2d$button$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["N3Button"], {
+                        variant: "primary",
+                        size: "sm",
+                        onClick: onSave,
+                        disabled: saving,
+                        children: [
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$save$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Save$3e$__["Save"], {
+                                size: 14
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-footer.tsx",
+                                lineNumber: 119,
+                                columnNumber: 13
+                            }, this),
+                            saving ? 'Saving...' : saveText
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-footer.tsx",
+                        lineNumber: 113,
+                        columnNumber: 11
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-footer.tsx",
+                lineNumber: 89,
+                columnNumber: 7
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-footer.tsx",
+        lineNumber: 59,
+        columnNumber: 5
+    }, this);
+});
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-modal-body.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * N3ModalBody - モーダルボディコンポーネント
+ * 
+ * 用途:
+ * - モーダルのメインコンテンツエリア
+ * - スクロール対応
+ * - パディング管理
+ * 
+ * Design Spec:
+ * - 縦スクロールに対応
+ * - padding: 1rem (デフォルト)
+ * - flex: 1 で残り高さを確保
+ */ __turbopack_context__.s([
+    "N3ModalBody",
+    ()=>N3ModalBody,
+    "N3ModalGrid",
+    ()=>N3ModalGrid,
+    "N3ModalSection",
+    ()=>N3ModalSection,
+    "default",
+    ()=>__TURBOPACK__default__export__
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+'use client';
+;
+;
+const PADDING_MAP = {
+    none: '0',
+    sm: '0.5rem',
+    md: '1rem',
+    lg: '1.5rem'
+};
+const N3ModalBody = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3ModalBody({ children, padding = 'md', scroll = 'auto', background, minHeight, maxHeight, style, className = '' }) {
+    const baseStyle = {
+        flex: 1,
+        minHeight: minHeight ?? 0,
+        maxHeight: maxHeight,
+        padding: PADDING_MAP[padding],
+        overflowY: scroll,
+        overflowX: 'hidden',
+        background: background ?? 'var(--bg)',
+        ...style
+    };
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-modal-body ${className}`,
+        style: baseStyle,
+        children: children
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-body.tsx",
+        lineNumber: 70,
+        columnNumber: 5
+    }, this);
+});
+const N3ModalSection = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3ModalSection({ title, children, divider = false, style, className = '' }) {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("section", {
+        className: `n3-modal-section ${className}`,
+        style: {
+            marginBottom: '1rem',
+            ...style
+        },
+        children: [
+            title && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("h4", {
+                style: {
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    color: 'var(--text-muted)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    marginBottom: '0.75rem',
+                    paddingBottom: '0.5rem',
+                    borderBottom: divider ? '1px solid var(--panel-border)' : 'none'
+                },
+                children: title
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-body.tsx",
+                lineNumber: 112,
+                columnNumber: 9
+            }, this),
+            !title && divider && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("hr", {
+                style: {
+                    border: 'none',
+                    borderTop: '1px solid var(--panel-border)',
+                    marginBottom: '1rem'
+                }
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-body.tsx",
+                lineNumber: 128,
+                columnNumber: 9
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                children: children
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-body.tsx",
+                lineNumber: 136,
+                columnNumber: 7
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-body.tsx",
+        lineNumber: 104,
+        columnNumber: 5
+    }, this);
+});
+const GAP_MAP = {
+    sm: '0.5rem',
+    md: '1rem',
+    lg: '1.5rem'
+};
+const N3ModalGrid = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3ModalGrid({ children, columns = 2, gap = 'md', style, className = '' }) {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-modal-grid ${className}`,
+        style: {
+            display: 'grid',
+            gridTemplateColumns: `repeat(${columns}, 1fr)`,
+            gap: GAP_MAP[gap],
+            ...style
+        },
+        children: children
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-body.tsx",
+        lineNumber: 175,
+        columnNumber: 5
+    }, this);
+});
+const __TURBOPACK__default__export__ = N3ModalBody;
+}),
+"[project]/n3-frontend_vps/components/n3/container/domestic-tab-renderer.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * DomesticTabRenderer - 国内販路タブのレンダラー
+ * 
+ * N3ProductModalでQoo10、Amazon JP、メルカリ、ヤフオクタブを表示
+ */ __turbopack_context__.s([
+    "DomesticTabRenderer",
+    ()=>DomesticTabRenderer,
+    "default",
+    ()=>__TURBOPACK__default__export__,
+    "isDomesticTab",
+    ()=>isDomesticTab,
+    "renderDomesticTab",
+    ()=>renderDomesticTab
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$app$2f$tools$2f$editing$2d$n3$2f$components$2f$l3$2d$tabs$2f$domestic$2d$tab$2f$qoo10$2d$pricing$2d$tab$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/app/tools/editing-n3/components/l3-tabs/domestic-tab/qoo10-pricing-tab.tsx [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$package$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Package$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/package.js [app-ssr] (ecmascript) <export default as Package>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$store$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Store$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/store.js [app-ssr] (ecmascript) <export default as Store>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$zap$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Zap$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/zap.js [app-ssr] (ecmascript) <export default as Zap>");
+'use client';
+;
+;
+;
+;
+// ============================================================
+// プレースホルダーコンポーネント
+// ============================================================
+const ComingSoonTab = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function ComingSoonTab({ icon: Icon, title, color, description }) {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        style: {
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '48px 24px',
+            textAlign: 'center'
+        },
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    width: '80px',
+                    height: '80px',
+                    borderRadius: '50%',
+                    background: `${color}15`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: '24px'
+                },
+                children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(Icon, {
+                    size: 40,
+                    style: {
+                        color
+                    }
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/domestic-tab-renderer.tsx",
+                    lineNumber: 78,
+                    columnNumber: 9
+                }, this)
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/domestic-tab-renderer.tsx",
+                lineNumber: 66,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("h3", {
+                style: {
+                    fontSize: '20px',
+                    fontWeight: 700,
+                    color: '#1e293b',
+                    marginBottom: '8px'
+                },
+                children: title
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/domestic-tab-renderer.tsx",
+                lineNumber: 80,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                style: {
+                    fontSize: '14px',
+                    color: '#64748b',
+                    maxWidth: '400px'
+                },
+                children: description
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/domestic-tab-renderer.tsx",
+                lineNumber: 83,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    marginTop: '24px',
+                    padding: '8px 16px',
+                    background: '#f1f5f9',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    color: '#64748b'
+                },
+                children: "Coming Soon"
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/domestic-tab-renderer.tsx",
+                lineNumber: 86,
+                columnNumber: 7
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/domestic-tab-renderer.tsx",
+        lineNumber: 56,
+        columnNumber: 5
+    }, this);
+});
+const DomesticTabRenderer = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function DomesticTabRenderer({ tabId, product, marketplace, onSave, onList }) {
+    // 数値IDに変換
+    const productWithNumericId = {
+        ...product,
+        id: typeof product.id === 'string' ? parseInt(product.id, 10) : product.id
+    };
+    switch(tabId){
+        case 'qoo10':
+            return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$app$2f$tools$2f$editing$2d$n3$2f$components$2f$l3$2d$tabs$2f$domestic$2d$tab$2f$qoo10$2d$pricing$2d$tab$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Qoo10PricingTab"], {
+                product: productWithNumericId,
+                onSave: onSave,
+                onListToQoo10: onList
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/domestic-tab-renderer.tsx",
+                lineNumber: 122,
+                columnNumber: 9
+            }, this);
+        case 'amazon-jp':
+            return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(ComingSoonTab, {
+                icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$zap$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Zap$3e$__["Zap"],
+                title: "Amazon JP 出品設定",
+                color: "#ff9900",
+                description: "Amazon日本向けの価格計算、FBA納品計画、出品APIとの連携機能を実装予定です。"
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/domestic-tab-renderer.tsx",
+                lineNumber: 131,
+                columnNumber: 9
+            }, this);
+        case 'mercari':
+            return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(ComingSoonTab, {
+                icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$package$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Package$3e$__["Package"],
+                title: "メルカリ 出品設定",
+                color: "#ff2d55",
+                description: "メルカリ向けの価格計算、匿名配送設定、出品APIとの連携機能を実装予定です。"
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/domestic-tab-renderer.tsx",
+                lineNumber: 141,
+                columnNumber: 9
+            }, this);
+        case 'yahoo':
+            return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(ComingSoonTab, {
+                icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$store$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Store$3e$__["Store"],
+                title: "ヤフオク 出品設定",
+                color: "#ff0033",
+                description: "ヤフオク向けの価格計算、開始価格・即決価格設定、出品APIとの連携機能を実装予定です。"
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/domestic-tab-renderer.tsx",
+                lineNumber: 151,
+                columnNumber: 9
+            }, this);
+        default:
+            return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    padding: '24px',
+                    textAlign: 'center',
+                    color: '#94a3b8'
+                },
+                children: [
+                    "Unknown tab: ",
+                    tabId
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/domestic-tab-renderer.tsx",
+                lineNumber: 161,
+                columnNumber: 9
+            }, this);
+    }
+});
+function isDomesticTab(tabId) {
+    return [
+        'qoo10',
+        'amazon-jp',
+        'mercari',
+        'yahoo'
+    ].includes(tabId);
+}
+function renderDomesticTab(tabId, product, marketplace, onSave, onList) {
+    if (!isDomesticTab(tabId)) return null;
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(DomesticTabRenderer, {
+        tabId: tabId,
+        product: product,
+        marketplace: marketplace,
+        onSave: onSave,
+        onList: onList
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/domestic-tab-renderer.tsx",
+        lineNumber: 188,
+        columnNumber: 5
+    }, this);
+}
+const __TURBOPACK__default__export__ = DomesticTabRenderer;
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-modal-tab-navigation.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * N3ModalTabNavigation - モーダルタブナビゲーション
+ * 
+ * /tools/editing の ProductModal で使用
+ * アイコン付きタブ、マーケットプレイス別表示制御
+ */ __turbopack_context__.s([
+    "DEFAULT_PRODUCT_MODAL_TABS",
+    ()=>DEFAULT_PRODUCT_MODAL_TABS,
+    "N3ModalTabNavigation",
+    ()=>N3ModalTabNavigation
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$lucide$2d$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/lucide-react.js [app-ssr] (ecmascript)");
+'use client';
+;
+;
+;
+// Font Awesomeアイコンマッピング（後方互換性のため）
+const FA_TO_LUCIDE = {
+    'fa-chart-pie': 'PieChart',
+    'fa-database': 'Database',
+    'fa-images': 'Images',
+    'fa-tools': 'Wrench',
+    'fa-search-dollar': 'Search',
+    'fa-chart-bar': 'BarChart3',
+    'fa-dollar-sign': 'DollarSign',
+    'fa-shopping-cart': 'ShoppingCart',
+    'fa-edit': 'Edit',
+    'fa-shipping-fast': 'Truck',
+    'fa-balance-scale': 'Scale',
+    'fa-code': 'Code',
+    'fa-check-circle': 'CheckCircle'
+};
+const N3ModalTabNavigation = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3ModalTabNavigation({ tabs, current, onChange, marketplace = 'ebay-us', domesticMarketplaces = [], language = 'en', accentColor, size = 'sm' }) {
+    const isDomestic = domesticMarketplaces.includes(marketplace);
+    // タブのフィルタリング
+    const visibleTabs = tabs.filter((tab)=>{
+        if (tab.marketplaces?.length && !tab.marketplaces.includes(marketplace)) return false;
+        if (tab.excludeMarketplaces?.includes(marketplace)) return false;
+        if (tab.domesticOnly && !isDomestic) return false;
+        if (tab.overseasOnly && isDomestic) return false;
+        return true;
+    });
+    const renderIcon = (tab, isActive, activeColor)=>{
+        if (!tab.icon) return null;
+        // LucideIcon の場合
+        if (typeof tab.icon !== 'string') {
+            const IconComponent = tab.icon;
+            return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(IconComponent, {
+                size: size === 'sm' ? 12 : 14
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-tab-navigation.tsx",
+                lineNumber: 93,
+                columnNumber: 14
+            }, this);
+        }
+        // Font Awesome クラス名の場合 -> Lucide に変換
+        const lucideIconName = FA_TO_LUCIDE[tab.icon];
+        if (lucideIconName) {
+            const IconComponent = __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$lucide$2d$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__[lucideIconName];
+            if (IconComponent) {
+                return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(IconComponent, {
+                    size: size === 'sm' ? 12 : 14
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-tab-navigation.tsx",
+                    lineNumber: 101,
+                    columnNumber: 16
+                }, this);
+            }
+        }
+        // フォールバック: Font Awesome
+        return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("i", {
+            className: `fas ${tab.icon}`,
+            style: {
+                fontSize: size === 'sm' ? '12px' : '14px'
+            }
+        }, void 0, false, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-tab-navigation.tsx",
+            lineNumber: 106,
+            columnNumber: 12
+        }, this);
+    };
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("nav", {
+        style: {
+            display: 'flex',
+            background: 'var(--bg-solid)',
+            borderBottom: '1px solid var(--panel-border)',
+            minHeight: size === 'sm' ? '40px' : '44px',
+            maxHeight: size === 'sm' ? '40px' : '44px',
+            overflowX: 'auto',
+            overflowY: 'hidden',
+            flexShrink: 0,
+            padding: '0 0.5rem'
+        },
+        children: visibleTabs.map((tab)=>{
+            const isActive = current === tab.id;
+            const activeColor = accentColor || 'var(--accent)';
+            const label = language === 'ja' ? tab.labelJa : tab.labelEn;
+            return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                onClick: ()=>!tab.disabled && onChange(tab.id),
+                disabled: tab.disabled,
+                style: {
+                    padding: size === 'sm' ? '0.5rem 0.75rem' : '0.625rem 1rem',
+                    fontSize: size === 'sm' ? '10px' : '11px',
+                    fontWeight: 600,
+                    color: isActive ? activeColor : 'var(--text-muted)',
+                    background: 'transparent',
+                    border: 'none',
+                    borderBottom: `2px solid ${isActive ? activeColor : 'transparent'}`,
+                    cursor: tab.disabled ? 'not-allowed' : 'pointer',
+                    opacity: tab.disabled ? 0.5 : 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '0.125rem',
+                    transition: 'all 0.15s ease',
+                    whiteSpace: 'nowrap',
+                    position: 'relative'
+                },
+                onMouseEnter: (e)=>{
+                    if (!isActive && !tab.disabled) {
+                        e.currentTarget.style.color = 'var(--text)';
+                    }
+                },
+                onMouseLeave: (e)=>{
+                    if (!isActive && !tab.disabled) {
+                        e.currentTarget.style.color = 'var(--text-muted)';
+                    }
+                },
+                children: [
+                    renderIcon(tab, isActive, activeColor),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                        style: {
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem'
+                        },
+                        children: [
+                            label,
+                            tab.badge !== undefined && tab.badge > 0 && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                style: {
+                                    fontSize: '8px',
+                                    fontWeight: 700,
+                                    padding: '1px 4px',
+                                    borderRadius: '9999px',
+                                    background: isActive ? activeColor : 'var(--text-muted)',
+                                    color: 'var(--bg-solid)'
+                                },
+                                children: tab.badge
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-tab-navigation.tsx",
+                                lineNumber: 166,
+                                columnNumber: 17
+                            }, this)
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-tab-navigation.tsx",
+                        lineNumber: 163,
+                        columnNumber: 13
+                    }, this)
+                ]
+            }, tab.id, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-tab-navigation.tsx",
+                lineNumber: 129,
+                columnNumber: 11
+            }, this);
+        })
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-tab-navigation.tsx",
+        lineNumber: 110,
+        columnNumber: 5
+    }, this);
+});
+const DEFAULT_PRODUCT_MODAL_TABS = [
+    {
+        id: 'overview',
+        labelJa: '概要',
+        labelEn: 'Overview',
+        icon: 'fa-chart-pie'
+    },
+    {
+        id: 'data',
+        labelJa: 'データ',
+        labelEn: 'Data',
+        icon: 'fa-database'
+    },
+    {
+        id: 'images',
+        labelJa: '画像',
+        labelEn: 'Images',
+        icon: 'fa-images'
+    },
+    {
+        id: 'tools',
+        labelJa: 'ツール',
+        labelEn: 'Tools',
+        icon: 'fa-tools'
+    },
+    {
+        id: 'mirror',
+        labelJa: 'Mirror',
+        labelEn: 'Mirror',
+        icon: 'fa-search-dollar',
+        overseasOnly: true
+    },
+    {
+        id: 'competitors',
+        labelJa: '競合',
+        labelEn: 'Competitors',
+        icon: 'fa-chart-bar'
+    },
+    {
+        id: 'pricing',
+        labelJa: '価格',
+        labelEn: 'Pricing',
+        icon: 'fa-dollar-sign'
+    },
+    // 国内販路専用タブ
+    {
+        id: 'qoo10',
+        labelJa: 'Qoo10',
+        labelEn: 'Qoo10',
+        icon: 'fa-shopping-cart',
+        marketplaces: [
+            'qoo10-jp'
+        ]
+    },
+    {
+        id: 'amazon-jp',
+        labelJa: 'Amazon',
+        labelEn: 'Amazon',
+        icon: 'fa-shopping-cart',
+        marketplaces: [
+            'amazon-jp'
+        ]
+    },
+    {
+        id: 'mercari',
+        labelJa: 'メルカリ',
+        labelEn: 'Mercari',
+        icon: 'fa-shopping-cart',
+        marketplaces: [
+            'mercari-jp'
+        ]
+    },
+    {
+        id: 'yahoo',
+        labelJa: 'ヤフオク',
+        labelEn: 'Yahoo',
+        icon: 'fa-shopping-cart',
+        marketplaces: [
+            'yahoo-auction'
+        ]
+    },
+    // 共通タブ
+    {
+        id: 'listing',
+        labelJa: '出品',
+        labelEn: 'Listing',
+        icon: 'fa-edit'
+    },
+    {
+        id: 'shipping',
+        labelJa: '配送',
+        labelEn: 'Shipping',
+        icon: 'fa-shipping-fast'
+    },
+    {
+        id: 'tax',
+        labelJa: '関税',
+        labelEn: 'Tax/Duty',
+        icon: 'fa-balance-scale',
+        overseasOnly: true
+    },
+    {
+        id: 'html',
+        labelJa: 'HTML',
+        labelEn: 'HTML',
+        icon: 'fa-code'
+    },
+    {
+        id: 'final',
+        labelJa: '確認',
+        labelEn: 'Final',
+        icon: 'fa-check-circle'
+    }
+];
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-marketplace-selector.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * N3MarketplaceSelector - マーケットプレイス選択コンポーネント
+ * 
+ * /tools/editing の ProductModal で使用
+ * ドロップダウン + クイックアクセスボタン
+ */ __turbopack_context__.s([
+    "DEFAULT_MARKETPLACE_GROUPS",
+    ()=>DEFAULT_MARKETPLACE_GROUPS,
+    "DOMESTIC_MARKETPLACE_IDS",
+    ()=>DOMESTIC_MARKETPLACE_IDS,
+    "MARKETPLACE_CONFIG",
+    ()=>MARKETPLACE_CONFIG,
+    "N3MarketplaceSelector",
+    ()=>N3MarketplaceSelector
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevron$2d$down$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronDown$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/chevron-down.js [app-ssr] (ecmascript) <export default as ChevronDown>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevron$2d$up$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronUp$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/chevron-up.js [app-ssr] (ecmascript) <export default as ChevronUp>");
+'use client';
+;
+;
+;
+const DEFAULT_MARKETPLACE_GROUPS = [
+    {
+        name: 'eBay',
+        items: [
+            {
+                id: 'ebay-us',
+                name: 'eBay US',
+                color: '#0064d2'
+            },
+            {
+                id: 'ebay-uk',
+                name: 'eBay UK',
+                color: '#0064d2'
+            },
+            {
+                id: 'ebay-de',
+                name: 'eBay DE',
+                color: '#0064d2'
+            },
+            {
+                id: 'ebay-au',
+                name: 'eBay AU',
+                color: '#0064d2'
+            }
+        ]
+    },
+    {
+        name: 'Amazon',
+        items: [
+            {
+                id: 'amazon-us',
+                name: 'Amazon US',
+                color: '#ff9900'
+            },
+            {
+                id: 'amazon-uk',
+                name: 'Amazon UK',
+                color: '#ff9900'
+            },
+            {
+                id: 'amazon-de',
+                name: 'Amazon DE',
+                color: '#ff9900'
+            },
+            {
+                id: 'amazon-jp',
+                name: 'Amazon日本',
+                color: '#ff9900'
+            }
+        ]
+    },
+    {
+        name: 'Shopee',
+        items: [
+            {
+                id: 'shopee-sg',
+                name: 'Shopee SG',
+                color: '#ee4d2d'
+            },
+            {
+                id: 'shopee-my',
+                name: 'Shopee MY',
+                color: '#ee4d2d'
+            },
+            {
+                id: 'shopee-th',
+                name: 'Shopee TH',
+                color: '#ee4d2d'
+            }
+        ]
+    },
+    {
+        name: '国内',
+        items: [
+            {
+                id: 'yahoo-auction',
+                name: 'ヤフオク',
+                color: '#ff0033'
+            },
+            {
+                id: 'mercari-jp',
+                name: 'メルカリ',
+                color: '#ff0211'
+            },
+            {
+                id: 'rakuten',
+                name: '楽天市場',
+                color: '#bf0000'
+            },
+            {
+                id: 'qoo10-jp',
+                name: 'Qoo10国内',
+                color: '#ff0066'
+            }
+        ]
+    }
+];
+const N3MarketplaceSelector = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3MarketplaceSelector({ current, onChange, groups = DEFAULT_MARKETPLACE_GROUPS, quickAccessIds = [
+    'ebay-us',
+    'amazon-us',
+    'yahoo-auction',
+    'mercari-jp'
+], label = 'Marketplace:' }) {
+    const [isOpen, setIsOpen] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false);
+    const dropdownRef = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useRef"])(null);
+    // 全マーケットプレイスをフラット化
+    const allMarketplaces = groups.flatMap((g)=>g.items);
+    // 現在選択中のマーケットプレイス
+    const currentMp = allMarketplaces.find((mp)=>mp.id === current) || allMarketplaces[0];
+    // クリック外で閉じる
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useEffect"])(()=>{
+        function handleClickOutside(event) {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        }
+        document.addEventListener('mousedown', handleClickOutside);
+        return ()=>document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        ref: dropdownRef,
+        style: {
+            background: 'var(--highlight)',
+            borderBottom: '1px solid var(--panel-border)',
+            padding: '0.375rem 0.75rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            position: 'relative'
+        },
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                style: {
+                    fontSize: '9px',
+                    fontWeight: 600,
+                    color: 'var(--text-muted)',
+                    textTransform: 'uppercase'
+                },
+                children: label
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-marketplace-selector.tsx",
+                lineNumber: 117,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                onClick: ()=>setIsOpen(!isOpen),
+                style: {
+                    padding: '0.25rem 0.5rem',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    borderRadius: '4px',
+                    border: `2px solid ${currentMp.color}`,
+                    background: 'var(--bg-solid)',
+                    color: currentMp.color,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.375rem',
+                    minWidth: '140px'
+                },
+                children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                        style: {
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '50%',
+                            background: currentMp.color
+                        }
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-marketplace-selector.tsx",
+                        lineNumber: 146,
+                        columnNumber: 9
+                    }, this),
+                    currentMp.name,
+                    isOpen ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevron$2d$up$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronUp$3e$__["ChevronUp"], {
+                        size: 12,
+                        style: {
+                            marginLeft: 'auto'
+                        }
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-marketplace-selector.tsx",
+                        lineNumber: 155,
+                        columnNumber: 19
+                    }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevron$2d$down$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronDown$3e$__["ChevronDown"], {
+                        size: 12,
+                        style: {
+                            marginLeft: 'auto'
+                        }
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-marketplace-selector.tsx",
+                        lineNumber: 155,
+                        columnNumber: 76
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-marketplace-selector.tsx",
+                lineNumber: 129,
+                columnNumber: 7
+            }, this),
+            isOpen && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    position: 'absolute',
+                    top: '100%',
+                    left: '75px',
+                    background: 'var(--bg-solid)',
+                    border: '1px solid var(--panel-border)',
+                    borderRadius: '6px',
+                    boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+                    zIndex: 1000,
+                    minWidth: '500px',
+                    maxHeight: '400px',
+                    overflow: 'auto',
+                    padding: '0.5rem'
+                },
+                children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                    style: {
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(3, 1fr)',
+                        gap: '0.5rem'
+                    },
+                    children: groups.map((group)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                            children: [
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                    style: {
+                                        fontSize: '9px',
+                                        fontWeight: 700,
+                                        color: 'var(--text-muted)',
+                                        textTransform: 'uppercase',
+                                        padding: '0.25rem 0.5rem',
+                                        borderBottom: '1px solid var(--panel-border)',
+                                        marginBottom: '0.25rem'
+                                    },
+                                    children: group.name
+                                }, void 0, false, {
+                                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-marketplace-selector.tsx",
+                                    lineNumber: 179,
+                                    columnNumber: 17
+                                }, this),
+                                group.items.map((mp)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                        onClick: ()=>{
+                                            onChange(mp.id);
+                                            setIsOpen(false);
+                                        },
+                                        style: {
+                                            width: '100%',
+                                            padding: '0.375rem 0.5rem',
+                                            fontSize: '10px',
+                                            fontWeight: current === mp.id ? 700 : 500,
+                                            borderRadius: '3px',
+                                            border: 'none',
+                                            background: current === mp.id ? `${mp.color}15` : 'transparent',
+                                            color: current === mp.id ? mp.color : 'var(--text)',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.375rem',
+                                            textAlign: 'left',
+                                            transition: 'background 0.15s ease'
+                                        },
+                                        onMouseEnter: (e)=>{
+                                            if (current !== mp.id) {
+                                                e.currentTarget.style.background = 'var(--highlight)';
+                                            }
+                                        },
+                                        onMouseLeave: (e)=>{
+                                            if (current !== mp.id) {
+                                                e.currentTarget.style.background = 'transparent';
+                                            }
+                                        },
+                                        children: [
+                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                                style: {
+                                                    width: '6px',
+                                                    height: '6px',
+                                                    borderRadius: '50%',
+                                                    background: mp.color,
+                                                    flexShrink: 0
+                                                }
+                                            }, void 0, false, {
+                                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-marketplace-selector.tsx",
+                                                lineNumber: 226,
+                                                columnNumber: 21
+                                            }, this),
+                                            mp.name
+                                        ]
+                                    }, mp.id, true, {
+                                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-marketplace-selector.tsx",
+                                        lineNumber: 193,
+                                        columnNumber: 19
+                                    }, this))
+                            ]
+                        }, group.name, true, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-marketplace-selector.tsx",
+                            lineNumber: 178,
+                            columnNumber: 15
+                        }, this))
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-marketplace-selector.tsx",
+                    lineNumber: 176,
+                    columnNumber: 11
+                }, this)
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-marketplace-selector.tsx",
+                lineNumber: 160,
+                columnNumber: 9
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    marginLeft: '0.5rem',
+                    display: 'flex',
+                    gap: '0.25rem'
+                },
+                children: quickAccessIds.map((id)=>{
+                    const mp = allMarketplaces.find((m)=>m.id === id);
+                    if (!mp) return null;
+                    const isActive = current === mp.id;
+                    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                        onClick: ()=>onChange(mp.id),
+                        title: mp.name,
+                        style: {
+                            padding: '0.2rem 0.4rem',
+                            fontSize: '9px',
+                            fontWeight: 600,
+                            borderRadius: '3px',
+                            border: `1px solid ${isActive ? mp.color : 'var(--panel-border)'}`,
+                            background: isActive ? mp.color : 'var(--bg-solid)',
+                            color: isActive ? '#ffffff' : 'var(--text-muted)',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                        },
+                        children: mp.name.split(' ').pop()
+                    }, mp.id, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-marketplace-selector.tsx",
+                        lineNumber: 251,
+                        columnNumber: 13
+                    }, this);
+                })
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-marketplace-selector.tsx",
+                lineNumber: 245,
+                columnNumber: 7
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-marketplace-selector.tsx",
+        lineNumber: 105,
+        columnNumber: 5
+    }, this);
+});
+const DOMESTIC_MARKETPLACE_IDS = [
+    'yahoo-auction',
+    'yahoo-shopping',
+    'yahoo-fleamarket',
+    'mercari-jp',
+    'rakuten',
+    'qoo10-jp',
+    'amazon-jp',
+    'rakuma',
+    'base'
+];
+const MARKETPLACE_CONFIG = {
+    'ebay-us': {
+        name: 'eBay US',
+        maxImages: 24,
+        region: 'US',
+        language: 'en'
+    },
+    'ebay-uk': {
+        name: 'eBay UK',
+        maxImages: 24,
+        region: 'UK',
+        language: 'en'
+    },
+    'ebay-de': {
+        name: 'eBay DE',
+        maxImages: 24,
+        region: 'DE',
+        language: 'en'
+    },
+    'ebay-au': {
+        name: 'eBay AU',
+        maxImages: 24,
+        region: 'AU',
+        language: 'en'
+    },
+    'amazon-us': {
+        name: 'Amazon US',
+        maxImages: 9,
+        region: 'US',
+        language: 'en'
+    },
+    'amazon-uk': {
+        name: 'Amazon UK',
+        maxImages: 9,
+        region: 'UK',
+        language: 'en'
+    },
+    'amazon-de': {
+        name: 'Amazon DE',
+        maxImages: 9,
+        region: 'DE',
+        language: 'en'
+    },
+    'amazon-jp': {
+        name: 'Amazon日本',
+        maxImages: 9,
+        region: 'JP',
+        language: 'ja'
+    },
+    'shopee-sg': {
+        name: 'Shopee SG',
+        maxImages: 9,
+        region: 'SG',
+        language: 'en'
+    },
+    'shopee-my': {
+        name: 'Shopee MY',
+        maxImages: 9,
+        region: 'MY',
+        language: 'en'
+    },
+    'shopee-th': {
+        name: 'Shopee TH',
+        maxImages: 9,
+        region: 'TH',
+        language: 'en'
+    },
+    'yahoo-auction': {
+        name: 'ヤフオク',
+        maxImages: 10,
+        region: 'JP',
+        language: 'ja'
+    },
+    'mercari-jp': {
+        name: 'メルカリ',
+        maxImages: 10,
+        region: 'JP',
+        language: 'ja'
+    },
+    'rakuten': {
+        name: '楽天市場',
+        maxImages: 20,
+        region: 'JP',
+        language: 'ja'
+    },
+    'qoo10-jp': {
+        name: 'Qoo10国内',
+        maxImages: 10,
+        region: 'JP',
+        language: 'ja'
+    }
+};
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-product-modal.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * N3ProductModal - N3コンポーネントで構成された商品編集モーダル
+ * 
+ * 特徴:
+ * - N3Modal + N3ModalHeader + N3ModalTabNavigation + N3ModalBody + N3ModalFooter
+ * - 全てN3コンポーネントで構成
+ * - マーケットプレイス切り替え対応
+ * - タブ構成（遅延読み込み対応）
+ * - 自動保存機能対応
+ * 
+ * 参考: /components/product-modal/full-featured-modal.tsx
+ */ __turbopack_context__.s([
+    "N3ProductModal",
+    ()=>N3ProductModal,
+    "default",
+    ()=>__TURBOPACK__default__export__
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$dom$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-dom.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$container$2f$n3$2d$loading$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/components/n3/container/n3-loading.tsx [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$container$2f$domestic$2d$tab$2d$renderer$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/components/n3/container/domestic-tab-renderer.tsx [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$container$2f$n3$2d$modal$2d$header$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/components/n3/container/n3-modal-header.tsx [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$container$2f$n3$2d$modal$2d$footer$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/components/n3/container/n3-modal-footer.tsx [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$container$2f$n3$2d$modal$2d$body$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/components/n3/container/n3-modal-body.tsx [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$container$2f$n3$2d$modal$2d$tab$2d$navigation$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/components/n3/container/n3-modal-tab-navigation.tsx [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$container$2f$n3$2d$marketplace$2d$selector$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/components/n3/container/n3-marketplace-selector.tsx [app-ssr] (ecmascript)");
+// Lucide icons
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$circle$2d$alert$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__AlertCircle$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/circle-alert.js [app-ssr] (ecmascript) <export default as AlertCircle>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$circle$2d$check$2d$big$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__CheckCircle$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/circle-check-big.js [app-ssr] (ecmascript) <export default as CheckCircle>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$clock$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Clock$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/clock.js [app-ssr] (ecmascript) <export default as Clock>");
+'use client';
+;
+;
+;
+;
+;
+;
+;
+;
+;
+;
+;
+// ============================================================
+// デフォルトのタブコンテンツ（プレースホルダー）
+// ============================================================
+const DefaultTabContent = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function DefaultTabContent({ tabId, product, marketplace }) {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        style: {
+            padding: '2rem',
+            textAlign: 'center',
+            color: 'var(--text-muted)'
+        },
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    fontSize: '48px',
+                    marginBottom: '1rem',
+                    opacity: 0.5
+                },
+                children: "📋"
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-modal.tsx",
+                lineNumber: 125,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("h3", {
+                style: {
+                    fontSize: '16px',
+                    fontWeight: 600,
+                    marginBottom: '0.5rem',
+                    color: 'var(--text)'
+                },
+                children: [
+                    tabId.charAt(0).toUpperCase() + tabId.slice(1),
+                    " Tab"
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-modal.tsx",
+                lineNumber: 134,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                style: {
+                    fontSize: '13px',
+                    marginBottom: '1rem'
+                },
+                children: "このタブの実装は `renderTabContent` プロップで提供してください。"
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-modal.tsx",
+                lineNumber: 137,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    background: 'var(--highlight)',
+                    borderRadius: '8px',
+                    padding: '1rem',
+                    textAlign: 'left',
+                    fontSize: '11px',
+                    fontFamily: 'monospace'
+                },
+                children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        children: [
+                            "Product ID: ",
+                            product.id
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-modal.tsx",
+                        lineNumber: 150,
+                        columnNumber: 9
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        children: [
+                            "SKU: ",
+                            product.sku || '-'
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-modal.tsx",
+                        lineNumber: 151,
+                        columnNumber: 9
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        children: [
+                            "Marketplace: ",
+                            marketplace
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-modal.tsx",
+                        lineNumber: 152,
+                        columnNumber: 9
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-modal.tsx",
+                lineNumber: 140,
+                columnNumber: 7
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-modal.tsx",
+        lineNumber: 118,
+        columnNumber: 5
+    }, this);
+});
+const N3ProductModal = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3ProductModal({ open, onClose, product, onSave, onDelete, onPrev, onNext, hasPrev = false, hasNext = false, tabs = __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$container$2f$n3$2d$modal$2d$tab$2d$navigation$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["DEFAULT_PRODUCT_MODAL_TABS"], initialMarketplace = 'ebay-us', initialTab = 'overview', renderTabContent, size = 'xl', zIndex = 9999 }) {
+    // ============================================
+    // 状態管理
+    // ============================================
+    const [activeTab, setActiveTab] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(initialTab);
+    const [marketplace, setMarketplace] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(initialMarketplace);
+    const [language, setLanguage] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])('en');
+    const [saving, setSaving] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false);
+    const [saveStatus, setSaveStatus] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(null);
+    const [portalTarget, setPortalTarget] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(null);
+    // マーケットプレイス設定
+    const mpConfig = __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$container$2f$n3$2d$marketplace$2d$selector$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["MARKETPLACE_CONFIG"][marketplace] || __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$container$2f$n3$2d$marketplace$2d$selector$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["MARKETPLACE_CONFIG"]['ebay-us'];
+    const isDomestic = __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$container$2f$n3$2d$marketplace$2d$selector$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["DOMESTIC_MARKETPLACE_IDS"].includes(marketplace);
+    // ============================================
+    // ポータルターゲットを設定（テーマが適用された要素を優先）
+    // ============================================
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useEffect"])(()=>{
+        if (typeof document !== 'undefined') {
+            const themeRoot = document.querySelector('[data-theme]') || document.body;
+            setPortalTarget(themeRoot);
+        }
+    }, []);
+    // ============================================
+    // マーケットプレイス変更時の言語自動切り替え
+    // ============================================
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useEffect"])(()=>{
+        if (mpConfig?.language) {
+            setLanguage(mpConfig.language);
+        }
+    }, [
+        mpConfig
+    ]);
+    // ============================================
+    // ESCキーで閉じる
+    // ============================================
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useEffect"])(()=>{
+        if (!open) return;
+        const handleKeyDown = (e)=>{
+            if (e.key === 'Escape') {
+                onClose();
+            }
+        };
+        document.addEventListener('keydown', handleKeyDown);
+        return ()=>document.removeEventListener('keydown', handleKeyDown);
+    }, [
+        open,
+        onClose
+    ]);
+    // ============================================
+    // スクロールロック
+    // ============================================
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useEffect"])(()=>{
+        if (open) {
+            const originalOverflow = document.body.style.overflow;
+            document.body.style.overflow = 'hidden';
+            return ()=>{
+                document.body.style.overflow = originalOverflow;
+            };
+        }
+    }, [
+        open
+    ]);
+    // ============================================
+    // 保存処理
+    // ============================================
+    const handleSave = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])(async ()=>{
+        if (!onSave || !product) return;
+        setSaving(true);
+        setSaveStatus('saving');
+        try {
+            await onSave({});
+            setSaveStatus('saved');
+            setTimeout(()=>setSaveStatus(null), 2000);
+        } catch (error) {
+            console.error('Save failed:', error);
+            setSaveStatus('unsaved');
+        } finally{
+            setSaving(false);
+        }
+    }, [
+        onSave,
+        product
+    ]);
+    // ============================================
+    // オーバーレイクリックで閉じる
+    // ============================================
+    const handleOverlayClick = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])((e)=>{
+        if (e.target === e.currentTarget) {
+            onClose();
+        }
+    }, [
+        onClose
+    ]);
+    // ============================================
+    // タブコンテンツのレンダリング
+    // ============================================
+    const renderContent = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])(()=>{
+        if (!product) {
+            return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '100%',
+                    padding: '2rem'
+                },
+                children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$container$2f$n3$2d$loading$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["N3Loading"], {
+                    message: "商品データを読み込み中..."
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-modal.tsx",
+                    lineNumber: 289,
+                    columnNumber: 11
+                }, this)
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-modal.tsx",
+                lineNumber: 280,
+                columnNumber: 9
+            }, this);
+        }
+        // 国内販路タブの場合はDomesticTabRendererを使用
+        if ((0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$container$2f$domestic$2d$tab$2d$renderer$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["isDomesticTab"])(activeTab)) {
+            return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$container$2f$domestic$2d$tab$2d$renderer$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["DomesticTabRenderer"], {
+                tabId: activeTab,
+                product: product,
+                marketplace: marketplace,
+                onSave: onSave
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-modal.tsx",
+                lineNumber: 297,
+                columnNumber: 9
+            }, this);
+        }
+        // 外部から提供されたレンダラーがあれば使用
+        if (renderTabContent) {
+            return renderTabContent(activeTab, product, marketplace, language);
+        }
+        // デフォルトのプレースホルダー
+        return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(DefaultTabContent, {
+            tabId: activeTab,
+            product: product,
+            marketplace: marketplace
+        }, void 0, false, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-modal.tsx",
+            lineNumber: 313,
+            columnNumber: 7
+        }, this);
+    }, [
+        activeTab,
+        product,
+        marketplace,
+        language,
+        renderTabContent,
+        onSave
+    ]);
+    // ============================================
+    // モーダルサイズ
+    // ============================================
+    const sizeStyle = {
+        md: {
+            width: '90vw',
+            maxWidth: '800px',
+            height: '80vh',
+            maxHeight: '700px'
+        },
+        lg: {
+            width: '92vw',
+            maxWidth: '1200px',
+            height: '85vh',
+            maxHeight: '800px'
+        },
+        xl: {
+            width: '95vw',
+            maxWidth: '1600px',
+            height: '92vh',
+            maxHeight: '900px'
+        },
+        full: {
+            width: '100vw',
+            maxWidth: '100vw',
+            height: '100vh',
+            maxHeight: '100vh',
+            borderRadius: 0
+        }
+    }[size];
+    // ============================================
+    // レンダリング
+    // ============================================
+    if (!open) return null;
+    const modal = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        onClick: handleOverlayClick,
+        style: {
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.6)',
+            backdropFilter: 'blur(4px)',
+            zIndex: zIndex,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+        },
+        role: "dialog",
+        "aria-modal": "true",
+        children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+            style: {
+                ...sizeStyle,
+                background: 'var(--bg)',
+                borderRadius: size === 'full' ? 0 : '8px',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden'
+            },
+            onClick: (e)=>e.stopPropagation(),
+            children: [
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                    style: {
+                        position: 'relative',
+                        flexShrink: 0
+                    },
+                    children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$container$2f$n3$2d$modal$2d$header$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["N3ModalHeader"], {
+                        status: product?.listingStatus || 'pending',
+                        sku: product?.sku,
+                        title: language === 'ja' ? product?.title || '-' : product?.englishTitle || product?.title || '-',
+                        language: language,
+                        onLanguageChange: setLanguage,
+                        onClose: onClose,
+                        rightContent: saveStatus && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                            style: {
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '4px 8px',
+                                borderRadius: '4px',
+                                fontSize: '10px',
+                                fontWeight: 500,
+                                background: saveStatus === 'saving' ? 'rgba(251, 191, 36, 0.1)' : saveStatus === 'saved' ? 'rgba(52, 211, 153, 0.1)' : 'rgba(248, 113, 113, 0.1)',
+                                color: saveStatus === 'saving' ? 'rgb(251, 191, 36)' : saveStatus === 'saved' ? 'rgb(52, 211, 153)' : 'rgb(248, 113, 113)',
+                                border: `1px solid ${saveStatus === 'saving' ? 'rgba(251, 191, 36, 0.3)' : saveStatus === 'saved' ? 'rgba(52, 211, 153, 0.3)' : 'rgba(248, 113, 113, 0.3)'}`
+                            },
+                            children: [
+                                saveStatus === 'saving' && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$clock$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Clock$3e$__["Clock"], {
+                                    size: 12
+                                }, void 0, false, {
+                                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-modal.tsx",
+                                    lineNumber: 405,
+                                    columnNumber: 47
+                                }, void 0),
+                                saveStatus === 'saved' && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$circle$2d$check$2d$big$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__CheckCircle$3e$__["CheckCircle"], {
+                                    size: 12
+                                }, void 0, false, {
+                                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-modal.tsx",
+                                    lineNumber: 406,
+                                    columnNumber: 46
+                                }, void 0),
+                                saveStatus === 'unsaved' && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$circle$2d$alert$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__AlertCircle$3e$__["AlertCircle"], {
+                                    size: 12
+                                }, void 0, false, {
+                                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-modal.tsx",
+                                    lineNumber: 407,
+                                    columnNumber: 48
+                                }, void 0),
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                    children: saveStatus === 'saving' ? '保存中...' : saveStatus === 'saved' ? '保存済み' : '未保存'
+                                }, void 0, false, {
+                                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-modal.tsx",
+                                    lineNumber: 408,
+                                    columnNumber: 19
+                                }, void 0)
+                            ]
+                        }, void 0, true, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-modal.tsx",
+                            lineNumber: 375,
+                            columnNumber: 17
+                        }, void 0)
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-modal.tsx",
+                        lineNumber: 366,
+                        columnNumber: 11
+                    }, this)
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-modal.tsx",
+                    lineNumber: 365,
+                    columnNumber: 9
+                }, this),
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                    style: {
+                        flexShrink: 0
+                    },
+                    children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$container$2f$n3$2d$marketplace$2d$selector$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["N3MarketplaceSelector"], {
+                        current: marketplace,
+                        onChange: setMarketplace,
+                        size: "sm"
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-modal.tsx",
+                        lineNumber: 423,
+                        columnNumber: 11
+                    }, this)
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-modal.tsx",
+                    lineNumber: 422,
+                    columnNumber: 9
+                }, this),
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                    style: {
+                        flexShrink: 0
+                    },
+                    children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$container$2f$n3$2d$modal$2d$tab$2d$navigation$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["N3ModalTabNavigation"], {
+                        tabs: tabs,
+                        current: activeTab,
+                        onChange: setActiveTab,
+                        marketplace: marketplace,
+                        domesticMarketplaces: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$container$2f$n3$2d$marketplace$2d$selector$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["DOMESTIC_MARKETPLACE_IDS"],
+                        language: language,
+                        size: "sm"
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-modal.tsx",
+                        lineNumber: 432,
+                        columnNumber: 11
+                    }, this)
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-modal.tsx",
+                    lineNumber: 431,
+                    columnNumber: 9
+                }, this),
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$container$2f$n3$2d$modal$2d$body$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["N3ModalBody"], {
+                    padding: "none",
+                    scroll: "auto",
+                    background: "var(--bg)",
+                    style: {
+                        flex: 1,
+                        minHeight: 0
+                    },
+                    children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Suspense"], {
+                        fallback: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                            style: {
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                height: '200px',
+                                color: 'var(--text-muted)'
+                            },
+                            children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$container$2f$n3$2d$loading$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["N3LoadingDots"], {}, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-modal.tsx",
+                                lineNumber: 461,
+                                columnNumber: 17
+                            }, void 0)
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-modal.tsx",
+                            lineNumber: 452,
+                            columnNumber: 15
+                        }, void 0),
+                        children: renderContent()
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-modal.tsx",
+                        lineNumber: 450,
+                        columnNumber: 11
+                    }, this)
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-modal.tsx",
+                    lineNumber: 444,
+                    columnNumber: 9
+                }, this),
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$container$2f$n3$2d$modal$2d$footer$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["N3ModalFooter"], {
+                    updatedAt: product?.updatedAt,
+                    showPrev: hasPrev,
+                    showNext: hasNext,
+                    onPrev: onPrev,
+                    onNext: onNext,
+                    onCancel: onClose,
+                    onSave: onSave ? handleSave : undefined,
+                    saving: saving,
+                    saveText: "Save"
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-modal.tsx",
+                    lineNumber: 470,
+                    columnNumber: 9
+                }, this)
+            ]
+        }, void 0, true, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-modal.tsx",
+            lineNumber: 352,
+            columnNumber: 7
+        }, this)
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-product-modal.tsx",
+        lineNumber: 337,
+        columnNumber: 5
+    }, this);
+    // ポータルでレンダリング
+    if (typeof document !== 'undefined' && portalTarget) {
+        return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$dom$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["createPortal"])(modal, portalTarget);
+    }
+    return modal;
+});
+const __TURBOPACK__default__export__ = N3ProductModal;
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-modal-tabs.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * N3ModalTabs - シンプルなモーダルタブコンポーネント
+ * 
+ * 用途:
+ * - モーダル内のタブ切り替え
+ * - N3ModalTabNavigation のシンプル版
+ * - より汎用的な用途に対応
+ * 
+ * 注: マーケットプレイス対応が必要な場合は N3ModalTabNavigation を使用
+ */ __turbopack_context__.s([
+    "N3ModalTabs",
+    ()=>N3ModalTabs,
+    "N3TabPanel",
+    ()=>N3TabPanel,
+    "default",
+    ()=>__TURBOPACK__default__export__
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+'use client';
+;
+;
+// ============================================
+// サイズ設定
+// ============================================
+const SIZE_CONFIG = {
+    sm: {
+        padding: '0.375rem 0.75rem',
+        fontSize: '11px',
+        iconSize: 12,
+        gap: '0.25rem',
+        height: '36px'
+    },
+    md: {
+        padding: '0.5rem 1rem',
+        fontSize: '12px',
+        iconSize: 14,
+        gap: '0.375rem',
+        height: '40px'
+    },
+    lg: {
+        padding: '0.625rem 1.25rem',
+        fontSize: '13px',
+        iconSize: 16,
+        gap: '0.5rem',
+        height: '44px'
+    }
+};
+const N3ModalTabs = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3ModalTabs({ tabs, activeTab, onTabChange, language = 'ja', accentColor, size = 'sm', align = 'start', style, className = '' }) {
+    const config = SIZE_CONFIG[size];
+    const activeColorValue = accentColor || 'var(--accent)';
+    const alignStyles = {
+        start: {
+            justifyContent: 'flex-start'
+        },
+        center: {
+            justifyContent: 'center'
+        },
+        end: {
+            justifyContent: 'flex-end'
+        },
+        stretch: {
+            justifyContent: 'stretch'
+        }
+    };
+    const renderIcon = (tab)=>{
+        if (!tab.icon) return null;
+        // LucideIcon の場合（関数コンポーネント）
+        if (typeof tab.icon === 'function') {
+            const IconComponent = tab.icon;
+            return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(IconComponent, {
+                size: config.iconSize
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-tabs.tsx",
+                lineNumber: 115,
+                columnNumber: 14
+            }, this);
+        }
+        // ReactNode の場合（既にレンダリング済みの要素）
+        if (/*#__PURE__*/ __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["default"].isValidElement(tab.icon)) {
+            return tab.icon;
+        }
+        return null;
+    };
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("nav", {
+        className: `n3-modal-tabs ${className}`,
+        style: {
+            display: 'flex',
+            background: 'var(--bg-solid)',
+            borderBottom: '1px solid var(--panel-border)',
+            minHeight: config.height,
+            maxHeight: config.height,
+            overflowX: 'auto',
+            overflowY: 'hidden',
+            flexShrink: 0,
+            padding: '0 0.5rem',
+            ...alignStyles[align],
+            ...style
+        },
+        children: tabs.map((tab)=>{
+            const isActive = activeTab === tab.id;
+            const label = language === 'ja' ? tab.label : tab.labelEn || tab.label;
+            return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                onClick: ()=>!tab.disabled && onTabChange(tab.id),
+                disabled: tab.disabled,
+                style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: config.gap,
+                    padding: config.padding,
+                    fontSize: config.fontSize,
+                    fontWeight: 600,
+                    color: isActive ? activeColorValue : 'var(--text-muted)',
+                    background: 'transparent',
+                    border: 'none',
+                    borderBottom: `2px solid ${isActive ? activeColorValue : 'transparent'}`,
+                    cursor: tab.disabled ? 'not-allowed' : 'pointer',
+                    opacity: tab.disabled ? 0.5 : 1,
+                    transition: 'all 0.15s ease',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0
+                },
+                onMouseEnter: (e)=>{
+                    if (!isActive && !tab.disabled) {
+                        e.currentTarget.style.color = 'var(--text)';
+                    }
+                },
+                onMouseLeave: (e)=>{
+                    if (!isActive && !tab.disabled) {
+                        e.currentTarget.style.color = 'var(--text-muted)';
+                    }
+                },
+                children: [
+                    renderIcon(tab),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                        children: label
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-tabs.tsx",
+                        lineNumber: 181,
+                        columnNumber: 13
+                    }, this),
+                    tab.badge !== undefined && tab.badge > 0 && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                        style: {
+                            fontSize: '9px',
+                            fontWeight: 700,
+                            padding: '1px 5px',
+                            borderRadius: '9999px',
+                            background: isActive ? activeColorValue : 'var(--text-muted)',
+                            color: 'var(--bg-solid)',
+                            marginLeft: '2px'
+                        },
+                        children: tab.badge > 99 ? '99+' : tab.badge
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-tabs.tsx",
+                        lineNumber: 183,
+                        columnNumber: 15
+                    }, this)
+                ]
+            }, tab.id, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-tabs.tsx",
+                lineNumber: 148,
+                columnNumber: 11
+            }, this);
+        })
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-tabs.tsx",
+        lineNumber: 127,
+        columnNumber: 5
+    }, this);
+});
+const N3TabPanel = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3TabPanel({ tabId, activeTab, children, keepMounted = false, style, className = '' }) {
+    const isActive = activeTab === tabId;
+    if (!isActive && !keepMounted) {
+        return null;
+    }
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-tab-panel ${className}`,
+        role: "tabpanel",
+        hidden: !isActive,
+        style: {
+            display: isActive ? 'block' : 'none',
+            ...style
+        },
+        children: children
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-modal-tabs.tsx",
+        lineNumber: 237,
+        columnNumber: 5
+    }, this);
+});
+const __TURBOPACK__default__export__ = N3ModalTabs;
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-stat-box.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * N3StatBox - 統計ボックスコンポーネント
+ * 
+ * /tools/editing の ProductModal で使用
+ * ラベル + 値の小さな統計表示ボックス
+ */ __turbopack_context__.s([
+    "N3StatBox",
+    ()=>N3StatBox,
+    "N3StatGrid",
+    ()=>N3StatGrid
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+'use client';
+;
+;
+const N3StatBox = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3StatBox({ label, value, color, mono = false, size = 'md', onClick }) {
+    const sizeStyles = {
+        sm: {
+            padding: '0.375rem',
+            labelSize: '7px',
+            valueSize: '10px'
+        },
+        md: {
+            padding: '0.5rem',
+            labelSize: '8px',
+            valueSize: '12px'
+        },
+        lg: {
+            padding: '0.625rem',
+            labelSize: '9px',
+            valueSize: '14px'
+        }
+    };
+    const s = sizeStyles[size];
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        onClick: onClick,
+        style: {
+            padding: s.padding,
+            borderRadius: '4px',
+            background: 'var(--highlight)',
+            textAlign: 'center',
+            cursor: onClick ? 'pointer' : 'default',
+            transition: onClick ? 'all 0.15s ease' : undefined
+        },
+        onMouseEnter: (e)=>{
+            if (onClick) {
+                e.currentTarget.style.background = 'var(--panel-border)';
+            }
+        },
+        onMouseLeave: (e)=>{
+            if (onClick) {
+                e.currentTarget.style.background = 'var(--highlight)';
+            }
+        },
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    fontSize: s.labelSize,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.03em',
+                    color: 'var(--text-subtle)'
+                },
+                children: label
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-stat-box.tsx",
+                lineNumber: 65,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    fontSize: s.valueSize,
+                    fontWeight: 700,
+                    fontFamily: mono ? 'monospace' : 'inherit',
+                    color: color || 'var(--text)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                },
+                children: value
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-stat-box.tsx",
+                lineNumber: 75,
+                columnNumber: 7
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-stat-box.tsx",
+        lineNumber: 44,
+        columnNumber: 5
+    }, this);
+});
+const N3StatGrid = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3StatGrid({ children, columns = 4, gap = '0.5rem' }) {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        style: {
+            display: 'grid',
+            gridTemplateColumns: `repeat(${columns}, 1fr)`,
+            gap
+        },
+        children: children
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-stat-box.tsx",
+        lineNumber: 107,
+        columnNumber: 5
+    }, this);
+});
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-quick-actions.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * N3QuickActions - クイックアクションパネル
+ * 
+ * /tools/editing の ProductModal で使用
+ * アクションボタンのグループ
+ */ __turbopack_context__.s([
+    "N3ActionButton",
+    ()=>N3ActionButton,
+    "N3QuickActions",
+    ()=>N3QuickActions
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+'use client';
+;
+;
+const N3QuickActions = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3QuickActions({ actions, title = 'Quick Actions', dividerAfter = [] }) {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        style: {
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.5rem'
+        },
+        children: [
+            title && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    fontSize: '9px',
+                    textTransform: 'uppercase',
+                    fontWeight: 600,
+                    color: 'var(--text-subtle)'
+                },
+                children: title
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-quick-actions.tsx",
+                lineNumber: 41,
+                columnNumber: 9
+            }, this),
+            actions.map((action, index)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["default"].Fragment, {
+                    children: [
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(N3ActionButton, {
+                            label: action.label,
+                            icon: action.icon,
+                            onClick: action.onClick,
+                            danger: action.danger,
+                            disabled: action.disabled
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-quick-actions.tsx",
+                            lineNumber: 55,
+                            columnNumber: 11
+                        }, this),
+                        dividerAfter.includes(index) && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                            style: {
+                                borderTop: '1px solid var(--panel-border)',
+                                margin: '0.25rem 0'
+                            }
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-quick-actions.tsx",
+                            lineNumber: 63,
+                            columnNumber: 13
+                        }, this)
+                    ]
+                }, action.id, true, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-quick-actions.tsx",
+                    lineNumber: 54,
+                    columnNumber: 9
+                }, this))
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-quick-actions.tsx",
+        lineNumber: 39,
+        columnNumber: 5
+    }, this);
+});
+const N3ActionButton = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3ActionButton({ label, icon: Icon, onClick, danger = false, disabled = false, fullWidth = true }) {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+        onClick: onClick,
+        disabled: disabled,
+        style: {
+            width: fullWidth ? '100%' : 'auto',
+            padding: '0.5rem 0.75rem',
+            fontSize: '11px',
+            fontWeight: 500,
+            borderRadius: '6px',
+            border: `1px solid ${danger ? 'var(--error)20' : 'var(--panel-border)'}`,
+            background: 'var(--bg-solid)',
+            color: danger ? 'var(--error)' : 'var(--text)',
+            cursor: disabled ? 'not-allowed' : 'pointer',
+            opacity: disabled ? 0.5 : 1,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            transition: 'all 0.15s ease'
+        },
+        onMouseEnter: (e)=>{
+            if (!disabled) {
+                e.currentTarget.style.borderColor = danger ? 'var(--error)' : 'var(--accent)';
+                e.currentTarget.style.color = danger ? 'var(--error)' : 'var(--accent)';
+            }
+        },
+        onMouseLeave: (e)=>{
+            if (!disabled) {
+                e.currentTarget.style.borderColor = danger ? 'var(--error)20' : 'var(--panel-border)';
+                e.currentTarget.style.color = danger ? 'var(--error)' : 'var(--text)';
+            }
+        },
+        children: [
+            Icon && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(Icon, {
+                size: 14,
+                style: {
+                    width: '1rem'
+                }
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-quick-actions.tsx",
+                lineNumber: 129,
+                columnNumber: 16
+            }, this),
+            label
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-quick-actions.tsx",
+        lineNumber: 97,
+        columnNumber: 5
+    }, this);
+});
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-info-card.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * N3InfoCard - 情報カードコンポーネント
+ * 
+ * /tools/editing の ProductModal で使用
+ * ラベル + 値のペアを縦に並べる小さなカード
+ */ __turbopack_context__.s([
+    "N3InfoCard",
+    ()=>N3InfoCard,
+    "N3InfoRow",
+    ()=>N3InfoRow
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+'use client';
+;
+;
+const N3InfoCard = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3InfoCard({ title = 'Info', items }) {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        style: {
+            padding: '0.75rem',
+            borderRadius: '6px',
+            background: 'var(--panel)',
+            border: '1px solid var(--panel-border)'
+        },
+        children: [
+            title && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    fontSize: '9px',
+                    textTransform: 'uppercase',
+                    fontWeight: 600,
+                    color: 'var(--text-subtle)',
+                    marginBottom: '0.5rem'
+                },
+                children: title
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-info-card.tsx",
+                lineNumber: 39,
+                columnNumber: 9
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.25rem'
+                },
+                children: items.map((item, index)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(N3InfoRow, {
+                        label: item.label,
+                        value: item.value,
+                        mono: item.mono
+                    }, index, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-info-card.tsx",
+                        lineNumber: 53,
+                        columnNumber: 11
+                    }, this))
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-info-card.tsx",
+                lineNumber: 51,
+                columnNumber: 7
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-info-card.tsx",
+        lineNumber: 30,
+        columnNumber: 5
+    }, this);
+});
+const N3InfoRow = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3InfoRow({ label, value, mono = false }) {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        style: {
+            display: 'flex',
+            justifyContent: 'space-between',
+            fontSize: '10px'
+        },
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                style: {
+                    color: 'var(--text-muted)'
+                },
+                children: label
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-info-card.tsx",
+                lineNumber: 87,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                style: {
+                    fontFamily: mono ? 'monospace' : 'inherit',
+                    color: 'var(--text)'
+                },
+                children: value
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-info-card.tsx",
+                lineNumber: 88,
+                columnNumber: 7
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-info-card.tsx",
+        lineNumber: 80,
+        columnNumber: 5
+    }, this);
+});
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-profit-summary.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * N3ProfitSummary - 利益サマリーコンポーネント
+ * 
+ * /tools/editing の ProductModal で使用
+ * Margin と Profit を表示するコンパクトなカード
+ */ __turbopack_context__.s([
+    "N3ProfitSummary",
+    ()=>N3ProfitSummary
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+'use client';
+;
+;
+const N3ProfitSummary = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3ProfitSummary({ margin = 0, profit = 0, currency = '$', title = 'Profit Summary' }) {
+    // 利益率に応じた色
+    const getColor = (value)=>{
+        if (value >= 15) return 'var(--success)';
+        if (value >= 0) return 'var(--warning)';
+        return 'var(--error)';
+    };
+    const color = getColor(margin);
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        style: {
+            padding: '0.75rem',
+            borderRadius: '6px',
+            background: 'var(--panel)',
+            border: '1px solid var(--panel-border)'
+        },
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    fontSize: '9px',
+                    textTransform: 'uppercase',
+                    fontWeight: 600,
+                    color: 'var(--text-subtle)',
+                    marginBottom: '0.5rem'
+                },
+                children: title
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-summary.tsx",
+                lineNumber: 47,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: '0.5rem'
+                },
+                children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        style: {
+                            padding: '0.5rem',
+                            borderRadius: '4px',
+                            background: 'var(--highlight)',
+                            textAlign: 'center'
+                        },
+                        children: [
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                style: {
+                                    fontSize: '8px',
+                                    textTransform: 'uppercase',
+                                    color: 'var(--text-subtle)'
+                                },
+                                children: "Margin"
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-summary.tsx",
+                                lineNumber: 74,
+                                columnNumber: 11
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                style: {
+                                    fontSize: '1.125rem',
+                                    fontWeight: 700,
+                                    fontFamily: 'monospace',
+                                    color
+                                },
+                                children: margin > 0 ? `${margin.toFixed(1)}%` : '-'
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-summary.tsx",
+                                lineNumber: 83,
+                                columnNumber: 11
+                            }, this)
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-summary.tsx",
+                        lineNumber: 66,
+                        columnNumber: 9
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        style: {
+                            padding: '0.5rem',
+                            borderRadius: '4px',
+                            background: 'var(--highlight)',
+                            textAlign: 'center'
+                        },
+                        children: [
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                style: {
+                                    fontSize: '8px',
+                                    textTransform: 'uppercase',
+                                    color: 'var(--text-subtle)'
+                                },
+                                children: "Profit"
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-summary.tsx",
+                                lineNumber: 104,
+                                columnNumber: 11
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                style: {
+                                    fontSize: '1.125rem',
+                                    fontWeight: 700,
+                                    fontFamily: 'monospace',
+                                    color
+                                },
+                                children: profit > 0 ? `${currency}${profit.toFixed(0)}` : '-'
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-summary.tsx",
+                                lineNumber: 113,
+                                columnNumber: 11
+                            }, this)
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-summary.tsx",
+                        lineNumber: 96,
+                        columnNumber: 9
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-summary.tsx",
+                lineNumber: 58,
+                columnNumber: 7
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-summary.tsx",
+        lineNumber: 39,
+        columnNumber: 5
+    }, this);
+});
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-image-gallery.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * N3ImageGallery - 画像ギャラリーコンポーネント
+ * 
+ * /tools/editing の ProductModal で使用
+ * メイン画像 + サムネイルグリッド
+ */ __turbopack_context__.s([
+    "N3ImageGallery",
+    ()=>N3ImageGallery
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$image$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Image$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/image.js [app-ssr] (ecmascript) <export default as Image>");
+'use client';
+;
+;
+;
+const N3ImageGallery = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3ImageGallery({ images, initialIndex = 0, thumbnailCount = 4, aspectRatio = '4/3', onImageClick, emptyText = 'No Image' }) {
+    const [selectedIndex, setSelectedIndex] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(initialIndex);
+    const handleThumbnailClick = (index)=>{
+        setSelectedIndex(index);
+    };
+    const handleMainImageClick = ()=>{
+        if (onImageClick && images.length > 0) {
+            onImageClick(selectedIndex);
+        }
+    };
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        style: {
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.5rem'
+        },
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                onClick: handleMainImageClick,
+                style: {
+                    aspectRatio,
+                    borderRadius: '6px',
+                    background: 'var(--highlight)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    overflow: 'hidden',
+                    cursor: images.length > 0 && onImageClick ? 'pointer' : 'default'
+                },
+                children: images.length > 0 ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("img", {
+                    src: images[selectedIndex],
+                    alt: "",
+                    loading: "lazy",
+                    style: {
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover'
+                    }
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-image-gallery.tsx",
+                    lineNumber: 65,
+                    columnNumber: 11
+                }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                    style: {
+                        textAlign: 'center',
+                        color: 'var(--text-subtle)'
+                    },
+                    children: [
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$image$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Image$3e$__["Image"], {
+                            size: 32
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-image-gallery.tsx",
+                            lineNumber: 77,
+                            columnNumber: 13
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                            style: {
+                                fontSize: '10px',
+                                marginTop: '0.5rem'
+                            },
+                            children: emptyText
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-image-gallery.tsx",
+                            lineNumber: 78,
+                            columnNumber: 13
+                        }, this)
+                    ]
+                }, void 0, true, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-image-gallery.tsx",
+                    lineNumber: 76,
+                    columnNumber: 11
+                }, this)
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-image-gallery.tsx",
+                lineNumber: 51,
+                columnNumber: 7
+            }, this),
+            images.length > 1 && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    display: 'flex',
+                    gap: '4px'
+                },
+                children: [
+                    images.slice(0, thumbnailCount).map((url, idx)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                            onClick: ()=>handleThumbnailClick(idx),
+                            style: {
+                                flex: 1,
+                                aspectRatio: '1',
+                                borderRadius: '4px',
+                                overflow: 'hidden',
+                                border: idx === selectedIndex ? '2px solid var(--accent)' : '1px solid var(--panel-border)',
+                                padding: 0,
+                                cursor: 'pointer',
+                                background: 'var(--highlight)'
+                            },
+                            children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("img", {
+                                src: url,
+                                alt: "",
+                                loading: "lazy",
+                                style: {
+                                    width: '100%',
+                                    height: '100%',
+                                    objectFit: 'cover'
+                                }
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-image-gallery.tsx",
+                                lineNumber: 104,
+                                columnNumber: 15
+                            }, this)
+                        }, idx, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-image-gallery.tsx",
+                            lineNumber: 87,
+                            columnNumber: 13
+                        }, this)),
+                    images.length > thumbnailCount && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        style: {
+                            flex: 1,
+                            aspectRatio: '1',
+                            borderRadius: '4px',
+                            background: 'var(--highlight)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '10px',
+                            fontWeight: 600,
+                            color: 'var(--text-muted)'
+                        },
+                        children: [
+                            "+",
+                            images.length - thumbnailCount
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-image-gallery.tsx",
+                        lineNumber: 117,
+                        columnNumber: 13
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-image-gallery.tsx",
+                lineNumber: 85,
+                columnNumber: 9
+            }, this),
+            images.length > 0 && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    padding: '0.5rem 0.75rem',
+                    borderRadius: '6px',
+                    background: 'var(--panel)',
+                    border: '1px solid var(--panel-border)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                },
+                children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                        style: {
+                            fontSize: '10px',
+                            color: 'var(--text-muted)'
+                        },
+                        children: "Images"
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-image-gallery.tsx",
+                        lineNumber: 150,
+                        columnNumber: 11
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                        style: {
+                            fontSize: '11px',
+                            fontWeight: 600
+                        },
+                        children: images.length
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-image-gallery.tsx",
+                        lineNumber: 151,
+                        columnNumber: 11
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-image-gallery.tsx",
+                lineNumber: 139,
+                columnNumber: 9
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-image-gallery.tsx",
+        lineNumber: 49,
+        columnNumber: 5
+    }, this);
+});
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-section-card.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * N3SectionCard - セクションカードコンポーネント
+ * 
+ * /tools/editing の ProductModal で使用
+ * タイトル付きのコンテンツカード
+ */ __turbopack_context__.s([
+    "N3SectionCard",
+    ()=>N3SectionCard
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+'use client';
+;
+;
+const N3SectionCard = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3SectionCard({ title, children, accent = false, accentColor = 'var(--accent)', warning = false, gradient = false, gradientColors = [
+    'var(--accent)',
+    'var(--purple)'
+], padding = '0.75rem' }) {
+    // スタイルの決定
+    let cardStyle = {
+        padding,
+        borderRadius: '6px',
+        background: 'var(--panel)',
+        border: '1px solid var(--panel-border)'
+    };
+    let titleColor = 'var(--text-muted)';
+    if (accent) {
+        cardStyle = {
+            ...cardStyle,
+            border: `1px solid ${accentColor}40`,
+            background: `${accentColor}05`
+        };
+        titleColor = accentColor;
+    }
+    if (warning) {
+        cardStyle = {
+            ...cardStyle,
+            background: '#fef3c7',
+            border: '1px solid #fcd34d'
+        };
+        titleColor = '#92400e';
+    }
+    if (gradient) {
+        cardStyle = {
+            ...cardStyle,
+            background: `linear-gradient(135deg, ${gradientColors[0]}15, ${gradientColors[1]}15)`,
+            border: 'none'
+        };
+        titleColor = gradientColors[0];
+    }
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        style: cardStyle,
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    fontSize: '9px',
+                    textTransform: 'uppercase',
+                    fontWeight: 600,
+                    color: titleColor,
+                    marginBottom: '0.5rem'
+                },
+                children: title
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-section-card.tsx",
+                lineNumber: 80,
+                columnNumber: 7
+            }, this),
+            children
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-section-card.tsx",
+        lineNumber: 79,
+        columnNumber: 5
+    }, this);
+});
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-status-bar.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * N3StatusBar - ステータスバーコンポーネント
+ * 
+ * /tools/editing から抽出
+ * Total, Unsaved, Ready, Incomplete, Selected などの状態表示
+ */ __turbopack_context__.s([
+    "N3StatusBar",
+    ()=>N3StatusBar,
+    "STATUS_PRESETS",
+    ()=>STATUS_PRESETS
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$styled$2d$jsx$2f$style$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/styled-jsx/style.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+'use client';
+;
+;
+;
+const N3StatusBar = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3StatusBar({ total, items = [], selected = 0, rightContent, className = '' }) {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-status-bar ${className}`,
+        style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1rem',
+            padding: '0.5rem 0.75rem',
+            fontSize: '11px',
+            background: 'var(--panel)',
+            border: '1px solid var(--panel-border)',
+            borderRadius: 'var(--radius-md, 6px)'
+        },
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                style: {
+                    color: 'var(--text-muted)'
+                },
+                children: [
+                    "Total",
+                    ' ',
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                        style: {
+                            fontWeight: 600,
+                            color: 'var(--text)'
+                        },
+                        children: total
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-status-bar.tsx",
+                        lineNumber: 57,
+                        columnNumber: 9
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-status-bar.tsx",
+                lineNumber: 55,
+                columnNumber: 7
+            }, this),
+            items.map((item)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(N3StatusItem, {
+                    label: item.label,
+                    value: item.value,
+                    color: item.color,
+                    tip: item.tip
+                }, item.id, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-status-bar.tsx",
+                    lineNumber: 62,
+                    columnNumber: 9
+                }, this)),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    marginLeft: 'auto',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                },
+                children: [
+                    rightContent,
+                    selected !== undefined && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        style: {
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem'
+                        },
+                        children: [
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                style: {
+                                    color: 'var(--text-muted)'
+                                },
+                                children: "Selected"
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-status-bar.tsx",
+                                lineNumber: 78,
+                                columnNumber: 13
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                style: {
+                                    fontFamily: 'monospace',
+                                    fontWeight: 600,
+                                    padding: '0.125rem 0.5rem',
+                                    borderRadius: '4px',
+                                    background: selected > 0 ? 'rgba(99, 102, 241, 0.12)' : 'var(--highlight)',
+                                    color: selected > 0 ? 'var(--accent)' : 'var(--text)'
+                                },
+                                children: selected
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-status-bar.tsx",
+                                lineNumber: 79,
+                                columnNumber: 13
+                            }, this)
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-status-bar.tsx",
+                        lineNumber: 77,
+                        columnNumber: 11
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-status-bar.tsx",
+                lineNumber: 72,
+                columnNumber: 7
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-status-bar.tsx",
+        lineNumber: 41,
+        columnNumber: 5
+    }, this);
+});
+const N3StatusItem = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3StatusItem({ label, value, color = 'var(--text)', tip }) {
+    if (value === 0) return null;
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+        style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.25rem',
+            color,
+            position: 'relative',
+            cursor: tip ? 'help' : 'default'
+        },
+        className: "jsx-5225a3090f59c651" + " " + "n3-status-item",
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                style: {
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    background: color
+                },
+                className: "jsx-5225a3090f59c651"
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-status-bar.tsx",
+                lineNumber: 128,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                className: "jsx-5225a3090f59c651",
+                children: label
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-status-bar.tsx",
+                lineNumber: 136,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                style: {
+                    fontWeight: 600
+                },
+                className: "jsx-5225a3090f59c651",
+                children: value
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-status-bar.tsx",
+                lineNumber: 137,
+                columnNumber: 7
+            }, this),
+            tip && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                style: {
+                    position: 'absolute',
+                    bottom: '100%',
+                    left: 0,
+                    marginBottom: '4px',
+                    padding: '0.25rem 0.5rem',
+                    fontSize: '10px',
+                    background: 'var(--text)',
+                    color: 'var(--bg-solid)',
+                    borderRadius: '4px',
+                    whiteSpace: 'nowrap',
+                    opacity: 0,
+                    visibility: 'hidden',
+                    transition: 'opacity 0.15s ease, visibility 0.15s ease',
+                    zIndex: 50
+                },
+                className: "jsx-5225a3090f59c651" + " " + "n3-status-tip",
+                children: tip
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-status-bar.tsx",
+                lineNumber: 141,
+                columnNumber: 9
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$styled$2d$jsx$2f$style$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["default"], {
+                id: "5225a3090f59c651",
+                children: ".n3-status-item.jsx-5225a3090f59c651:hover .n3-status-tip.jsx-5225a3090f59c651{opacity:1;visibility:visible}"
+            }, void 0, false, void 0, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-status-bar.tsx",
+        lineNumber: 117,
+        columnNumber: 5
+    }, this);
+});
+const STATUS_PRESETS = {
+    unsaved: {
+        id: 'unsaved',
+        label: 'Unsaved',
+        color: 'var(--warning)',
+        tip: '未保存の変更があります'
+    },
+    ready: {
+        id: 'ready',
+        label: 'Ready',
+        color: 'var(--success)',
+        tip: '出品準備完了'
+    },
+    incomplete: {
+        id: 'incomplete',
+        label: 'Incomplete',
+        color: 'var(--error)',
+        tip: '必須項目が未入力'
+    },
+    filtered: {
+        id: 'filtered',
+        label: 'Filter通過',
+        color: '#9333ea',
+        tip: '出品フィルター通過済み'
+    }
+};
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-view-toggle.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * N3ViewToggle - 表示切替コンポーネント
+ * 
+ * /tools/editing から抽出
+ * リスト/カード表示の切り替え
+ */ __turbopack_context__.s([
+    "N3ViewToggle",
+    ()=>N3ViewToggle,
+    "VIEW_OPTIONS",
+    ()=>VIEW_OPTIONS
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$list$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__List$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/list.js [app-ssr] (ecmascript) <export default as List>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$layout$2d$grid$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__LayoutGrid$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/layout-grid.js [app-ssr] (ecmascript) <export default as LayoutGrid>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$table$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Table$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/table.js [app-ssr] (ecmascript) <export default as Table>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$columns$2d$2$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Columns$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/columns-2.js [app-ssr] (ecmascript) <export default as Columns>");
+'use client';
+;
+;
+;
+const DEFAULT_OPTIONS = [
+    {
+        id: 'list',
+        label: 'リスト',
+        icon: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$list$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__List$3e$__["List"], {
+            size: 14
+        }, void 0, false, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-view-toggle.tsx",
+            lineNumber: 37,
+            columnNumber: 37
+        }, ("TURBOPACK compile-time value", void 0))
+    },
+    {
+        id: 'card',
+        label: 'カード',
+        icon: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$layout$2d$grid$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__LayoutGrid$3e$__["LayoutGrid"], {
+            size: 14
+        }, void 0, false, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-view-toggle.tsx",
+            lineNumber: 38,
+            columnNumber: 37
+        }, ("TURBOPACK compile-time value", void 0))
+    }
+];
+const N3ViewToggle = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3ViewToggle({ value, onChange, options = DEFAULT_OPTIONS, showLabels = true, size = 'sm', className = '' }) {
+    const padding = size === 'sm' ? '0.25rem 0.5rem' : '0.375rem 0.75rem';
+    const fontSize = size === 'sm' ? '11px' : '12px';
+    const iconSize = size === 'sm' ? 14 : 16;
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-view-toggle ${className}`,
+        style: {
+            display: 'inline-flex',
+            borderRadius: '6px',
+            border: '1px solid var(--panel-border)',
+            overflow: 'hidden'
+        },
+        children: options.map((option, index)=>{
+            const isActive = value === option.id;
+            return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                onClick: ()=>onChange(option.id),
+                style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.375rem',
+                    padding,
+                    fontSize,
+                    fontWeight: 500,
+                    border: 'none',
+                    borderRight: index < options.length - 1 ? '1px solid var(--panel-border)' : 'none',
+                    background: isActive ? 'var(--accent-bg)' : 'var(--bg-solid)',
+                    color: isActive ? 'var(--accent-text)' : 'var(--text-muted)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                },
+                onMouseEnter: (e)=>{
+                    if (!isActive) {
+                        e.currentTarget.style.background = 'var(--highlight)';
+                        e.currentTarget.style.color = 'var(--text)';
+                    }
+                },
+                onMouseLeave: (e)=>{
+                    if (!isActive) {
+                        e.currentTarget.style.background = 'var(--bg-solid)';
+                        e.currentTarget.style.color = 'var(--text-muted)';
+                    }
+                },
+                children: [
+                    /*#__PURE__*/ __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["default"].cloneElement(option.icon, {
+                        size: iconSize
+                    }),
+                    showLabels && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                        className: "hidden sm:inline",
+                        children: option.label
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-view-toggle.tsx",
+                        lineNumber: 97,
+                        columnNumber: 28
+                    }, this)
+                ]
+            }, option.id, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-view-toggle.tsx",
+                lineNumber: 66,
+                columnNumber: 11
+            }, this);
+        })
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-view-toggle.tsx",
+        lineNumber: 54,
+        columnNumber: 5
+    }, this);
+});
+const VIEW_OPTIONS = {
+    listCard: [
+        {
+            id: 'list',
+            label: 'リスト',
+            icon: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$list$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__List$3e$__["List"], {
+                size: 14
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-view-toggle.tsx",
+                lineNumber: 108,
+                columnNumber: 51
+            }, ("TURBOPACK compile-time value", void 0))
+        },
+        {
+            id: 'card',
+            label: 'カード',
+            icon: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$layout$2d$grid$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__LayoutGrid$3e$__["LayoutGrid"], {
+                size: 14
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-view-toggle.tsx",
+                lineNumber: 109,
+                columnNumber: 51
+            }, ("TURBOPACK compile-time value", void 0))
+        }
+    ],
+    tableCard: [
+        {
+            id: 'table',
+            label: 'テーブル',
+            icon: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$table$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Table$3e$__["Table"], {
+                size: 14
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-view-toggle.tsx",
+                lineNumber: 112,
+                columnNumber: 53
+            }, ("TURBOPACK compile-time value", void 0))
+        },
+        {
+            id: 'card',
+            label: 'カード',
+            icon: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$layout$2d$grid$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__LayoutGrid$3e$__["LayoutGrid"], {
+                size: 14
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-view-toggle.tsx",
+                lineNumber: 113,
+                columnNumber: 51
+            }, ("TURBOPACK compile-time value", void 0))
+        }
+    ],
+    all: [
+        {
+            id: 'list',
+            label: 'リスト',
+            icon: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$list$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__List$3e$__["List"], {
+                size: 14
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-view-toggle.tsx",
+                lineNumber: 116,
+                columnNumber: 51
+            }, ("TURBOPACK compile-time value", void 0))
+        },
+        {
+            id: 'table',
+            label: 'テーブル',
+            icon: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$table$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Table$3e$__["Table"], {
+                size: 14
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-view-toggle.tsx",
+                lineNumber: 117,
+                columnNumber: 53
+            }, ("TURBOPACK compile-time value", void 0))
+        },
+        {
+            id: 'card',
+            label: 'カード',
+            icon: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$layout$2d$grid$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__LayoutGrid$3e$__["LayoutGrid"], {
+                size: 14
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-view-toggle.tsx",
+                lineNumber: 118,
+                columnNumber: 51
+            }, ("TURBOPACK compile-time value", void 0))
+        },
+        {
+            id: 'compact',
+            label: 'コンパクト',
+            icon: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$columns$2d$2$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Columns$3e$__["Columns"], {
+                size: 14
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-view-toggle.tsx",
+                lineNumber: 119,
+                columnNumber: 56
+            }, ("TURBOPACK compile-time value", void 0))
+        }
+    ]
+};
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-action-bar.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * N3ActionBar - アクションボタングループ
+ * 
+ * Export/Save/Deleteなどの主要アクションボタンを配置
+ * 右上に表示される
+ */ __turbopack_context__.s([
+    "N3ActionBar",
+    ()=>N3ActionBar,
+    "default",
+    ()=>__TURBOPACK__default__export__
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$download$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Download$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/download.js [app-ssr] (ecmascript) <export default as Download>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$save$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Save$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/save.js [app-ssr] (ecmascript) <export default as Save>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$trash$2d$2$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Trash2$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/trash-2.js [app-ssr] (ecmascript) <export default as Trash2>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevron$2d$down$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronDown$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/chevron-down.js [app-ssr] (ecmascript) <export default as ChevronDown>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$file$2d$text$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__FileText$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/file-text.js [app-ssr] (ecmascript) <export default as FileText>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$database$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Database$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/database.js [app-ssr] (ecmascript) <export default as Database>");
+'use client';
+;
+;
+;
+function N3ActionBar({ selectedCount = 0, hasChanges = false, onSave, onDelete, onExportCSV, onExportEbay, onImport, exportOptions, processing = false }) {
+    const [showExportMenu, setShowExportMenu] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false);
+    const exportRef = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useRef"])(null);
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useEffect"])(()=>{
+        const handleClickOutside = (e)=>{
+            if (exportRef.current && !exportRef.current.contains(e.target)) {
+                setShowExportMenu(false);
+            }
+        };
+        if (showExportMenu) {
+            document.addEventListener('mousedown', handleClickOutside);
+            return ()=>document.removeEventListener('mousedown', handleClickOutside);
+        }
+    }, [
+        showExportMenu
+    ]);
+    const defaultExportOptions = [
+        {
+            id: 'csv',
+            label: 'Export All (CSV)',
+            icon: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$file$2d$text$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__FileText$3e$__["FileText"], {
+                size: 14
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-action-bar.tsx",
+                lineNumber: 68,
+                columnNumber: 51
+            }, this),
+            onClick: ()=>{
+                onExportCSV?.();
+                setShowExportMenu(false);
+            }
+        },
+        {
+            id: 'ebay',
+            label: 'Export eBay Format',
+            icon: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$database$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Database$3e$__["Database"], {
+                size: 14
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-action-bar.tsx",
+                lineNumber: 69,
+                columnNumber: 54
+            }, this),
+            onClick: ()=>{
+                onExportEbay?.();
+                setShowExportMenu(false);
+            }
+        }
+    ];
+    const finalExportOptions = exportOptions || defaultExportOptions;
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: "n3-action-bar",
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "n3-dropdown",
+                ref: exportRef,
+                style: {
+                    position: 'relative'
+                },
+                children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                        onClick: ()=>setShowExportMenu(!showExportMenu),
+                        className: "n3-btn n3-btn-sm n3-btn-secondary",
+                        disabled: processing,
+                        children: [
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$download$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Download$3e$__["Download"], {
+                                size: 14
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-action-bar.tsx",
+                                lineNumber: 85,
+                                columnNumber: 11
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                children: "Export"
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-action-bar.tsx",
+                                lineNumber: 86,
+                                columnNumber: 11
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevron$2d$down$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronDown$3e$__["ChevronDown"], {
+                                size: 12
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-action-bar.tsx",
+                                lineNumber: 87,
+                                columnNumber: 11
+                            }, this)
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-action-bar.tsx",
+                        lineNumber: 80,
+                        columnNumber: 9
+                    }, this),
+                    showExportMenu && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        className: "n3-dropdown-menu open",
+                        style: {
+                            position: 'absolute',
+                            top: '100%',
+                            right: 0,
+                            marginTop: 4,
+                            minWidth: 180,
+                            background: 'var(--panel)',
+                            border: '1px solid var(--panel-border)',
+                            borderRadius: 6,
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                            zIndex: 100,
+                            overflow: 'hidden'
+                        },
+                        children: finalExportOptions.map((opt)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                className: "n3-dropdown-item",
+                                onClick: opt.onClick,
+                                style: {
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 8,
+                                    width: '100%',
+                                    padding: '8px 12px',
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: 'var(--text)',
+                                    fontSize: 13,
+                                    cursor: 'pointer',
+                                    textAlign: 'left'
+                                },
+                                onMouseEnter: (e)=>e.currentTarget.style.background = 'var(--highlight)',
+                                onMouseLeave: (e)=>e.currentTarget.style.background = 'transparent',
+                                children: [
+                                    opt.icon,
+                                    opt.label
+                                ]
+                            }, opt.id, true, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-action-bar.tsx",
+                                lineNumber: 107,
+                                columnNumber: 15
+                            }, this))
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-action-bar.tsx",
+                        lineNumber: 90,
+                        columnNumber: 11
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-action-bar.tsx",
+                lineNumber: 79,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                onClick: onSave,
+                disabled: processing || !hasChanges && selectedCount === 0,
+                className: `n3-btn n3-btn-sm ${hasChanges ? 'n3-btn-primary' : 'n3-btn-secondary'}`,
+                style: {
+                    background: hasChanges ? 'var(--accent)' : undefined
+                },
+                children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$save$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Save$3e$__["Save"], {
+                        size: 14
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-action-bar.tsx",
+                        lineNumber: 144,
+                        columnNumber: 9
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                        children: "Save"
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-action-bar.tsx",
+                        lineNumber: 145,
+                        columnNumber: 9
+                    }, this),
+                    selectedCount > 0 && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                        children: [
+                            "(",
+                            selectedCount,
+                            ")"
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-action-bar.tsx",
+                        lineNumber: 146,
+                        columnNumber: 31
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-action-bar.tsx",
+                lineNumber: 136,
+                columnNumber: 7
+            }, this),
+            selectedCount > 0 && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                onClick: onDelete,
+                disabled: processing,
+                className: "n3-btn n3-btn-sm n3-btn-danger",
+                children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$trash$2d$2$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Trash2$3e$__["Trash2"], {
+                    size: 14
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-action-bar.tsx",
+                    lineNumber: 156,
+                    columnNumber: 11
+                }, this)
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-action-bar.tsx",
+                lineNumber: 151,
+                columnNumber: 9
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-action-bar.tsx",
+        lineNumber: 75,
+        columnNumber: 5
+    }, this);
+}
+const __TURBOPACK__default__export__ = N3ActionBar;
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-view-mode-toggle.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * N3ViewModeToggle - List/Card表示切替
+ * 
+ * テーブル表示とカード表示を切り替えるトグルボタン
+ */ __turbopack_context__.s([
+    "N3ViewModeToggle",
+    ()=>N3ViewModeToggle,
+    "default",
+    ()=>__TURBOPACK__default__export__
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$list$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__List$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/list.js [app-ssr] (ecmascript) <export default as List>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$layout$2d$grid$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__LayoutGrid$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/layout-grid.js [app-ssr] (ecmascript) <export default as LayoutGrid>");
+'use client';
+;
+;
+function N3ViewModeToggle({ value, onChange, size = 'sm', showLabels = true }) {
+    const iconSize = size === 'sm' ? 14 : 16;
+    const padding = size === 'sm' ? '4px 8px' : '6px 12px';
+    const fontSize = size === 'sm' ? 12 : 13;
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: "n3-view-mode-toggle",
+        style: {
+            display: 'inline-flex',
+            borderRadius: 6,
+            border: '1px solid var(--panel-border)',
+            background: 'var(--panel)',
+            overflow: 'hidden'
+        },
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                onClick: ()=>onChange('list'),
+                className: `n3-view-mode-btn ${value === 'list' ? 'active' : ''}`,
+                style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    padding,
+                    background: value === 'list' ? 'var(--accent)' : 'transparent',
+                    color: value === 'list' ? 'white' : 'var(--text-muted)',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize,
+                    fontWeight: 500,
+                    transition: 'all 0.15s ease'
+                },
+                children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$list$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__List$3e$__["List"], {
+                        size: iconSize
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-view-mode-toggle.tsx",
+                        lineNumber: 61,
+                        columnNumber: 9
+                    }, this),
+                    showLabels && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                        children: "List"
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-view-mode-toggle.tsx",
+                        lineNumber: 62,
+                        columnNumber: 24
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-view-mode-toggle.tsx",
+                lineNumber: 44,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                onClick: ()=>onChange('card'),
+                className: `n3-view-mode-btn ${value === 'card' ? 'active' : ''}`,
+                style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    padding,
+                    background: value === 'card' ? 'var(--accent)' : 'transparent',
+                    color: value === 'card' ? 'white' : 'var(--text-muted)',
+                    border: 'none',
+                    borderLeft: '1px solid var(--panel-border)',
+                    cursor: 'pointer',
+                    fontSize,
+                    fontWeight: 500,
+                    transition: 'all 0.15s ease'
+                },
+                children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$layout$2d$grid$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__LayoutGrid$3e$__["LayoutGrid"], {
+                        size: iconSize
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-view-mode-toggle.tsx",
+                        lineNumber: 82,
+                        columnNumber: 9
+                    }, this),
+                    showLabels && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                        children: "Card"
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-view-mode-toggle.tsx",
+                        lineNumber: 83,
+                        columnNumber: 24
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-view-mode-toggle.tsx",
+                lineNumber: 64,
+                columnNumber: 7
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-view-mode-toggle.tsx",
+        lineNumber: 34,
+        columnNumber: 5
+    }, this);
+}
+const __TURBOPACK__default__export__ = N3ViewModeToggle;
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * N3ToolPanel - ツールパネルコンポーネント
+ * 
+ * 既存の /tools/editing/components/tool-panel.tsx を
+ * N3デザインシステムに準拠したコンポーネントとして再実装
+ * 
+ * 構成:
+ * - マーケットプレイス選択（左端）
+ * - メインツールバー: Run All, Paste, Reload, CSV, Cat, Ship, Profit, HTML, Score, HTS, Origin, Material, Filter, Research, AI
+ * - フローパネル: 翻訳, SM, 詳細, Gemini, 処理, 出品
+ * - アクション: Export, Save, Delete
+ */ __turbopack_context__.s([
+    "N3ToolPanel",
+    ()=>N3ToolPanel,
+    "default",
+    ()=>__TURBOPACK__default__export__
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$zap$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Zap$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/zap.js [app-ssr] (ecmascript) <export default as Zap>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$copy$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Copy$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/copy.js [app-ssr] (ecmascript) <export default as Copy>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$refresh$2d$cw$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__RefreshCw$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/refresh-cw.js [app-ssr] (ecmascript) <export default as RefreshCw>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$upload$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Upload$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/upload.js [app-ssr] (ecmascript) <export default as Upload>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$folder$2d$open$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__FolderOpen$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/folder-open.js [app-ssr] (ecmascript) <export default as FolderOpen>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$truck$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Truck$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/truck.js [app-ssr] (ecmascript) <export default as Truck>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$code$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Code$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/code.js [app-ssr] (ecmascript) <export default as Code>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chart$2d$column$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__BarChart3$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/chart-column.js [app-ssr] (ecmascript) <export default as BarChart3>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$shield$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Shield$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/shield.js [app-ssr] (ecmascript) <export default as Shield>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$search$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Search$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/search.js [app-ssr] (ecmascript) <export default as Search>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$sparkles$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Sparkles$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/sparkles.js [app-ssr] (ecmascript) <export default as Sparkles>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$globe$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Globe$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/globe.js [app-ssr] (ecmascript) <export default as Globe>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$package$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Package$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/package.js [app-ssr] (ecmascript) <export default as Package>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$file$2d$text$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__FileText$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/file-text.js [app-ssr] (ecmascript) <export default as FileText>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$dollar$2d$sign$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__DollarSign$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/dollar-sign.js [app-ssr] (ecmascript) <export default as DollarSign>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$circle$2d$check$2d$big$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__CheckCircle$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/circle-check-big.js [app-ssr] (ecmascript) <export default as CheckCircle>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$save$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Save$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/save.js [app-ssr] (ecmascript) <export default as Save>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$trash$2d$2$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Trash2$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/trash-2.js [app-ssr] (ecmascript) <export default as Trash2>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$download$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Download$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/download.js [app-ssr] (ecmascript) <export default as Download>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevron$2d$down$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronDown$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/chevron-down.js [app-ssr] (ecmascript) <export default as ChevronDown>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$loader$2d$circle$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Loader2$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/loader-circle.js [app-ssr] (ecmascript) <export default as Loader2>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$shopping$2d$bag$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ShoppingBag$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/shopping-bag.js [app-ssr] (ecmascript) <export default as ShoppingBag>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$package$2d$check$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__PackageCheck$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/package-check.js [app-ssr] (ecmascript) <export default as PackageCheck>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$store$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Store$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/store.js [app-ssr] (ecmascript) <export default as Store>");
+'use client';
+;
+;
+;
+const MARKETPLACE_OPTIONS = [
+    // 海外販路（為替計算・関税あり）
+    {
+        id: 'ebay',
+        label: 'eBay',
+        buttonLabel: 'eBay Profit',
+        subLabel: '🌍 USD / 国際',
+        color: '#0064d2',
+        description: '海外販売：為替計算・関税・DDP/DDU国際送料',
+        icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$globe$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Globe$3e$__["Globe"],
+        isDomestic: false,
+        features: [
+            'translation',
+            'seller_mirror',
+            'hts',
+            'origin',
+            'material',
+            'international_ship',
+            'html_template',
+            'score',
+            'ai_enhance',
+            'gemini',
+            'category',
+            'research'
+        ]
+    },
+    // 全販路比較（フルセット）
+    {
+        id: 'all',
+        label: 'ALL',
+        buttonLabel: '全販路比較',
+        subLabel: '📊 比較',
+        color: '#8b5cf6',
+        description: '全販路一括比較・最適モール提案',
+        icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chart$2d$column$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__BarChart3$3e$__["BarChart3"],
+        glowEffect: true,
+        isDomestic: false,
+        features: [
+            'translation',
+            'hts',
+            'origin',
+            'material',
+            'international_ship',
+            'domestic_ship',
+            'html_template',
+            'score',
+            'ai_enhance',
+            'gemini',
+            'category',
+            'research'
+        ]
+    },
+    // 国内販路（円のまま・関税なし）
+    {
+        id: 'qoo10_jp',
+        label: 'Qoo10',
+        buttonLabel: 'Qoo10',
+        subLabel: '🇯🇵 国内',
+        color: '#ff0066',
+        description: '国内販売：手数料12%+3.5%・国内送料',
+        icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$shopping$2d$bag$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ShoppingBag$3e$__["ShoppingBag"],
+        isDomestic: true,
+        features: [
+            'translation',
+            'domestic_ship',
+            'ai_enhance',
+            'category'
+        ]
+    },
+    {
+        id: 'amazon_jp',
+        label: 'Amazon',
+        buttonLabel: 'Amazon',
+        subLabel: '🇯🇵 FBA',
+        color: '#ff9900',
+        description: '国内販売：FBA手数料15%・フルフィルメント',
+        icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$zap$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Zap$3e$__["Zap"],
+        isDomestic: true,
+        features: [
+            'domestic_ship',
+            'fba',
+            'ai_enhance',
+            'category',
+            'research'
+        ]
+    },
+    {
+        id: 'mercari_jp',
+        label: 'メルカリ',
+        buttonLabel: 'メルカリ',
+        subLabel: '🇯🇵 国内',
+        color: '#ff2d55',
+        description: '国内販売：手数料10%・匿名配送',
+        icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$package$2d$check$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__PackageCheck$3e$__["PackageCheck"],
+        isDomestic: true,
+        features: [
+            'domestic_ship',
+            'ai_enhance'
+        ]
+    },
+    {
+        id: 'yahoo_auction_jp',
+        label: 'ヤフオク',
+        buttonLabel: 'ヤフオク',
+        subLabel: '🇯🇵 国内',
+        color: '#ff0033',
+        description: '国内販売：落札8.8%・ヤフネコ',
+        icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$store$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Store$3e$__["Store"],
+        isDomestic: true,
+        features: [
+            'domestic_ship',
+            'auction',
+            'ai_enhance'
+        ]
+    }
+];
+// ============================================================
+// ツールチップテキスト
+// ============================================================
+const TOOLTIPS = {
+    runAll: '全処理を一括実行',
+    paste: 'クリップボードから商品データを貼り付け',
+    reload: 'データを再読み込み',
+    csv: 'CSVファイルをアップロード',
+    category: 'eBayカテゴリを自動分類',
+    shipping: '送料・配送方法を設定',
+    profit: '利益・マージンを計算',
+    html: 'eBay用HTML説明文を生成',
+    score: '競合スコア・出品優先度を算出',
+    hts: 'HTS関税コードを取得',
+    origin: '原産国を推定',
+    material: '素材情報を取得',
+    filter: 'フィルター条件をチェック',
+    research: '一括市場リサーチ',
+    ai: 'AI強化（説明文・キーワード生成）',
+    translate: '日本語↔英語翻訳',
+    sellerMirror: 'eBay競合セラーの商品を検索',
+    details: '選択した商品の詳細を取得',
+    gemini: 'Gemini用プロンプトを生成',
+    enrichmentFlow: 'SM分析→競合選択→AI強化の統合フロー',
+    finalProcess: '最終処理チェーン実行',
+    list: '準備完了商品をeBayに出品',
+    save: '変更を保存',
+    delete: '選択商品を削除',
+    export: 'エクスポートメニュー'
+};
+const IconButton = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function IconButton({ icon: Icon, label, tooltip, onClick, disabled, active, badge, variant = 'ghost' }) {
+    const baseStyle = {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '4px',
+        height: '28px',
+        padding: label ? '0 8px' : '0 6px',
+        fontSize: '11px',
+        fontWeight: 500,
+        borderRadius: '4px',
+        border: '1px solid transparent',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
+        transition: 'all 0.15s ease',
+        position: 'relative'
+    };
+    const variantStyles = {
+        ghost: {
+            background: active ? 'var(--accent-soft, rgba(59, 130, 246, 0.1))' : 'transparent',
+            color: active ? 'var(--accent)' : 'var(--text-muted)',
+            borderColor: active ? 'var(--accent)' : 'transparent'
+        },
+        primary: {
+            background: 'var(--accent)',
+            color: 'white',
+            borderColor: 'var(--accent)'
+        },
+        danger: {
+            background: 'rgba(239, 68, 68, 0.1)',
+            color: 'rgb(239, 68, 68)',
+            borderColor: 'rgba(239, 68, 68, 0.3)'
+        },
+        success: {
+            background: 'rgba(34, 197, 94, 0.1)',
+            color: 'rgb(34, 197, 94)',
+            borderColor: 'rgba(34, 197, 94, 0.3)'
+        },
+        warning: {
+            background: 'rgba(245, 158, 11, 0.1)',
+            color: 'rgb(245, 158, 11)',
+            borderColor: 'rgba(245, 158, 11, 0.3)'
+        }
+    };
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+        onClick: onClick,
+        disabled: disabled,
+        title: tooltip,
+        style: {
+            ...baseStyle,
+            ...variantStyles[variant]
+        },
+        className: "hover:opacity-80",
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(Icon, {
+                size: 14
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                lineNumber: 307,
+                columnNumber: 7
+            }, this),
+            label && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                children: label
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                lineNumber: 308,
+                columnNumber: 17
+            }, this),
+            badge !== undefined && badge > 0 && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                style: {
+                    position: 'absolute',
+                    top: '-4px',
+                    right: '-4px',
+                    minWidth: '16px',
+                    height: '16px',
+                    padding: '0 4px',
+                    fontSize: '10px',
+                    fontWeight: 600,
+                    lineHeight: '16px',
+                    textAlign: 'center',
+                    background: 'var(--accent)',
+                    color: 'white',
+                    borderRadius: '8px'
+                },
+                children: badge > 99 ? '99+' : badge
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                lineNumber: 310,
+                columnNumber: 9
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+        lineNumber: 300,
+        columnNumber: 5
+    }, this);
+});
+const FlowStepButton = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function FlowStepButton({ num, icon: Icon, label, tooltip, onClick, disabled, badge }) {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+        onClick: onClick,
+        disabled: disabled,
+        title: tooltip,
+        style: {
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            height: '24px',
+            padding: '0 8px',
+            fontSize: '11px',
+            fontWeight: 500,
+            background: 'var(--panel)',
+            border: '1px solid var(--panel-border)',
+            borderRadius: '12px',
+            color: 'var(--text-muted)',
+            cursor: disabled ? 'not-allowed' : 'pointer',
+            opacity: disabled ? 0.5 : 1,
+            transition: 'all 0.15s ease',
+            position: 'relative'
+        },
+        className: "hover:border-[var(--accent)] hover:text-[var(--accent)]",
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '14px',
+                    height: '14px',
+                    fontSize: '9px',
+                    fontWeight: 700,
+                    background: 'var(--accent)',
+                    color: 'white',
+                    borderRadius: '50%'
+                },
+                children: num
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                lineNumber: 381,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(Icon, {
+                size: 12
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                lineNumber: 397,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                children: label
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                lineNumber: 398,
+                columnNumber: 7
+            }, this),
+            badge !== undefined && badge > 0 && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                style: {
+                    minWidth: '14px',
+                    height: '14px',
+                    padding: '0 3px',
+                    fontSize: '9px',
+                    fontWeight: 600,
+                    lineHeight: '14px',
+                    textAlign: 'center',
+                    background: 'var(--accent)',
+                    color: 'white',
+                    borderRadius: '7px'
+                },
+                children: badge
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                lineNumber: 400,
+                columnNumber: 9
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+        lineNumber: 358,
+        columnNumber: 5
+    }, this);
+});
+// ============================================================
+// サブコンポーネント: Divider
+// ============================================================
+const ToolbarDivider = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function ToolbarDivider() {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        style: {
+            width: '1px',
+            height: '20px',
+            background: 'var(--panel-border)',
+            margin: '0 4px'
+        }
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+        lineNumber: 427,
+        columnNumber: 5
+    }, this);
+});
+const N3ToolPanel = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3ToolPanel({ processing = false, currentStep = '', modifiedCount = 0, readyCount = 0, selectedMirrorCount = 0, selectedProductIds = [], onRunAll, onPaste, onReload, onCSVUpload, onCategory, onShipping, onProfit, onHTML, onScore, onHTS, onOrigin, onMaterial, onFilter, onResearch, onAI, onTranslate, onSellerMirror, onDetails, onGemini, onFinalProcess, onList, onEnrichmentFlow, onSave, onDelete, onExportCSV, onExportEbay, onExportAI }) {
+    const [showExportMenu, setShowExportMenu] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false);
+    const [selectedMarketplace, setSelectedMarketplace] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])('ebay');
+    const [showMarketplaceDropdown, setShowMarketplaceDropdown] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false);
+    const [calculating, setCalculating] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false);
+    const currentMarketplace = MARKETPLACE_OPTIONS.find((o)=>o.id === selectedMarketplace) || MARKETPLACE_OPTIONS[0];
+    const handleExportClick = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])(()=>{
+        setShowExportMenu((prev)=>!prev);
+    }, []);
+    const handleMarketplaceSelect = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])((id)=>{
+        setSelectedMarketplace(id);
+        setShowMarketplaceDropdown(false);
+    }, []);
+    // マーケットプレイス選択ボタンのレンダリング
+    const renderMarketplaceOption = (option)=>{
+        const OptionIcon = option.icon;
+        const isSelected = selectedMarketplace === option.id;
+        return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+            onClick: ()=>handleMarketplaceSelect(option.id),
+            style: {
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                width: '100%',
+                padding: '10px 12px',
+                textAlign: 'left',
+                background: isSelected ? `${option.color}20` : 'transparent',
+                border: 'none',
+                borderLeft: isSelected ? `3px solid ${option.color}` : '3px solid transparent',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+            },
+            children: [
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(OptionIcon, {
+                    size: 16,
+                    style: {
+                        color: option.color
+                    }
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                    lineNumber: 515,
+                    columnNumber: 9
+                }, this),
+                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                    style: {
+                        flex: 1
+                    },
+                    children: [
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                            style: {
+                                fontSize: '12px',
+                                fontWeight: 600,
+                                color: isSelected ? option.color : '#1e293b'
+                            },
+                            children: option.label
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                            lineNumber: 520,
+                            columnNumber: 11
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                            style: {
+                                fontSize: '9px',
+                                color: '#64748b'
+                            },
+                            children: option.description
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                            lineNumber: 527,
+                            columnNumber: 11
+                        }, this)
+                    ]
+                }, void 0, true, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                    lineNumber: 519,
+                    columnNumber: 9
+                }, this),
+                isSelected && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$circle$2d$check$2d$big$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__CheckCircle$3e$__["CheckCircle"], {
+                    size: 14,
+                    style: {
+                        color: option.color
+                    }
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                    lineNumber: 532,
+                    columnNumber: 11
+                }, this)
+            ]
+        }, option.id, true, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+            lineNumber: 498,
+            columnNumber: 7
+        }, this);
+    };
+    // 計算実行ハンドラー（改善版: DB保存対応）
+    const handleCalculate = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])(async ()=>{
+        // eBay選択時は既存処理（既存のeBay DDP/DDU計算）
+        if (selectedMarketplace === 'ebay') {
+            onProfit?.();
+            return;
+        }
+        // 商品未選択
+        if (selectedProductIds.length === 0) {
+            alert('計算する商品を選択してください');
+            return;
+        }
+        setCalculating(true);
+        try {
+            // 商品データを取得
+            const productResponse = await fetch(`/api/products?ids=${selectedProductIds.slice(0, 50).join(',')}`);
+            const productData = await productResponse.json();
+            if (!productData.success || !productData.products?.length) {
+                alert('商品データの取得に失敗しました');
+                return;
+            }
+            const products = productData.products;
+            let successCount = 0;
+            let errorCount = 0;
+            const allResults = [];
+            const saveUpdates = [];
+            for (const product of products){
+                const costJpy = product.price_jpy || product.cost_price || product.purchase_price || 0;
+                const weightG = product.weight_g || product.listing_data?.weight_g || 500;
+                if (costJpy <= 0) {
+                    console.warn(`[Profit] 商品ID ${product.id}: 仕入れ価格が0`);
+                    errorCount++;
+                    continue;
+                }
+                try {
+                    if (selectedMarketplace === 'all') {
+                        // 全販路一括計算
+                        const response = await fetch('/api/v2/pricing/multi-marketplace', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                costPriceJpy: costJpy,
+                                weightGrams: weightG,
+                                targetMarketplaces: [
+                                    'ebay_us',
+                                    'qoo10_jp',
+                                    'amazon_jp'
+                                ],
+                                targetMargin: 15
+                            })
+                        });
+                        const data = await response.json();
+                        if (data.success && data.results) {
+                            allResults.push(...data.results);
+                            successCount++;
+                            // 各販路の結果を保存用に準備
+                            for (const result of data.results){
+                                saveUpdates.push({
+                                    productId: product.id,
+                                    marketplace: result.marketplace,
+                                    data: {
+                                        price_jpy: result.suggestedPrice * (result.exchangeRate || 1),
+                                        price_local: result.suggestedPrice,
+                                        currency: result.currency,
+                                        profit_jpy: result.profitJpy,
+                                        profit_margin: result.profitMargin,
+                                        shipping_cost: result.costBreakdown?.shippingCostLocal || 0,
+                                        platform_fee: result.costBreakdown?.platformFee || 0,
+                                        status: result.isProfitable ? 'calculated' : 'error',
+                                        error_message: result.isProfitable ? null : '利益率が低すぎます'
+                                    }
+                                });
+                            }
+                        } else {
+                            errorCount++;
+                        }
+                    } else if (selectedMarketplace === 'yahoo_auction_jp') {
+                        // ★ ヤフオク専用API呼び出し
+                        const shippingCost = product.listing_data?.shipping_cost || 1000;
+                        const response = await fetch('/api/v2/yahooauction/calculate-profit', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                mode: 'single',
+                                costPrice: costJpy,
+                                targetRecoveryRate: 100,
+                                memberType: 'lyp_premium',
+                                shippingCost: shippingCost,
+                                marketPrice: product.market_price_jpy || product.listing_data?.market_price
+                            })
+                        });
+                        const data = await response.json();
+                        if (data.success && data.result) {
+                            const result = data.result;
+                            allResults.push({
+                                marketplace: 'yahoo_auction_jp',
+                                suggestedPrice: result.minimumSellingPrice,
+                                profitJpy: -result.lossAmount,
+                                profitMargin: result.actualRecoveryRate - 100,
+                                isProfitable: result.isProfitable,
+                                feeRate: result.feeRate,
+                                fee: result.fee,
+                                netProceeds: result.netProceeds,
+                                breakEvenPrice: result.breakEvenPrice,
+                                warnings: result.warnings
+                            });
+                            successCount++;
+                            // 保存用データを準備
+                            saveUpdates.push({
+                                productId: product.id,
+                                marketplace: 'yahoo_auction_jp',
+                                data: {
+                                    price_jpy: result.minimumSellingPrice,
+                                    profit_jpy: -result.lossAmount,
+                                    profit_margin: result.actualRecoveryRate - 100,
+                                    shipping_cost: shippingCost,
+                                    platform_fee: result.fee,
+                                    recovery_rate: result.actualRecoveryRate,
+                                    break_even_price: result.breakEvenPrice,
+                                    status: result.isProfitable ? 'calculated' : 'loss_cut',
+                                    error_message: result.warnings.length > 0 ? result.warnings[0] : null
+                                }
+                            });
+                        } else {
+                            errorCount++;
+                        }
+                    } else {
+                        // 個別モール計算（Qoo10, Amazon JP等）
+                        const response = await fetch('/api/v2/pricing/multi-marketplace', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                costPriceJpy: costJpy,
+                                weightGrams: weightG,
+                                targetMarketplaces: [
+                                    selectedMarketplace
+                                ],
+                                targetMargin: 15
+                            })
+                        });
+                        const data = await response.json();
+                        if (data.success && data.results?.[0]) {
+                            const result = data.results[0];
+                            allResults.push(result);
+                            successCount++;
+                            // 保存用データを準備
+                            saveUpdates.push({
+                                productId: product.id,
+                                marketplace: selectedMarketplace,
+                                data: {
+                                    price_jpy: result.suggestedPrice,
+                                    profit_jpy: result.profitJpy,
+                                    profit_margin: result.profitMargin,
+                                    shipping_cost: result.costBreakdown?.shippingCostLocal || 0,
+                                    platform_fee: result.costBreakdown?.platformFee || 0,
+                                    payment_fee: result.costBreakdown?.paymentFee || 0,
+                                    status: result.isProfitable ? 'calculated' : 'error',
+                                    error_message: result.isProfitable ? null : '利益率が低すぎます'
+                                }
+                            });
+                        } else {
+                            errorCount++;
+                        }
+                    }
+                } catch (e) {
+                    console.error(`[Profit] 商品ID ${product.id} 計算エラー:`, e);
+                    errorCount++;
+                }
+            }
+            // 計算結果をDBに一括保存
+            if (saveUpdates.length > 0) {
+                try {
+                    const saveResponse = await fetch('/api/v2/marketplace-listings/save', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            updates: saveUpdates
+                        })
+                    });
+                    const saveResult = await saveResponse.json();
+                    console.log('[Profit] DB保存結果:', saveResult);
+                } catch (saveError) {
+                    console.warn('[Profit] DB保存エラー:', saveError);
+                }
+            }
+            // 結果サマリー表示
+            if (selectedMarketplace === 'all') {
+                const profitable = allResults.filter((r)=>r.isProfitable).length;
+                alert(`全販路計算完了\n\n成功: ${successCount}件\nエラー: ${errorCount}件\n黒字: ${profitable}件 / ${allResults.length}件\n\n※ 計算結果はDBに保存されました`);
+            } else if (selectedMarketplace === 'yahoo_auction_jp') {
+                // ヤフオク専用サマリー
+                const profitableCount = allResults.filter((r)=>r.isProfitable).length;
+                const avgRecoveryRate = allResults.length > 0 ? Math.round(allResults.reduce((s, r)=>s + (r.netProceeds || 0), 0) / allResults.reduce((s, r)=>s + (r.breakEvenPrice || 1), 0) * 100) : 0;
+                alert(`ヤフオク計算完了\n\n成功: ${successCount}件\nエラー: ${errorCount}件\n黒字: ${profitableCount}件\n平均回収率: ${avgRecoveryRate}%\n\n※ 計算結果はDBに保存されました`);
+            } else {
+                const avgProfit = allResults.length > 0 ? Math.round(allResults.reduce((s, r)=>s + (r.profitJpy || 0), 0) / allResults.length) : 0;
+                const profitableCount = allResults.filter((r)=>r.isProfitable).length;
+                alert(`${currentMarketplace.label}計算完了\n\n成功: ${successCount}件\nエラー: ${errorCount}件\n平均利益: ¥${avgProfit.toLocaleString()}\n黒字: ${profitableCount}件\n\n※ 計算結果はDBに保存されました`);
+            }
+            // リロードをトリガー（テーブル更新）
+            onReload?.();
+        } catch (error) {
+            alert(`計算エラー: ${error.message}`);
+        } finally{
+            setCalculating(false);
+        }
+    }, [
+        selectedMarketplace,
+        selectedProductIds,
+        onProfit,
+        currentMarketplace.label,
+        onReload
+    ]);
+    // ★ 国内モール用 Run All（SM分析スキップ）
+    const handleRunAllForDomestic = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])(async ()=>{
+        if (selectedProductIds.length === 0) {
+            alert('商品を選択してください');
+            return;
+        }
+        setCalculating(true);
+        const mpLabel = currentMarketplace.label;
+        try {
+            console.log(`[Run All] ${mpLabel}用処理開始: ${selectedProductIds.length}件`);
+            // ステップ1: カテゴリ分析（category featureがある場合）
+            if (currentMarketplace.features.includes('category')) {
+                console.log(`[Run All] 1/${currentMarketplace.isDomestic ? '4' : '6'}: カテゴリ分析中...`);
+                if (onCategory) {
+                    await new Promise((resolve)=>{
+                        onCategory();
+                        setTimeout(resolve, 500);
+                    });
+                }
+            }
+            // ステップ2: 送料計算（domestic_ship feature）
+            if (currentMarketplace.features.includes('domestic_ship')) {
+                console.log(`[Run All] 2/${currentMarketplace.isDomestic ? '4' : '6'}: 国内送料計算中...`);
+                if (onShipping) {
+                    await new Promise((resolve)=>{
+                        onShipping();
+                        setTimeout(resolve, 500);
+                    });
+                }
+            }
+            // ステップ3: 利益計算（メイン処理）
+            console.log(`[Run All] 3/${currentMarketplace.isDomestic ? '4' : '6'}: ${mpLabel}利益計算中...`);
+            await handleCalculate();
+            // ステップ4: AI強化（ai_enhance featureがある場合）
+            if (currentMarketplace.features.includes('ai_enhance') && onAI) {
+                console.log(`[Run All] 4/${currentMarketplace.isDomestic ? '4' : '6'}: AI強化中...`);
+            // AI処理はユーザーが別途実行することが多いのでスキップ
+            }
+            // 完了
+            alert(`✅ ${mpLabel} Run All 完了\n\n処理対象: ${selectedProductIds.length}件\n\n※ SM分析・HTML生成・スコア計算はスキップされました（国内モール用）`);
+            // リロード
+            onReload?.();
+        } catch (error) {
+            console.error('[Run All] エラー:', error);
+            alert(`❌ Run All エラー: ${error.message}`);
+        } finally{
+            setCalculating(false);
+        }
+    }, [
+        selectedProductIds,
+        currentMarketplace,
+        handleCalculate,
+        onCategory,
+        onShipping,
+        onAI,
+        onReload
+    ]);
+    const IconComponent = currentMarketplace.icon;
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        style: {
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '2px'
+        },
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '4px',
+                    padding: '6px 8px',
+                    background: 'transparent',
+                    borderRadius: '6px',
+                    border: '1px solid transparent'
+                },
+                children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                        style: {
+                            fontSize: '10px',
+                            fontWeight: 600,
+                            color: 'var(--text-muted)',
+                            marginRight: '4px'
+                        },
+                        children: "Tools"
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 836,
+                        columnNumber: 9
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        style: {
+                            position: 'relative',
+                            display: 'inline-flex',
+                            alignItems: 'center'
+                        },
+                        children: [
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                onClick: handleCalculate,
+                                disabled: processing || calculating,
+                                title: currentMarketplace.description,
+                                style: {
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    height: '28px',
+                                    padding: '0 10px',
+                                    fontSize: '11px',
+                                    fontWeight: 600,
+                                    borderRadius: '4px 0 0 4px',
+                                    borderTop: `1px solid ${currentMarketplace.color}`,
+                                    borderBottom: `1px solid ${currentMarketplace.color}`,
+                                    borderLeft: `1px solid ${currentMarketplace.color}`,
+                                    borderRight: 'none',
+                                    background: currentMarketplace.color,
+                                    color: 'white',
+                                    cursor: processing || calculating ? 'not-allowed' : 'pointer',
+                                    opacity: processing || calculating ? 0.7 : 1,
+                                    transition: 'all 0.15s ease'
+                                },
+                                children: [
+                                    calculating ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$loader$2d$circle$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Loader2$3e$__["Loader2"], {
+                                        size: 14,
+                                        className: "animate-spin"
+                                    }, void 0, false, {
+                                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                        lineNumber: 870,
+                                        columnNumber: 15
+                                    }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(IconComponent, {
+                                        size: 14,
+                                        strokeWidth: 2.5
+                                    }, void 0, false, {
+                                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                        lineNumber: 872,
+                                        columnNumber: 15
+                                    }, this),
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                        children: currentMarketplace.buttonLabel
+                                    }, void 0, false, {
+                                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                        lineNumber: 874,
+                                        columnNumber: 13
+                                    }, this),
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                        style: {
+                                            fontSize: '9px',
+                                            opacity: 0.8,
+                                            padding: '1px 4px',
+                                            background: 'rgba(255,255,255,0.2)',
+                                            borderRadius: '3px'
+                                        },
+                                        children: currentMarketplace.subLabel.split(' / ')[0]
+                                    }, void 0, false, {
+                                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                        lineNumber: 875,
+                                        columnNumber: 13
+                                    }, this)
+                                ]
+                            }, void 0, true, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                lineNumber: 845,
+                                columnNumber: 11
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                onClick: (e)=>{
+                                    e.stopPropagation();
+                                    setShowMarketplaceDropdown(!showMarketplaceDropdown);
+                                },
+                                disabled: processing || calculating,
+                                style: {
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    height: '28px',
+                                    width: '22px',
+                                    borderRadius: '0 4px 4px 0',
+                                    borderTop: `1px solid ${currentMarketplace.color}`,
+                                    borderBottom: `1px solid ${currentMarketplace.color}`,
+                                    borderRight: `1px solid ${currentMarketplace.color}`,
+                                    borderLeft: '1px solid rgba(255,255,255,0.3)',
+                                    background: currentMarketplace.color,
+                                    color: 'white',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease'
+                                },
+                                children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevron$2d$down$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronDown$3e$__["ChevronDown"], {
+                                    size: 12,
+                                    style: {
+                                        transform: showMarketplaceDropdown ? 'rotate(180deg)' : 'none',
+                                        transition: 'transform 0.2s'
+                                    }
+                                }, void 0, false, {
+                                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                    lineNumber: 910,
+                                    columnNumber: 13
+                                }, this)
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                lineNumber: 887,
+                                columnNumber: 11
+                            }, this),
+                            showMarketplaceDropdown && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Fragment"], {
+                                children: [
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                        style: {
+                                            position: 'fixed',
+                                            inset: 0,
+                                            zIndex: 100
+                                        },
+                                        onClick: ()=>setShowMarketplaceDropdown(false)
+                                    }, void 0, false, {
+                                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                        lineNumber: 922,
+                                        columnNumber: 15
+                                    }, this),
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                        style: {
+                                            position: 'absolute',
+                                            top: 'calc(100% + 4px)',
+                                            left: 0,
+                                            minWidth: '240px',
+                                            background: '#ffffff',
+                                            borderRadius: '8px',
+                                            boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
+                                            zIndex: 101,
+                                            overflow: 'hidden',
+                                            border: '1px solid #e2e8f0'
+                                        },
+                                        children: [
+                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                style: {
+                                                    padding: '6px 12px',
+                                                    background: '#0064d215',
+                                                    fontSize: '9px',
+                                                    fontWeight: 700,
+                                                    color: '#0064d2',
+                                                    textTransform: 'uppercase',
+                                                    letterSpacing: '0.5px'
+                                                },
+                                                children: "🌍 海外販売（為替・関税・国際送料）"
+                                            }, void 0, false, {
+                                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                                lineNumber: 941,
+                                                columnNumber: 17
+                                            }, this),
+                                            renderMarketplaceOption(MARKETPLACE_OPTIONS[0]),
+                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                style: {
+                                                    padding: '6px 12px',
+                                                    background: '#8b5cf615',
+                                                    fontSize: '9px',
+                                                    fontWeight: 700,
+                                                    color: '#8b5cf6',
+                                                    textTransform: 'uppercase',
+                                                    letterSpacing: '0.5px',
+                                                    borderTop: '1px solid #e2e8f0'
+                                                },
+                                                children: "📊 全販路一括比較"
+                                            }, void 0, false, {
+                                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                                lineNumber: 955,
+                                                columnNumber: 17
+                                            }, this),
+                                            renderMarketplaceOption(MARKETPLACE_OPTIONS[1]),
+                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                style: {
+                                                    padding: '6px 12px',
+                                                    background: '#ff006615',
+                                                    fontSize: '9px',
+                                                    fontWeight: 700,
+                                                    color: '#ff0066',
+                                                    textTransform: 'uppercase',
+                                                    letterSpacing: '0.5px',
+                                                    borderTop: '1px solid #e2e8f0'
+                                                },
+                                                children: "🇯🇵 国内販売（円・関税なし・国内送料）"
+                                            }, void 0, false, {
+                                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                                lineNumber: 970,
+                                                columnNumber: 17
+                                            }, this),
+                                            MARKETPLACE_OPTIONS.slice(2).map((option)=>renderMarketplaceOption(option))
+                                        ]
+                                    }, void 0, true, {
+                                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                        lineNumber: 926,
+                                        columnNumber: 15
+                                    }, this)
+                                ]
+                            }, void 0, true)
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 843,
+                        columnNumber: 9
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(ToolbarDivider, {}, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 988,
+                        columnNumber: 9
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                        onClick: ()=>{
+                            // マーケットプレイス別のRun All処理
+                            if (selectedMarketplace === 'ebay') {
+                                // eBayは既存のonRunAll（SM分析含む）
+                                onRunAll?.();
+                            } else {
+                                // 国内モール用のRun All（SM分析スキップ）
+                                handleRunAllForDomestic();
+                            }
+                        },
+                        disabled: processing || calculating,
+                        title: `${currentMarketplace.label}用の全処理を実行`,
+                        style: {
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            height: '28px',
+                            padding: '0 10px',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            borderRadius: '4px',
+                            border: `1px solid ${currentMarketplace.color}`,
+                            background: `${currentMarketplace.color}15`,
+                            color: currentMarketplace.color,
+                            cursor: processing ? 'not-allowed' : 'pointer',
+                            opacity: processing ? 0.5 : 1,
+                            transition: 'all 0.15s ease'
+                        },
+                        children: [
+                            processing ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$loader$2d$circle$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Loader2$3e$__["Loader2"], {
+                                size: 14,
+                                className: "animate-spin"
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                lineNumber: 1021,
+                                columnNumber: 25
+                            }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$zap$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Zap$3e$__["Zap"], {
+                                size: 14
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                lineNumber: 1021,
+                                columnNumber: 74
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                children: "Run All"
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                lineNumber: 1022,
+                                columnNumber: 11
+                            }, this)
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 991,
+                        columnNumber: 9
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(IconButton, {
+                        icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$copy$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Copy$3e$__["Copy"],
+                        label: "Paste",
+                        tooltip: TOOLTIPS.paste,
+                        onClick: onPaste,
+                        disabled: processing
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 1026,
+                        columnNumber: 9
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(IconButton, {
+                        icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$refresh$2d$cw$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__RefreshCw$3e$__["RefreshCw"],
+                        label: "Reload",
+                        tooltip: TOOLTIPS.reload,
+                        onClick: onReload,
+                        disabled: processing
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 1027,
+                        columnNumber: 9
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(IconButton, {
+                        icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$upload$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Upload$3e$__["Upload"],
+                        label: "CSV",
+                        tooltip: TOOLTIPS.csv,
+                        onClick: onCSVUpload,
+                        disabled: processing
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 1028,
+                        columnNumber: 9
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(ToolbarDivider, {}, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 1030,
+                        columnNumber: 9
+                    }, this),
+                    currentMarketplace.features.includes('category') && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(IconButton, {
+                        icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$folder$2d$open$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__FolderOpen$3e$__["FolderOpen"],
+                        label: "Cat",
+                        tooltip: TOOLTIPS.category,
+                        onClick: onCategory,
+                        disabled: processing
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 1034,
+                        columnNumber: 11
+                    }, this),
+                    currentMarketplace.features.includes('international_ship') && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(IconButton, {
+                        icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$truck$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Truck$3e$__["Truck"],
+                        label: "Ship",
+                        tooltip: "国際送料設定",
+                        onClick: onShipping,
+                        disabled: processing
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 1039,
+                        columnNumber: 11
+                    }, this),
+                    currentMarketplace.features.includes('domestic_ship') && !currentMarketplace.features.includes('international_ship') && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(IconButton, {
+                        icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$truck$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Truck$3e$__["Truck"],
+                        label: "国内送料",
+                        tooltip: "国内送料設定",
+                        onClick: onShipping,
+                        disabled: processing
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 1044,
+                        columnNumber: 11
+                    }, this),
+                    currentMarketplace.features.includes('html_template') && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(IconButton, {
+                        icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$code$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Code$3e$__["Code"],
+                        label: "HTML",
+                        tooltip: TOOLTIPS.html,
+                        onClick: onHTML,
+                        disabled: processing
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 1049,
+                        columnNumber: 11
+                    }, this),
+                    currentMarketplace.features.includes('score') && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(IconButton, {
+                        icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chart$2d$column$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__BarChart3$3e$__["BarChart3"],
+                        label: "Score",
+                        tooltip: TOOLTIPS.score,
+                        onClick: onScore,
+                        disabled: processing
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 1054,
+                        columnNumber: 11
+                    }, this),
+                    currentMarketplace.features.includes('hts') && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Fragment"], {
+                        children: [
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(ToolbarDivider, {}, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                lineNumber: 1060,
+                                columnNumber: 13
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(IconButton, {
+                                icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$shield$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Shield$3e$__["Shield"],
+                                label: "HTS",
+                                tooltip: TOOLTIPS.hts,
+                                onClick: onHTS,
+                                disabled: processing
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                lineNumber: 1061,
+                                columnNumber: 13
+                            }, this)
+                        ]
+                    }, void 0, true),
+                    currentMarketplace.features.includes('origin') && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(IconButton, {
+                        icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$globe$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Globe$3e$__["Globe"],
+                        label: "Origin",
+                        tooltip: TOOLTIPS.origin,
+                        onClick: onOrigin,
+                        disabled: processing
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 1067,
+                        columnNumber: 11
+                    }, this),
+                    currentMarketplace.features.includes('material') && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(IconButton, {
+                        icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$package$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Package$3e$__["Package"],
+                        label: "Material",
+                        tooltip: TOOLTIPS.material,
+                        onClick: onMaterial,
+                        disabled: processing
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 1072,
+                        columnNumber: 11
+                    }, this),
+                    currentMarketplace.features.includes('fba') && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(IconButton, {
+                        icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$package$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Package$3e$__["Package"],
+                        label: "FBA",
+                        tooltip: "FBA納品計画",
+                        onClick: onCategory,
+                        disabled: processing
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 1077,
+                        columnNumber: 11
+                    }, this),
+                    currentMarketplace.features.includes('auction') && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(IconButton, {
+                        icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$dollar$2d$sign$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__DollarSign$3e$__["DollarSign"],
+                        label: "即決",
+                        tooltip: "開始価格・即決価格設定",
+                        onClick: onCategory,
+                        disabled: processing
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 1082,
+                        columnNumber: 11
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(ToolbarDivider, {}, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 1085,
+                        columnNumber: 9
+                    }, this),
+                    currentMarketplace.features.includes('research') && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(IconButton, {
+                        icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$search$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Search$3e$__["Search"],
+                        label: "Research",
+                        tooltip: TOOLTIPS.research,
+                        onClick: onResearch,
+                        disabled: processing
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 1089,
+                        columnNumber: 11
+                    }, this),
+                    currentMarketplace.features.includes('ai_enhance') && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(IconButton, {
+                        icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$sparkles$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Sparkles$3e$__["Sparkles"],
+                        label: "AI",
+                        tooltip: TOOLTIPS.ai,
+                        onClick: onAI,
+                        disabled: processing
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 1094,
+                        columnNumber: 11
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        style: {
+                            flex: 1
+                        }
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 1098,
+                        columnNumber: 9
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        style: {
+                            position: 'relative'
+                        },
+                        children: [
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                onClick: handleExportClick,
+                                style: {
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    height: '28px',
+                                    padding: '0 10px',
+                                    fontSize: '11px',
+                                    fontWeight: 500,
+                                    background: 'var(--panel)',
+                                    border: '1px solid var(--panel-border)',
+                                    borderRadius: '4px',
+                                    color: 'var(--text)',
+                                    cursor: 'pointer'
+                                },
+                                children: [
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$download$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Download$3e$__["Download"], {
+                                        size: 14
+                                    }, void 0, false, {
+                                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                        lineNumber: 1119,
+                                        columnNumber: 13
+                                    }, this),
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                        children: "Export"
+                                    }, void 0, false, {
+                                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                        lineNumber: 1120,
+                                        columnNumber: 13
+                                    }, this),
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevron$2d$down$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronDown$3e$__["ChevronDown"], {
+                                        size: 12
+                                    }, void 0, false, {
+                                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                        lineNumber: 1121,
+                                        columnNumber: 13
+                                    }, this)
+                                ]
+                            }, void 0, true, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                lineNumber: 1102,
+                                columnNumber: 11
+                            }, this),
+                            showExportMenu && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Fragment"], {
+                                children: [
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                        style: {
+                                            position: 'fixed',
+                                            inset: 0,
+                                            zIndex: 40
+                                        },
+                                        onClick: ()=>setShowExportMenu(false)
+                                    }, void 0, false, {
+                                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                        lineNumber: 1125,
+                                        columnNumber: 15
+                                    }, this),
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                        style: {
+                                            position: 'absolute',
+                                            top: '100%',
+                                            right: 0,
+                                            marginTop: '4px',
+                                            minWidth: '140px',
+                                            background: 'var(--panel)',
+                                            border: '1px solid var(--panel-border)',
+                                            borderRadius: '6px',
+                                            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                                            zIndex: 50,
+                                            overflow: 'hidden'
+                                        },
+                                        children: [
+                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                                onClick: ()=>{
+                                                    onExportCSV?.();
+                                                    setShowExportMenu(false);
+                                                },
+                                                style: {
+                                                    display: 'block',
+                                                    width: '100%',
+                                                    padding: '8px 12px',
+                                                    fontSize: '12px',
+                                                    textAlign: 'left',
+                                                    background: 'transparent',
+                                                    border: 'none',
+                                                    color: 'var(--text)',
+                                                    cursor: 'pointer'
+                                                },
+                                                className: "hover:bg-[var(--highlight)]",
+                                                children: "CSV All"
+                                            }, void 0, false, {
+                                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                                lineNumber: 1144,
+                                                columnNumber: 17
+                                            }, this),
+                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                                onClick: ()=>{
+                                                    onExportEbay?.();
+                                                    setShowExportMenu(false);
+                                                },
+                                                style: {
+                                                    display: 'block',
+                                                    width: '100%',
+                                                    padding: '8px 12px',
+                                                    fontSize: '12px',
+                                                    textAlign: 'left',
+                                                    background: 'transparent',
+                                                    border: 'none',
+                                                    color: 'var(--text)',
+                                                    cursor: 'pointer'
+                                                },
+                                                className: "hover:bg-[var(--highlight)]",
+                                                children: "eBay Format"
+                                            }, void 0, false, {
+                                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                                lineNumber: 1161,
+                                                columnNumber: 17
+                                            }, this),
+                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                style: {
+                                                    height: '1px',
+                                                    background: 'var(--panel-border)',
+                                                    margin: '4px 0'
+                                                }
+                                            }, void 0, false, {
+                                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                                lineNumber: 1178,
+                                                columnNumber: 17
+                                            }, this),
+                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                                onClick: ()=>{
+                                                    onExportAI?.();
+                                                    setShowExportMenu(false);
+                                                },
+                                                style: {
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px',
+                                                    width: '100%',
+                                                    padding: '8px 12px',
+                                                    fontSize: '12px',
+                                                    textAlign: 'left',
+                                                    background: 'transparent',
+                                                    border: 'none',
+                                                    color: 'var(--accent)',
+                                                    cursor: 'pointer'
+                                                },
+                                                className: "hover:bg-[var(--highlight)]",
+                                                children: [
+                                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$sparkles$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Sparkles$3e$__["Sparkles"], {
+                                                        size: 12
+                                                    }, void 0, false, {
+                                                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                                        lineNumber: 1196,
+                                                        columnNumber: 19
+                                                    }, this),
+                                                    "AI Export"
+                                                ]
+                                            }, void 0, true, {
+                                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                                lineNumber: 1179,
+                                                columnNumber: 17
+                                            }, this)
+                                        ]
+                                    }, void 0, true, {
+                                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                        lineNumber: 1129,
+                                        columnNumber: 15
+                                    }, this)
+                                ]
+                            }, void 0, true)
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 1101,
+                        columnNumber: 9
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                        onClick: onSave,
+                        disabled: processing || modifiedCount === 0,
+                        style: {
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            height: '28px',
+                            padding: '0 10px',
+                            fontSize: '11px',
+                            fontWeight: 500,
+                            background: modifiedCount > 0 ? 'var(--accent)' : 'var(--panel)',
+                            border: '1px solid',
+                            borderColor: modifiedCount > 0 ? 'var(--accent)' : 'var(--panel-border)',
+                            borderRadius: '4px',
+                            color: modifiedCount > 0 ? 'white' : 'var(--text)',
+                            cursor: processing || modifiedCount === 0 ? 'not-allowed' : 'pointer',
+                            opacity: processing || modifiedCount === 0 ? 0.5 : 1,
+                            position: 'relative'
+                        },
+                        children: [
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$save$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Save$3e$__["Save"], {
+                                size: 14
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                lineNumber: 1226,
+                                columnNumber: 11
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                children: "Save"
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                lineNumber: 1227,
+                                columnNumber: 11
+                            }, this),
+                            modifiedCount > 0 && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                style: {
+                                    position: 'absolute',
+                                    top: '-6px',
+                                    right: '-6px',
+                                    minWidth: '18px',
+                                    height: '18px',
+                                    padding: '0 4px',
+                                    fontSize: '10px',
+                                    fontWeight: 600,
+                                    lineHeight: '18px',
+                                    textAlign: 'center',
+                                    background: 'rgb(239, 68, 68)',
+                                    color: 'white',
+                                    borderRadius: '9px'
+                                },
+                                children: modifiedCount
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                lineNumber: 1229,
+                                columnNumber: 13
+                            }, this)
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 1205,
+                        columnNumber: 9
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(IconButton, {
+                        icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$trash$2d$2$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Trash2$3e$__["Trash2"],
+                        tooltip: TOOLTIPS.delete,
+                        onClick: onDelete,
+                        disabled: processing,
+                        variant: "danger"
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 1252,
+                        columnNumber: 9
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                lineNumber: 823,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 8px',
+                    background: 'transparent',
+                    borderRadius: '6px',
+                    border: '1px solid transparent'
+                },
+                children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                        style: {
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            color: currentMarketplace.color,
+                            letterSpacing: '0.5px'
+                        },
+                        children: "FLOW"
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 1276,
+                        columnNumber: 9
+                    }, this),
+                    currentMarketplace.features.includes('translation') && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(FlowStepButton, {
+                        num: 1,
+                        icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$globe$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Globe$3e$__["Globe"],
+                        label: "翻訳",
+                        tooltip: TOOLTIPS.translate,
+                        onClick: onTranslate,
+                        disabled: processing
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 1289,
+                        columnNumber: 11
+                    }, this),
+                    currentMarketplace.features.includes('seller_mirror') && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(FlowStepButton, {
+                        num: 2,
+                        icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$search$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Search$3e$__["Search"],
+                        label: "SM",
+                        tooltip: TOOLTIPS.sellerMirror,
+                        onClick: onSellerMirror,
+                        disabled: processing
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 1294,
+                        columnNumber: 11
+                    }, this),
+                    currentMarketplace.features.includes('seller_mirror') && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(FlowStepButton, {
+                        num: 3,
+                        icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$package$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Package$3e$__["Package"],
+                        label: "詳細",
+                        tooltip: TOOLTIPS.details,
+                        onClick: onDetails,
+                        disabled: processing,
+                        badge: selectedMirrorCount
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 1299,
+                        columnNumber: 11
+                    }, this),
+                    currentMarketplace.features.includes('gemini') && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(FlowStepButton, {
+                        num: 4,
+                        icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$file$2d$text$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__FileText$3e$__["FileText"],
+                        label: "Gemini",
+                        tooltip: TOOLTIPS.gemini,
+                        onClick: onGemini,
+                        disabled: processing
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 1304,
+                        columnNumber: 11
+                    }, this),
+                    currentMarketplace.features.includes('ai_enhance') && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(FlowStepButton, {
+                        num: 0,
+                        icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$sparkles$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Sparkles$3e$__["Sparkles"],
+                        label: "AI強化",
+                        tooltip: TOOLTIPS.enrichmentFlow,
+                        onClick: onEnrichmentFlow,
+                        disabled: processing
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 1309,
+                        columnNumber: 11
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(FlowStepButton, {
+                        num: 5,
+                        icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$dollar$2d$sign$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__DollarSign$3e$__["DollarSign"],
+                        label: "処理",
+                        tooltip: TOOLTIPS.finalProcess,
+                        onClick: onFinalProcess,
+                        disabled: processing
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 1313,
+                        columnNumber: 9
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(FlowStepButton, {
+                        num: 6,
+                        icon: __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$circle$2d$check$2d$big$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__CheckCircle$3e$__["CheckCircle"],
+                        label: "出品",
+                        tooltip: TOOLTIPS.list,
+                        onClick: onList,
+                        disabled: processing || readyCount === 0,
+                        badge: readyCount
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 1316,
+                        columnNumber: 9
+                    }, this),
+                    processing && currentStep && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        style: {
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            marginLeft: 'auto',
+                            padding: '4px 8px',
+                            fontSize: '11px',
+                            color: currentMarketplace.color,
+                            background: `${currentMarketplace.color}15`,
+                            borderRadius: '4px'
+                        },
+                        children: [
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$loader$2d$circle$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Loader2$3e$__["Loader2"], {
+                                size: 12,
+                                className: "animate-spin"
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                lineNumber: 1333,
+                                columnNumber: 13
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                children: currentStep
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                                lineNumber: 1334,
+                                columnNumber: 13
+                            }, this)
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                        lineNumber: 1320,
+                        columnNumber: 11
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+                lineNumber: 1264,
+                columnNumber: 7
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-tool-panel.tsx",
+        lineNumber: 819,
+        columnNumber: 5
+    }, this);
+});
+const __TURBOPACK__default__export__ = N3ToolPanel;
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+/**
+ * N3ProfitCalculatorPanel - マーケットプレイス連動利益計算パネル
+ * 
+ * 機能:
+ * - 標準: eBay + ALL（全販路一括）
+ * - 他モール選択時: そのモール専用計算パネルを表示
+ * 
+ * 配置: ツールバーの左端（Run Allの後）
+ */ __turbopack_context__.s([
+    "N3ProfitCalculatorPanel",
+    ()=>N3ProfitCalculatorPanel,
+    "default",
+    ()=>__TURBOPACK__default__export__
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$calculator$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Calculator$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/calculator.js [app-ssr] (ecmascript) <export default as Calculator>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevron$2d$down$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronDown$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/chevron-down.js [app-ssr] (ecmascript) <export default as ChevronDown>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$store$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Store$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/store.js [app-ssr] (ecmascript) <export default as Store>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$loader$2d$circle$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Loader2$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/loader-circle.js [app-ssr] (ecmascript) <export default as Loader2>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$x$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__X$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/x.js [app-ssr] (ecmascript) <export default as X>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$trending$2d$up$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__TrendingUp$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/trending-up.js [app-ssr] (ecmascript) <export default as TrendingUp>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$trending$2d$down$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__TrendingDown$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/trending-down.js [app-ssr] (ecmascript) <export default as TrendingDown>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$circle$2d$check$2d$big$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__CheckCircle$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/circle-check-big.js [app-ssr] (ecmascript) <export default as CheckCircle>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$triangle$2d$alert$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__AlertTriangle$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/triangle-alert.js [app-ssr] (ecmascript) <export default as AlertTriangle>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$layers$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Layers$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/layers.js [app-ssr] (ecmascript) <export default as Layers>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$sonner$2f$dist$2f$index$2e$mjs__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/sonner/dist/index.mjs [app-ssr] (ecmascript)");
+'use client';
+;
+;
+;
+;
+// =====================================================
+// マーケットプレイス設定
+// =====================================================
+const MARKETPLACE_OPTIONS = [
+    {
+        id: 'ebay',
+        label: 'eBay',
+        buttonLabel: 'Profit',
+        color: '#0064d2',
+        description: 'eBay US/UK/DE/AU（既存処理）',
+        apiEndpoint: 'existing'
+    },
+    {
+        id: 'all',
+        label: 'ALL',
+        buttonLabel: '全販路',
+        color: '#8b5cf6',
+        description: '全販路一括計算・比較',
+        apiEndpoint: '/api/v2/calculate-all-marketplaces'
+    },
+    {
+        id: 'qoo10_jp',
+        label: 'Qoo10',
+        buttonLabel: 'Qoo10',
+        color: '#ff0066',
+        description: 'Qoo10国内販売',
+        apiEndpoint: '/api/v2/pricing/multi-marketplace'
+    },
+    {
+        id: 'amazon_jp',
+        label: 'Amazon JP',
+        buttonLabel: 'Amazon',
+        color: '#ff9900',
+        description: 'Amazon日本',
+        apiEndpoint: '/api/v2/pricing/multi-marketplace'
+    },
+    {
+        id: 'mercari_jp',
+        label: 'メルカリ',
+        buttonLabel: 'メルカリ',
+        color: '#ff2d55',
+        description: 'メルカリ',
+        apiEndpoint: '/api/v2/pricing/multi-marketplace'
+    },
+    {
+        id: 'yahoo_auction_jp',
+        label: 'ヤフオク',
+        buttonLabel: 'ヤフオク',
+        color: '#ff0033',
+        description: 'ヤフオク',
+        apiEndpoint: '/api/v2/pricing/multi-marketplace'
+    }
+];
+const N3ProfitCalculatorPanel = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3ProfitCalculatorPanel({ selectedProductIds = [], processing = false, onEbayProfit, onCalculationComplete }) {
+    const [selectedMarketplace, setSelectedMarketplace] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])('ebay');
+    const [showDropdown, setShowDropdown] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false);
+    const [showResultPanel, setShowResultPanel] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false);
+    const [calculating, setCalculating] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false);
+    const [results, setResults] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])([]);
+    const currentOption = MARKETPLACE_OPTIONS.find((o)=>o.id === selectedMarketplace) || MARKETPLACE_OPTIONS[0];
+    // ドロップダウン選択
+    const handleSelect = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])((id)=>{
+        setSelectedMarketplace(id);
+        setShowDropdown(false);
+        setResults([]);
+        setShowResultPanel(false);
+    }, []);
+    // 計算実行
+    const handleCalculate = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])(async ()=>{
+        // eBay選択時は既存のハンドラーを使用
+        if (selectedMarketplace === 'ebay') {
+            onEbayProfit?.();
+            return;
+        }
+        // 商品が選択されていない場合
+        if (selectedProductIds.length === 0) {
+            __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$sonner$2f$dist$2f$index$2e$mjs__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["toast"].error('計算する商品を選択してください');
+            return;
+        }
+        setCalculating(true);
+        setShowResultPanel(true);
+        try {
+            // ALL選択時: 全販路一括計算
+            if (selectedMarketplace === 'all') {
+                const allResults = [];
+                for (const productId of selectedProductIds.slice(0, 10)){
+                    const response = await fetch('/api/v2/calculate-all-marketplaces', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            productId
+                        })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        allResults.push(...data.results);
+                    }
+                }
+                setResults(allResults);
+                onCalculationComplete?.(allResults);
+                const profitable = allResults.filter((r)=>r.isProfitable).length;
+                __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$sonner$2f$dist$2f$index$2e$mjs__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["toast"].success(`${allResults.length}件計算完了 (黒字: ${profitable}件)`);
+            } else {
+                // 個別モール計算
+                const response = await fetch('/api/v2/pricing/multi-marketplace', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        costPriceJpy: 3000,
+                        weightGrams: 500,
+                        targetMarketplaces: [
+                            selectedMarketplace
+                        ]
+                    })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    setResults(data.results);
+                    onCalculationComplete?.(data.results);
+                    __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$sonner$2f$dist$2f$index$2e$mjs__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["toast"].success(`${currentOption.label}の計算完了`);
+                } else {
+                    throw new Error(data.error);
+                }
+            }
+        } catch (error) {
+            __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$sonner$2f$dist$2f$index$2e$mjs__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["toast"].error(`計算エラー: ${error.message}`);
+        } finally{
+            setCalculating(false);
+        }
+    }, [
+        selectedMarketplace,
+        selectedProductIds,
+        onEbayProfit,
+        onCalculationComplete,
+        currentOption.label
+    ]);
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        style: {
+            position: 'relative',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0px'
+        },
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                onClick: handleCalculate,
+                disabled: processing || calculating,
+                title: `${currentOption.label}利益計算`,
+                style: {
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    height: '28px',
+                    padding: '0 10px',
+                    fontSize: '11px',
+                    fontWeight: 500,
+                    borderTopLeftRadius: '4px',
+                    borderBottomLeftRadius: '4px',
+                    borderTopRightRadius: '0',
+                    borderBottomRightRadius: '0',
+                    borderTop: `1px solid ${currentOption.color}60`,
+                    borderBottom: `1px solid ${currentOption.color}60`,
+                    borderLeft: `1px solid ${currentOption.color}60`,
+                    borderRight: 'none',
+                    background: `${currentOption.color}15`,
+                    color: currentOption.color,
+                    cursor: processing || calculating ? 'not-allowed' : 'pointer',
+                    opacity: processing || calculating ? 0.7 : 1,
+                    transition: 'all 0.15s ease'
+                },
+                children: [
+                    calculating ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$loader$2d$circle$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Loader2$3e$__["Loader2"], {
+                        size: 14,
+                        className: "animate-spin"
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                        lineNumber: 252,
+                        columnNumber: 11
+                    }, this) : selectedMarketplace === 'all' ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$layers$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Layers$3e$__["Layers"], {
+                        size: 14
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                        lineNumber: 254,
+                        columnNumber: 11
+                    }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$calculator$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Calculator$3e$__["Calculator"], {
+                        size: 14
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                        lineNumber: 256,
+                        columnNumber: 11
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                        children: currentOption.buttonLabel
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                        lineNumber: 258,
+                        columnNumber: 9
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                lineNumber: 224,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                onClick: ()=>setShowDropdown(!showDropdown),
+                disabled: processing || calculating,
+                style: {
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '28px',
+                    width: '22px',
+                    fontSize: '11px',
+                    borderTopLeftRadius: '0',
+                    borderBottomLeftRadius: '0',
+                    borderTopRightRadius: '4px',
+                    borderBottomRightRadius: '4px',
+                    borderTop: `1px solid ${currentOption.color}60`,
+                    borderBottom: `1px solid ${currentOption.color}60`,
+                    borderRight: `1px solid ${currentOption.color}60`,
+                    borderLeft: `1px solid ${currentOption.color}30`,
+                    background: `${currentOption.color}15`,
+                    color: currentOption.color,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                },
+                children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevron$2d$down$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronDown$3e$__["ChevronDown"], {
+                    size: 12,
+                    style: {
+                        transform: showDropdown ? 'rotate(180deg)' : 'none',
+                        transition: 'transform 0.2s'
+                    }
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                    lineNumber: 286,
+                    columnNumber: 9
+                }, this)
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                lineNumber: 262,
+                columnNumber: 7
+            }, this),
+            showDropdown && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Fragment"], {
+                children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        style: {
+                            position: 'fixed',
+                            inset: 0,
+                            zIndex: 100
+                        },
+                        onClick: ()=>setShowDropdown(false)
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                        lineNumber: 292,
+                        columnNumber: 11
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        style: {
+                            position: 'absolute',
+                            top: '100%',
+                            left: 0,
+                            marginTop: '4px',
+                            minWidth: '220px',
+                            background: '#ffffff',
+                            borderTop: '1px solid #e2e8f0',
+                            borderBottom: '1px solid #e2e8f0',
+                            borderLeft: '1px solid #e2e8f0',
+                            borderRight: '1px solid #e2e8f0',
+                            borderRadius: '8px',
+                            boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
+                            zIndex: 101,
+                            overflow: 'hidden'
+                        },
+                        children: [
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                style: {
+                                    padding: '8px 12px',
+                                    borderBottom: '1px solid #e2e8f0',
+                                    fontSize: '10px',
+                                    fontWeight: 600,
+                                    color: '#64748b',
+                                    textTransform: 'uppercase'
+                                },
+                                children: "計算対象を選択"
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                lineNumber: 314,
+                                columnNumber: 13
+                            }, this),
+                            MARKETPLACE_OPTIONS.map((option)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                    onClick: ()=>handleSelect(option.id),
+                                    style: {
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '10px',
+                                        width: '100%',
+                                        padding: '10px 12px',
+                                        textAlign: 'left',
+                                        background: selectedMarketplace === option.id ? `${option.color}10` : 'transparent',
+                                        border: 'none',
+                                        borderLeft: selectedMarketplace === option.id ? `3px solid ${option.color}` : '3px solid transparent',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.15s ease'
+                                    },
+                                    children: [
+                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                            style: {
+                                                width: '10px',
+                                                height: '10px',
+                                                borderRadius: '50%',
+                                                background: option.color,
+                                                flexShrink: 0
+                                            }
+                                        }, void 0, false, {
+                                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                            lineNumber: 343,
+                                            columnNumber: 17
+                                        }, this),
+                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                            style: {
+                                                flex: 1
+                                            },
+                                            children: [
+                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                    style: {
+                                                        fontSize: '12px',
+                                                        fontWeight: 600,
+                                                        color: selectedMarketplace === option.id ? option.color : '#1e293b'
+                                                    },
+                                                    children: option.label
+                                                }, void 0, false, {
+                                                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                                    lineNumber: 353,
+                                                    columnNumber: 19
+                                                }, this),
+                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                    style: {
+                                                        fontSize: '10px',
+                                                        color: '#94a3b8'
+                                                    },
+                                                    children: option.description
+                                                }, void 0, false, {
+                                                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                                    lineNumber: 360,
+                                                    columnNumber: 19
+                                                }, this)
+                                            ]
+                                        }, void 0, true, {
+                                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                            lineNumber: 352,
+                                            columnNumber: 17
+                                        }, this),
+                                        selectedMarketplace === option.id && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$circle$2d$check$2d$big$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__CheckCircle$3e$__["CheckCircle"], {
+                                            size: 14,
+                                            style: {
+                                                color: option.color
+                                            }
+                                        }, void 0, false, {
+                                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                            lineNumber: 365,
+                                            columnNumber: 19
+                                        }, this)
+                                    ]
+                                }, option.id, true, {
+                                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                    lineNumber: 326,
+                                    columnNumber: 15
+                                }, this))
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                        lineNumber: 296,
+                        columnNumber: 11
+                    }, this)
+                ]
+            }, void 0, true),
+            showResultPanel && results.length > 0 && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Fragment"], {
+                children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        style: {
+                            position: 'fixed',
+                            inset: 0,
+                            zIndex: 90,
+                            background: 'rgba(0,0,0,0.3)'
+                        },
+                        onClick: ()=>setShowResultPanel(false)
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                        lineNumber: 376,
+                        columnNumber: 11
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                        style: {
+                            position: 'fixed',
+                            top: '50%',
+                            left: '50%',
+                            transform: 'translate(-50%, -50%)',
+                            width: '90%',
+                            maxWidth: '600px',
+                            maxHeight: '80vh',
+                            background: '#ffffff',
+                            borderRadius: '12px',
+                            boxShadow: '0 25px 50px rgba(0,0,0,0.25)',
+                            zIndex: 91,
+                            overflow: 'hidden',
+                            display: 'flex',
+                            flexDirection: 'column'
+                        },
+                        children: [
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                style: {
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '12px 16px',
+                                    borderBottom: '1px solid #e2e8f0',
+                                    background: '#f8fafc'
+                                },
+                                children: [
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                        style: {
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px'
+                                        },
+                                        children: [
+                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$store$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Store$3e$__["Store"], {
+                                                size: 18,
+                                                style: {
+                                                    color: '#8b5cf6'
+                                                }
+                                            }, void 0, false, {
+                                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                                lineNumber: 408,
+                                                columnNumber: 17
+                                            }, this),
+                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                                style: {
+                                                    fontSize: '14px',
+                                                    fontWeight: 600
+                                                },
+                                                children: "全販路計算結果"
+                                            }, void 0, false, {
+                                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                                lineNumber: 409,
+                                                columnNumber: 17
+                                            }, this)
+                                        ]
+                                    }, void 0, true, {
+                                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                        lineNumber: 407,
+                                        columnNumber: 15
+                                    }, this),
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                        onClick: ()=>setShowResultPanel(false),
+                                        style: {
+                                            padding: '4px',
+                                            background: 'transparent',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            color: '#64748b'
+                                        },
+                                        children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$x$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__X$3e$__["X"], {
+                                            size: 18
+                                        }, void 0, false, {
+                                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                            lineNumber: 421,
+                                            columnNumber: 17
+                                        }, this)
+                                    }, void 0, false, {
+                                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                        lineNumber: 411,
+                                        columnNumber: 15
+                                    }, this)
+                                ]
+                            }, void 0, true, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                lineNumber: 399,
+                                columnNumber: 13
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                style: {
+                                    flex: 1,
+                                    overflow: 'auto',
+                                    padding: '16px'
+                                },
+                                children: [
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("table", {
+                                        style: {
+                                            width: '100%',
+                                            borderCollapse: 'collapse',
+                                            fontSize: '11px'
+                                        },
+                                        children: [
+                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("thead", {
+                                                children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("tr", {
+                                                    style: {
+                                                        background: '#f1f5f9'
+                                                    },
+                                                    children: [
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("th", {
+                                                            style: thStyle,
+                                                            children: "マーケット"
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                                            lineNumber: 430,
+                                                            columnNumber: 21
+                                                        }, this),
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("th", {
+                                                            style: {
+                                                                ...thStyle,
+                                                                textAlign: 'right'
+                                                            },
+                                                            children: "販売価格"
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                                            lineNumber: 431,
+                                                            columnNumber: 21
+                                                        }, this),
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("th", {
+                                                            style: {
+                                                                ...thStyle,
+                                                                textAlign: 'right'
+                                                            },
+                                                            children: "利益"
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                                            lineNumber: 432,
+                                                            columnNumber: 21
+                                                        }, this),
+                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("th", {
+                                                            style: {
+                                                                ...thStyle,
+                                                                textAlign: 'right'
+                                                            },
+                                                            children: "利益率"
+                                                        }, void 0, false, {
+                                                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                                            lineNumber: 433,
+                                                            columnNumber: 21
+                                                        }, this)
+                                                    ]
+                                                }, void 0, true, {
+                                                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                                    lineNumber: 429,
+                                                    columnNumber: 19
+                                                }, this)
+                                            }, void 0, false, {
+                                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                                lineNumber: 428,
+                                                columnNumber: 17
+                                            }, this),
+                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("tbody", {
+                                                children: results.sort((a, b)=>b.netProfit - a.netProfit).map((result, i)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("tr", {
+                                                        style: {
+                                                            borderBottom: '1px solid #e2e8f0'
+                                                        },
+                                                        children: [
+                                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("td", {
+                                                                style: tdStyle,
+                                                                children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                                    style: {
+                                                                        display: 'flex',
+                                                                        alignItems: 'center',
+                                                                        gap: '6px'
+                                                                    },
+                                                                    children: [
+                                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                                                            style: {
+                                                                                width: '8px',
+                                                                                height: '8px',
+                                                                                borderRadius: '50%',
+                                                                                background: getMarketplaceColor(result.marketplace)
+                                                                            }
+                                                                        }, void 0, false, {
+                                                                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                                                            lineNumber: 443,
+                                                                            columnNumber: 29
+                                                                        }, this),
+                                                                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                                                            style: {
+                                                                                fontWeight: 500
+                                                                            },
+                                                                            children: result.marketplaceName
+                                                                        }, void 0, false, {
+                                                                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                                                            lineNumber: 449,
+                                                                            columnNumber: 29
+                                                                        }, this)
+                                                                    ]
+                                                                }, void 0, true, {
+                                                                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                                                    lineNumber: 442,
+                                                                    columnNumber: 27
+                                                                }, this)
+                                                            }, void 0, false, {
+                                                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                                                lineNumber: 441,
+                                                                columnNumber: 25
+                                                            }, this),
+                                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("td", {
+                                                                style: {
+                                                                    ...tdStyle,
+                                                                    textAlign: 'right',
+                                                                    fontFamily: 'monospace'
+                                                                },
+                                                                children: formatCurrency(result.sellingPrice, result.currency)
+                                                            }, void 0, false, {
+                                                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                                                lineNumber: 452,
+                                                                columnNumber: 25
+                                                            }, this),
+                                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("td", {
+                                                                style: {
+                                                                    ...tdStyle,
+                                                                    textAlign: 'right',
+                                                                    fontFamily: 'monospace',
+                                                                    fontWeight: 600,
+                                                                    color: result.isProfitable ? '#10b981' : '#ef4444'
+                                                                },
+                                                                children: [
+                                                                    "¥",
+                                                                    Math.round(result.netProfit).toLocaleString()
+                                                                ]
+                                                            }, void 0, true, {
+                                                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                                                lineNumber: 455,
+                                                                columnNumber: 25
+                                                            }, this),
+                                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("td", {
+                                                                style: {
+                                                                    ...tdStyle,
+                                                                    textAlign: 'right'
+                                                                },
+                                                                children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                                    style: {
+                                                                        display: 'inline-flex',
+                                                                        alignItems: 'center',
+                                                                        gap: '4px',
+                                                                        color: result.profitMarginPercent >= 15 ? '#10b981' : result.profitMarginPercent >= 10 ? '#f59e0b' : '#ef4444'
+                                                                    },
+                                                                    children: [
+                                                                        result.profitMarginPercent >= 15 ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$trending$2d$up$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__TrendingUp$3e$__["TrendingUp"], {
+                                                                            size: 12
+                                                                        }, void 0, false, {
+                                                                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                                                            lineNumber: 471,
+                                                                            columnNumber: 65
+                                                                        }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$trending$2d$down$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__TrendingDown$3e$__["TrendingDown"], {
+                                                                            size: 12
+                                                                        }, void 0, false, {
+                                                                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                                                            lineNumber: 471,
+                                                                            columnNumber: 92
+                                                                        }, this),
+                                                                        result.profitMarginPercent.toFixed(1),
+                                                                        "%"
+                                                                    ]
+                                                                }, void 0, true, {
+                                                                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                                                    lineNumber: 465,
+                                                                    columnNumber: 27
+                                                                }, this)
+                                                            }, void 0, false, {
+                                                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                                                lineNumber: 464,
+                                                                columnNumber: 25
+                                                            }, this)
+                                                        ]
+                                                    }, `${result.marketplace}-${i}`, true, {
+                                                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                                        lineNumber: 440,
+                                                        columnNumber: 23
+                                                    }, this))
+                                            }, void 0, false, {
+                                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                                lineNumber: 436,
+                                                columnNumber: 17
+                                            }, this)
+                                        ]
+                                    }, void 0, true, {
+                                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                        lineNumber: 427,
+                                        columnNumber: 15
+                                    }, this),
+                                    results.some((r)=>!r.isProfitable) && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                        style: {
+                                            marginTop: '12px',
+                                            padding: '10px',
+                                            background: '#fef3c7',
+                                            borderRadius: '6px',
+                                            fontSize: '11px',
+                                            color: '#92400e'
+                                        },
+                                        children: [
+                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                style: {
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px',
+                                                    marginBottom: '4px'
+                                                },
+                                                children: [
+                                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$triangle$2d$alert$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__AlertTriangle$3e$__["AlertTriangle"], {
+                                                        size: 14
+                                                    }, void 0, false, {
+                                                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                                        lineNumber: 491,
+                                                        columnNumber: 21
+                                                    }, this),
+                                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                                        style: {
+                                                            fontWeight: 600
+                                                        },
+                                                        children: "注意事項"
+                                                    }, void 0, false, {
+                                                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                                        lineNumber: 492,
+                                                        columnNumber: 21
+                                                    }, this)
+                                                ]
+                                            }, void 0, true, {
+                                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                                lineNumber: 490,
+                                                columnNumber: 19
+                                            }, this),
+                                            results.filter((r)=>!r.isProfitable).map((r)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                                    children: [
+                                                        "• ",
+                                                        r.marketplaceName,
+                                                        ": 赤字になります"
+                                                    ]
+                                                }, r.marketplace, true, {
+                                                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                                    lineNumber: 495,
+                                                    columnNumber: 21
+                                                }, this))
+                                        ]
+                                    }, void 0, true, {
+                                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                        lineNumber: 482,
+                                        columnNumber: 17
+                                    }, this)
+                                ]
+                            }, void 0, true, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                                lineNumber: 426,
+                                columnNumber: 13
+                            }, this)
+                        ]
+                    }, void 0, true, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+                        lineNumber: 380,
+                        columnNumber: 11
+                    }, this)
+                ]
+            }, void 0, true)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-profit-calculator-panel.tsx",
+        lineNumber: 222,
+        columnNumber: 5
+    }, this);
+});
+// =====================================================
+// ヘルパー関数
+// =====================================================
+const thStyle = {
+    padding: '8px 10px',
+    textAlign: 'left',
+    fontWeight: 600,
+    color: '#64748b',
+    borderBottom: '2px solid #e2e8f0'
+};
+const tdStyle = {
+    padding: '10px',
+    verticalAlign: 'middle'
+};
+function getMarketplaceColor(mp) {
+    const colors = {
+        ebay_us: '#0064d2',
+        ebay_uk: '#0064d2',
+        ebay_de: '#0064d2',
+        ebay_au: '#0064d2',
+        qoo10_jp: '#ff0066',
+        amazon_jp: '#ff9900',
+        mercari_jp: '#ff2d55',
+        yahoo_auction_jp: '#ff0033'
+    };
+    return colors[mp] || '#3b82f6';
+}
+function formatCurrency(value, currency) {
+    const symbols = {
+        USD: '$',
+        JPY: '¥',
+        GBP: '£',
+        EUR: '€'
+    };
+    const symbol = symbols[currency] || currency;
+    if (currency === 'JPY') {
+        return `${symbol}${Math.round(value).toLocaleString()}`;
+    }
+    return `${symbol}${value.toFixed(2)}`;
+}
+const __TURBOPACK__default__export__ = N3ProfitCalculatorPanel;
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-date-range-picker.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "N3DateRangePicker",
+    ()=>N3DateRangePicker,
+    "default",
+    ()=>__TURBOPACK__default__export__
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$presentational$2f$n3$2d$date$2d$input$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/components/n3/presentational/n3-date-input.tsx [app-ssr] (ecmascript)");
+'use client';
+;
+;
+;
+const N3DateRangePicker = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3DateRangePicker({ from, to, onFromChange, onToChange, fromPlaceholder, toPlaceholder, fromLabel = '開始日', toLabel = '終了日', size = 'md', disabled = false, error = false, errorMessage, clearable = false, min, max, vertical = false, className = '', separator = '〜' }) {
+    // 開始日のmax制限: 終了日より後は選択不可
+    const fromMaxDate = to || max;
+    // 終了日のmin制限: 開始日より前は選択不可
+    const toMinDate = from || min;
+    const handleFromClear = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])(()=>{
+        onFromChange('');
+    }, [
+        onFromChange
+    ]);
+    const handleToClear = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])(()=>{
+        onToChange('');
+    }, [
+        onToChange
+    ]);
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-date-range-picker ${vertical ? 'n3-date-range-picker--vertical' : ''} ${className}`,
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "n3-date-range-picker__field",
+                children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$presentational$2f$n3$2d$date$2d$input$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["N3DateInput"], {
+                    value: from,
+                    onValueChange: onFromChange,
+                    placeholder: fromPlaceholder,
+                    label: fromLabel,
+                    size: size,
+                    disabled: disabled,
+                    error: error,
+                    clearable: clearable,
+                    onClear: handleFromClear,
+                    min: min,
+                    max: fromMaxDate
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-date-range-picker.tsx",
+                    lineNumber: 91,
+                    columnNumber: 9
+                }, this)
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-date-range-picker.tsx",
+                lineNumber: 90,
+                columnNumber: 7
+            }, this),
+            !vertical && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                className: "n3-date-range-picker__separator",
+                children: separator
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-date-range-picker.tsx",
+                lineNumber: 107,
+                columnNumber: 9
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "n3-date-range-picker__field",
+                children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$presentational$2f$n3$2d$date$2d$input$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["N3DateInput"], {
+                    value: to,
+                    onValueChange: onToChange,
+                    placeholder: toPlaceholder,
+                    label: toLabel,
+                    size: size,
+                    disabled: disabled,
+                    error: error,
+                    clearable: clearable,
+                    onClear: handleToClear,
+                    min: toMinDate,
+                    max: max
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-date-range-picker.tsx",
+                    lineNumber: 111,
+                    columnNumber: 9
+                }, this)
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-date-range-picker.tsx",
+                lineNumber: 110,
+                columnNumber: 7
+            }, this),
+            error && errorMessage && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                className: "n3-date-range-picker__error",
+                children: errorMessage
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-date-range-picker.tsx",
+                lineNumber: 128,
+                columnNumber: 9
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-date-range-picker.tsx",
+        lineNumber: 89,
+        columnNumber: 5
+    }, this);
+});
+N3DateRangePicker.displayName = 'N3DateRangePicker';
+const __TURBOPACK__default__export__ = N3DateRangePicker;
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-data-table.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "N3DataTable",
+    ()=>N3DataTable,
+    "default",
+    ()=>__TURBOPACK__default__export__
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevron$2d$up$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronUp$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/chevron-up.js [app-ssr] (ecmascript) <export default as ChevronUp>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevron$2d$down$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronDown$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/chevron-down.js [app-ssr] (ecmascript) <export default as ChevronDown>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevrons$2d$up$2d$down$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronsUpDown$3e$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/lucide-react/dist/esm/icons/chevrons-up-down.js [app-ssr] (ecmascript) <export default as ChevronsUpDown>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$presentational$2f$n3$2d$checkbox$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/components/n3/presentational/n3-checkbox.tsx [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$presentational$2f$n3$2d$loading$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/components/n3/presentational/n3-loading.tsx [app-ssr] (ecmascript)");
+'use client';
+;
+;
+;
+;
+;
+const N3DataTable = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3DataTable({ columns, data, getRowKey, sortColumn, sortDirection, onSort, selectable = false, selectedKeys = [], onSelectionChange, onRowClick, loading = false, emptyMessage = 'データがありません', size = 'md', striped = false, hoverable = true, bordered = false, stickyHeader = false, maxHeight, className = '' }) {
+    // 全選択状態
+    const allSelected = data.length > 0 && selectedKeys.length === data.length;
+    const someSelected = selectedKeys.length > 0 && selectedKeys.length < data.length;
+    // ソートハンドラ
+    const handleSort = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])((columnId)=>{
+        if (!onSort) return;
+        let newDirection = 'asc';
+        if (sortColumn === columnId) {
+            if (sortDirection === 'asc') newDirection = 'desc';
+            else if (sortDirection === 'desc') newDirection = null;
+        }
+        onSort(columnId, newDirection);
+    }, [
+        sortColumn,
+        sortDirection,
+        onSort
+    ]);
+    // 全選択ハンドラ
+    const handleSelectAll = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])((checked)=>{
+        if (!onSelectionChange) return;
+        if (checked) {
+            const allKeys = data.map((row, i)=>getRowKey(row, i));
+            onSelectionChange(allKeys);
+        } else {
+            onSelectionChange([]);
+        }
+    }, [
+        data,
+        getRowKey,
+        onSelectionChange
+    ]);
+    // 行選択ハンドラ
+    const handleSelectRow = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])((rowKey, checked)=>{
+        if (!onSelectionChange) return;
+        if (checked) {
+            onSelectionChange([
+                ...selectedKeys,
+                rowKey
+            ]);
+        } else {
+            onSelectionChange(selectedKeys.filter((k)=>k !== rowKey));
+        }
+    }, [
+        selectedKeys,
+        onSelectionChange
+    ]);
+    // セル値取得
+    const getCellValue = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])((column, row)=>{
+        if (typeof column.accessor === 'function') {
+            return column.accessor(row);
+        }
+        return row[column.accessor];
+    }, []);
+    // ソートアイコン
+    const renderSortIcon = (columnId)=>{
+        if (sortColumn !== columnId) {
+            return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevrons$2d$up$2d$down$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronsUpDown$3e$__["ChevronsUpDown"], {
+                size: 14,
+                className: "n3-data-table__sort-icon--inactive"
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-data-table.tsx",
+                lineNumber: 151,
+                columnNumber: 14
+            }, this);
+        }
+        if (sortDirection === 'asc') {
+            return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevron$2d$up$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronUp$3e$__["ChevronUp"], {
+                size: 14,
+                className: "n3-data-table__sort-icon--active"
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-data-table.tsx",
+                lineNumber: 154,
+                columnNumber: 14
+            }, this);
+        }
+        if (sortDirection === 'desc') {
+            return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevron$2d$down$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronDown$3e$__["ChevronDown"], {
+                size: 14,
+                className: "n3-data-table__sort-icon--active"
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-data-table.tsx",
+                lineNumber: 157,
+                columnNumber: 14
+            }, this);
+        }
+        return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevrons$2d$up$2d$down$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__ChevronsUpDown$3e$__["ChevronsUpDown"], {
+            size: 14,
+            className: "n3-data-table__sort-icon--inactive"
+        }, void 0, false, {
+            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-data-table.tsx",
+            lineNumber: 159,
+            columnNumber: 12
+        }, this);
+    };
+    const baseClass = 'n3-data-table';
+    const wrapperClasses = [
+        `${baseClass}-wrapper`,
+        stickyHeader ? `${baseClass}-wrapper--sticky` : '',
+        className
+    ].filter(Boolean).join(' ');
+    const tableClasses = [
+        baseClass,
+        `${baseClass}--${size}`,
+        striped ? `${baseClass}--striped` : '',
+        hoverable ? `${baseClass}--hoverable` : '',
+        bordered ? `${baseClass}--bordered` : ''
+    ].filter(Boolean).join(' ');
+    const style = maxHeight ? {
+        maxHeight
+    } : undefined;
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: wrapperClasses,
+        style: style,
+        children: [
+            loading && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "n3-data-table__loading-overlay",
+                children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$presentational$2f$n3$2d$loading$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["N3Loading"], {
+                    variant: "spinner",
+                    size: "md",
+                    text: "読み込み中..."
+                }, void 0, false, {
+                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-data-table.tsx",
+                    lineNumber: 183,
+                    columnNumber: 11
+                }, this)
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-data-table.tsx",
+                lineNumber: 182,
+                columnNumber: 9
+            }, this),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("table", {
+                className: tableClasses,
+                children: [
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("thead", {
+                        className: "n3-data-table__head",
+                        children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("tr", {
+                            children: [
+                                selectable && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("th", {
+                                    className: "n3-data-table__th n3-data-table__th--checkbox",
+                                    children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$presentational$2f$n3$2d$checkbox$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["N3Checkbox"], {
+                                        checked: allSelected,
+                                        indeterminate: someSelected,
+                                        onChange: handleSelectAll
+                                    }, void 0, false, {
+                                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-data-table.tsx",
+                                        lineNumber: 192,
+                                        columnNumber: 17
+                                    }, this)
+                                }, void 0, false, {
+                                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-data-table.tsx",
+                                    lineNumber: 191,
+                                    columnNumber: 15
+                                }, this),
+                                columns.map((column)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("th", {
+                                        className: [
+                                            'n3-data-table__th',
+                                            column.sortable ? 'n3-data-table__th--sortable' : '',
+                                            `n3-data-table__th--${column.align || 'left'}`,
+                                            column.headerClassName || ''
+                                        ].filter(Boolean).join(' '),
+                                        style: column.width ? {
+                                            width: column.width
+                                        } : undefined,
+                                        onClick: column.sortable ? ()=>handleSort(column.id) : undefined,
+                                        children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                            className: "n3-data-table__th-content",
+                                            children: [
+                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
+                                                    children: column.header
+                                                }, void 0, false, {
+                                                    fileName: "[project]/n3-frontend_vps/components/n3/container/n3-data-table.tsx",
+                                                    lineNumber: 212,
+                                                    columnNumber: 19
+                                                }, this),
+                                                column.sortable && renderSortIcon(column.id)
+                                            ]
+                                        }, void 0, true, {
+                                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-data-table.tsx",
+                                            lineNumber: 211,
+                                            columnNumber: 17
+                                        }, this)
+                                    }, column.id, false, {
+                                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-data-table.tsx",
+                                        lineNumber: 200,
+                                        columnNumber: 15
+                                    }, this))
+                            ]
+                        }, void 0, true, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-data-table.tsx",
+                            lineNumber: 189,
+                            columnNumber: 11
+                        }, this)
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-data-table.tsx",
+                        lineNumber: 188,
+                        columnNumber: 9
+                    }, this),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("tbody", {
+                        className: "n3-data-table__body",
+                        children: data.length === 0 && !loading ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("tr", {
+                            children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("td", {
+                                colSpan: columns.length + (selectable ? 1 : 0),
+                                className: "n3-data-table__empty",
+                                children: emptyMessage
+                            }, void 0, false, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-data-table.tsx",
+                                lineNumber: 222,
+                                columnNumber: 15
+                            }, this)
+                        }, void 0, false, {
+                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-data-table.tsx",
+                            lineNumber: 221,
+                            columnNumber: 13
+                        }, this) : data.map((row, rowIndex)=>{
+                            const rowKey = getRowKey(row, rowIndex);
+                            const isSelected = selectedKeys.includes(rowKey);
+                            return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("tr", {
+                                className: [
+                                    'n3-data-table__tr',
+                                    isSelected ? 'n3-data-table__tr--selected' : '',
+                                    onRowClick ? 'n3-data-table__tr--clickable' : ''
+                                ].filter(Boolean).join(' '),
+                                onClick: onRowClick ? ()=>onRowClick(row, rowIndex) : undefined,
+                                children: [
+                                    selectable && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("td", {
+                                        className: "n3-data-table__td n3-data-table__td--checkbox",
+                                        children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$presentational$2f$n3$2d$checkbox$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["N3Checkbox"], {
+                                            checked: isSelected,
+                                            onChange: (checked)=>handleSelectRow(rowKey, checked),
+                                            onClick: (e)=>e.stopPropagation()
+                                        }, void 0, false, {
+                                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-data-table.tsx",
+                                            lineNumber: 246,
+                                            columnNumber: 23
+                                        }, this)
+                                    }, void 0, false, {
+                                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-data-table.tsx",
+                                        lineNumber: 245,
+                                        columnNumber: 21
+                                    }, this),
+                                    columns.map((column)=>{
+                                        const value = getCellValue(column, row);
+                                        const cellContent = column.cell ? column.cell(value, row, rowIndex) : value;
+                                        return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("td", {
+                                            className: [
+                                                'n3-data-table__td',
+                                                `n3-data-table__td--${column.align || 'left'}`,
+                                                column.cellClassName || ''
+                                            ].filter(Boolean).join(' '),
+                                            children: cellContent
+                                        }, column.id, false, {
+                                            fileName: "[project]/n3-frontend_vps/components/n3/container/n3-data-table.tsx",
+                                            lineNumber: 260,
+                                            columnNumber: 23
+                                        }, this);
+                                    })
+                                ]
+                            }, rowKey, true, {
+                                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-data-table.tsx",
+                                lineNumber: 235,
+                                columnNumber: 17
+                            }, this);
+                        })
+                    }, void 0, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-data-table.tsx",
+                        lineNumber: 219,
+                        columnNumber: 9
+                    }, this)
+                ]
+            }, void 0, true, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-data-table.tsx",
+                lineNumber: 187,
+                columnNumber: 7
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-data-table.tsx",
+        lineNumber: 180,
+        columnNumber: 5
+    }, this);
+});
+N3DataTable.displayName = 'N3DataTable';
+const __TURBOPACK__default__export__ = N3DataTable;
+}),
+"[project]/n3-frontend_vps/components/n3/container/n3-header-tabs.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "N3HeaderTabs",
+    ()=>N3HeaderTabs,
+    "N3L2TabNavigation",
+    ()=>N3L2TabNavigation,
+    "default",
+    ()=>__TURBOPACK__default__export__
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$presentational$2f$n3$2d$header$2d$tab$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/n3-frontend_vps/components/n3/presentational/n3-header-tab.tsx [app-ssr] (ecmascript)");
+'use client';
+;
+;
+;
+const N3HeaderTabs = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3HeaderTabs({ tabs, panels = {}, size, hideDelay = 150, onActiveTabChange, onTabClick, className = '' }) {
+    const [activeTab, setActiveTab] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(null);
+    const [isPanelHovered, setIsPanelHovered] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false);
+    const hideTimeoutRef = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useRef"])(null);
+    const handleTabMouseEnter = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])((tabId)=>{
+        if (hideTimeoutRef.current) {
+            clearTimeout(hideTimeoutRef.current);
+            hideTimeoutRef.current = null;
+        }
+        setActiveTab(tabId);
+        onActiveTabChange?.(tabId);
+    }, [
+        onActiveTabChange
+    ]);
+    const handleTabMouseLeave = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])(()=>{
+        hideTimeoutRef.current = setTimeout(()=>{
+            if (!isPanelHovered) {
+                setActiveTab(null);
+                onActiveTabChange?.(null);
+            }
+        }, hideDelay);
+    }, [
+        isPanelHovered,
+        hideDelay,
+        onActiveTabChange
+    ]);
+    const handlePanelMouseEnter = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])(()=>{
+        if (hideTimeoutRef.current) {
+            clearTimeout(hideTimeoutRef.current);
+            hideTimeoutRef.current = null;
+        }
+        setIsPanelHovered(true);
+    }, []);
+    const handlePanelMouseLeave = (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])(()=>{
+        setIsPanelHovered(false);
+        hideTimeoutRef.current = setTimeout(()=>{
+            setActiveTab(null);
+            onActiveTabChange?.(null);
+        }, hideDelay);
+    }, [
+        hideDelay,
+        onActiveTabChange
+    ]);
+    const activePanelContent = activeTab ? panels[activeTab] : null;
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-header-tabs-container ${className}`,
+        children: [
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "n3-header-tabs",
+                children: tabs.map((tab)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$presentational$2f$n3$2d$header$2d$tab$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["N3HeaderTab"], {
+                        id: tab.id,
+                        label: tab.label,
+                        icon: tab.icon,
+                        active: activeTab === tab.id,
+                        size: size,
+                        onMouseEnter: ()=>handleTabMouseEnter(tab.id),
+                        onMouseLeave: handleTabMouseLeave,
+                        onClick: ()=>onTabClick?.(tab.id)
+                    }, tab.id, false, {
+                        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-header-tabs.tsx",
+                        lineNumber: 84,
+                        columnNumber: 11
+                    }, this))
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-header-tabs.tsx",
+                lineNumber: 82,
+                columnNumber: 7
+            }, this),
+            activePanelContent && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                className: "n3-header-tabs__panel",
+                onMouseEnter: handlePanelMouseEnter,
+                onMouseLeave: handlePanelMouseLeave,
+                children: activePanelContent
+            }, void 0, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-header-tabs.tsx",
+                lineNumber: 99,
+                columnNumber: 9
+            }, this)
+        ]
+    }, void 0, true, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-header-tabs.tsx",
+        lineNumber: 81,
+        columnNumber: 5
+    }, this);
+});
+const N3L2TabNavigation = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["memo"])(function N3L2TabNavigation({ tabs, activeTab, onTabChange, showEnglish = false, size, className = '' }) {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+        className: `n3-l2-tab-nav ${className}`,
+        children: tabs.map((tab)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$n3$2d$frontend_vps$2f$components$2f$n3$2f$presentational$2f$n3$2d$header$2d$tab$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["N3L2Tab"], {
+                id: tab.id,
+                label: tab.label,
+                labelEn: tab.labelEn,
+                icon: tab.icon,
+                badge: tab.badge,
+                active: activeTab === tab.id,
+                showEnglish: showEnglish,
+                size: size,
+                onClick: ()=>onTabChange(tab.id)
+            }, tab.id, false, {
+                fileName: "[project]/n3-frontend_vps/components/n3/container/n3-header-tabs.tsx",
+                lineNumber: 144,
+                columnNumber: 9
+            }, this))
+    }, void 0, false, {
+        fileName: "[project]/n3-frontend_vps/components/n3/container/n3-header-tabs.tsx",
+        lineNumber: 142,
+        columnNumber: 5
+    }, this);
+});
+const __TURBOPACK__default__export__ = N3HeaderTabs;
+}),
+];
+
+//# sourceMappingURL=n3-frontend_vps_components_n3_container_9c0b43ad._.js.map

@@ -31,8 +31,12 @@ export {
   useProductUIStore,
   usePaginationSelector,
   useFiltersSelector,
+  useListFilterSelector,
+  useWorkflowPhaseSelector,      // ⭐ v2 追加
+  useFilterStateSelector,        // ⭐ v2 追加
   useSortSelector,
   useViewSettingsSelector,
   productUIActions,
   type ListFilterType,
+  type ProductPhase,             // ⭐ v2 追加
 } from './uiStore';

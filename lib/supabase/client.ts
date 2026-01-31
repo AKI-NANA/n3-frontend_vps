@@ -8,8 +8,8 @@
 import { createClient as createSupabaseClient, SupabaseClient } from '@supabase/supabase-js'
 
 // 環境変数
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || 'https://placeholder.supabase.co'
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() || 'placeholder-anon-key'
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || 'https://zdzfpucdyxdlavkgrvil.supabase.co'
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpkemZwdWNkeXhkbGF2a2dydmlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQ4NjIxMjAsImV4cCI6MjA1MDQzODEyMH0.T8qJO0KwfC3YmIRE1dYpA2z82_kpMXwvFJL3P3QGu7M'
 
 // シングルトンインスタンス
 let supabaseInstance: SupabaseClient | null = null

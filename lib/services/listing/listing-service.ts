@@ -3,7 +3,7 @@
 
 export interface ListingRequest {
   productId: string;
-  platform: 'ebay' | 'amazon' | 'qoo10' | 'shopee' | 'mercari';
+  platform: 'ebay' | 'amazon' | 'qoo10' | 'shopee' | 'mercari' | 'yahoo';
   action: 'list' | 'update' | 'end' | 'relist' | 'revise';
   options?: {
     price?: number;

@@ -4,10 +4,11 @@
 
 :root {
   /* Layout */
-  --sidebar-width: 48px;
+  --sidebar-width: 56px;  /* 🔥 v3: N3IconNavの幅に合わせる */
   --sidebar-width-expanded: 260px;
   --topbar-height: 46px;
   --footer-height: 40px;
+  --n3-sidebar-width: 56px;  /* 🔥 v3: N3サイドバー用 */
   
   /* オーバースクロール無効化 */
   overscroll-behavior: none;

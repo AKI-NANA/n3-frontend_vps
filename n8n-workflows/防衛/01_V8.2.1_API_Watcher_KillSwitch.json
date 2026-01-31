@@ -1,0 +1,208 @@
+{
+  "name": "【V8.2.1】API Watcher - 全軍停止 Kill-Switch",
+  "description": "N3 Empire OS V8.2.1: 152ツールの外部通信エラー率を監視し、閾値超過時に該当プラットフォームの全実行を強制停止",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "minutes", "minutesInterval": 5 }] }
+      },
+      "id": "cron-trigger",
+      "name": "⏰ 5分毎監視",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [220, 400]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "api-watcher",
+        "options": { "responseMode": "responseNode" }
+      },
+      "id": "webhook-manual",
+      "name": "🚪 手動トリガー",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [220, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 監視設定の初期化\nconst now = new Date();\nconst windowMinutes = 15; // 直近15分のエラーを集計\nconst windowStart = new Date(now.getTime() - windowMinutes * 60 * 1000);\n\nreturn [{ json: {\n  _request_id: `watch-${Date.now()}`,\n  _timestamp: now.toISOString(),\n  _window: {\n    start: windowStart.toISOString(),\n    end: now.toISOString(),\n    minutes: windowMinutes\n  },\n  _thresholds: {\n    error_rate_percent: 30,      // エラー率30%で警告\n    error_rate_critical: 50,     // エラー率50%で停止\n    min_requests: 10,            // 最低リクエスト数（少なすぎると誤判定）\n    consecutive_errors: 5        // 連続エラー数\n  },\n  _platforms: ['ebay', 'amazon', 'yahoo', 'qoo10', 'paypal', 'stripe', 'chatwork', 'openai']\n} }];"
+      },
+      "id": "init-config",
+      "name": "⚙️ 監視設定",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 500]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH error_stats AS (\n  SELECT \n    COALESCE(metadata->>'platform', 'unknown') as platform,\n    COUNT(*) as total_requests,\n    COUNT(*) FILTER (WHERE status = 'error') as error_count,\n    COUNT(*) FILTER (WHERE status = 'success') as success_count,\n    ROUND(COUNT(*) FILTER (WHERE status = 'error') * 100.0 / NULLIF(COUNT(*), 0), 2) as error_rate,\n    MAX(executed_at) as last_request_at,\n    MAX(executed_at) FILTER (WHERE status = 'error') as last_error_at,\n    array_agg(DISTINCT error_message) FILTER (WHERE error_message IS NOT NULL) as error_types\n  FROM audit.logs\n  WHERE executed_at >= $1::timestamptz\n    AND executed_at <= $2::timestamptz\n    AND metadata->>'platform' IS NOT NULL\n  GROUP BY COALESCE(metadata->>'platform', 'unknown')\n),\nconsecutive AS (\n  SELECT \n    metadata->>'platform' as platform,\n    COUNT(*) as consecutive_errors\n  FROM (\n    SELECT \n      metadata->>'platform' as platform,\n      status,\n      ROW_NUMBER() OVER (PARTITION BY metadata->>'platform' ORDER BY executed_at DESC) as rn\n    FROM audit.logs\n    WHERE executed_at >= $1::timestamptz\n      AND metadata->>'platform' IS NOT NULL\n  ) sub\n  WHERE rn <= 10 AND status = 'error'\n  GROUP BY metadata->>'platform'\n)\nSELECT \n  e.*,\n  COALESCE(c.consecutive_errors, 0) as consecutive_errors\nFROM error_stats e\nLEFT JOIN consecutive c ON e.platform = c.platform\nORDER BY e.error_rate DESC NULLS LAST",
+        "options": { "queryParams": "={{ [$json._window.start, $json._window.end] }}" }
+      },
+      "id": "get-error-stats",
+      "name": "📊 エラー統計取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "supabase", "name": "Supabase" } },
+      "position": [660, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// エラー分析とアクション決定\nconst config = $('⚙️ 監視設定').first().json;\nconst stats = $input.all().map(i => i.json);\nconst thresholds = config._thresholds;\n\nconst analysis = {\n  timestamp: new Date().toISOString(),\n  window: config._window,\n  platforms: [],\n  actions: [],\n  summary: {\n    total_platforms: 0,\n    healthy: 0,\n    warning: 0,\n    critical: 0,\n    stopped: 0\n  }\n};\n\nfor (const stat of stats) {\n  const platform = {\n    name: stat.platform,\n    total_requests: stat.total_requests || 0,\n    error_count: stat.error_count || 0,\n    success_count: stat.success_count || 0,\n    error_rate: parseFloat(stat.error_rate) || 0,\n    consecutive_errors: stat.consecutive_errors || 0,\n    last_request_at: stat.last_request_at,\n    last_error_at: stat.last_error_at,\n    error_types: stat.error_types || [],\n    status: 'healthy',\n    action: 'none'\n  };\n  \n  // 最低リクエスト数チェック\n  if (platform.total_requests < thresholds.min_requests) {\n    platform.status = 'insufficient_data';\n    platform.action = 'monitor';\n  }\n  // 連続エラーチェック\n  else if (platform.consecutive_errors >= thresholds.consecutive_errors) {\n    platform.status = 'critical';\n    platform.action = 'kill_switch';\n    analysis.actions.push({\n      platform: platform.name,\n      action: 'KILL_SWITCH',\n      reason: `連続エラー ${platform.consecutive_errors}回`,\n      severity: 'CRITICAL'\n    });\n  }\n  // エラー率 CRITICAL チェック\n  else if (platform.error_rate >= thresholds.error_rate_critical) {\n    platform.status = 'critical';\n    platform.action = 'kill_switch';\n    analysis.actions.push({\n      platform: platform.name,\n      action: 'KILL_SWITCH',\n      reason: `エラー率 ${platform.error_rate}%`,\n      severity: 'CRITICAL'\n    });\n  }\n  // エラー率 WARNING チェック\n  else if (platform.error_rate >= thresholds.error_rate_percent) {\n    platform.status = 'warning';\n    platform.action = 'alert';\n    analysis.actions.push({\n      platform: platform.name,\n      action: 'ALERT',\n      reason: `エラー率 ${platform.error_rate}%`,\n      severity: 'WARNING'\n    });\n  }\n  \n  analysis.platforms.push(platform);\n  analysis.summary.total_platforms++;\n  \n  switch (platform.status) {\n    case 'healthy': analysis.summary.healthy++; break;\n    case 'warning': analysis.summary.warning++; break;\n    case 'critical': analysis.summary.critical++; break;\n  }\n}\n\nreturn [{ json: { ...config, _analysis: analysis } }];"
+      },
+      "id": "analyze-errors",
+      "name": "🔍 エラー分析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 500]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true },
+          "conditions": [{ "leftValue": "={{ $json._analysis.actions.length }}", "rightValue": 0, "operator": { "type": "number", "operation": "gt" } }]
+        }
+      },
+      "id": "action-check",
+      "name": "⚠️ 要対応?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1100, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// アクション不要時のサマリー\nconst data = $input.first().json;\nreturn [{ json: {\n  status: 'healthy',\n  message: '全プラットフォーム正常稼働中',\n  summary: data._analysis.summary,\n  timestamp: new Date().toISOString()\n} }];"
+      },
+      "id": "healthy-response",
+      "name": "✅ 正常",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Kill-Switch対象の抽出\nconst data = $input.first().json;\nconst killTargets = data._analysis.actions.filter(a => a.action === 'KILL_SWITCH');\nconst alertTargets = data._analysis.actions.filter(a => a.action === 'ALERT');\n\nreturn [{ json: {\n  ...data,\n  _kill_targets: killTargets,\n  _alert_targets: alertTargets,\n  _has_kills: killTargets.length > 0\n} }];"
+      },
+      "id": "extract-targets",
+      "name": "🎯 対象抽出",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 600]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true },
+          "conditions": [{ "leftValue": "={{ $json._has_kills }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }]
+        }
+      },
+      "id": "kill-check",
+      "name": "🛑 Kill?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1540, 600]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO core.platform_circuit_breaker (platform, status, triggered_at, triggered_by, reason, auto_recovery_at)\nSELECT \n  unnest($1::text[]),\n  'stopped',\n  NOW(),\n  'api_watcher_v821',\n  unnest($2::text[]),\n  NOW() + INTERVAL '30 minutes'\nON CONFLICT (platform) DO UPDATE SET\n  status = 'stopped',\n  triggered_at = NOW(),\n  triggered_by = 'api_watcher_v821',\n  reason = EXCLUDED.reason,\n  auto_recovery_at = NOW() + INTERVAL '30 minutes'\nRETURNING platform, status",
+        "options": { "queryParams": "={{ [$json._kill_targets.map(k => k.platform), $json._kill_targets.map(k => k.reason)] }}" }
+      },
+      "id": "execute-kill",
+      "name": "🛑 KILL実行",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "supabase", "name": "Supabase" } },
+      "position": [1760, 500],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "X-ChatWorkToken", "value": "={{ $env.CHATWORK_API_KEY }}" }] },
+        "sendBody": true,
+        "bodyParameters": { "parameters": [{ "name": "body", "value": "[info][title]🚨 V8.2.1 全軍停止 - KILL SWITCH 発動[/title]{{ $json._kill_targets.map(k => `❌ ${k.platform}: ${k.reason}`).join('\\n') }}\\n\\n自動復旧: 30分後\\n手動復旧: /api-watcher/recover\\n\\n監視期間: {{ $json._window.minutes }}分[/info]" }] }
+      },
+      "id": "kill-notify",
+      "name": "🚨 緊急通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1980, 500],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "X-ChatWorkToken", "value": "={{ $env.CHATWORK_API_KEY }}" }] },
+        "sendBody": true,
+        "bodyParameters": { "parameters": [{ "name": "body", "value": "[info][title]⚠️ V8.2.1 API監視 - 警告[/title]{{ $json._alert_targets.map(a => `⚠️ ${a.platform}: ${a.reason}`).join('\\n') }}\\n\\n対応推奨: エラーログを確認してください[/info]" }] }
+      },
+      "id": "alert-notify",
+      "name": "⚠️ 警告通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1760, 700],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO audit.logs (tenant_id, workflow_name, request_id, action, risk_level, payload_masked, status, executed_at)\nVALUES (NULL, 'api-watcher', $1, 'monitor', 'LOW', $2::jsonb, 'success', NOW())",
+        "options": { "queryParams": "={{ [$json._request_id, JSON.stringify({summary: $json._analysis.summary, actions: $json._analysis.actions.length})] }}" }
+      },
+      "id": "log-result",
+      "name": "📝 ログ記録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "supabase", "name": "Supabase" } },
+      "position": [2200, 600],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// 最終レスポンス\nconst data = $input.first().json;\nreturn [{ json: {\n  status: data._has_kills ? 'kill_switch_activated' : 'warning_issued',\n  request_id: data._request_id,\n  summary: data._analysis.summary,\n  actions_taken: data._analysis.actions,\n  platforms: data._analysis.platforms.map(p => ({\n    name: p.name,\n    status: p.status,\n    error_rate: p.error_rate,\n    action: p.action\n  })),\n  timestamp: new Date().toISOString()\n} }];"
+      },
+      "id": "final-response",
+      "name": "📊 応答",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2420, 600]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": { "responseCode": "={{ $json.status === 'kill_switch_activated' ? 503 : 200 }}" }
+      },
+      "id": "respond",
+      "name": "✅ Send",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2640, 600]
+    }
+  ],
+  "connections": {
+    "⏰ 5分毎監視": { "main": [[{ "node": "⚙️ 監視設定", "type": "main", "index": 0 }]] },
+    "🚪 手動トリガー": { "main": [[{ "node": "⚙️ 監視設定", "type": "main", "index": 0 }]] },
+    "⚙️ 監視設定": { "main": [[{ "node": "📊 エラー統計取得", "type": "main", "index": 0 }]] },
+    "📊 エラー統計取得": { "main": [[{ "node": "🔍 エラー分析", "type": "main", "index": 0 }]] },
+    "🔍 エラー分析": { "main": [[{ "node": "⚠️ 要対応?", "type": "main", "index": 0 }]] },
+    "⚠️ 要対応?": { "main": [[{ "node": "✅ 正常", "type": "main", "index": 0 }], [{ "node": "🎯 対象抽出", "type": "main", "index": 0 }]] },
+    "🎯 対象抽出": { "main": [[{ "node": "🛑 Kill?", "type": "main", "index": 0 }]] },
+    "🛑 Kill?": { "main": [[{ "node": "🛑 KILL実行", "type": "main", "index": 0 }], [{ "node": "⚠️ 警告通知", "type": "main", "index": 0 }]] },
+    "🛑 KILL実行": { "main": [[{ "node": "🚨 緊急通知", "type": "main", "index": 0 }]] },
+    "🚨 緊急通知": { "main": [[{ "node": "📝 ログ記録", "type": "main", "index": 0 }]] },
+    "⚠️ 警告通知": { "main": [[{ "node": "📝 ログ記録", "type": "main", "index": 0 }]] },
+    "📝 ログ記録": { "main": [[{ "node": "📊 応答", "type": "main", "index": 0 }]] },
+    "📊 応答": { "main": [[{ "node": "✅ Send", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionTimeout": 120, "saveDataErrorExecution": "all" },
+  "tags": [{ "name": "V8.2.1-FINAL" }, { "name": "KILL-SWITCH" }, { "name": "MONITORING" }],
+  "active": true,
+  "_v8_version": "8.2.1"
+}

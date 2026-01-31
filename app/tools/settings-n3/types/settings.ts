@@ -180,13 +180,9 @@ export interface AutoApprovalSettings {
 export interface DefaultScheduleSettings {
   id?: string;
   enabled: boolean;
-<<<<<<< HEAD
-  items_per_day: number;           // 後方互換性のため残す
-  items_per_day_min: number;       // 🔥 1日の出品数（最小）
-  items_per_day_max: number;       // 🔥 1日の出品数（最大）
-=======
   items_per_day: number;
->>>>>>> fdea69ee91cbefc7650420e2b4b21ad0cc0488ce
+  items_per_day_min: number;
+  items_per_day_max: number;
   sessions_per_day_min: number;
   sessions_per_day_max: number;
   item_interval_min: number;

@@ -1,8 +1,11 @@
 import type { Metadata } from "next"
 import { AuthProvider } from "@/contexts/AuthContext"
+import { TenantProvider } from "@/contexts/TenantContext"
 import { HeaderPanelProvider } from "@/contexts/HeaderPanelContext"
 import LayoutWrapper from "@/components/layout/layout-wrapper"
 import { QueryProvider } from "./providers"
+import { SystemNotificationProvider } from "@/components/notifications/SystemNotification"
+import { I18nProvider } from "@/lib/i18n/context"
 import "./globals.css"
 
 export const metadata: Metadata = {
@@ -34,11 +37,17 @@ export default function RootLayout({
       <body>
         <QueryProvider>
           <AuthProvider>
-            <HeaderPanelProvider>
-              <LayoutWrapper>
-                {children}
-              </LayoutWrapper>
-            </HeaderPanelProvider>
+            <TenantProvider>
+              <I18nProvider>
+                <HeaderPanelProvider>
+                  <SystemNotificationProvider>
+                    <LayoutWrapper>
+                      {children}
+                    </LayoutWrapper>
+                  </SystemNotificationProvider>
+                </HeaderPanelProvider>
+              </I18nProvider>
+            </TenantProvider>
           </AuthProvider>
         </QueryProvider>
       </body>

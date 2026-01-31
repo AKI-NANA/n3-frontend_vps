@@ -14,6 +14,7 @@ export type PageId =
   | 'research'     // リサーチ
   | 'inventory'    // 在庫管理
   | 'analytics'    // 分析
+  | 'n8n-workflows' // n8nワークフロー管理
   | 'settings';    // 設定
 
 // 各ページのタブ定義
@@ -46,6 +47,11 @@ export const PAGE_TABS: Record<PageId, PageTab[]> = {
     { id: 'sales', label: 'Sales' },
     { id: 'profit', label: 'Profit' },
     { id: 'performance', label: 'Performance' },
+  ],
+  'n8n-workflows': [
+    { id: 'all', label: 'All' },
+    { id: 'active', label: 'Active' },
+    { id: 'status', label: 'Status' },
   ],
   settings: [
     { id: 'general', label: 'General' },

@@ -1,8 +1,11 @@
 // app/api/tools/translate-product/route.ts
+/**
+ * 🔥 v2.0: workflow_status 自動遷移対応
+ * 
+ * 翻訳完了後、workflow_status を 'translate' → 'scout' に更新
+ */
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-
-const GAS_TRANSLATE_URL = process.env.GOOGLE_APPS_SCRIPT_TRANSLATE_URL
 
 /**
  * シンプルな翻訳関数（Google翻訳API使用）
@@ -10,17 +13,15 @@ const GAS_TRANSLATE_URL = process.env.GOOGLE_APPS_SCRIPT_TRANSLATE_URL
 async function translateText(text: string): Promise<string> {
   if (!text) return text
   
-  // 🔥 Google翻訳APIを直接使用（無料・認証不要）
   try {
     const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=ja&tl=en&dt=t&q=${encodeURIComponent(text)}`
     
     const response = await fetch(url)
     const data = await response.json()
     
-    // Google翻訳APIのレスポンス形式: [[[翻訳結果, 元のテキスト]]]
     if (data && data[0] && data[0][0] && data[0][0][0]) {
       const translated = data[0].map((item: any) => item[0]).join('')
-      console.log(`  📝 翻訳: "${text}" → "${translated}"`)
+      console.log(`  📝 翻訳: "${text.substring(0, 30)}..." → "${translated.substring(0, 30)}..."`)
       return translated
     }
     
@@ -46,10 +47,10 @@ export async function POST(request: NextRequest) {
 
     // タイトル翻訳
     if (title) {
-      console.log(`  📝 タイトル翻訳: "${title}"`)
+      console.log(`  📝 タイトル翻訳: "${title.substring(0, 50)}..."`)
       const englishTitle = await translateText(title)
       translations.title = englishTitle
-      console.log(`  ✅ → "${englishTitle}"`)
+      console.log(`  ✅ → "${englishTitle.substring(0, 50)}..."`)
     }
 
     // 説明翻訳
@@ -72,12 +73,28 @@ export async function POST(request: NextRequest) {
     if (productId) {
       console.log('  💾 データベースに保存中...')
       
-      // 🔥 title_en と description_en のみ保存（condition_enカラムが存在しないため）
+      // 🔥 既存のデータを取得
+      const { data: existingProduct, error: fetchError } = await supabase
+        .from('products_master')
+        .select('listing_data, workflow_status')
+        .eq('id', productId)
+        .single()
+      
+      if (fetchError) {
+        console.error('  ❌ 既存データ取得エラー:', fetchError)
+      }
+      
+      const existingListingData = existingProduct?.listing_data || {}
+      const currentStatus = existingProduct?.workflow_status
+      
+      // 🔥 更新データを構築
       const updateData: any = {
         updated_at: new Date().toISOString()
       }
       
+      // 🔥 english_title と title_en の両方を更新
       if (translations.title) {
+        updateData.english_title = translations.title  // 🔥 追加
         updateData.title_en = translations.title
       }
       
@@ -85,20 +102,20 @@ export async function POST(request: NextRequest) {
         updateData.description_en = translations.description
       }
       
-      // conditionはlisting_dataにJSONとして保存
-      if (translations.condition) {
-        // 既存のlisting_dataを取得
-        const { data: existingProduct } = await supabase
-          .from('products_master')
-          .select('listing_data')
-          .eq('id', productId)
-          .single()
-        
-        const existingListingData = existingProduct?.listing_data || {}
-        updateData.listing_data = {
-          ...existingListingData,
-          condition_en: translations.condition
-        }
+      // listing_data にも保存
+      updateData.listing_data = {
+        ...existingListingData,
+        english_title: translations.title,
+        description_en: translations.description,
+        condition_en: translations.condition,
+        translated_at: new Date().toISOString()
+      }
+      
+      // 🔥 workflow_status を 'translate' → 'scout' に更新
+      // 翻訳フェーズからのみ遷移させる
+      if (currentStatus === 'translate' || currentStatus === 'translating' || !currentStatus) {
+        updateData.workflow_status = 'scout'
+        console.log('  🚀 workflow_status: translate → scout')
       }
       
       const { error: updateError } = await supabase
@@ -115,12 +132,14 @@ export async function POST(request: NextRequest) {
       }
 
       console.log('  ✅ データベース保存完了')
+      console.log(`  ✅ 次フェーズ: scout（SM検索待ち）`)
     }
 
     return NextResponse.json({
       success: true,
       translations,
-      message: '翻訳が完了しました'
+      nextPhase: 'scout',
+      message: '翻訳が完了しました。SM検索フェーズに移行しました。'
     })
 
   } catch (error: any) {

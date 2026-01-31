@@ -1,0 +1,518 @@
+{
+  "name": "【メディア】22_85-メディア-コメント自動返信-AI知識DB_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 2
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "⏰ 2時間ごと実行",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "comment-reply",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: comment-reply",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "comment-reply"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT yt.channel_id, yt.access_token, yt.refresh_token, mc.channel_name FROM youtube_tokens yt JOIN media_channels mc ON yt.channel_id = mc.channel_id WHERE yt.is_active = TRUE AND mc.is_active = TRUE",
+        "options": {}
+      },
+      "id": "get-channels",
+      "name": "📺 アクティブチャンネル取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const channels = $input.first().json || [];\nconst channelList = Array.isArray(channels) ? channels : [channels].filter(c => c && c.channel_id);\nreturn channelList.map(c => ({ json: c }));"
+      },
+      "id": "split-channels",
+      "name": "📋 チャンネル分割",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/youtube/v3/commentThreads",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "part",
+              "value": "snippet"
+            },
+            {
+              "name": "allThreadsRelatedToChannelId",
+              "value": "={{ $json.channel_id }}"
+            },
+            {
+              "name": "maxResults",
+              "value": "50"
+            },
+            {
+              "name": "moderationStatus",
+              "value": "published"
+            },
+            {
+              "name": "order",
+              "value": "time"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $json.access_token }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "fetch-comments",
+      "name": "💬 コメント取得",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const channelData = $node['📋 チャンネル分割'].json;\nconst commentsResult = $input.first().json;\nconst items = commentsResult?.items || [];\n\nconst comments = items.map(item => {\n  const snippet = item.snippet?.topLevelComment?.snippet || {};\n  return {\n    comment_id: item.id,\n    video_id: snippet.videoId,\n    channel_id: channelData.channel_id,\n    author_name: snippet.authorDisplayName,\n    author_channel_id: snippet.authorChannelId?.value,\n    comment_text: snippet.textDisplay,\n    published_at: snippet.publishedAt\n  };\n});\n\n// 質問っぽいコメントをフィルタ\nconst questionKeywords = ['?', '？', 'どう', 'なぜ', 'どこ', '教えて', 'わからない', '違い', '比較'];\nconst questions = comments.filter(c => \n  questionKeywords.some(k => c.comment_text.includes(k))\n);\n\nreturn questions.map(q => ({ json: q }));"
+      },
+      "id": "parse-comments",
+      "name": "📋 コメントパース",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM comment_automation WHERE comment_id = $1",
+        "options": {
+          "queryParams": "={{ [$json.comment_id] }}"
+        }
+      },
+      "id": "check-existing",
+      "name": "🔍 既存チェック",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const comment = $node['📋 コメントパース'].json;\nconst existing = $input.first().json;\nconst exists = Array.isArray(existing) ? existing.length > 0 : !!existing?.id;\n\nif (exists) {\n  return [{ json: { skip: true, reason: '既に処理済み' } }];\n}\n\nreturn [{ json: { ...comment, skip: false } }];"
+      },
+      "id": "filter-new",
+      "name": "📋 新規フィルタ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-skip",
+      "name": "スキップ？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM knowledge_blocks WHERE fact_check_status = 'verified' AND $1 ILIKE ANY(keywords) ORDER BY gemini_confidence DESC LIMIT 3",
+        "options": {
+          "queryParams": "={{ ['%' + $json.comment_text.split(' ').slice(0, 3).join('%') + '%'] }}"
+        }
+      },
+      "id": "search-knowledge",
+      "name": "🧠 知識DB検索",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-goog-api-key",
+              "value": "={{ $env.GEMINI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: `YouTubeコメントへの返信を生成してください。\n\n【コメント】\n${$node['📋 新規フィルタ'].json.comment_text}\n\n【参考知識】\n${($input.first().json || []).slice(0, 2).map(k => k.layer1_summary || '').join('\\n')}\n\n【条件】\n- 丁寧で親切な口調\n- 100文字以内\n- 絵文字は1つまで\n- 「チャンネル登録」の押し売りはしない\n\n返信文のみ出力:` }] }], generationConfig: { temperature: 0.7, maxOutputTokens: 256 } }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "generate-reply",
+      "name": "✨ AI返信生成",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const comment = $node['📋 新規フィルタ'].json;\nconst geminiResult = $input.first().json;\n\nlet reply = '';\ntry {\n  reply = geminiResult?.candidates?.[0]?.content?.parts?.[0]?.text || '';\n  reply = reply.trim().substring(0, 500);\n} catch (e) {\n  reply = 'コメントありがとうございます！参考になれば幸いです 😊';\n}\n\nreturn [{\n  json: {\n    ...comment,\n    ai_response: reply,\n    confidence_score: reply.length > 20 ? 0.8 : 0.5,\n    requires_approval: true  // 本番では承認フロー\n  }\n}];"
+      },
+      "id": "parse-reply",
+      "name": "📋 返信パース",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO comment_automation (platform, video_id, comment_id, author_name, author_channel_id, comment_text, published_at, intent, ai_response, confidence_score, requires_approval, response_status) VALUES ('youtube', $1, $2, $3, $4, $5, $6, 'question', $7, $8, $9, 'pending') ON CONFLICT (comment_id) DO NOTHING RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.video_id, $json.comment_id, $json.author_name, $json.author_channel_id, $json.comment_text, $json.published_at, $json.ai_response, $json.confidence_score, $json.requires_approval] }}"
+        }
+      },
+      "id": "save-reply",
+      "name": "💾 返信保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { success: true, action: 'comment_reply', message: 'コメント返信処理完了' } }];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "⏰ 2時間ごと実行": {
+      "main": [
+        [
+          {
+            "node": "📺 アクティブチャンネル取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook: comment-reply": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📺 アクティブチャンネル取得": {
+      "main": [
+        [
+          {
+            "node": "📋 チャンネル分割",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 チャンネル分割": {
+      "main": [
+        [
+          {
+            "node": "💬 コメント取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💬 コメント取得": {
+      "main": [
+        [
+          {
+            "node": "📋 コメントパース",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 コメントパース": {
+      "main": [
+        [
+          {
+            "node": "🔍 既存チェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 既存チェック": {
+      "main": [
+        [
+          {
+            "node": "📋 新規フィルタ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 新規フィルタ": {
+      "main": [
+        [
+          {
+            "node": "スキップ？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "スキップ？": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🧠 知識DB検索",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧠 知識DB検索": {
+      "main": [
+        [
+          {
+            "node": "✨ AI返信生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✨ AI返信生成": {
+      "main": [
+        [
+          {
+            "node": "📋 返信パース",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 返信パース": {
+      "main": [
+        [
+          {
+            "node": "💾 返信保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 返信保存": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "📺 アクティブチャンネル取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 300,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Comment",
+      "color": "#1abc9c"
+    },
+    {
+      "name": "Auto",
+      "color": "#27ae60"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

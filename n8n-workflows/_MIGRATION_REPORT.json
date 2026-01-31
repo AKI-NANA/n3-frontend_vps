@@ -1,0 +1,172 @@
+{
+  "timestamp": "2026-01-22T16:06:56.830811+00:00",
+  "total_files": 148,
+  "total_migrated_nodes": 26,
+  "migrated_workflows": [
+    {
+      "file": "リサーチ/【リサーチ】01_14-リサーチ-自律型リサーチエージェント_V5.json",
+      "migrated_nodes": 1,
+      "nodes": [
+        "📊 利益分析"
+      ]
+    },
+    {
+      "file": "リサーチ/【リサーチ】02_16-リサーチ-SM高度自動化バッチ_V5.json",
+      "migrated_nodes": 1,
+      "nodes": [
+        "💰 利益計算"
+      ]
+    },
+    {
+      "file": "リサーチ/【リサーチ】04_20-リサーチ-クロスリージョンアービトラージ_V5.json",
+      "migrated_nodes": 1,
+      "nodes": [
+        "💹 アービトラージ計算"
+      ]
+    },
+    {
+      "file": "リサーチ/【リサーチ】05_24-リサーチ-各国間アービトラージスキャン_V5.json",
+      "migrated_nodes": 1,
+      "nodes": [
+        "💹 アービトラージ計算"
+      ]
+    },
+    {
+      "file": "リサーチ/【リサーチ】08_専用-eBay-Soldリサーチ仕入れ先探索_V5.json",
+      "migrated_nodes": 1,
+      "nodes": [
+        "利益計算"
+      ]
+    },
+    {
+      "file": "リサーチ/【リサーチ】09_専用-ヤフオク-AIリサーチ在庫監視統合_V5.json",
+      "migrated_nodes": 1,
+      "nodes": [
+        "利益・在庫判定"
+      ]
+    },
+    {
+      "file": "価格計算/【価格計算】01_04-価格計算-AI補完DDP計算_V5.json",
+      "migrated_nodes": 2,
+      "nodes": [
+        "データ準備（HTSマスタ照合）",
+        "DDP価格計算（圧縮）"
+      ]
+    },
+    {
+      "file": "価格計算/【価格計算】02_13-物流-グローバル利益計算エンジン_V5.json",
+      "migrated_nodes": 1,
+      "nodes": [
+        "💰 利益計算"
+      ]
+    },
+    {
+      "file": "価格計算/【価格計算】04_AI補完DDP計算_V5-COPY.json",
+      "migrated_nodes": 2,
+      "nodes": [
+        "データ準備（HTSマスタ照合）",
+        "DDP価格計算（圧縮）"
+      ]
+    },
+    {
+      "file": "出品/【出品】04_22-出品-多販路多国籍出品ゲートウェイ_V5.json",
+      "migrated_nodes": 1,
+      "nodes": [
+        "💰 ルート計算"
+      ]
+    },
+    {
+      "file": "出品/【出品】05_25-中国-越境EC出品ゲートウェイ_V5.json",
+      "migrated_nodes": 1,
+      "nodes": [
+        "💰 価格計算"
+      ]
+    },
+    {
+      "file": "出品/【出品】11_47-韓国-Coupang出品ゲートウェイ_V5.json",
+      "migrated_nodes": 1,
+      "nodes": [
+        "💰 価格計算"
+      ]
+    },
+    {
+      "file": "出品/【出品】12_48-新興国-多国籍出品ゲートウェイ_V5.json",
+      "migrated_nodes": 1,
+      "nodes": [
+        "💰 価格計算"
+      ]
+    },
+    {
+      "file": "出荷/【出荷】02_19-物流-配送代行マスタ-手数料シミュレーター_V5.json",
+      "migrated_nodes": 1,
+      "nodes": [
+        "💰 物流費計算"
+      ]
+    },
+    {
+      "file": "司令塔/【司令塔】07_57-仕入れ-一括購入管理ユニット_V5.json",
+      "migrated_nodes": 1,
+      "nodes": [
+        "💰 利益計算"
+      ]
+    },
+    {
+      "file": "在庫/【在庫】10_専用-Amazon-在庫価格監視ユニット_V5.json",
+      "migrated_nodes": 1,
+      "nodes": [
+        "利益・在庫判定"
+      ]
+    },
+    {
+      "file": "在庫/【在庫】11_専用-Yahoo-AI在庫ガード_V5.json",
+      "migrated_nodes": 1,
+      "nodes": [
+        "利益・在庫判定"
+      ]
+    },
+    {
+      "file": "在庫/【在庫】13_専用-監視-マルチモール在庫監視ハブ_V5.json",
+      "migrated_nodes": 1,
+      "nodes": [
+        "利益・在庫判定"
+      ]
+    },
+    {
+      "file": "在庫/【在庫】14_専用-監視-汎用AIスクレイピング監視_V5.json",
+      "migrated_nodes": 1,
+      "nodes": [
+        "利益判定エンジン"
+      ]
+    },
+    {
+      "file": "在庫/【在庫】15_専用-防衛-インテリジェント在庫価格防衛_V5.json",
+      "migrated_nodes": 1,
+      "nodes": [
+        "利益・在庫判定"
+      ]
+    },
+    {
+      "file": "帝国/【帝国】01_08-監査-商品データ完全性チェック_V5.json",
+      "migrated_nodes": 2,
+      "nodes": [
+        "📋 商品展開",
+        "🔍 完全性チェック"
+      ]
+    },
+    {
+      "file": "承認/【承認】01_05-承認-商品承認処理_V5.json",
+      "migrated_nodes": 1,
+      "nodes": [
+        "承認判定（5%ガードレール）"
+      ]
+    },
+    {
+      "file": "決済/【決済】01_54-決済-Stripe-PayPal自動消込_V5.json",
+      "migrated_nodes": 1,
+      "nodes": [
+        "💰 利益計算"
+      ]
+    }
+  ],
+  "errors": []
+}

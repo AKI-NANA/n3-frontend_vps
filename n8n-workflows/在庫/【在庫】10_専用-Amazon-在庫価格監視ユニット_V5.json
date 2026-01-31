@@ -1,0 +1,504 @@
+{
+  "name": "【在庫】10_専用-Amazon-在庫価格監視ユニット_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 60
+            }
+          ]
+        }
+      },
+      "id": "amz-trigger",
+      "name": "1時間ごと監視",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT pm.id, pm.sku, pm.asin, pm.ebay_price_usd, pm.user_id, pm.updated_at, gs.value::numeric as exchange_rate FROM products_master pm LEFT JOIN global_settings gs ON gs.key = 'exchange_rate_usd_jpy' AND gs.user_id = pm.user_id WHERE pm.detected_platform = 'amazon' AND pm.workflow_status IN ('approved', 'listed') AND pm.user_id IS NOT NULL AND pm.asin IS NOT NULL AND (pm.last_check_at IS NULL OR pm.last_check_at < NOW() - INTERVAL '4 hours') ORDER BY pm.last_check_at ASC NULLS FIRST LIMIT 30",
+        "options": {}
+      },
+      "id": "get-targets",
+      "name": "監視対象取得（user_idフィルタ）",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ Array.isArray($json) ? $json.length : ($json.id ? 1 : 0) }}",
+              "operation": "equal",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "check-empty",
+      "name": "対象有無",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { message: '監視対象なし' } }];"
+      },
+      "id": "no-targets",
+      "name": "対象なし",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const products = Array.isArray($input.first().json) ? $input.first().json : [$input.first().json];\nreturn products.map(p => ({ json: p }));"
+      },
+      "id": "expand",
+      "name": "商品展開",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "batchSize": 5,
+        "options": {}
+      },
+      "id": "batch",
+      "name": "バッチ分割",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.N3_API_URL || '{{$env.GATEWAY_URL}}' }}/api/amazon/product",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "asin",
+              "value": "={{ $json.asin }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "fetch-amazon",
+      "name": "Amazon価格取得（内部API）",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================\n// V4-PRODUCTION: 利益・在庫判定エンジン\n// ========================================\nconst amazon = $input.first().json || {};\nconst product = $node['バッチ分割'].json;\n\nconst latestPrice = amazon.price || 0;\nconst inStock = amazon.availability === 'InStock' || amazon.in_stock === true;\nconst exchangeRate = product.exchange_rate || 148.5;\nconst ebayPriceUsd = product.ebay_price_usd || 0;\n\n// 利益計算\nconst shippingFeeJpy = 2800;\nconst ebayFeeRate = 0.15;\nconst revenueJpy = ebayPriceUsd * exchangeRate;\nconst totalCostJpy = (latestPrice + shippingFeeJpy) / (1 - ebayFeeRate);\nconst profit = revenueJpy - totalCostJpy;\nconst profitRate = revenueJpy > 0 ? (profit / revenueJpy) * 100 : 0;\n\nlet decision = 'KEEP';\nlet reason = '';\n\nif (!inStock || latestPrice === 0) {\n  decision = 'STOP';\n  reason = 'OUT_OF_STOCK';\n} else if (profit < 500) {\n  decision = 'STOP';\n  reason = 'LOW_PROFIT';\n} else if (profitRate < 5) {\n  decision = 'WARNING';\n  reason = 'MARGIN_LOW';\n}\n\nreturn [{ json: {\n  product_id: product.id,\n  user_id: product.user_id,\n  updated_at: product.updated_at,\n  sku: product.sku,\n  asin: product.asin,\n  decision: decision,\n  reason: reason,\n  current_price: latestPrice,\n  profit: Math.round(profit),\n  profit_rate: Math.round(profitRate * 10) / 10,\n  in_stock: inStock\n} }];"
+      },
+      "id": "calc-profit",
+      "name": "利益・在庫判定",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.decision }}",
+              "value2": "STOP"
+            }
+          ]
+        }
+      },
+      "id": "check-stop",
+      "name": "停止が必要？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_WEBHOOK_URL || '={{ $vars.API_BASE_URL || $env.N8N_WEBHOOK_URL }}/webhook' }}/ebay-revise-quantity",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N3-Signature",
+              "value": "={{ $env.N8N_INTERNAL_TOKEN || \"\" }}"
+            },
+            {
+              "name": "X-N3-Token-Timestamp",
+              "value": "={{ Date.now() }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ user_id: $json.user_id, sku: $json.sku, quantity: 0, action: 'end_item', reason: $json.reason }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "stop-listing",
+      "name": "eBay出品停止（内部認証）",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE products_master SET last_check_at = NOW(), last_sync_log = '{{ JSON.stringify({ d: $json.decision, r: $json.reason, p: $json.current_price, pf: $json.profit, t: new Date().toISOString().substring(0,19) }).replace(/'/g, \"''\") }}'::jsonb, updated_at = NOW() WHERE id = $1 AND user_id = $2 AND updated_at = $3",
+        "options": {
+          "queryParams": "={{ [{{ $json.product_id }}, {{ $json.user_id }}, {{ $json.updated_at }}] }}"
+        }
+      },
+      "id": "update-log",
+      "name": "チェック結果記録（楽観的ロック）",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all().map(i => i.json);\nconst stopped = results.filter(r => r.decision === 'STOP').length;\nconst warned = results.filter(r => r.decision === 'WARNING').length;\nconst kept = results.filter(r => r.decision === 'KEEP').length;\nreturn [{ json: { total: results.length, stopped, warned, kept, ts: new Date().toISOString() } }];"
+      },
+      "id": "aggregate",
+      "name": "結果集約",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM stock_sync_logs WHERE created_at < NOW() - INTERVAL '7 days'",
+        "options": {}
+      },
+      "id": "purge",
+      "name": "🗑️ 履歴パージ",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $node['結果集約'].json.stopped }}",
+              "operation": "larger",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "check-alert",
+      "name": "アラートあり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=[info][title]🛒 Amazon在庫監視[/title]チェック: {{ $node['結果集約'].json.total }}件\\n継続: {{ $node['結果集約'].json.kept }}件\\n警告: {{ $node['結果集約'].json.warned }}件\\n停止: {{ $node['結果集約'].json.stopped }}件[/info]"
+            }
+          ]
+        }
+      },
+      "id": "notify",
+      "name": "ChatWork通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "1時間ごと監視": {
+      "main": [
+        [
+          {
+            "node": "監視対象取得（user_idフィルタ）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "監視対象取得（user_idフィルタ）": {
+      "main": [
+        [
+          {
+            "node": "対象有無",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "対象有無": {
+      "main": [
+        [
+          {
+            "node": "対象なし",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "商品展開",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "商品展開": {
+      "main": [
+        [
+          {
+            "node": "バッチ分割",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "バッチ分割": {
+      "main": [
+        [
+          {
+            "node": "Amazon価格取得（内部API）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Amazon価格取得（内部API）": {
+      "main": [
+        [
+          {
+            "node": "利益・在庫判定",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "利益・在庫判定": {
+      "main": [
+        [
+          {
+            "node": "停止が必要？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "停止が必要？": {
+      "main": [
+        [
+          {
+            "node": "eBay出品停止（内部認証）",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "チェック結果記録（楽観的ロック）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "eBay出品停止（内部認証）": {
+      "main": [
+        [
+          {
+            "node": "チェック結果記録（楽観的ロック）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "チェック結果記録（楽観的ロック）": {
+      "main": [
+        [
+          {
+            "node": "結果集約",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "結果集約": {
+      "main": [
+        [
+          {
+            "node": "🗑️ 履歴パージ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🗑️ 履歴パージ": {
+      "main": [
+        [
+          {
+            "node": "アラートあり？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "アラートあり？": {
+      "main": [
+        [
+          {
+            "node": "ChatWork通知",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "ChatWork通知": {
+      "main": [
+        [
+          {
+            "node": "📊 実行ログ送信 (成功)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "対象なし": {
+      "main": [
+        [
+          {
+            "node": "📊 実行ログ送信 (成功)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 600,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none"
+  },
+  "tags": [
+    {
+      "name": "N3-Amazon",
+      "color": "#ff9900"
+    },
+    {
+      "name": "V4-PRODUCTION",
+      "color": "#ff0000"
+    },
+    {
+      "name": "Multi-Tenant",
+      "color": "#00bfff"
+    },
+    {
+      "name": "500MB-Safe",
+      "color": "#32cd32"
+    },
+    {
+      "name": "Internal-Auth",
+      "color": "#dc143c"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

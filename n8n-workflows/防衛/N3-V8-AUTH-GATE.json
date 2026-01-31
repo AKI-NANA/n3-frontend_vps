@@ -1,0 +1,292 @@
+{
+  "name": "N3-V8-AUTH-GATE: 帝国検問所（共有ワークフロー）",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "notes": "他のワークフローから呼び出される入り口"
+    },
+    {
+      "parameters": {
+        "functionCode": "// ========================================\n// N3 V8 Auth-Gate: 入力バリデーション\n// ========================================\n\nconst input = $input.first().json;\n\n// 必須パラメータチェック\nconst requiredFields = ['tenant_id', 'action', 'service'];\nconst missing = requiredFields.filter(f => !input[f]);\n\nif (missing.length > 0) {\n  return [{\n    json: {\n      allowed: false,\n      error: 'MISSING_REQUIRED_FIELDS',\n      missing_fields: missing,\n      timestamp: new Date().toISOString()\n    }\n  }];\n}\n\n// HMACシグネチャ検証（オプション）\nif (input.hmac_signature) {\n  const crypto = require('crypto');\n  const secret = $env.AUTH_GATE_SECRET || 'n3-empire-v8-secret';\n  const payload = `${input.tenant_id}|${input.action}|${input.timestamp}`;\n  const expectedSig = crypto.createHmac('sha256', secret).update(payload).digest('hex');\n  \n  if (input.hmac_signature !== expectedSig) {\n    return [{\n      json: {\n        allowed: false,\n        error: 'INVALID_SIGNATURE',\n        timestamp: new Date().toISOString()\n      }\n    }];\n  }\n}\n\n// タイムスタンプ鮮度チェック（5分以内）\nif (input.timestamp) {\n  const reqTime = new Date(input.timestamp).getTime();\n  const now = Date.now();\n  if (Math.abs(now - reqTime) > 5 * 60 * 1000) {\n    return [{\n      json: {\n        allowed: false,\n        error: 'REQUEST_EXPIRED',\n        timestamp: new Date().toISOString()\n      }\n    }];\n  }\n}\n\n// 次のノードへ\nreturn [{\n  json: {\n    ...input,\n    validation_passed: true,\n    gate_timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "validate-input",
+      "name": "1. 入力バリデーション",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/rpc/check_and_decrement_quota",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Authorization", "value": "Bearer {{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"p_tenant_id\": \"{{$json.tenant_id}}\",\n  \"p_cost_usd\": {{$json.estimated_cost || 0.01}}\n}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "check-quota",
+      "name": "2. クォータ確認・減算",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "quota-check",
+              "leftValue": "={{$json.allowed}}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-quota-ok",
+      "name": "クォータOK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/rpc/check_geo_restriction",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Authorization", "value": "Bearer {{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"p_tenant_id\": \"{{$node['1. 入力バリデーション'].json.tenant_id}}\",\n  \"p_region\": \"{{$node['1. 入力バリデーション'].json.region || 'JP'}}\"\n}",
+        "options": {}
+      },
+      "id": "check-geo",
+      "name": "3. 地域制限チェック",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1050, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {},
+          "conditions": [
+            {
+              "id": "geo-check",
+              "leftValue": "={{$json.allowed}}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-geo-ok",
+      "name": "地域OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1250, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/core.api_credentials?tenant_id=eq.{{$node['1. 入力バリデーション'].json.tenant_id}}&service_name=eq.{{$node['1. 入力バリデーション'].json.service}}&status=eq.active&select=*",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Authorization", "value": "Bearer {{$env.SUPABASE_SERVICE_KEY}}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-credentials",
+      "name": "4. API資格情報取得",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1450, 100]
+    },
+    {
+      "parameters": {
+        "functionCode": "// ========================================\n// N3 V8 Auth-Gate: 資格情報復号化\n// ========================================\n\nconst crypto = require('crypto');\nconst input = $input.first().json;\nconst originalRequest = $node['1. 入力バリデーション'].json;\n\n// 資格情報が見つからない場合\nif (!input || (Array.isArray(input) && input.length === 0)) {\n  return [{\n    json: {\n      allowed: false,\n      error: 'CREDENTIALS_NOT_FOUND',\n      service: originalRequest.service,\n      tenant_id: originalRequest.tenant_id,\n      timestamp: new Date().toISOString()\n    }\n  }];\n}\n\nconst cred = Array.isArray(input) ? input[0] : input;\n\n// トークン有効期限チェック\nif (cred.token_expires_at) {\n  const expiresAt = new Date(cred.token_expires_at);\n  if (expiresAt < new Date()) {\n    return [{\n      json: {\n        allowed: false,\n        error: 'TOKEN_EXPIRED',\n        expires_at: cred.token_expires_at,\n        timestamp: new Date().toISOString()\n      }\n    }];\n  }\n}\n\n// JITアクセス制限チェック\nif (cred.access_count_today >= cred.max_access_per_day) {\n  return [{\n    json: {\n      allowed: false,\n      error: 'DAILY_ACCESS_LIMIT_EXCEEDED',\n      count: cred.access_count_today,\n      limit: cred.max_access_per_day,\n      timestamp: new Date().toISOString()\n    }\n  }];\n}\n\n// 復号化（pgsodiumが使用されている場合は別途処理）\n// 開発環境では暗号化されていないケースも想定\nlet decryptedToken = null;\nlet decryptedApiKey = null;\n\ntry {\n  // 暗号化されている場合の復号化ロジック\n  // 実際のpgsodium連携はDB側で行う\n  decryptedToken = cred.encrypted_access_token || cred.access_token;\n  decryptedApiKey = cred.encrypted_api_key || cred.api_key;\n} catch (e) {\n  // フォールバック\n  decryptedToken = cred.access_token;\n  decryptedApiKey = cred.api_key;\n}\n\n// 最終結果を返す\nreturn [{\n  json: {\n    allowed: true,\n    tenant_id: originalRequest.tenant_id,\n    service: originalRequest.service,\n    account: cred.account_name,\n    \n    // 注入された資格情報\n    credentials: {\n      access_token: decryptedToken,\n      api_key: decryptedApiKey,\n      scopes: cred.token_scopes || [],\n      expires_at: cred.token_expires_at\n    },\n    \n    // メタデータ\n    original_request: originalRequest,\n    gate_passed_at: new Date().toISOString(),\n    \n    // 監査用\n    audit: {\n      credential_id: cred.id,\n      access_count: cred.access_count_today + 1\n    }\n  }\n}];"
+      },
+      "id": "decrypt-credentials",
+      "name": "5. 資格情報復号化・注入",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1650, 100]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/core.api_credentials?id=eq.{{$json.audit.credential_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Authorization", "value": "Bearer {{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"last_accessed_at\": \"{{$now.toISO()}}\",\n  \"access_count_today\": {{$json.audit.access_count}}\n}",
+        "options": {}
+      },
+      "id": "update-access-log",
+      "name": "6. アクセスログ更新",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1850, 100]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/core.audit_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Authorization", "value": "Bearer {{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"tenant_id\": \"{{$node['5. 資格情報復号化・注入'].json.tenant_id}}\",\n  \"event_type\": \"auth_gate.passed\",\n  \"event_category\": \"auth\",\n  \"severity\": \"info\",\n  \"action\": \"{{$node['1. 入力バリデーション'].json.action}}\",\n  \"resource_type\": \"{{$node['1. 入力バリデーション'].json.service}}\",\n  \"metadata\": {\n    \"account\": \"{{$node['5. 資格情報復号化・注入'].json.account}}\",\n    \"scopes\": {{JSON.stringify($node['5. 資格情報復号化・注入'].json.credentials.scopes || [])}}\n  }\n}",
+        "options": {}
+      },
+      "id": "write-audit-log",
+      "name": "7. 監査ログ記録",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2050, 100]
+    },
+    {
+      "parameters": {
+        "functionCode": "// ========================================\n// N3 V8 Auth-Gate: 最終出力整形\n// ========================================\n\nconst authResult = $node['5. 資格情報復号化・注入'].json;\n\n// 呼び出し元ワークフローに返す最終結果\nreturn [{\n  json: {\n    // ゲート結果\n    gate_status: 'PASSED',\n    allowed: true,\n    \n    // 注入された資格情報（呼び出し元で使用）\n    credentials: authResult.credentials,\n    \n    // コンテキスト情報\n    tenant_id: authResult.tenant_id,\n    service: authResult.service,\n    account: authResult.account,\n    \n    // 元のリクエストデータ（処理継続用）\n    original_request: authResult.original_request,\n    \n    // タイムスタンプ\n    gate_passed_at: authResult.gate_passed_at,\n    \n    // 監査追跡用\n    gate_trace_id: `gate-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`\n  }\n}];"
+      },
+      "id": "output-success",
+      "name": "✅ 認証成功・出力",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2250, 100]
+    },
+    {
+      "parameters": {
+        "functionCode": "// ========================================\n// N3 V8 Auth-Gate: エラー出力（クォータ超過）\n// ========================================\n\nconst quotaResult = $node['2. クォータ確認・減算'].json;\n\nreturn [{\n  json: {\n    gate_status: 'DENIED',\n    allowed: false,\n    error_code: quotaResult.reason || 'QUOTA_EXCEEDED',\n    error_message: 'API quota exceeded or cost limit reached',\n    details: quotaResult,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "output-quota-error",
+      "name": "❌ クォータ超過",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// ========================================\n// N3 V8 Auth-Gate: エラー出力（地域制限）\n// ========================================\n\nconst geoResult = $node['3. 地域制限チェック'].json;\n\nreturn [{\n  json: {\n    gate_status: 'DENIED',\n    allowed: false,\n    error_code: geoResult.reason || 'GEO_RESTRICTED',\n    error_message: 'Access denied due to geographic restrictions',\n    details: geoResult,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "output-geo-error",
+      "name": "❌ 地域制限",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1450, 300]
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [[{ "node": "1. 入力バリデーション", "type": "main", "index": 0 }]]
+    },
+    "1. 入力バリデーション": {
+      "main": [[{ "node": "2. クォータ確認・減算", "type": "main", "index": 0 }]]
+    },
+    "2. クォータ確認・減算": {
+      "main": [[{ "node": "クォータOK?", "type": "main", "index": 0 }]]
+    },
+    "クォータOK?": {
+      "main": [
+        [{ "node": "3. 地域制限チェック", "type": "main", "index": 0 }],
+        [{ "node": "❌ クォータ超過", "type": "main", "index": 0 }]
+      ]
+    },
+    "3. 地域制限チェック": {
+      "main": [[{ "node": "地域OK?", "type": "main", "index": 0 }]]
+    },
+    "地域OK?": {
+      "main": [
+        [{ "node": "4. API資格情報取得", "type": "main", "index": 0 }],
+        [{ "node": "❌ 地域制限", "type": "main", "index": 0 }]
+      ]
+    },
+    "4. API資格情報取得": {
+      "main": [[{ "node": "5. 資格情報復号化・注入", "type": "main", "index": 0 }]]
+    },
+    "5. 資格情報復号化・注入": {
+      "main": [[{ "node": "6. アクセスログ更新", "type": "main", "index": 0 }]]
+    },
+    "6. アクセスログ更新": {
+      "main": [[{ "node": "7. 監査ログ記録", "type": "main", "index": 0 }]]
+    },
+    "7. 監査ログ記録": {
+      "main": [[{ "node": "✅ 認証成功・出力", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": ["v8-fortress", "auth-gate", "shared-workflow"],
+  "triggerCount": 0,
+  "updatedAt": "2026-01-24T00:00:00.000Z",
+  "versionId": "1",
+  "meta": {
+    "description": "N3 Empire OS V8 Auth-Gate - 全ワークフローの認証・認可・クォータ管理を一元化する共有ワークフロー",
+    "usage": "他のワークフローから Execute Workflow ノードで呼び出す",
+    "input": {
+      "tenant_id": "UUID - テナントID（必須）",
+      "action": "string - 実行アクション名（必須）",
+      "service": "string - サービス名（ebay, amazon等）（必須）",
+      "region": "string - 地域コード（オプション、デフォルト: JP）",
+      "estimated_cost": "number - 推定コスト（USD）（オプション、デフォルト: 0.01）",
+      "hmac_signature": "string - HMACシグネチャ（オプション）",
+      "timestamp": "ISO8601 - リクエストタイムスタンプ（オプション）"
+    },
+    "output": {
+      "allowed": "boolean - 認証結果",
+      "credentials": "object - 注入された資格情報",
+      "gate_trace_id": "string - 追跡用ID"
+    }
+  }
+}

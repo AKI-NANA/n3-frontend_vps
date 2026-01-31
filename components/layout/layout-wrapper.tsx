@@ -20,6 +20,12 @@ const N3IconNav = dynamic(() => import("./n3-icon-nav"), {
   loading: () => <div style={{ width: '56px', height: '100vh', background: 'var(--panel)' }} />
 })
 
+// ジョブ進捗インジケーター（クライアントサイドのみ）
+const JobProgressIndicator = dynamic(
+  () => import("@/components/common/job-progress-indicator").then(mod => ({ default: mod.JobProgressIndicator })),
+  { ssr: false }
+)
+
 // 新しいテーマシステム
 import { getThemeStyle, type ThemeId, type ThemeStyle } from "@/lib/theme/theme-config"
 import { resolveTheme, type ThemeResolutionResult } from "@/lib/theme/theme-resolver"
@@ -167,30 +173,50 @@ function LayoutContent({
                         pathname === '/tools/editing-legacy' || pathname.startsWith('/tools/editing-legacy/')
   
   // N3ページでヘッダー/フッターは非表示だが、サイドバーは表示するページ
-  // editing-n3, research-n3, bookkeeping-n3, amazon-research-n3 はグローバルサイドバー（N3IconNav）を使用する
+  // editing-n3, research-n3, bookkeeping-n3, amazon-research-n3, control-n3 はグローバルサイドバー（N3IconNav）を使用する
   const isN3PageWithSidebar = pathname === '/tools/research-n3' || pathname.startsWith('/tools/research-n3/') ||
                               pathname === '/tools/editing-n3' || pathname.startsWith('/tools/editing-n3/') ||
                               pathname === '/tools/bookkeeping-n3' || pathname.startsWith('/tools/bookkeeping-n3/') ||
-                              pathname === '/tools/amazon-research-n3' || pathname.startsWith('/tools/amazon-research-n3/')
+                              pathname === '/tools/amazon-research-n3' || pathname.startsWith('/tools/amazon-research-n3/') ||
+                              pathname === '/tools/control-n3' || pathname.startsWith('/tools/control-n3/') ||
+                              pathname === '/tools/listing-n3' || pathname.startsWith('/tools/listing-n3/') ||
+                              pathname === '/tools/operations-n3' || pathname.startsWith('/tools/operations-n3/') ||
+                              pathname === '/tools/finance-n3' || pathname.startsWith('/tools/finance-n3/') ||
+                              pathname === '/tools/command-center' || pathname.startsWith('/tools/command-center/') ||
+                              pathname === '/tools/media-hub' || pathname.startsWith('/tools/media-hub/') ||
+                              pathname === '/tools/stock-n3' || pathname.startsWith('/tools/stock-n3/') ||
+                              pathname === '/tools/blueprint-n3' || pathname.startsWith('/tools/blueprint-n3/') ||
+                              pathname === '/tools/n8n-workflows' || pathname.startsWith('/tools/n8n-workflows/') ||
+                              pathname === '/tools/analytics-n3' || pathname.startsWith('/tools/analytics-n3/') ||
+                              pathname === '/tools/settings-n3' || pathname.startsWith('/tools/settings-n3/') ||
+                              pathname === '/tools/docs-n3' || pathname.startsWith('/tools/docs-n3/')
   
   // Workspaceページはサイドバーのみ、ヘッダー/フッターなし
   if (isWorkspacePage) {
     return (
-      <div className="min-h-screen flex relative" style={{ background: 'var(--bg)' }}>
-        {/* 背景エフェクト */}
+      <>
+        {/* 背景エフェクト（最背面・固定） */}
         <BackgroundEffects
           themeStyle={currentTheme}
           enabled={settings.effectsEnabled}
           intensity={settings.effectIntensity}
           transition={true}
         />
-        {/* サイドバー */}
+        {/* サイドバー（固定） */}
         <N3IconNav />
         {/* メインコンテンツ */}
-        <main style={{ marginLeft: '56px', flex: 1, minWidth: 0, height: '100vh', overflow: 'hidden' }}>
+        <main style={{ 
+          position: 'fixed',
+          top: 0,
+          left: '56px',
+          right: 0,
+          bottom: 0,
+          overflow: 'hidden',
+          background: 'var(--bg)',
+        }}>
           {children}
         </main>
-      </div>
+      </>
     )
   }
 
@@ -214,21 +240,24 @@ function LayoutContent({
   // N3ページでサイドバーのみ表示（ヘッダー/フッターは各ページが独自に持つ）
   if (isN3PageWithSidebar) {
     return (
-      <div className="min-h-screen flex relative" style={{ background: 'var(--bg)' }}>
-        {/* 背景エフェクト（最背面） */}
-        <BackgroundEffects
-          themeStyle={currentTheme}
-          enabled={settings.effectsEnabled}
-          intensity={settings.effectIntensity}
-          transition={true}
-        />
-        {/* サイドバーのみ */}
+      <>
+        {/* サイドバー（固定） */}
         <N3IconNav />
-        {/* メインコンテンツ（サイドバー分のマージン付き） */}
-        <main style={{ marginLeft: '56px', flex: 1, minWidth: 0 }}>
+        {/* メインコンテンツ（固定レイアウト） */}
+        <main style={{ 
+          position: 'fixed',
+          top: 0,
+          left: '56px',
+          right: 0,
+          bottom: 0,
+          overflow: 'hidden',
+          background: 'var(--bg)',
+        }}>
           {children}
         </main>
-      </div>
+        {/* 非同期ジョブ進捗インジケーター（右下固定） */}
+        <JobProgressIndicator />
+      </>
     )
   }
 
@@ -276,6 +305,9 @@ function LayoutContent({
         showDebugInfo={settings.showDebugInfo}
         transition={true}
       />
+      
+      {/* 非同期ジョブ進捗インジケーター（右下固定） */}
+      <JobProgressIndicator />
     </div>
   )
 }

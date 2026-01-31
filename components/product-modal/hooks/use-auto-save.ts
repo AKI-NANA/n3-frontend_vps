@@ -1,5 +1,8 @@
 'use client';
 
+// use-auto-save.ts - V2.0 - 完全同期版
+// 機能: デバウンス自動保存 + イベントディスパッチ + UI同期
+
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 
@@ -24,19 +27,51 @@ export function useAutoSave(
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const changesRef = useRef<any>({});
+  const productIdRef = useRef(productId);
+  
+  // productIdが変更されたら変更をクリア
+  useEffect(() => {
+    if (productIdRef.current !== productId) {
+      productIdRef.current = productId;
+      changesRef.current = {};
+      setUnsavedChanges(false);
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+  }, [productId]);
 
   const performSave = useCallback(async () => {
     if (Object.keys(changesRef.current).length === 0) {
       return;
     }
 
+    const updatesToSave = { ...changesRef.current };
     setSaving(true);
+    
     try {
-      await onSave(changesRef.current);
+      await onSave(updatesToSave);
       
       setUnsavedChanges(false);
       setLastSavedAt(new Date());
       changesRef.current = {};
+      
+      // ✅ グローバルイベントをディスパッチ（UI同期用）
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('n3:product-updated', { 
+          detail: { 
+            productId: productIdRef.current,
+            updates: updatesToSave,
+            source: 'auto-save'
+          } 
+        }));
+        
+        // 監査スコア再計算トリガー
+        window.dispatchEvent(new CustomEvent('n3:audit-recalculate', { 
+          detail: { productId: productIdRef.current } 
+        }));
+      }
       
       if (showToast) {
         toast.success('自動保存しました', {
@@ -49,6 +84,10 @@ export function useAutoSave(
       }
     } catch (error: any) {
       console.error('Auto-save error:', error);
+      // エラー時は変更を保持（再試行のため）
+      Object.assign(changesRef.current, updatesToSave);
+      setUnsavedChanges(true);
+      
       toast.error(`保存に失敗しました: ${error.message}`, {
         duration: 3000
       });
@@ -115,6 +154,11 @@ export function useAutoSave(
     changesRef.current = {};
     setUnsavedChanges(false);
   }, []);
+  
+  // ✅ 保留中の変更を取得
+  const getPendingChanges = useCallback(() => {
+    return { ...changesRef.current };
+  }, []);
 
   // クリーンアップ
   useEffect(() => {
@@ -143,6 +187,7 @@ export function useAutoSave(
     checkUnsavedChanges,
     resetChanges,
     saveStatus,
-    lastSavedAt
+    lastSavedAt,
+    getPendingChanges,
   };
 }

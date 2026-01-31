@@ -2,6 +2,8 @@
 /**
  * N3統合ページ専用アイコンナビゲーション
  * 🚀 Workspace対応: タブ切り替えで高速表示
+ * 
+ * Empire OS: 物販・メディア・投資の三本柱を統合
  */
 
 'use client';
@@ -21,21 +23,32 @@ import {
   X,
   BookOpen,
   Package,
+  Terminal,
+  Film,
+  TrendingUp,
+  Map,
+  Zap,
+  ExternalLink,
 } from 'lucide-react';
 import { navigationItems } from './sidebar-config';
-import { useTabStore, N3ToolId, isN3Tool } from '@/lib/store/use-tab-store';
+import { useTabStore, N3ToolId } from '@/lib/store/use-tab-store';
 
 interface N3NavItem {
   id: string;
-  toolId: N3ToolId; // Workspace用ID
+  toolId: N3ToolId | 'command-center' | 'media-hub' | 'stock-n3' | 'blueprint-n3';
   label: string;
   link: string;
   icon: React.ComponentType<{ size?: number; className?: string }>;
   color: string;
   description: string;
+  isExternal?: boolean;
+  isSeparatorBefore?: boolean;
 }
 
 const N3_PAGES: N3NavItem[] = [
+  // ============================================================
+  // 🔥 メイン5タブ (MAIN_TOOL_IDS 順序) - 物販コア
+  // ============================================================
   {
     id: 'editing',
     toolId: 'editing-n3',
@@ -55,15 +68,6 @@ const N3_PAGES: N3NavItem[] = [
     description: 'リサーチ・仕入れ管理',
   },
   {
-    id: 'amazon-research',
-    toolId: 'amazon-research-n3',
-    label: 'Amazon',
-    link: '/tools/amazon-research-n3',
-    icon: Package,
-    color: '#FF9900',
-    description: 'Amazonリサーチ・N3スコアリング',
-  },
-  {
     id: 'operations',
     toolId: 'operations-n3',
     label: 'オペレーション',
@@ -71,6 +75,59 @@ const N3_PAGES: N3NavItem[] = [
     icon: Truck,
     color: '#f59e0b',
     description: '受注・出荷・CS管理',
+  },
+  {
+    id: 'finance',
+    toolId: 'finance-n3',
+    label: 'ファイナンス',
+    link: '/tools/finance-n3',
+    icon: Calculator,
+    color: '#22c55e',
+    description: '売上分析・会計',
+  },
+  {
+    id: 'control',
+    toolId: 'control-n3',
+    label: 'コントロール',
+    link: '/tools/control-n3',
+    icon: Terminal,
+    color: '#ef4444',
+    description: 'n8n監視・Bot管理',
+  },
+  // ============================================================
+  // 🏰 Empire OS 三本柱（メディア・投資）
+  // ============================================================
+  {
+    id: 'media-hub',
+    toolId: 'media-hub' as any,
+    label: 'YouTube',
+    link: '/tools/media-hub',
+    icon: Film,
+    color: '#ec4899',
+    description: 'YouTube動画・音声・脚本生成',
+    isSeparatorBefore: true,
+  },
+  {
+    id: 'stock-n3',
+    toolId: 'stock-n3' as any,
+    label: '株式投資',
+    link: '/tools/stock-n3',
+    icon: TrendingUp,
+    color: '#14b8a6',
+    description: 'Global Oracle：自律投資OS',
+  },
+  // ============================================================
+  // 📊 追加ツール（サブ）
+  // ============================================================
+  {
+    id: 'amazon-research',
+    toolId: 'amazon-research-n3',
+    label: 'Amazon',
+    link: '/tools/amazon-research-n3',
+    icon: Package,
+    color: '#FF9900',
+    description: 'Amazonリサーチ・N3スコアリング',
+    isSeparatorBefore: true,
   },
   {
     id: 'listing',
@@ -91,15 +148,6 @@ const N3_PAGES: N3NavItem[] = [
     description: '売上・利益・AI品質管理',
   },
   {
-    id: 'finance',
-    toolId: 'finance-n3',
-    label: '会計',
-    link: '/tools/finance-n3',
-    icon: Calculator,
-    color: '#22c55e',
-    description: '仕訳・経費・古物台帳',
-  },
-  {
     id: 'bookkeeping',
     toolId: 'bookkeeping-n3',
     label: '記帳',
@@ -117,6 +165,28 @@ const N3_PAGES: N3NavItem[] = [
     color: '#6b7280',
     description: 'HTS・連携・自動化設定',
   },
+  // ============================================================
+  // 🗺️ システム・開発ツール
+  // ============================================================
+  {
+    id: 'blueprint',
+    toolId: 'blueprint-n3' as any,
+    label: '設計図',
+    link: '/tools/blueprint-n3',
+    icon: Map,
+    color: '#6366f1',
+    description: '全機能監査・実装状況マップ',
+    isSeparatorBefore: true,
+  },
+  {
+    id: 'n8n-workflows',
+    toolId: 'n8n-workflows' as any,
+    label: 'n8nワークフロー',
+    link: '/tools/n8n-workflows',
+    icon: Zap,
+    color: '#f97316',
+    description: '170+ワークフロー管理・監視',
+  },
   {
     id: 'docs',
     toolId: 'docs-n3',
@@ -125,6 +195,15 @@ const N3_PAGES: N3NavItem[] = [
     icon: BookOpen,
     color: '#f97316',
     description: 'エラー集・ガイド・仕様書',
+  },
+  {
+    id: 'command-center',
+    toolId: 'command-center' as any,
+    label: 'コマンドセンター',
+    link: '/tools/command-center',
+    icon: Terminal,
+    color: '#9333ea',
+    description: '開発・デプロイ・Git操作',
   },
 ];
 
@@ -149,7 +228,7 @@ const ExpandedTooltip = memo(function ExpandedTooltip({
           width: '100vw',
           height: '100vh',
           background: 'rgba(0,0,0,0.3)',
-          zIndex: 998,
+          zIndex: 1998,
         }}
       />
       <div
@@ -162,7 +241,7 @@ const ExpandedTooltip = memo(function ExpandedTooltip({
           background: 'var(--panel)',
           borderRight: '1px solid var(--panel-border)',
           boxShadow: '4px 0 12px rgba(0,0,0,0.15)',
-          zIndex: 999,
+          zIndex: 1999,
           overflowY: 'auto',
           padding: '16px',
         }}
@@ -227,11 +306,13 @@ const Tooltip = memo(function Tooltip({
   label,
   description,
   visible,
+  isExternal,
 }: {
   children: React.ReactNode;
   label: string;
   description: string;
   visible: boolean;
+  isExternal?: boolean;
 }) {
   return (
     <div style={{ position: 'relative' }}>
@@ -250,10 +331,13 @@ const Tooltip = memo(function Tooltip({
             borderRadius: '8px',
             boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
             whiteSpace: 'nowrap',
-            zIndex: 1000,
+            zIndex: 2000,
           }}
         >
-          <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>{label}</div>
+          <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            {label}
+            {isExternal && <ExternalLink size={12} style={{ opacity: 0.5 }} />}
+          </div>
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>{description}</div>
         </div>
       )}
@@ -271,15 +355,38 @@ export const N3IconNav = memo(function N3IconNav() {
   const { activeTab, setActiveTab } = useTabStore();
   const isWorkspace = pathname === '/tools/workspace';
 
+  // 直接ページ遷移するツール（Workspaceではない）
+  const directNavigateTools = ['command-center', 'media-hub', 'stock-n3', 'blueprint-n3', 'docs-n3'];
+
   // N3ツールクリック時の処理
   const handleN3Click = (e: React.MouseEvent, item: N3NavItem) => {
     e.preventDefault();
-    setActiveTab(item.toolId);
     
-    // Workspaceページでなければ遷移
-    if (!isWorkspace) {
+    // 外部リンクは新しいタブで開く
+    if (item.isExternal) {
+      window.open(item.link, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    
+    // 特定のツールは直接ページ遷移
+    if (directNavigateTools.includes(item.id)) {
+      router.push(item.link);
+      return;
+    }
+    
+    // Workspaceモード: タブ切り替え（高速）
+    if (isWorkspace) {
+      setActiveTab(item.toolId as N3ToolId);
+    } else {
+      // 初回はWorkspaceに遷移してタブをセット
+      setActiveTab(item.toolId as N3ToolId);
       router.push('/tools/workspace');
     }
+  };
+
+  // n8n外部リンクを開く
+  const openN8n = () => {
+    window.open('http://160.16.120.186:5678', '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -297,7 +404,7 @@ export const N3IconNav = memo(function N3IconNav() {
           height: '100vh',
           background: 'var(--panel)',
           borderRight: '1px solid var(--panel-border)',
-          zIndex: 100,
+          zIndex: 1000,
         }}
       >
         {/* ヘッダー */}
@@ -321,59 +428,104 @@ export const N3IconNav = memo(function N3IconNav() {
         </div>
 
         {/* N3ページナビ */}
-        <div style={{ flex: 1, padding: '8px', display: 'flex', flexDirection: 'column', gap: '4px', overflowY: 'auto' }}>
+        <div style={{ flex: 1, padding: '8px', display: 'flex', flexDirection: 'column', gap: '2px', overflowY: 'auto' }}>
           {N3_PAGES.map((item) => {
             const Icon = item.icon;
             // WorkspaceモードならactiveTabで判定、それ以外はpathnameで判定
-            const isActive = isWorkspace 
-              ? activeTab === item.toolId
-              : pathname === item.link || pathname?.startsWith(item.link + '/');
+            const isActive = !item.isExternal && (
+              isWorkspace && !directNavigateTools.includes(item.id)
+                ? activeTab === item.toolId
+                : pathname === item.link || pathname?.startsWith(item.link + '/')
+            );
             const isHovered = hoveredId === item.id;
 
             return (
-              <Tooltip key={item.id} label={item.label} description={item.description} visible={isHovered}>
-                <button
-                  onClick={(e) => handleN3Click(e, item)}
-                  onMouseEnter={() => setHoveredId(item.id)}
-                  onMouseLeave={() => setHoveredId(null)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: '10px',
-                    background: isActive ? `${item.color}20` : isHovered ? 'var(--highlight)' : 'transparent',
-                    color: isActive ? item.color : 'var(--text-muted)',
-                    transition: 'all 0.15s ease',
-                    position: 'relative',
-                    border: 'none',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <Icon size={20} />
-                  {isActive && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        left: '-8px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        width: '3px',
-                        height: '20px',
-                        background: item.color,
-                        borderRadius: '0 2px 2px 0',
-                      }}
-                    />
-                  )}
-                </button>
-              </Tooltip>
+              <React.Fragment key={item.id}>
+                {/* セパレーター */}
+                {item.isSeparatorBefore && (
+                  <div style={{ height: '1px', background: 'var(--panel-border)', margin: '6px 0' }} />
+                )}
+                <Tooltip label={item.label} description={item.description} visible={isHovered} isExternal={item.isExternal}>
+                  <button
+                    onClick={(e) => handleN3Click(e, item)}
+                    onMouseEnter={() => setHoveredId(item.id)}
+                    onMouseLeave={() => setHoveredId(null)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '10px',
+                      background: isActive ? `${item.color}20` : isHovered ? 'var(--highlight)' : 'transparent',
+                      color: isActive ? item.color : item.isExternal ? `${item.color}99` : 'var(--text-muted)',
+                      transition: 'all 0.15s ease',
+                      position: 'relative',
+                      border: 'none',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <Icon size={20} />
+                    {isActive && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          left: '-8px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          width: '3px',
+                          height: '20px',
+                          background: item.color,
+                          borderRadius: '0 2px 2px 0',
+                        }}
+                      />
+                    )}
+                  </button>
+                </Tooltip>
+              </React.Fragment>
             );
           })}
         </div>
 
-        {/* 全ツールボタン */}
-        <div style={{ padding: '8px', borderTop: '1px solid var(--panel-border)', marginTop: 'auto' }}>
+        {/* 下部ボタン群 */}
+        <div style={{ padding: '8px', borderTop: '1px solid var(--panel-border)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          {/* n8n外部リンク */}
+          <Tooltip label="n8n Dashboard" description="ワークフロー自動化エンジン（外部）" visible={hoveredId === 'n8n'}>
+            <button
+              onClick={openN8n}
+              onMouseEnter={() => setHoveredId('n8n')}
+              onMouseLeave={() => setHoveredId(null)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '40px',
+                height: '40px',
+                borderRadius: '10px',
+                background: 'transparent',
+                color: '#FF6D5A',
+                transition: 'all 0.15s ease',
+                border: 'none',
+                cursor: 'pointer',
+                position: 'relative',
+              }}
+            >
+              <Zap size={20} />
+              <div
+                style={{
+                  position: 'absolute',
+                  right: '4px',
+                  top: '4px',
+                  width: '6px',
+                  height: '6px',
+                  background: '#FF6D5A',
+                  borderRadius: '50%',
+                }}
+              />
+            </button>
+          </Tooltip>
+
+          {/* 全ツールボタン */}
           <Tooltip label="全ツール" description="従来のツール一覧" visible={hoveredId === 'tools'}>
             <button
               onClick={() => setShowFullSidebar(!showFullSidebar)}

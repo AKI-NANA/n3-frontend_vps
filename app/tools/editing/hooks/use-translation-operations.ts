@@ -117,6 +117,17 @@ export function useTranslationOperations({
           ? `✅ ${translatedCount}件の翻訳が完了しました（失敗: ${failedCount}件）`
           : `✅ ${translatedCount}件の翻訳が完了しました`
         onShowToast(message, 'success')
+        
+        // 🔥 工程遷移イベントを発火 - UIが「検索」タブに自動切り替え
+        window.dispatchEvent(new CustomEvent('n3:workflow-transition', {
+          detail: {
+            fromPhase: 'TRANSLATE',
+            toPhase: 'SEARCH',
+            productCount: translatedCount,
+            source: 'translation'
+          }
+        }))
+        console.log(`📤 [翻訳完了] 工程遷移イベント発火: TRANSLATE → SEARCH (${translatedCount}件)`)
       } else {
         onShowToast('翻訳に失敗しました', 'error')
       }

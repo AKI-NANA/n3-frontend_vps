@@ -1,0 +1,449 @@
+{
+  "name": "【メディア】08_102-メディア-デジタル指紋ランダム化-FFmpeg動画ユニーク化_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "video-fingerprint",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: video-fingerprint",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "video-fingerprint"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// デジタル指紋ランダム化 初期化\n// YouTube AI検知回避のためのピクセル・メタデータ微変動\n// ============================================================================\n\nconst body = $input.first().json.body || $input.first().json || {};\n\nconst inputUrl = body.input_url;\nconst inputPath = body.input_path;\nconst contentId = body.content_id;\nconst channelId = body.channel_id;\n\n// ランダム化パラメータ\nconst pixelShift = body.pixel_shift || Math.floor(Math.random() * 3) + 1; // 1-3ピクセル\nconst brightnessVariation = body.brightness || (1 + (Math.random() * 0.04 - 0.02)).toFixed(3); // 0.98-1.02\nconst saturationVariation = body.saturation || (1 + (Math.random() * 0.06 - 0.03)).toFixed(3); // 0.97-1.03\nconst audioShift = body.audio_shift_ms || Math.floor(Math.random() * 50); // 0-50ms\nconst stripMetadata = body.strip_metadata !== false;\n\nif (!inputUrl && !inputPath) {\n  return [{ json: { error: true, message: 'input_url または input_path は必須です', code: 'MISSING_PARAM' } }];\n}\n\nconst jobId = 'fp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);\n\nreturn [{\n  json: {\n    job_id: jobId,\n    input_url: inputUrl,\n    input_path: inputPath,\n    content_id: contentId,\n    channel_id: channelId,\n    transformations: {\n      pixel_shift: pixelShift,\n      brightness: parseFloat(brightnessVariation),\n      saturation: parseFloat(saturationVariation),\n      audio_shift_ms: audioShift,\n      strip_metadata: stripMetadata\n    },\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// FFmpegコマンド生成\n// ピクセルシフト、輝度/彩度変更、メタデータ削除\n// ============================================================================\n\nconst data = $json;\nconst t = data.transformations;\n\nconst inputFile = data.input_path || `/tmp/input_${data.job_id}.mp4`;\nconst outputFile = `/tmp/output_${data.job_id}.mp4`;\n\n// FFmpegフィルター構築\nconst videoFilters = [];\n\n// 1. ピクセルシフト（クロップして再スケール）\nif (t.pixel_shift > 0) {\n  videoFilters.push(`crop=iw-${t.pixel_shift}:ih-${t.pixel_shift}:${Math.floor(t.pixel_shift/2)}:${Math.floor(t.pixel_shift/2)}`);\n  videoFilters.push('scale=iw+' + t.pixel_shift + ':ih+' + t.pixel_shift);\n}\n\n// 2. 輝度・彩度変更\nvideoFilters.push(`eq=brightness=${(t.brightness - 1).toFixed(3)}:saturation=${t.saturation}`);\n\n// 3. 微細なノイズ追加（オプション）\nvideoFilters.push('noise=alls=2:allf=t');\n\n// 4. ランダムシード付きカラー微調整\nconst hueShift = (Math.random() * 2 - 1).toFixed(2); // -1〜1度\nvideoFilters.push(`hue=h=${hueShift}`);\n\n// オーディオフィルター\nconst audioFilters = [];\nif (t.audio_shift_ms > 0) {\n  audioFilters.push(`adelay=${t.audio_shift_ms}|${t.audio_shift_ms}`);\n}\n// 微細なピッチ変更\naudioFilters.push(`asetrate=44100*${(1 + (Math.random() * 0.002 - 0.001)).toFixed(4)}`);\naudioFilters.push('aresample=44100');\n\n// メタデータ削除オプション\nconst metadataOption = t.strip_metadata ? '-map_metadata -1 -fflags +bitexact' : '';\n\n// FFmpegコマンド構築\nconst ffmpegCommand = [\n  'ffmpeg -y',\n  `-i \"${inputFile}\"`,\n  `-vf \"${videoFilters.join(',')}\"`,\n  `-af \"${audioFilters.join(',')}\"`,\n  metadataOption,\n  '-c:v libx264 -preset fast -crf 18',\n  '-c:a aac -b:a 192k',\n  `-metadata creation_time=\"${new Date().toISOString()}\"`,\n  `-metadata encoder=\"N3-FP-${data.job_id}\"`,\n  `\"${outputFile}\"`\n].filter(Boolean).join(' ');\n\nreturn [{\n  json: {\n    ...data,\n    input_file: inputFile,\n    output_file: outputFile,\n    ffmpeg_command: ffmpegCommand,\n    video_filters: videoFilters,\n    audio_filters: audioFilters\n  }\n}];"
+      },
+      "id": "generate-ffmpeg",
+      "name": "📝 FFmpegコマンド生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-url",
+              "leftValue": "={{ $json.input_url }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-download",
+      "name": "ダウンロード必要？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "command": "={{ 'curl -L -o \"' + $json.input_file + '\" \"' + $json.input_url + '\"' }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "download-video",
+      "name": "📥 動画ダウンロード",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "command": "={{ $json.ffmpeg_command }}",
+        "options": {
+          "timeout": 600000
+        }
+      },
+      "id": "execute-ffmpeg",
+      "name": "🎬 FFmpeg実行",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// ハッシュ計算\n// ============================================================================\n\nconst data = $node['📝 FFmpegコマンド生成'].json;\nconst execResult = $input.first().json;\n\nif (execResult.exitCode !== 0 && execResult.stderr && execResult.stderr.includes('error')) {\n  return [{\n    json: {\n      success: false,\n      job_id: data.job_id,\n      error: execResult.stderr\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    ...data,\n    ffmpeg_success: true\n  }\n}];"
+      },
+      "id": "check-ffmpeg",
+      "name": "📋 FFmpeg結果確認",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "command": "={{ 'sha256sum \"' + $json.output_file + '\" | cut -d\" \" -f1' }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "calculate-hash",
+      "name": "🔐 ハッシュ計算",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "media-assets",
+        "fileName": "=fingerprinted/{{ $node['📝 FFmpegコマンド生成'].json.channel_id || 'general' }}/{{ $node['📝 FFmpegコマンド生成'].json.job_id }}.mp4",
+        "filePath": "={{ $node['📝 FFmpegコマンド生成'].json.output_file }}"
+      },
+      "id": "upload-storage",
+      "name": "📤 Storage Upload",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-api",
+          "name": "Supabase API"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO digital_fingerprint_logs (content_id, content_type, original_hash, original_url, processed_hash, processed_url, transformations, channel_id) VALUES ($1, 'video', $2, $3, $4, $5, $6, $7) RETURNING id",
+        "options": {
+          "queryParams": "={{ [$node['📝 FFmpegコマンド生成'].json.content_id, 'original_hash_placeholder', $node['📝 FFmpegコマンド生成'].json.input_url, $input.first().json.stdout?.trim() || 'hash_error', `${$env.SUPABASE_URL}/storage/v1/object/public/media-assets/fingerprinted/${$node['📝 FFmpegコマンド生成'].json.channel_id || 'general'}/${$node['📝 FFmpegコマンド生成'].json.job_id}.mp4`, JSON.stringify($node['📝 FFmpegコマンド生成'].json.transformations), $node['📝 FFmpegコマンド生成'].json.channel_id] }}"
+        }
+      },
+      "id": "save-log",
+      "name": "💾 ログ保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $node['📝 FFmpegコマンド生成'].json;\nconst hashResult = $node['🔐 ハッシュ計算'].json;\nconst supabaseUrl = $env.SUPABASE_URL || '{{$env.SUPABASE_URL}}';\n\nreturn [{\n  json: {\n    success: true,\n    job_id: data.job_id,\n    content_id: data.content_id,\n    channel_id: data.channel_id,\n    output_url: `${supabaseUrl}/storage/v1/object/public/media-assets/fingerprinted/${data.channel_id || 'general'}/${data.job_id}.mp4`,\n    processed_hash: hashResult.stdout?.trim(),\n    transformations: data.transformations\n  }\n}];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: video-fingerprint": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📝 FFmpegコマンド生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 FFmpegコマンド生成": {
+      "main": [
+        [
+          {
+            "node": "ダウンロード必要？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ダウンロード必要？": {
+      "main": [
+        [
+          {
+            "node": "📥 動画ダウンロード",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🎬 FFmpeg実行",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📥 動画ダウンロード": {
+      "main": [
+        [
+          {
+            "node": "🎬 FFmpeg実行",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎬 FFmpeg実行": {
+      "main": [
+        [
+          {
+            "node": "📋 FFmpeg結果確認",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 FFmpeg結果確認": {
+      "main": [
+        [
+          {
+            "node": "🔐 ハッシュ計算",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 ハッシュ計算": {
+      "main": [
+        [
+          {
+            "node": "📤 Storage Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📤 Storage Upload": {
+      "main": [
+        [
+          {
+            "node": "💾 ログ保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 ログ保存": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 900,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "FFmpeg",
+      "color": "#007808"
+    },
+    {
+      "name": "Anti-AI-Detection",
+      "color": "#ff6b35"
+    },
+    {
+      "name": "Phase12",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

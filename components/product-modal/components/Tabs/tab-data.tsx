@@ -1,11 +1,12 @@
 'use client';
 
-// TabData - V8.3
+// TabData - V9.0 - 完全編集対応版
 // デザインシステムV4準拠
-// 機能: 日英データ編集、翻訳API、DB保存 - 全て維持
+// 機能: 全フィールド編集可能、データ保護ロジック、保存後UI同期
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { Product } from '@/types/product';
+import { toast } from 'sonner';
 
 // テーマ定数
 const T = {
@@ -24,9 +25,10 @@ const T = {
 
 export interface TabDataProps {
   product: Product | null;
+  onSave?: (updates: any) => void;
 }
 
-export function TabData({ product }: TabDataProps) {
+export function TabData({ product, onSave }: TabDataProps) {
   const listingData = (product as any)?.listing_data || {};
   const scrapedData = (product as any)?.scraped_data || {};
   
@@ -48,63 +50,89 @@ export function TabData({ product }: TabDataProps) {
     width: '',
     height: '',
     generatedSku: '',
-    // ✅ 原価・コストデータ
+    // 原価・コストデータ
     purchasePriceJpy: 0,
     shippingCostUsd: 5,
     otherCostUsd: 0,
+    // SM由来データ（全て編集可能に）
+    material: '',
+    brand: '',
+    manufacturer: '',
+    originCountry: '',
+    htsCode: '',
+    htsDutyRate: '',
+    categoryId: '',
+    categoryName: '',
   });
 
-  // ✅ データソース記録
+  // データソース記録（手動編集のトラッキング）
   const [dataSources, setDataSources] = useState<Record<string, string>>({});
+  
+  // 手動編集フラグ（自動処理からの保護）
+  const [manualOverrides, setManualOverrides] = useState<Record<string, boolean>>({});
 
   // productが変わったらformDataを再初期化
   useEffect(() => {
     if (product) {
+      const pAny = product as any;
       setFormData({
-        productId: (product as any)?.source_item_id || product?.asin || product?.id || '',
-        dbId: product?.id || '',
+        productId: pAny?.source_item_id || product?.asin || product?.id || '',
+        dbId: String(product?.id || ''),
         title: product?.title || '',
         description: product?.description || '',
-        condition: listingData.condition || scrapedData.condition || '',
-        englishTitle: (product as any)?.title_en || (product as any)?.english_title || '',
-        englishDescription: (product as any)?.description_en || (product as any)?.english_description || '',
-        englishCondition: (product as any)?.english_condition || listingData.condition_en || '',
-        price: (product as any)?.price_usd || product?.price || 0,
-        weight: listingData.weight_g || '',
-        length: listingData.length_cm || '',
-        width: listingData.width_cm || '',
-        height: listingData.height_cm || '',
+        condition: listingData.condition || scrapedData.condition || pAny?.condition || '',
+        englishTitle: pAny?.title_en || pAny?.english_title || '',
+        englishDescription: pAny?.description_en || pAny?.english_description || '',
+        englishCondition: pAny?.english_condition || listingData.condition_en || '',
+        price: pAny?.price_usd || product?.price || 0,
+        weight: listingData.weight_g?.toString() || scrapedData.weight_g?.toString() || '',
+        length: listingData.length_cm?.toString() || scrapedData.length_cm?.toString() || '',
+        width: listingData.width_cm?.toString() || scrapedData.width_cm?.toString() || '',
+        height: listingData.height_cm?.toString() || scrapedData.height_cm?.toString() || '',
         generatedSku: product?.sku || '',
-        // ✅ 原価データを復元
-        purchasePriceJpy: (product as any)?.purchase_price_jpy || (product as any)?.price_jpy || 0,
-        shippingCostUsd: (product as any)?.shipping_cost_usd || listingData.shipping_cost_usd || 5,
-        otherCostUsd: (product as any)?.other_cost_usd || listingData.other_cost_usd || 0,
+        // 原価データを復元（listing_data内優先）
+        purchasePriceJpy: listingData.purchase_price_jpy || pAny?.price_jpy || 0,
+        shippingCostUsd: listingData.shipping_cost_usd ?? 5,
+        otherCostUsd: listingData.other_cost_usd ?? 0,
+        // SM由来データ（全て編集可能）
+        material: listingData.material || scrapedData.material || pAny?.material || '',
+        brand: listingData.brand || scrapedData.brand || pAny?.brand || '',
+        manufacturer: listingData.manufacturer || scrapedData.manufacturer || pAny?.manufacturer || '',
+        originCountry: listingData.origin_country || pAny?.origin_country || '',
+        htsCode: pAny?.hts_code || listingData.hts_code || '',
+        htsDutyRate: pAny?.hts_duty_rate?.toString() || listingData.hts_duty_rate?.toString() || '',
+        categoryId: pAny?.ebay_category_id || listingData.ebay_category_id || '',
+        categoryName: listingData.category_name || pAny?.category_name || '',
       });
       
-      // ✅ データソースを復元
+      // データソースを復元
       setDataSources(listingData.data_sources || {});
+      // 手動上書きフラグを復元
+      setManualOverrides(listingData.manual_overrides || {});
     }
   }, [product]);
 
-  const handleChange = (field: string, value: string | number) => {
+  const handleChange = useCallback((field: string, value: string | number) => {
     let processedValue = value;
     if (typeof value === 'number') {
       if (['price', 'purchasePriceJpy', 'shippingCostUsd', 'otherCostUsd'].includes(field)) {
         processedValue = Math.round(value * 100) / 100;
-      } else if (['weight', 'length', 'width', 'height'].includes(field)) {
+      } else if (['weight', 'length', 'width', 'height', 'htsDutyRate'].includes(field)) {
         processedValue = Math.round(value * 10) / 10;
       }
     }
     setFormData(prev => ({ ...prev, [field]: processedValue }));
     
-    // ✅ 手動入力時はソースを 'manual' に設定
+    // 手動入力時はソースを 'manual' に設定
     setDataSources(prev => ({ ...prev, [field]: 'manual' }));
-  };
+    // 手動上書きフラグを設定（自動処理から保護）
+    setManualOverrides(prev => ({ ...prev, [field]: true }));
+  }, []);
 
   // 翻訳実行
-  const handleTranslate = async () => {
+  const handleTranslate = useCallback(async () => {
     if (!formData.title && !formData.description) {
-      alert('翻訳する日本語データがありません');
+      toast.error('翻訳する日本語データがありません');
       return;
     }
     if (formData.englishTitle && formData.englishDescription) {
@@ -135,7 +163,7 @@ export function TabData({ product }: TabDataProps) {
           englishCondition: result.translations.condition || prev.englishCondition,
         }));
         
-        // ✅ AI翻訳ソースを記録
+        // AI翻訳ソースを記録
         setDataSources(prev => ({
           ...prev,
           englishTitle: 'ai_translate',
@@ -143,54 +171,77 @@ export function TabData({ product }: TabDataProps) {
           englishCondition: 'ai_translate',
         }));
         
-        alert('✓ 翻訳完了');
+        toast.success('翻訳完了');
       } else {
-        alert('✗ 翻訳失敗: ' + (result.error || ''));
+        toast.error('翻訳失敗: ' + (result.error || ''));
       }
     } catch (error: any) {
-      alert('✗ エラー: ' + error.message);
+      toast.error('エラー: ' + error.message);
     } finally {
       setTranslating(false);
     }
-  };
+  }, [formData.title, formData.description, formData.englishTitle, formData.englishDescription, formData.condition, product?.id]);
 
   // 保存
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     setSaveStatus('saving');
     try {
+      // ✅ products_masterに存在するカラムのみ使用
+      // ⚠️ manufacturer, brand, hts_duty_rate はトップレベルに存在しない
+      const updates = {
+        title: formData.title,
+        description: formData.description,
+        english_title: formData.englishTitle,
+        english_description: formData.englishDescription,
+        english_condition: formData.englishCondition,
+        title_en: formData.englishTitle,
+        description_en: formData.englishDescription,
+        // ✅ price_jpy は既存カラム（原価として使用）
+        price_jpy: formData.purchasePriceJpy || null,
+        // ✅ shipping_cost_usd はトップレベルカラムにも存在
+        shipping_cost_usd: formData.shippingCostUsd || null,
+        // ✅ トップレベルに存在するカラムのみ
+        sku: formData.generatedSku || null,
+        material: formData.material || null,
+        origin_country: formData.originCountry || null,
+        hts_code: formData.htsCode || null,
+        ebay_category_id: formData.categoryId || null,
+        // ⚠️ 以下はDBに存在しないのでlisting_data内のみに保存
+        // brand, manufacturer, hts_duty_rate
+        listing_data: {
+          ...listingData,
+          condition: formData.condition,
+          condition_en: formData.englishCondition,
+          // 数値に変換して保存
+          weight_g: formData.weight ? Number(formData.weight) : null,
+          length_cm: formData.length ? Number(formData.length) : null,
+          width_cm: formData.width ? Number(formData.width) : null,
+          height_cm: formData.height ? Number(formData.height) : null,
+          // SM由来データをlisting_dataにもバックアップ
+          material: formData.material || null,
+          brand: formData.brand || null,
+          manufacturer: formData.manufacturer || null,
+          origin_country: formData.originCountry || null,
+          hts_code: formData.htsCode || null,
+          hts_duty_rate: formData.htsDutyRate ? Number(formData.htsDutyRate) : null,
+          ebay_category_id: formData.categoryId || null,
+          category_name: formData.categoryName || null,
+          // ✅ 原価・コストデータはlisting_data内に保存
+          purchase_price_jpy: formData.purchasePriceJpy || null,
+          shipping_cost_usd: formData.shippingCostUsd,
+          other_cost_usd: formData.otherCostUsd,
+          // データソースと手動上書きフラグを保存
+          data_sources: dataSources,
+          manual_overrides: manualOverrides,
+        }
+      };
+      
       const response = await fetch('/api/products/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: product?.id,
-          updates: {
-            title: formData.title,
-            description: formData.description,
-            english_title: formData.englishTitle,
-            english_description: formData.englishDescription,
-            english_condition: formData.englishCondition,
-            title_en: formData.englishTitle,
-            description_en: formData.englishDescription,
-            // ✅ 原価データを保存
-            purchase_price_jpy: formData.purchasePriceJpy,
-            shipping_cost_usd: formData.shippingCostUsd,
-            other_cost_usd: formData.otherCostUsd,
-            listing_data: {
-              ...listingData,
-              condition: formData.condition,
-              condition_en: formData.englishCondition,
-              // ✅ 数値に変換して保存
-              weight_g: formData.weight ? Number(formData.weight) : null,
-              length_cm: formData.length ? Number(formData.length) : null,
-              width_cm: formData.width ? Number(formData.width) : null,
-              height_cm: formData.height ? Number(formData.height) : null,
-              // ✅ listing_data内にも保存（バックアップ）
-              shipping_cost_usd: formData.shippingCostUsd,
-              other_cost_usd: formData.otherCostUsd,
-              // ✅ データソースを保存
-              data_sources: dataSources,
-            }
-          }
+          updates
         })
       });
 
@@ -199,26 +250,42 @@ export function TabData({ product }: TabDataProps) {
       
       if (result.success) {
         setSaveStatus('saved');
-        window.dispatchEvent(new CustomEvent('product-updated', { detail: { productId: product?.id } }));
+        
+        // 親コンポーネントに通知
+        onSave?.(updates);
+        
+        // グローバルイベントをディスパッチ（UI同期用）
+        window.dispatchEvent(new CustomEvent('n3:product-updated', { 
+          detail: { 
+            productId: product?.id,
+            updates,
+            source: 'tab-data'
+          } 
+        }));
+        
+        // 監査スコア再計算トリガー
+        window.dispatchEvent(new CustomEvent('n3:audit-recalculate', { 
+          detail: { productId: product?.id } 
+        }));
+        
+        toast.success('保存しました');
         setTimeout(() => setSaveStatus('idle'), 2000);
       } else {
         setSaveStatus('error');
+        toast.error('保存失敗: ' + (result.error || ''));
       }
-    } catch (error) {
+    } catch (error: any) {
       setSaveStatus('error');
+      toast.error('エラー: ' + error.message);
     }
-  };
+  }, [product?.id, formData, dataSources, manualOverrides, listingData, onSave]);
 
-  const priceJpy = (product as any)?.price_jpy || 0;
-  const priceUsd = (product as any)?.price_usd || 0;
-  const profitMargin = (product as any)?.profit_margin_percent || 0;
-
-  // ✅ 原価計算用
+  // 原価計算用
   const exchangeRate = 150; // TODO: 動的に取得
   const purchasePriceUsd = formData.purchasePriceJpy / exchangeRate;
   const totalCost = purchasePriceUsd + formData.shippingCostUsd + formData.otherCostUsd;
   
-  // ✅ 推奨価格計算（手数料約159%を考慮）
+  // 推奨価格計算
   const ebayFeeRate = 0.13;
   const paypalFeeRate = 0.029;
   const totalFeeRate = ebayFeeRate + paypalFeeRate;
@@ -239,30 +306,43 @@ export function TabData({ product }: TabDataProps) {
 
   return (
     <div style={{ padding: '1rem', background: T.bg, height: '100%', overflow: 'auto' }}>
-      {/* 2カラムレイアウト */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+      {/* 3カラムレイアウト */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
         
         {/* ========== 左カラム: 日本語 ========== */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           <SectionHeader title="日本語データ" icon="fa-flag" />
           
-          {/* 基本情報 */}
           <Card>
             <Label>商品タイトル</Label>
-            <Input value={formData.title} onChange={(v) => handleChange('title', v)} />
+            <Input 
+              value={formData.title} 
+              onChange={(v) => handleChange('title', v)} 
+              source={dataSources.title}
+              isManualOverride={manualOverrides.title}
+            />
           </Card>
           
           <Card>
             <Label>商品説明</Label>
-            <TextArea value={formData.description} onChange={(v) => handleChange('description', v)} rows={4} />
+            <TextArea 
+              value={formData.description} 
+              onChange={(v) => handleChange('description', v)} 
+              rows={4} 
+            />
           </Card>
           
           <Card>
             <Label>商品状態</Label>
-            <Input value={formData.condition} onChange={(v) => handleChange('condition', v)} />
+            <Input 
+              value={formData.condition} 
+              onChange={(v) => handleChange('condition', v)} 
+              source={dataSources.condition}
+              isManualOverride={manualOverrides.condition}
+            />
           </Card>
           
-          {/* ✅ 原価・コスト情報（編集可能） */}
+          {/* 原価・コスト情報 */}
           <Card>
             <div style={{ fontSize: '9px', textTransform: 'uppercase', fontWeight: 600, color: T.warning, marginBottom: '0.5rem' }}>
               <i className="fas fa-coins" style={{ marginRight: '0.25rem' }}></i>
@@ -276,18 +356,12 @@ export function TabData({ product }: TabDataProps) {
                   value={formData.purchasePriceJpy} 
                   onChange={(v) => handleChange('purchasePriceJpy', Number(v))} 
                   source={dataSources.purchasePriceJpy}
+                  isManualOverride={manualOverrides.purchasePriceJpy}
                 />
               </div>
               <div>
                 <Label small>USD換算</Label>
-                <div style={{ 
-                  padding: '0.375rem 0.5rem', 
-                  fontSize: '12px', 
-                  borderRadius: '4px', 
-                  background: T.highlight,
-                  color: T.text,
-                  fontFamily: 'monospace',
-                }}>
+                <div style={{ padding: '0.375rem 0.5rem', fontSize: '12px', borderRadius: '4px', background: T.highlight, color: T.text, fontFamily: 'monospace' }}>
                   ${(formData.purchasePriceJpy / exchangeRate).toFixed(2)}
                 </div>
               </div>
@@ -300,6 +374,7 @@ export function TabData({ product }: TabDataProps) {
                   value={formData.shippingCostUsd} 
                   onChange={(v) => handleChange('shippingCostUsd', Number(v))} 
                   source={dataSources.shippingCostUsd}
+                  isManualOverride={manualOverrides.shippingCostUsd}
                 />
               </div>
               <div>
@@ -309,90 +384,34 @@ export function TabData({ product }: TabDataProps) {
                   value={formData.otherCostUsd} 
                   onChange={(v) => handleChange('otherCostUsd', Number(v))} 
                   source={dataSources.otherCostUsd}
+                  isManualOverride={manualOverrides.otherCostUsd}
                 />
               </div>
             </div>
             {/* 合計コストと推奨価格 */}
-            <div style={{ 
-              padding: '0.5rem', 
-              borderRadius: '4px', 
-              background: `${T.success}10`, 
-              border: `1px solid ${T.success}40`,
-              marginTop: '0.5rem',
-            }}>
+            <div style={{ padding: '0.5rem', borderRadius: '4px', background: `${T.success}10`, border: `1px solid ${T.success}40`, marginTop: '0.5rem' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: '8px', color: T.textMuted }}>合計コスト</div>
-                  <div style={{ fontSize: '12px', fontWeight: 700, color: T.text, fontFamily: 'monospace' }}>
-                    ${totalCost.toFixed(2)}
-                  </div>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: T.text, fontFamily: 'monospace' }}>${totalCost.toFixed(2)}</div>
                 </div>
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '8px', color: T.textMuted }}>推奨価格 (20%)</div>
-                  <div style={{ fontSize: '12px', fontWeight: 700, color: T.success, fontFamily: 'monospace' }}>
-                    ${recommendedPrice20.toFixed(2)}
-                  </div>
+                  <div style={{ fontSize: '8px', color: T.textMuted }}>推奨 (20%)</div>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: T.success, fontFamily: 'monospace' }}>${recommendedPrice20.toFixed(2)}</div>
                 </div>
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '8px', color: T.textMuted }}>推奨価格 (25%)</div>
-                  <div style={{ fontSize: '12px', fontWeight: 700, color: T.success, fontFamily: 'monospace' }}>
-                    ${recommendedPrice25.toFixed(2)}
-                  </div>
+                  <div style={{ fontSize: '8px', color: T.textMuted }}>推奨 (25%)</div>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: T.success, fontFamily: 'monospace' }}>${recommendedPrice25.toFixed(2)}</div>
                 </div>
-              </div>
-            </div>
-          </Card>
-          
-          {/* サイズ・重量 */}
-          <Card>
-            <div style={{ fontSize: '9px', textTransform: 'uppercase', fontWeight: 600, color: T.textSubtle, marginBottom: '0.5rem' }}>
-              Size & Weight
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
-              <div>
-                <Label small>Weight (g)</Label>
-                <Input 
-                  type="number" 
-                  value={formData.weight} 
-                  onChange={(v) => handleChange('weight', Number(v))} 
-                  source={dataSources.weight}
-                />
-              </div>
-              <div>
-                <Label small>L (cm)</Label>
-                <Input 
-                  type="number" 
-                  value={formData.length} 
-                  onChange={(v) => handleChange('length', Number(v))} 
-                  source={dataSources.length}
-                />
-              </div>
-              <div>
-                <Label small>W (cm)</Label>
-                <Input 
-                  type="number" 
-                  value={formData.width} 
-                  onChange={(v) => handleChange('width', Number(v))} 
-                  source={dataSources.width}
-                />
-              </div>
-              <div>
-                <Label small>H (cm)</Label>
-                <Input 
-                  type="number" 
-                  value={formData.height} 
-                  onChange={(v) => handleChange('height', Number(v))} 
-                  source={dataSources.height}
-                />
               </div>
             </div>
           </Card>
         </div>
         
-        {/* ========== 右カラム: 英語 ========== */}
+        {/* ========== 中央カラム: 英語 ========== */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <SectionHeader title="英語データ (English)" icon="fa-globe" color={T.accent} />
+            <SectionHeader title="英語データ" icon="fa-globe" color={T.accent} />
             <button
               onClick={handleTranslate}
               disabled={translating}
@@ -421,12 +440,18 @@ export function TabData({ product }: TabDataProps) {
               onChange={(v) => handleChange('englishTitle', v)} 
               accent 
               source={dataSources.englishTitle}
+              isManualOverride={manualOverrides.englishTitle}
             />
           </Card>
           
           <Card accent>
             <Label color={T.accent}>English Description</Label>
-            <TextArea value={formData.englishDescription} onChange={(v) => handleChange('englishDescription', v)} rows={4} accent />
+            <TextArea 
+              value={formData.englishDescription} 
+              onChange={(v) => handleChange('englishDescription', v)} 
+              rows={4} 
+              accent 
+            />
           </Card>
           
           <Card accent>
@@ -436,7 +461,161 @@ export function TabData({ product }: TabDataProps) {
               onChange={(v) => handleChange('englishCondition', v)} 
               accent 
               source={dataSources.englishCondition}
+              isManualOverride={manualOverrides.englishCondition}
             />
+          </Card>
+          
+          {/* サイズ・重量 */}
+          <Card>
+            <div style={{ fontSize: '9px', textTransform: 'uppercase', fontWeight: 600, color: T.textSubtle, marginBottom: '0.5rem' }}>
+              Size & Weight
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
+              <div>
+                <Label small>Weight (g)</Label>
+                <Input 
+                  type="number" 
+                  value={formData.weight} 
+                  onChange={(v) => handleChange('weight', v)} 
+                  source={dataSources.weight}
+                  isManualOverride={manualOverrides.weight}
+                />
+              </div>
+              <div>
+                <Label small>L (cm)</Label>
+                <Input 
+                  type="number" 
+                  value={formData.length} 
+                  onChange={(v) => handleChange('length', v)} 
+                  source={dataSources.length}
+                  isManualOverride={manualOverrides.length}
+                />
+              </div>
+              <div>
+                <Label small>W (cm)</Label>
+                <Input 
+                  type="number" 
+                  value={formData.width} 
+                  onChange={(v) => handleChange('width', v)} 
+                  source={dataSources.width}
+                  isManualOverride={manualOverrides.width}
+                />
+              </div>
+              <div>
+                <Label small>H (cm)</Label>
+                <Input 
+                  type="number" 
+                  value={formData.height} 
+                  onChange={(v) => handleChange('height', v)} 
+                  source={dataSources.height}
+                  isManualOverride={manualOverrides.height}
+                />
+              </div>
+            </div>
+          </Card>
+        </div>
+        
+        {/* ========== 右カラム: SM由来＆識別子 ========== */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <SectionHeader title="SM由来 & 分類" icon="fa-database" color={T.warning} />
+          
+          {/* SM由来データ（全て編集可能） */}
+          <Card>
+            <div style={{ fontSize: '9px', textTransform: 'uppercase', fontWeight: 600, color: T.warning, marginBottom: '0.5rem' }}>
+              <i className="fas fa-edit" style={{ marginRight: '0.25rem' }}></i>
+              SM Data (Editable)
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+              <div>
+                <Label small>素材</Label>
+                <Input 
+                  value={formData.material} 
+                  onChange={(v) => handleChange('material', v)} 
+                  source={dataSources.material}
+                  isManualOverride={manualOverrides.material}
+                />
+              </div>
+              <div>
+                <Label small>ブランド</Label>
+                <Input 
+                  value={formData.brand} 
+                  onChange={(v) => handleChange('brand', v)} 
+                  source={dataSources.brand}
+                  isManualOverride={manualOverrides.brand}
+                />
+              </div>
+              <div>
+                <Label small>メーカー</Label>
+                <Input 
+                  value={formData.manufacturer} 
+                  onChange={(v) => handleChange('manufacturer', v)} 
+                  source={dataSources.manufacturer}
+                  isManualOverride={manualOverrides.manufacturer}
+                />
+              </div>
+              <div>
+                <Label small>原産国</Label>
+                <Input 
+                  value={formData.originCountry} 
+                  onChange={(v) => handleChange('originCountry', v)} 
+                  source={dataSources.originCountry}
+                  isManualOverride={manualOverrides.originCountry}
+                />
+              </div>
+            </div>
+          </Card>
+          
+          {/* HTS/関税 */}
+          <Card>
+            <div style={{ fontSize: '9px', textTransform: 'uppercase', fontWeight: 600, color: T.textSubtle, marginBottom: '0.5rem' }}>
+              HTS / Tariff
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.5rem' }}>
+              <div>
+                <Label small>HTS Code</Label>
+                <Input 
+                  value={formData.htsCode} 
+                  onChange={(v) => handleChange('htsCode', v)} 
+                  source={dataSources.htsCode}
+                  isManualOverride={manualOverrides.htsCode}
+                />
+              </div>
+              <div>
+                <Label small>税率 (%)</Label>
+                <Input 
+                  type="number" 
+                  value={formData.htsDutyRate} 
+                  onChange={(v) => handleChange('htsDutyRate', v)} 
+                  source={dataSources.htsDutyRate}
+                  isManualOverride={manualOverrides.htsDutyRate}
+                />
+              </div>
+            </div>
+          </Card>
+          
+          {/* eBayカテゴリ */}
+          <Card>
+            <div style={{ fontSize: '9px', textTransform: 'uppercase', fontWeight: 600, color: T.textSubtle, marginBottom: '0.5rem' }}>
+              eBay Category
+            </div>
+            <div>
+              <Label small>Category ID</Label>
+              <Input 
+                value={formData.categoryId} 
+                onChange={(v) => handleChange('categoryId', v)} 
+                source={dataSources.categoryId}
+                isManualOverride={manualOverrides.categoryId}
+              />
+            </div>
+            <div style={{ marginTop: '0.5rem' }}>
+              <Label small>Category Name</Label>
+              <Input 
+                value={formData.categoryName} 
+                onChange={(v) => handleChange('categoryName', v)} 
+                source={dataSources.categoryName}
+                isManualOverride={manualOverrides.categoryName}
+              />
+            </div>
           </Card>
           
           {/* ID情報 */}
@@ -447,7 +626,12 @@ export function TabData({ product }: TabDataProps) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
               <div>
                 <Label small>SKU</Label>
-                <Input value={formData.generatedSku} readOnly />
+                <Input 
+                  value={formData.generatedSku} 
+                  onChange={(v) => handleChange('generatedSku', v)}
+                  source={dataSources.generatedSku}
+                  isManualOverride={manualOverrides.generatedSku}
+                />
               </div>
               <div>
                 <Label small>DB ID</Label>
@@ -462,12 +646,15 @@ export function TabData({ product }: TabDataProps) {
               Data Completeness
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.25rem' }}>
-              <CheckItem label="JA Title" ok={!!formData.title} />
-              <CheckItem label="EN Title" ok={!!formData.englishTitle} />
-              <CheckItem label="JA Desc" ok={!!formData.description} />
-              <CheckItem label="EN Desc" ok={!!formData.englishDescription} />
-              <CheckItem label="Price" ok={formData.price > 0} />
-              <CheckItem label="Condition" ok={!!formData.condition} />
+              <CheckItem label="JA Title" ok={!!formData.title && formData.title.toString().trim() !== ''} />
+              <CheckItem label="EN Title" ok={!!formData.englishTitle && formData.englishTitle.toString().trim() !== ''} />
+              <CheckItem label="JA Desc" ok={!!formData.description && formData.description.toString().trim() !== ''} />
+              <CheckItem label="EN Desc" ok={!!formData.englishDescription && formData.englishDescription.toString().trim() !== ''} />
+              <CheckItem label="Weight" ok={formData.weight !== '' && formData.weight !== null && formData.weight !== undefined && Number(formData.weight) > 0} />
+              <CheckItem label="Condition" ok={!!formData.condition && formData.condition.toString().trim() !== ''} />
+              <CheckItem label="HTS Code" ok={!!formData.htsCode && formData.htsCode.toString().trim() !== ''} />
+              <CheckItem label="Category" ok={!!formData.categoryId && formData.categoryId.toString().trim() !== ''} />
+              <CheckItem label="Material" ok={!!formData.material && formData.material.toString().trim() !== ''} />
             </div>
           </Card>
           
@@ -484,7 +671,7 @@ export function TabData({ product }: TabDataProps) {
               onClick={handleSave}
               disabled={saveStatus === 'saving'}
               style={{
-                padding: '0.375rem 1rem',
+                padding: '0.5rem 1.5rem',
                 fontSize: '11px',
                 fontWeight: 600,
                 borderRadius: '4px',
@@ -497,7 +684,7 @@ export function TabData({ product }: TabDataProps) {
                 gap: '0.25rem',
               }}
             >
-              <i className="fas fa-save"></i> Save
+              <i className="fas fa-save"></i> Save All
             </button>
           </div>
         </div>
@@ -546,29 +733,35 @@ function Label({ children, color, small }: { children: React.ReactNode; color?: 
   );
 }
 
-function Input({ value, onChange, type = 'text', readOnly, accent, source }: { 
+function Input({ value, onChange, type = 'text', readOnly, accent, source, isManualOverride }: { 
   value: string | number; 
   onChange?: (v: string) => void; 
   type?: string; 
   readOnly?: boolean; 
   accent?: boolean;
   source?: string;
+  isManualOverride?: boolean;
 }) {
-  // ✅ ソースアイコンとツールチップ
-  const getSourceInfo = (src: string | undefined) => {
+  // ソースアイコンとツールチップ
+  const getSourceInfo = (src: string | undefined, isManual: boolean | undefined) => {
+    // 手動上書きの場合は優先表示
+    if (isManual) {
+      return { icon: 'fa-pen', color: '#3b82f6', label: '手動入力（自動処理から保護）' };
+    }
     switch (src) {
       case 'manual': return { icon: 'fa-pen', color: '#3b82f6', label: '手動入力' };
       case 'ai_gemini': return { icon: 'fa-robot', color: '#8b5cf6', label: 'Gemini AI' };
       case 'ai_claude': return { icon: 'fa-robot', color: '#f59e0b', label: 'Claude AI' };
       case 'ai_translate': return { icon: 'fa-language', color: '#10b981', label: 'AI翻訳' };
       case 'scraped': return { icon: 'fa-spider', color: '#64748b', label: 'スクレイピング' };
+      case 'sm': return { icon: 'fa-store', color: '#64748b', label: 'SM由来' };
       case 'calculated': return { icon: 'fa-calculator', color: '#06b6d4', label: 'システム計算' };
       case 'imported': return { icon: 'fa-file-import', color: '#ec4899', label: 'インポート' };
       default: return null;
     }
   };
   
-  const sourceInfo = getSourceInfo(source);
+  const sourceInfo = getSourceInfo(source, isManualOverride);
   
   return (
     <div style={{ position: 'relative' }}>
@@ -583,7 +776,7 @@ function Input({ value, onChange, type = 'text', readOnly, accent, source }: {
           paddingRight: sourceInfo ? '1.75rem' : '0.5rem',
           fontSize: '12px',
           borderRadius: '4px',
-          border: `1px solid ${accent ? T.accent : T.panelBorder}`,
+          border: `1px solid ${isManualOverride ? T.accent : accent ? T.accent : T.panelBorder}`,
           background: readOnly ? T.highlight : T.panel,
           color: T.text,
           outline: 'none',
@@ -627,15 +820,6 @@ function TextArea({ value, onChange, rows = 3, accent }: { value: string; onChan
         resize: 'vertical',
       }}
     />
-  );
-}
-
-function StatBox({ label, value, color }: { label: string; value: string; color?: string }) {
-  return (
-    <div style={{ padding: '0.5rem', borderRadius: '4px', background: T.highlight, textAlign: 'center' }}>
-      <div style={{ fontSize: '8px', textTransform: 'uppercase', color: T.textSubtle }}>{label}</div>
-      <div style={{ fontSize: '12px', fontWeight: 700, fontFamily: 'monospace', color: color || T.text }}>{value}</div>
-    </div>
   );
 }
 

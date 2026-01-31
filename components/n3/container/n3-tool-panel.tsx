@@ -9,6 +9,8 @@
  * - メインツールバー: Run All, Paste, Reload, CSV, Cat, Ship, Profit, HTML, Score, HTS, Origin, Material, Filter, Research, AI
  * - フローパネル: 翻訳, SM, 詳細, Gemini, 処理, 出品
  * - アクション: Export, Save, Delete
+ * 
+ * v4.0: 全ボタンにN3FeatureTooltip適用
  */
 
 'use client';
@@ -20,6 +22,17 @@ import {
   DollarSign, CheckCircle, Save, Trash2, Download, ChevronDown, Loader2, 
   Layers, ShoppingBag, PackageCheck, Store,
 } from 'lucide-react';
+import { N3FeatureTooltip } from '../presentational/n3-tooltip';
+import { useTooltipSettingsStore, selectIsTooltipEnabled } from '@/store/tooltipSettingsStore';
+import {
+  QUICK_ACTION_TOOLTIPS,
+  PROCESSING_TOOLTIPS,
+  DATA_TOOLTIPS,
+  RESEARCH_TOOLTIPS,
+  FLOW_TOOLTIPS,
+  ACTION_TOOLTIPS,
+  MARKETPLACE_TOOLTIPS,
+} from '@/lib/tooltip-contents';
 
 // ============================================================
 // 型定義
@@ -196,39 +209,7 @@ const MARKETPLACE_OPTIONS: MarketplaceConfig[] = [
 ];
 
 // ============================================================
-// ツールチップテキスト
-// ============================================================
-
-const TOOLTIPS = {
-  runAll: '全処理を一括実行',
-  paste: 'クリップボードから商品データを貼り付け',
-  reload: 'データを再読み込み',
-  csv: 'CSVファイルをアップロード',
-  category: 'eBayカテゴリを自動分類',
-  shipping: '送料・配送方法を設定',
-  profit: '利益・マージンを計算',
-  html: 'eBay用HTML説明文を生成',
-  score: '競合スコア・出品優先度を算出',
-  hts: 'HTS関税コードを取得',
-  origin: '原産国を推定',
-  material: '素材情報を取得',
-  filter: 'フィルター条件をチェック',
-  research: '一括市場リサーチ',
-  ai: 'AI強化（説明文・キーワード生成）',
-  translate: '日本語↔英語翻訳',
-  sellerMirror: 'eBay競合セラーの商品を検索',
-  details: '選択した商品の詳細を取得',
-  gemini: 'Gemini用プロンプトを生成',
-  enrichmentFlow: 'SM分析→競合選択→AI強化の統合フロー',
-  finalProcess: '最終処理チェーン実行',
-  list: '準備完了商品をeBayに出品',
-  save: '変更を保存',
-  delete: '選択商品を削除',
-  export: 'エクスポートメニュー',
-};
-
-// ============================================================
-// サブコンポーネント: IconButton
+// サブコンポーネント: IconButton（ツールチップ対応版）
 // ============================================================
 
 interface IconButtonProps {
@@ -240,6 +221,11 @@ interface IconButtonProps {
   active?: boolean;
   badge?: number;
   variant?: 'ghost' | 'primary' | 'danger' | 'success' | 'warning';
+  // ツールチップ関連
+  tooltipTitle?: string;
+  tooltipDescription?: string;
+  tooltipHint?: string;
+  tooltipPosition?: 'top' | 'bottom' | 'left' | 'right' | 'auto';
 }
 
 const IconButton = memo(function IconButton({
@@ -251,7 +237,13 @@ const IconButton = memo(function IconButton({
   active,
   badge,
   variant = 'ghost',
+  tooltipTitle,
+  tooltipDescription,
+  tooltipHint,
+  tooltipPosition = 'bottom',
 }: IconButtonProps) {
+  const isTooltipEnabled = useTooltipSettingsStore(selectIsTooltipEnabled);
+  
   const baseStyle: React.CSSProperties = {
     display: 'inline-flex',
     alignItems: 'center',
@@ -296,11 +288,11 @@ const IconButton = memo(function IconButton({
     },
   };
 
-  return (
+  const buttonElement = (
     <button
       onClick={onClick}
       disabled={disabled}
-      title={tooltip}
+      title={!isTooltipEnabled ? tooltip : undefined}
       style={{ ...baseStyle, ...variantStyles[variant] }}
       className="hover:opacity-80"
     >
@@ -329,10 +321,27 @@ const IconButton = memo(function IconButton({
       )}
     </button>
   );
+
+  // ツールチップが有効で、詳細情報がある場合はN3FeatureTooltipでラップ
+  if (isTooltipEnabled && tooltipTitle && tooltipDescription) {
+    return (
+      <N3FeatureTooltip
+        title={tooltipTitle}
+        description={tooltipDescription}
+        hint={tooltipHint}
+        position={tooltipPosition}
+        disabled={disabled}
+      >
+        {buttonElement}
+      </N3FeatureTooltip>
+    );
+  }
+
+  return buttonElement;
 });
 
 // ============================================================
-// サブコンポーネント: FlowStepButton
+// サブコンポーネント: FlowStepButton（ツールチップ対応版）
 // ============================================================
 
 interface FlowStepButtonProps {
@@ -343,6 +352,11 @@ interface FlowStepButtonProps {
   onClick?: () => void;
   disabled?: boolean;
   badge?: number;
+  // ツールチップ関連
+  tooltipTitle?: string;
+  tooltipDescription?: string;
+  tooltipHint?: string;
+  tooltipPosition?: 'top' | 'bottom' | 'left' | 'right' | 'auto';
 }
 
 const FlowStepButton = memo(function FlowStepButton({
@@ -353,12 +367,18 @@ const FlowStepButton = memo(function FlowStepButton({
   onClick,
   disabled,
   badge,
+  tooltipTitle,
+  tooltipDescription,
+  tooltipHint,
+  tooltipPosition = 'bottom',
 }: FlowStepButtonProps) {
-  return (
+  const isTooltipEnabled = useTooltipSettingsStore(selectIsTooltipEnabled);
+  
+  const buttonElement = (
     <button
       onClick={onClick}
       disabled={disabled}
-      title={tooltip}
+      title={!isTooltipEnabled ? tooltip : undefined}
       style={{
         display: 'inline-flex',
         alignItems: 'center',
@@ -416,6 +436,23 @@ const FlowStepButton = memo(function FlowStepButton({
       )}
     </button>
   );
+
+  // ツールチップが有効で、詳細情報がある場合はN3FeatureTooltipでラップ
+  if (isTooltipEnabled && tooltipTitle && tooltipDescription) {
+    return (
+      <N3FeatureTooltip
+        title={tooltipTitle}
+        description={tooltipDescription}
+        hint={tooltipHint}
+        position={tooltipPosition}
+        disabled={disabled}
+      >
+        {buttonElement}
+      </N3FeatureTooltip>
+    );
+  }
+
+  return buttonElement;
 });
 
 // ============================================================
@@ -478,6 +515,8 @@ export const N3ToolPanel = memo(function N3ToolPanel({
   const [selectedMarketplace, setSelectedMarketplace] = useState<CalculationMarketplace>('ebay');
   const [showMarketplaceDropdown, setShowMarketplaceDropdown] = useState(false);
   const [calculating, setCalculating] = useState(false);
+  
+  const isTooltipEnabled = useTooltipSettingsStore(selectIsTooltipEnabled);
 
   const currentMarketplace = MARKETPLACE_OPTIONS.find(o => o.id === selectedMarketplace) || MARKETPLACE_OPTIONS[0];
 
@@ -494,10 +533,13 @@ export const N3ToolPanel = memo(function N3ToolPanel({
   const renderMarketplaceOption = (option: MarketplaceConfig) => {
     const OptionIcon = option.icon;
     const isSelected = selectedMarketplace === option.id;
+    const mpTooltip = MARKETPLACE_TOOLTIPS[option.id === 'qoo10_jp' ? 'qoo10' : option.id === 'amazon_jp' ? 'amazon' : option.id === 'mercari_jp' ? 'mercari' : option.id === 'yahoo_auction_jp' ? 'yahooAuction' : option.id];
+    
     return (
       <button
         key={option.id}
         onClick={() => handleMarketplaceSelect(option.id)}
+        title={mpTooltip ? `${mpTooltip.title}: ${mpTooltip.description}` : option.description}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -616,6 +658,57 @@ export const N3ToolPanel = memo(function N3ToolPanel({
             } else {
               errorCount++;
             }
+          } else if (selectedMarketplace === 'yahoo_auction_jp') {
+            // ★ ヤフオク専用API呼び出し
+            const shippingCost = product.listing_data?.shipping_cost || 1000;
+            const response = await fetch('/api/v2/yahooauction/calculate-profit', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                mode: 'single',
+                costPrice: costJpy,
+                targetRecoveryRate: 100, // 100%回収（損益分岐）
+                memberType: 'lyp_premium',
+                shippingCost: shippingCost,
+                marketPrice: product.market_price_jpy || product.listing_data?.market_price,
+              }),
+            });
+            const data = await response.json();
+            if (data.success && data.result) {
+              const result = data.result;
+              allResults.push({
+                marketplace: 'yahoo_auction_jp',
+                suggestedPrice: result.minimumSellingPrice,
+                profitJpy: -result.lossAmount, // 損失は負の利益
+                profitMargin: result.actualRecoveryRate - 100,
+                isProfitable: result.isProfitable,
+                feeRate: result.feeRate,
+                fee: result.fee,
+                netProceeds: result.netProceeds,
+                breakEvenPrice: result.breakEvenPrice,
+                warnings: result.warnings,
+              });
+              successCount++;
+              
+              // 保存用データを準備
+              saveUpdates.push({
+                productId: product.id,
+                marketplace: 'yahoo_auction_jp',
+                data: {
+                  price_jpy: result.minimumSellingPrice,
+                  profit_jpy: -result.lossAmount,
+                  profit_margin: result.actualRecoveryRate - 100,
+                  shipping_cost: shippingCost,
+                  platform_fee: result.fee,
+                  recovery_rate: result.actualRecoveryRate,
+                  break_even_price: result.breakEvenPrice,
+                  status: result.isProfitable ? 'calculated' : 'loss_cut',
+                  error_message: result.warnings.length > 0 ? result.warnings[0] : null,
+                },
+              });
+            } else {
+              errorCount++;
+            }
           } else {
             // 個別モール計算（Qoo10, Amazon JP等）
             const response = await fetch('/api/v2/pricing/multi-marketplace', {
@@ -678,6 +771,13 @@ export const N3ToolPanel = memo(function N3ToolPanel({
       if (selectedMarketplace === 'all') {
         const profitable = allResults.filter(r => r.isProfitable).length;
         alert(`全販路計算完了\n\n成功: ${successCount}件\nエラー: ${errorCount}件\n黒字: ${profitable}件 / ${allResults.length}件\n\n※ 計算結果はDBに保存されました`);
+      } else if (selectedMarketplace === 'yahoo_auction_jp') {
+        // ヤフオク専用サマリー
+        const profitableCount = allResults.filter(r => r.isProfitable).length;
+        const avgRecoveryRate = allResults.length > 0
+          ? Math.round(allResults.reduce((s, r) => s + (r.netProceeds || 0), 0) / allResults.reduce((s, r) => s + (r.breakEvenPrice || 1), 0) * 100)
+          : 0;
+        alert(`ヤフオク計算完了\n\n成功: ${successCount}件\nエラー: ${errorCount}件\n黒字: ${profitableCount}件\n平均回収率: ${avgRecoveryRate}%\n\n※ 計算結果はDBに保存されました`);
       } else {
         const avgProfit = allResults.length > 0 
           ? Math.round(allResults.reduce((s, r) => s + (r.profitJpy || 0), 0) / allResults.length)
@@ -757,6 +857,27 @@ export const N3ToolPanel = memo(function N3ToolPanel({
 
   const IconComponent = currentMarketplace.icon;
 
+  // ツールチップ付きボタンのレンダリングヘルパー
+  const renderTooltipButton = (
+    buttonElement: React.ReactNode,
+    tooltipContent: { title: string; description: string; hint?: string } | undefined,
+    position: 'top' | 'bottom' | 'left' | 'right' = 'bottom'
+  ) => {
+    if (isTooltipEnabled && tooltipContent) {
+      return (
+        <N3FeatureTooltip
+          title={tooltipContent.title}
+          description={tooltipContent.description}
+          hint={tooltipContent.hint}
+          position={position}
+        >
+          {buttonElement}
+        </N3FeatureTooltip>
+      );
+    }
+    return buttonElement;
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
       {/* ============================================
@@ -784,46 +905,48 @@ export const N3ToolPanel = memo(function N3ToolPanel({
             ============================================ */}
         <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
           {/* 計算ボタン本体 */}
-          <button
-            onClick={handleCalculate}
-            disabled={processing || calculating}
-            title={currentMarketplace.description}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              height: '28px',
-              padding: '0 10px',
-              fontSize: '11px',
-              fontWeight: 600,
-              borderRadius: '4px 0 0 4px',
-              borderTop: `1px solid ${currentMarketplace.color}`,
-              borderBottom: `1px solid ${currentMarketplace.color}`,
-              borderLeft: `1px solid ${currentMarketplace.color}`,
-              borderRight: 'none',
-              background: currentMarketplace.color,
-              color: 'white',
-              cursor: processing || calculating ? 'not-allowed' : 'pointer',
-              opacity: processing || calculating ? 0.7 : 1,
-              transition: 'all 0.15s ease',
-            }}
-          >
-            {calculating ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <IconComponent size={14} strokeWidth={2.5} />
-            )}
-            <span>{currentMarketplace.buttonLabel}</span>
-            <span style={{ 
-              fontSize: '9px', 
-              opacity: 0.8, 
-              padding: '1px 4px',
-              background: 'rgba(255,255,255,0.2)',
-              borderRadius: '3px',
-            }}>
-              {currentMarketplace.subLabel.split(' / ')[0]}
-            </span>
-          </button>
+          {renderTooltipButton(
+            <button
+              onClick={handleCalculate}
+              disabled={processing || calculating}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                height: '28px',
+                padding: '0 10px',
+                fontSize: '11px',
+                fontWeight: 600,
+                borderRadius: '4px 0 0 4px',
+                borderTop: `1px solid ${currentMarketplace.color}`,
+                borderBottom: `1px solid ${currentMarketplace.color}`,
+                borderLeft: `1px solid ${currentMarketplace.color}`,
+                borderRight: 'none',
+                background: currentMarketplace.color,
+                color: 'white',
+                cursor: processing || calculating ? 'not-allowed' : 'pointer',
+                opacity: processing || calculating ? 0.7 : 1,
+                transition: 'all 0.15s ease',
+              }}
+            >
+              {calculating ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <IconComponent size={14} strokeWidth={2.5} />
+              )}
+              <span>{currentMarketplace.buttonLabel}</span>
+              <span style={{ 
+                fontSize: '9px', 
+                opacity: 0.8, 
+                padding: '1px 4px',
+                background: 'rgba(255,255,255,0.2)',
+                borderRadius: '3px',
+              }}>
+                {currentMarketplace.subLabel.split(' / ')[0]}
+              </span>
+            </button>,
+            MARKETPLACE_TOOLTIPS[currentMarketplace.id === 'qoo10_jp' ? 'qoo10' : currentMarketplace.id === 'amazon_jp' ? 'amazon' : currentMarketplace.id === 'mercari_jp' ? 'mercari' : currentMarketplace.id === 'yahoo_auction_jp' ? 'yahooAuction' : currentMarketplace.id]
+          )}
 
           {/* ドロップダウントリガー */}
           <button
@@ -929,111 +1052,214 @@ export const N3ToolPanel = memo(function N3ToolPanel({
 
         <ToolbarDivider />
 
-        {/* Quick Actions - Run Allはモール対応 */}
-        <button
+        {/* Quick Actions - Run All */}
+        <IconButton
+          icon={processing || calculating ? Loader2 : Zap}
+          label="Run All"
           onClick={() => {
-            // マーケットプレイス別のRun All処理
             if (selectedMarketplace === 'ebay') {
-              // eBayは既存のonRunAll（SM分析含む）
               onRunAll?.();
             } else {
-              // 国内モール用のRun All（SM分析スキップ）
               handleRunAllForDomestic();
             }
           }}
           disabled={processing || calculating}
-          title={`${currentMarketplace.label}用の全処理を実行`}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '4px',
-            height: '28px',
-            padding: '0 10px',
-            fontSize: '11px',
-            fontWeight: 600,
-            borderRadius: '4px',
-            border: `1px solid ${currentMarketplace.color}`,
-            background: `${currentMarketplace.color}15`,
-            color: currentMarketplace.color,
-            cursor: processing ? 'not-allowed' : 'pointer',
-            opacity: processing ? 0.5 : 1,
-            transition: 'all 0.15s ease',
-          }}
-        >
-          {processing ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
-          <span>Run All</span>
-        </button>
+          variant="ghost"
+          tooltipTitle={QUICK_ACTION_TOOLTIPS.runAll.title}
+          tooltipDescription={QUICK_ACTION_TOOLTIPS.runAll.description}
+          tooltipHint={QUICK_ACTION_TOOLTIPS.runAll.hint}
+        />
         
         {/* 共通ボタン */}
-        <IconButton icon={Copy} label="Paste" tooltip={TOOLTIPS.paste} onClick={onPaste} disabled={processing} />
-        <IconButton icon={RefreshCw} label="Reload" tooltip={TOOLTIPS.reload} onClick={onReload} disabled={processing} />
-        <IconButton icon={Upload} label="CSV" tooltip={TOOLTIPS.csv} onClick={onCSVUpload} disabled={processing} />
+        <IconButton 
+          icon={Copy} 
+          label="Paste" 
+          onClick={onPaste} 
+          disabled={processing}
+          tooltipTitle={QUICK_ACTION_TOOLTIPS.paste.title}
+          tooltipDescription={QUICK_ACTION_TOOLTIPS.paste.description}
+          tooltipHint={QUICK_ACTION_TOOLTIPS.paste.hint}
+        />
+        <IconButton 
+          icon={RefreshCw} 
+          label="Reload" 
+          onClick={onReload} 
+          disabled={processing}
+          tooltipTitle={QUICK_ACTION_TOOLTIPS.reload.title}
+          tooltipDescription={QUICK_ACTION_TOOLTIPS.reload.description}
+          tooltipHint={QUICK_ACTION_TOOLTIPS.reload.hint}
+        />
+        <IconButton 
+          icon={Upload} 
+          label="CSV" 
+          onClick={onCSVUpload} 
+          disabled={processing}
+          tooltipTitle={QUICK_ACTION_TOOLTIPS.csv.title}
+          tooltipDescription={QUICK_ACTION_TOOLTIPS.csv.description}
+          tooltipHint={QUICK_ACTION_TOOLTIPS.csv.hint}
+        />
 
         <ToolbarDivider />
 
         {/* カテゴリ（category feature） */}
         {currentMarketplace.features.includes('category') && (
-          <IconButton icon={FolderOpen} label="Cat" tooltip={TOOLTIPS.category} onClick={onCategory} disabled={processing} />
+          <IconButton 
+            icon={FolderOpen} 
+            label="Cat" 
+            onClick={onCategory} 
+            disabled={processing}
+            tooltipTitle={PROCESSING_TOOLTIPS.category.title}
+            tooltipDescription={PROCESSING_TOOLTIPS.category.description}
+            tooltipHint={PROCESSING_TOOLTIPS.category.hint}
+          />
         )}
         
         {/* 国際送料（international_ship feature） */}
         {currentMarketplace.features.includes('international_ship') && (
-          <IconButton icon={Truck} label="Ship" tooltip="国際送料設定" onClick={onShipping} disabled={processing} />
+          <IconButton 
+            icon={Truck} 
+            label="Ship" 
+            onClick={onShipping} 
+            disabled={processing}
+            tooltipTitle={PROCESSING_TOOLTIPS.shipping.title}
+            tooltipDescription={PROCESSING_TOOLTIPS.shipping.description}
+            tooltipHint={PROCESSING_TOOLTIPS.shipping.hint}
+          />
         )}
         
         {/* 国内送料（domestic_ship feature） */}
         {currentMarketplace.features.includes('domestic_ship') && !currentMarketplace.features.includes('international_ship') && (
-          <IconButton icon={Truck} label="国内送料" tooltip="国内送料設定" onClick={onShipping} disabled={processing} />
+          <IconButton 
+            icon={Truck} 
+            label="国内送料" 
+            onClick={onShipping} 
+            disabled={processing}
+            tooltipTitle="国内送料計算"
+            tooltipDescription="ヤマト/佐川/ゆうパックの送料を重量・サイズから計算します。"
+            tooltipHint="重量が未入力の場合は500gで計算"
+          />
         )}
         
         {/* HTMLテンプレート（html_template feature） */}
         {currentMarketplace.features.includes('html_template') && (
-          <IconButton icon={Code} label="HTML" tooltip={TOOLTIPS.html} onClick={onHTML} disabled={processing} />
+          <IconButton 
+            icon={Code} 
+            label="HTML" 
+            onClick={onHTML} 
+            disabled={processing}
+            tooltipTitle={PROCESSING_TOOLTIPS.html.title}
+            tooltipDescription={PROCESSING_TOOLTIPS.html.description}
+            tooltipHint={PROCESSING_TOOLTIPS.html.hint}
+          />
         )}
         
         {/* 競合スコア（score feature） */}
         {currentMarketplace.features.includes('score') && (
-          <IconButton icon={BarChart3} label="Score" tooltip={TOOLTIPS.score} onClick={onScore} disabled={processing} />
+          <IconButton 
+            icon={BarChart3} 
+            label="Score" 
+            onClick={onScore} 
+            disabled={processing}
+            tooltipTitle={PROCESSING_TOOLTIPS.score.title}
+            tooltipDescription={PROCESSING_TOOLTIPS.score.description}
+            tooltipHint={PROCESSING_TOOLTIPS.score.hint}
+          />
         )}
 
         {/* HTS・関税コード（hts feature - 海外専用） */}
         {currentMarketplace.features.includes('hts') && (
           <>
             <ToolbarDivider />
-            <IconButton icon={Shield} label="HTS" tooltip={TOOLTIPS.hts} onClick={onHTS} disabled={processing} />
+            <IconButton 
+              icon={Shield} 
+              label="HTS" 
+              onClick={onHTS} 
+              disabled={processing}
+              tooltipTitle={DATA_TOOLTIPS.hts.title}
+              tooltipDescription={DATA_TOOLTIPS.hts.description}
+              tooltipHint={DATA_TOOLTIPS.hts.hint}
+            />
           </>
         )}
         
         {/* 原産国（origin feature - 海外専用） */}
         {currentMarketplace.features.includes('origin') && (
-          <IconButton icon={Globe} label="Origin" tooltip={TOOLTIPS.origin} onClick={onOrigin} disabled={processing} />
+          <IconButton 
+            icon={Globe} 
+            label="Origin" 
+            onClick={onOrigin} 
+            disabled={processing}
+            tooltipTitle={DATA_TOOLTIPS.origin.title}
+            tooltipDescription={DATA_TOOLTIPS.origin.description}
+            tooltipHint={DATA_TOOLTIPS.origin.hint}
+          />
         )}
         
         {/* 素材（material feature） */}
         {currentMarketplace.features.includes('material') && (
-          <IconButton icon={Package} label="Material" tooltip={TOOLTIPS.material} onClick={onMaterial} disabled={processing} />
+          <IconButton 
+            icon={Package} 
+            label="Material" 
+            onClick={onMaterial} 
+            disabled={processing}
+            tooltipTitle={DATA_TOOLTIPS.material.title}
+            tooltipDescription={DATA_TOOLTIPS.material.description}
+            tooltipHint={DATA_TOOLTIPS.material.hint}
+          />
         )}
         
         {/* FBA納品（fba feature - Amazon専用） */}
         {currentMarketplace.features.includes('fba') && (
-          <IconButton icon={Package} label="FBA" tooltip="FBA納品計画" onClick={onCategory} disabled={processing} />
+          <IconButton 
+            icon={Package} 
+            label="FBA" 
+            onClick={onCategory} 
+            disabled={processing}
+            tooltipTitle="FBA納品計画"
+            tooltipDescription="Amazon FBAへの納品計画を作成します。"
+            tooltipHint="事前にセラーセントラルでFBAを有効化"
+          />
         )}
         
         {/* オークション（auction feature - ヤフオク専用） */}
         {currentMarketplace.features.includes('auction') && (
-          <IconButton icon={DollarSign} label="即決" tooltip="開始価格・即決価格設定" onClick={onCategory} disabled={processing} />
+          <IconButton 
+            icon={DollarSign} 
+            label="即決" 
+            onClick={onCategory} 
+            disabled={processing}
+            tooltipTitle="即決価格設定"
+            tooltipDescription="開始価格と即決価格を設定します。"
+            tooltipHint="即決価格は開始価格以上に設定"
+          />
         )}
 
         <ToolbarDivider />
 
         {/* リサーチ（research feature） */}
         {currentMarketplace.features.includes('research') && (
-          <IconButton icon={Search} label="Research" tooltip={TOOLTIPS.research} onClick={onResearch} disabled={processing} />
+          <IconButton 
+            icon={Search} 
+            label="Research" 
+            onClick={onResearch} 
+            disabled={processing}
+            tooltipTitle={RESEARCH_TOOLTIPS.research.title}
+            tooltipDescription={RESEARCH_TOOLTIPS.research.description}
+            tooltipHint={RESEARCH_TOOLTIPS.research.hint}
+          />
         )}
         
         {/* AI強化（ai_enhance feature） */}
         {currentMarketplace.features.includes('ai_enhance') && (
-          <IconButton icon={Sparkles} label="AI" tooltip={TOOLTIPS.ai} onClick={onAI} disabled={processing} />
+          <IconButton 
+            icon={Sparkles} 
+            label="AI" 
+            onClick={onAI} 
+            disabled={processing}
+            tooltipTitle={RESEARCH_TOOLTIPS.ai.title}
+            tooltipDescription={RESEARCH_TOOLTIPS.ai.description}
+            tooltipHint={RESEARCH_TOOLTIPS.ai.hint}
+          />
         )}
 
         {/* Spacer */}
@@ -1041,27 +1267,31 @@ export const N3ToolPanel = memo(function N3ToolPanel({
 
         {/* Export Dropdown */}
         <div style={{ position: 'relative' }}>
-          <button
-            onClick={handleExportClick}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-              height: '28px',
-              padding: '0 10px',
-              fontSize: '11px',
-              fontWeight: 500,
-              background: 'var(--panel)',
-              border: '1px solid var(--panel-border)',
-              borderRadius: '4px',
-              color: 'var(--text)',
-              cursor: 'pointer',
-            }}
-          >
-            <Download size={14} />
-            <span>Export</span>
-            <ChevronDown size={12} />
-          </button>
+          {renderTooltipButton(
+            <button
+              onClick={handleExportClick}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                height: '28px',
+                padding: '0 10px',
+                fontSize: '11px',
+                fontWeight: 500,
+                background: 'var(--panel)',
+                border: '1px solid var(--panel-border)',
+                borderRadius: '4px',
+                color: 'var(--text)',
+                cursor: 'pointer',
+              }}
+            >
+              <Download size={14} />
+              <span>Export</span>
+              <ChevronDown size={12} />
+            </button>,
+            ACTION_TOOLTIPS.export,
+            'left'
+          )}
           {showExportMenu && (
             <>
               <div
@@ -1083,120 +1313,139 @@ export const N3ToolPanel = memo(function N3ToolPanel({
                   overflow: 'hidden',
                 }}
               >
-                <button
-                  onClick={() => { onExportCSV?.(); setShowExportMenu(false); }}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: '8px 12px',
-                    fontSize: '12px',
-                    textAlign: 'left',
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--text)',
-                    cursor: 'pointer',
-                  }}
-                  className="hover:bg-[var(--highlight)]"
-                >
-                  CSV All
-                </button>
-                <button
-                  onClick={() => { onExportEbay?.(); setShowExportMenu(false); }}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: '8px 12px',
-                    fontSize: '12px',
-                    textAlign: 'left',
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--text)',
-                    cursor: 'pointer',
-                  }}
-                  className="hover:bg-[var(--highlight)]"
-                >
-                  eBay Format
-                </button>
+                {renderTooltipButton(
+                  <button
+                    onClick={() => { onExportCSV?.(); setShowExportMenu(false); }}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      padding: '8px 12px',
+                      fontSize: '12px',
+                      textAlign: 'left',
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--text)',
+                      cursor: 'pointer',
+                    }}
+                    className="hover:bg-[var(--highlight)]"
+                  >
+                    CSV All
+                  </button>,
+                  ACTION_TOOLTIPS.exportCSV,
+                  'left'
+                )}
+                {renderTooltipButton(
+                  <button
+                    onClick={() => { onExportEbay?.(); setShowExportMenu(false); }}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      padding: '8px 12px',
+                      fontSize: '12px',
+                      textAlign: 'left',
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--text)',
+                      cursor: 'pointer',
+                    }}
+                    className="hover:bg-[var(--highlight)]"
+                  >
+                    eBay Format
+                  </button>,
+                  ACTION_TOOLTIPS.exportEbay,
+                  'left'
+                )}
                 <div style={{ height: '1px', background: 'var(--panel-border)', margin: '4px 0' }} />
-                <button
-                  onClick={() => { onExportAI?.(); setShowExportMenu(false); }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    width: '100%',
-                    padding: '8px 12px',
-                    fontSize: '12px',
-                    textAlign: 'left',
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--accent)',
-                    cursor: 'pointer',
-                  }}
-                  className="hover:bg-[var(--highlight)]"
-                >
-                  <Sparkles size={12} />
-                  AI Export
-                </button>
+                {renderTooltipButton(
+                  <button
+                    onClick={() => { onExportAI?.(); setShowExportMenu(false); }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      width: '100%',
+                      padding: '8px 12px',
+                      fontSize: '12px',
+                      textAlign: 'left',
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--accent)',
+                      cursor: 'pointer',
+                    }}
+                    className="hover:bg-[var(--highlight)]"
+                  >
+                    <Sparkles size={12} />
+                    AI Export
+                  </button>,
+                  ACTION_TOOLTIPS.exportAI,
+                  'left'
+                )}
               </div>
             </>
           )}
         </div>
 
         {/* Save */}
-        <button
-          onClick={onSave}
-          disabled={processing || modifiedCount === 0}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '4px',
-            height: '28px',
-            padding: '0 10px',
-            fontSize: '11px',
-            fontWeight: 500,
-            background: modifiedCount > 0 ? 'var(--accent)' : 'var(--panel)',
-            border: '1px solid',
-            borderColor: modifiedCount > 0 ? 'var(--accent)' : 'var(--panel-border)',
-            borderRadius: '4px',
-            color: modifiedCount > 0 ? 'white' : 'var(--text)',
-            cursor: processing || modifiedCount === 0 ? 'not-allowed' : 'pointer',
-            opacity: processing || modifiedCount === 0 ? 0.5 : 1,
-            position: 'relative',
-          }}
-        >
-          <Save size={14} />
-          <span>Save</span>
-          {modifiedCount > 0 && (
-            <span
-              style={{
-                position: 'absolute',
-                top: '-6px',
-                right: '-6px',
-                minWidth: '18px',
-                height: '18px',
-                padding: '0 4px',
-                fontSize: '10px',
-                fontWeight: 600,
-                lineHeight: '18px',
-                textAlign: 'center',
-                background: 'rgb(239, 68, 68)',
-                color: 'white',
-                borderRadius: '9px',
-              }}
-            >
-              {modifiedCount}
-            </span>
-          )}
-        </button>
+        {renderTooltipButton(
+          <button
+            onClick={onSave}
+            disabled={processing || modifiedCount === 0}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              height: '28px',
+              padding: '0 10px',
+              fontSize: '11px',
+              fontWeight: 500,
+              background: modifiedCount > 0 ? 'var(--accent)' : 'var(--panel)',
+              border: '1px solid',
+              borderColor: modifiedCount > 0 ? 'var(--accent)' : 'var(--panel-border)',
+              borderRadius: '4px',
+              color: modifiedCount > 0 ? 'white' : 'var(--text)',
+              cursor: processing || modifiedCount === 0 ? 'not-allowed' : 'pointer',
+              opacity: processing || modifiedCount === 0 ? 0.5 : 1,
+              position: 'relative',
+            }}
+          >
+            <Save size={14} />
+            <span>Save</span>
+            {modifiedCount > 0 && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: '-6px',
+                  right: '-6px',
+                  minWidth: '18px',
+                  height: '18px',
+                  padding: '0 4px',
+                  fontSize: '10px',
+                  fontWeight: 600,
+                  lineHeight: '18px',
+                  textAlign: 'center',
+                  background: 'rgb(239, 68, 68)',
+                  color: 'white',
+                  borderRadius: '9px',
+                }}
+              >
+                {modifiedCount}
+              </span>
+            )}
+          </button>,
+          ACTION_TOOLTIPS.save,
+          'left'
+        )}
 
         {/* Delete */}
         <IconButton
           icon={Trash2}
-          tooltip={TOOLTIPS.delete}
           onClick={onDelete}
           disabled={processing}
           variant="danger"
+          tooltipTitle={ACTION_TOOLTIPS.delete.title}
+          tooltipDescription={ACTION_TOOLTIPS.delete.description}
+          tooltipHint={ACTION_TOOLTIPS.delete.hint}
+          tooltipPosition="left"
         />
       </div>
 
@@ -1228,34 +1477,99 @@ export const N3ToolPanel = memo(function N3ToolPanel({
 
         {/* 翻訳（translation feature） */}
         {currentMarketplace.features.includes('translation') && (
-          <FlowStepButton num={1} icon={Globe} label="翻訳" tooltip={TOOLTIPS.translate} onClick={onTranslate} disabled={processing} />
+          <FlowStepButton 
+            num={1} 
+            icon={Globe} 
+            label="翻訳" 
+            onClick={onTranslate} 
+            disabled={processing}
+            tooltipTitle={FLOW_TOOLTIPS.translate.title}
+            tooltipDescription={FLOW_TOOLTIPS.translate.description}
+            tooltipHint={FLOW_TOOLTIPS.translate.hint}
+          />
         )}
         
         {/* Seller Mirror（seller_mirror feature - eBay専用） */}
         {currentMarketplace.features.includes('seller_mirror') && (
-          <FlowStepButton num={2} icon={Search} label="SM" tooltip={TOOLTIPS.sellerMirror} onClick={onSellerMirror} disabled={processing} />
+          <FlowStepButton 
+            num={2} 
+            icon={Search} 
+            label="SM" 
+            onClick={onSellerMirror} 
+            disabled={processing}
+            tooltipTitle={FLOW_TOOLTIPS.sellerMirror.title}
+            tooltipDescription={FLOW_TOOLTIPS.sellerMirror.description}
+            tooltipHint={FLOW_TOOLTIPS.sellerMirror.hint}
+          />
         )}
         
         {/* 詳細取得（seller_mirrorと連動） */}
         {currentMarketplace.features.includes('seller_mirror') && (
-          <FlowStepButton num={3} icon={Package} label="詳細" tooltip={TOOLTIPS.details} onClick={onDetails} disabled={processing} badge={selectedMirrorCount} />
+          <FlowStepButton 
+            num={3} 
+            icon={Package} 
+            label="詳細" 
+            onClick={onDetails} 
+            disabled={processing} 
+            badge={selectedMirrorCount}
+            tooltipTitle={FLOW_TOOLTIPS.details.title}
+            tooltipDescription={FLOW_TOOLTIPS.details.description}
+            tooltipHint={FLOW_TOOLTIPS.details.hint}
+          />
         )}
         
         {/* Gemini分析（gemini feature） */}
         {currentMarketplace.features.includes('gemini') && (
-          <FlowStepButton num={4} icon={FileText} label="Gemini" tooltip={TOOLTIPS.gemini} onClick={onGemini} disabled={processing} />
+          <FlowStepButton 
+            num={4} 
+            icon={FileText} 
+            label="Gemini" 
+            onClick={onGemini} 
+            disabled={processing}
+            tooltipTitle={FLOW_TOOLTIPS.gemini.title}
+            tooltipDescription={FLOW_TOOLTIPS.gemini.description}
+            tooltipHint={FLOW_TOOLTIPS.gemini.hint}
+          />
         )}
         
         {/* AI強化（ai_enhance feature） */}
         {currentMarketplace.features.includes('ai_enhance') && (
-          <FlowStepButton num={0} icon={Sparkles} label="AI強化" tooltip={TOOLTIPS.enrichmentFlow} onClick={onEnrichmentFlow} disabled={processing} />
+          <FlowStepButton 
+            num={0} 
+            icon={Sparkles} 
+            label="AI強化" 
+            onClick={onEnrichmentFlow} 
+            disabled={processing}
+            tooltipTitle={FLOW_TOOLTIPS.enrichmentFlow.title}
+            tooltipDescription={FLOW_TOOLTIPS.enrichmentFlow.description}
+            tooltipHint={FLOW_TOOLTIPS.enrichmentFlow.hint}
+          />
         )}
         
         {/* 最終処理（全販路共通） */}
-        <FlowStepButton num={5} icon={DollarSign} label="処理" tooltip={TOOLTIPS.finalProcess} onClick={onFinalProcess} disabled={processing} />
+        <FlowStepButton 
+          num={5} 
+          icon={DollarSign} 
+          label="処理" 
+          onClick={onFinalProcess} 
+          disabled={processing}
+          tooltipTitle={FLOW_TOOLTIPS.finalProcess.title}
+          tooltipDescription={FLOW_TOOLTIPS.finalProcess.description}
+          tooltipHint={FLOW_TOOLTIPS.finalProcess.hint}
+        />
         
         {/* 出品（全販路共通） */}
-        <FlowStepButton num={6} icon={CheckCircle} label="出品" tooltip={TOOLTIPS.list} onClick={onList} disabled={processing || readyCount === 0} badge={readyCount} />
+        <FlowStepButton 
+          num={6} 
+          icon={CheckCircle} 
+          label="出品" 
+          onClick={onList} 
+          disabled={processing || readyCount === 0} 
+          badge={readyCount}
+          tooltipTitle={FLOW_TOOLTIPS.list.title}
+          tooltipDescription={FLOW_TOOLTIPS.list.description}
+          tooltipHint={FLOW_TOOLTIPS.list.hint}
+        />
 
         {/* Processing Status */}
         {processing && currentStep && (

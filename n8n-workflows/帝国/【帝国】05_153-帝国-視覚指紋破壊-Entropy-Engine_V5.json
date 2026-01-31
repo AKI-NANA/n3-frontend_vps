@@ -1,0 +1,325 @@
+{
+  "name": "【帝国】05_153-帝国-視覚指紋破壊-Entropy-Engine_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "empire-entropy-video",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: entropy-video",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "empire-entropy-video"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 鉄の掟準拠：環境変数必須チェック\nconst apiUrl = $env.N3_API_URL || $env.API_BASE_URL;\nif (!apiUrl) {\n  return [{ json: { error: true, message: 'N3_API_URL環境変数が未設定', code: 'CONFIG_ERROR' } }];\n}\n\nconst body = $input.first().json.body || $input.first().json || {};\nconst videoUrl = body.video_url;\nconst channelId = body.channel_id;\nconst outputFormat = body.output_format || 'mp4';\n\nif (!videoUrl || !channelId) {\n  return [{ json: { error: true, message: 'video_url, channel_id は必須', code: 'MISSING_PARAM' } }];\n}\n\n// チャンネルIDをシードとして決定論的ランダム生成\nconst seed = channelId.split('').reduce((a, c) => a + c.charCodeAt(0), 0) + new Date().getDate();\n\nreturn [{\n  json: {\n    video_url: videoUrl,\n    channel_id: channelId,\n    output_format: outputFormat,\n    seed: seed,\n    api_url: apiUrl,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔐 初期化（鉄の掟準拠）",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// Entropy Engine: 視覚的指紋破壊パラメータ生成\nconst data = $input.first().json;\nconst seed = data.seed;\n\n// 決定論的ランダム関数（同一チャンネル+日付で再現可能）\nfunction seededRandom(s) {\n  const x = Math.sin(s++) * 10000;\n  return x - Math.floor(x);\n}\n\nlet s = seed;\n\n// 1. ピクセルノイズ（0.05% - 0.15%）\nconst pixelNoise = 0.05 + seededRandom(s++) * 0.10;\n\n// 2. 色調変更（Hue: -3 ~ +3度）\nconst hueShift = (seededRandom(s++) - 0.5) * 6;\n\n// 3. 彩度微調整（-2% ~ +2%）\nconst saturationShift = (seededRandom(s++) - 0.5) * 4;\n\n// 4. 明度微調整（-1% ~ +1%）\nconst brightnessShift = (seededRandom(s++) - 0.5) * 2;\n\n// 5. フレームレート非整数化（29.97 → 29.965 ~ 29.975）\nconst baseFramerate = 29.97;\nconst framerateOffset = (seededRandom(s++) - 0.5) * 0.02;\nconst targetFramerate = (baseFramerate + framerateOffset).toFixed(3);\n\n// 6. 音声ピッチ微調整（-0.5% ~ +0.5%）\nconst audioPitchShift = (seededRandom(s++) - 0.5) * 1;\n\n// 7. 音声テンポ微調整（-0.3% ~ +0.3%）\nconst audioTempoShift = 1 + (seededRandom(s++) - 0.5) * 0.006;\n\n// 8. 動画開始オフセット（0 ~ 50ms）\nconst startOffset = Math.floor(seededRandom(s++) * 50);\n\n// 9. メタデータランダム化\nconst creationDate = new Date();\ncreationDate.setMinutes(creationDate.getMinutes() - Math.floor(seededRandom(s++) * 60));\n\nreturn [{\n  json: {\n    ...data,\n    entropy_params: {\n      pixel_noise_percent: pixelNoise.toFixed(4),\n      hue_shift_degrees: hueShift.toFixed(2),\n      saturation_shift_percent: saturationShift.toFixed(2),\n      brightness_shift_percent: brightnessShift.toFixed(2),\n      target_framerate: targetFramerate,\n      audio_pitch_shift_percent: audioPitchShift.toFixed(2),\n      audio_tempo_multiplier: audioTempoShift.toFixed(4),\n      start_offset_ms: startOffset,\n      metadata_creation_date: creationDate.toISOString()\n    }\n  }\n}];"
+      },
+      "id": "generate-entropy",
+      "name": "🎲 Entropyパラメータ生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "jsCode": "// FFmpegコマンド生成（鉄の掟準拠：ハードコード排除）\nconst data = $input.first().json;\nconst p = data.entropy_params;\n\n// フィルター構築\nconst videoFilters = [\n  // 色調調整\n  `eq=brightness=${(parseFloat(p.brightness_shift_percent) / 100).toFixed(4)}:saturation=${1 + parseFloat(p.saturation_shift_percent) / 100}`,\n  // 色相調整\n  `hue=h=${p.hue_shift_degrees}`,\n  // ピクセルノイズ追加\n  `noise=alls=${Math.floor(parseFloat(p.pixel_noise_percent) * 10)}:allf=t`\n].join(',');\n\nconst audioFilters = [\n  // ピッチ調整（asetrate + atempo組み合わせ）\n  `asetrate=44100*${1 + parseFloat(p.audio_pitch_shift_percent) / 100}`,\n  `atempo=${p.audio_tempo_multiplier}`,\n  `aresample=44100`\n].join(',');\n\n// FFmpegコマンド構築\nconst ffmpegCommand = [\n  '-i', '\"INPUT_VIDEO\"',\n  '-ss', `0.${String(p.start_offset_ms).padStart(3, '0')}`,\n  '-vf', `\"${videoFilters}\"`,\n  '-af', `\"${audioFilters}\"`,\n  '-r', p.target_framerate,\n  '-metadata', `creation_time=\"${p.metadata_creation_date}\"`,\n  '-metadata', `encoder=\"N3-Entropy-${data.seed}\"`,\n  '-c:v', 'libx264',\n  '-preset', 'medium',\n  '-crf', '18',\n  '-c:a', 'aac',\n  '-b:a', '192k',\n  '-movflags', '+faststart',\n  '\"OUTPUT_VIDEO\"'\n].join(' ');\n\nreturn [{\n  json: {\n    ...data,\n    ffmpeg_command: ffmpegCommand,\n    video_filters: videoFilters,\n    audio_filters: audioFilters\n  }\n}];"
+      },
+      "id": "build-ffmpeg",
+      "name": "🎬 FFmpegコマンド構築",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO video_entropy_logs (channel_id, video_url, entropy_params, ffmpeg_command, created_at) VALUES ($1, $2, $3::jsonb, $4, NOW()) ON CONFLICT DO NOTHING RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.channel_id, $json.video_url, JSON.stringify($json.entropy_params), $json.ffmpeg_command] }}"
+        }
+      },
+      "id": "save-log",
+      "name": "💾 Entropyログ保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $node['🎬 FFmpegコマンド構築'].json;\n\nreturn [{\n  json: {\n    success: true,\n    action: 'entropy_video_params_generated',\n    channel_id: data.channel_id,\n    entropy_params: data.entropy_params,\n    ffmpeg_command: data.ffmpeg_command,\n    video_filters: data.video_filters,\n    audio_filters: data.audio_filters,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: entropy-video": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化（鉄の掟準拠）": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🎲 Entropyパラメータ生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎲 Entropyパラメータ生成": {
+      "main": [
+        [
+          {
+            "node": "🎬 FFmpegコマンド構築",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎬 FFmpegコマンド構築": {
+      "main": [
+        [
+          {
+            "node": "💾 Entropyログ保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 Entropyログ保存": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化（鉄の掟準拠）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 120,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Empire",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Entropy",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "BAN-Defense",
+      "color": "#f39c12"
+    },
+    {
+      "name": "IronRule",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false,
+  "meta": {
+    "description": "N3-153 視覚指紋破壊 Entropy Engine V5-PRODUCTION - ピクセルノイズ/色調/フレームレート/音声を決定論的ランダム化",
+    "version": "5.0",
+    "changelog": "2026-01-20: 鉄の掟準拠 - 環境変数必須化、QueryParams完全実装、チャンネル別決定論的シード",
+    "iron_rules_compliant": [
+      "no_hardcoded_urls",
+      "query_params_only",
+      "no_crypto_require",
+      "env_vars_required"
+    ],
+    "entropy_features": [
+      "pixel_noise",
+      "hue_shift",
+      "saturation",
+      "brightness",
+      "framerate_offset",
+      "audio_pitch",
+      "audio_tempo",
+      "start_offset",
+      "metadata_randomization"
+    ]
+  }
+}

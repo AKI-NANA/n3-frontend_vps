@@ -11,3 +11,6 @@ export type { N3InventoryViewProps, InventoryStats } from './n3-inventory-view';
 
 // Phase 4: 仮想スクロールリスト
 export { N3VirtualInventoryList } from './n3-virtual-inventory-list';
+
+// 🔬 Research Pending View
+export { N3ResearchPendingView } from './n3-research-pending-view';

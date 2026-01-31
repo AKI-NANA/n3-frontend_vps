@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 4, "column": 0}, "map": {"version":3,"sources":["file:///Users/aritahiroaki/n3-frontend_vps/app/error.tsx"],"sourcesContent":["'use client'\n\nexport default function Error({\n  error,\n  reset,\n}: {\n  error: Error & { digest?: string }\n  reset: () => void\n}) {\n  return (\n    <div style={{ padding: '2rem', textAlign: 'center' }}>\n      <h2>エラーが発生しました</h2>\n      <p>{error.message}</p>\n      <button onClick={() => reset()}>再試行</button>\n    </div>\n  )\n}\n"],"names":[],"mappings":";;;;;AAAA;;AAEe,SAAS,MAAM,KAM7B;QAN6B,EAC5B,KAAK,EACL,KAAK,EAIN,GAN6B;IAO5B,qBACE,mNAAC;QAAI,OAAO;YAAE,SAAS;YAAQ,WAAW;QAAS;;0BACjD,mNAAC;0BAAG;;;;;;0BACJ,mNAAC;0BAAG,MAAM,OAAO;;;;;;0BACjB,mNAAC;gBAAO,SAAS,IAAM;0BAAS;;;;;;;;;;;;AAGtC;KAdwB","debugId":null}}]
+}

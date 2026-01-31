@@ -21,8 +21,8 @@ export { N3Avatar } from './presentational/n3-avatar';
 export { N3Switch } from './presentational/n3-switch';
 export { N3TextArea } from './presentational/n3-text-area';
 export { N3Skeleton, N3SkeletonText, N3SkeletonAvatar, N3SkeletonTable } from './presentational/n3-skeleton';
-export { N3Tooltip, N3TooltipText } from './presentational/n3-tooltip';
-export type { TooltipPosition, N3TooltipProps, N3TooltipTextProps } from './presentational/n3-tooltip';
+export { N3Tooltip, N3TooltipText, N3FeatureTooltip, N3TooltipToggle } from './presentational/n3-tooltip';
+export type { TooltipPosition, TooltipVariant, N3TooltipProps, N3TooltipTextProps, N3FeatureTooltipProps, N3TooltipToggleProps } from './presentational/n3-tooltip';
 
 // Header components
 export { N3LanguageSwitch } from './presentational/n3-language-switch';
@@ -272,6 +272,10 @@ export type { N3VerifiedImageProps } from './n3-verified-image';
 // 🚀 階層属性フィルター（タブ間永続化）
 export { N3HierarchicalFilter, useHierarchicalFilter, useHierarchicalFilterStore } from './n3-hierarchical-filter';
 
+// 🚀 フィルター用ドロップダウン
+export { N3FilterDropdown } from './n3-filter-dropdown';
+export type { FilterOption as DropdownFilterOption, N3FilterDropdownProps } from './n3-filter-dropdown';
+
 // ============================================================
 // Status Indicator Components
 // - 出品ステータス表示
@@ -287,6 +291,24 @@ export type {
   ItemStatusIndicatorProps, 
   ListingStatus,
 } from './n3-item-status-indicator';
+
+// 🔥 eBay出品状態バッジ
+export { 
+  N3EbayListingBadge, 
+  EbayListingBadgeCompact, 
+  EbayListingBadgeDetail 
+} from './n3-ebay-listing-badge';
+export type { 
+  EbayListingBadgeProps, 
+  SiteListingStatus 
+} from './n3-ebay-listing-badge';
+
+// ============================================================
+// n8n Workflow Components
+// - ワークフロー実行ボタン
+// ============================================================
+
+export { WorkflowActionBar } from './workflow-action-bar';
 
 // ============================================================
 // Providers

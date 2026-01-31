@@ -1,5 +1,5 @@
 // app/api/ebay/browse/search/route.ts
-// 🔥 Phase 1修正版：日本人セラー数と中央値を追加
+// 🔥 v2: Gemini指針に基づく段階的検索（Waterfall）+ 加重Item Specificsマッチング
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import {
@@ -25,6 +25,10 @@ let cachedToken: {
   accessToken: string
   expiresAt: number
 } | null = null
+
+// =============================================================================
+// キーワード抽出
+// =============================================================================
 
 /**
  * 🔥 汎用的なキーワード抽出（ハイブリッド型）
@@ -71,7 +75,8 @@ function extractKeywords(title: string): {
     'Samsung', 'LEGO', 'Bandai', 'Funko', 'Marvel',
     'Disney', 'Star Wars', 'Harry Potter', 'Yugioh',
     'Magic', 'MTG', 'Transformers', 'Gundam', 'Hasbro',
-    'Mattel', 'Takara Tomy'
+    'Mattel', 'Takara Tomy', 'Sanrio', 'Hello Kitty',
+    'One Piece', 'Dragon Ball', 'Naruto', 'Demon Slayer'
   ];
   
   brandList.forEach(brand => {
@@ -86,7 +91,8 @@ function extractKeywords(title: string): {
     'Sealed', 'New', 'Rare', 'Limited',
     'First Edition', '1st Edition',
     'Holo', 'Reverse Holo', 'Full Art',
-    'Ultra Rare', 'Secret Rare', 'Promo'
+    'Ultra Rare', 'Secret Rare', 'Promo',
+    'Booster', 'Box', 'Pack', 'Deck'
   ];
   
   specialKeywordList.forEach(keyword => {
@@ -116,14 +122,6 @@ function extractKeywords(title: string): {
     }
   });
 
-  console.log('🔍 キーワード抽出:', { 
-    numbers, 
-    brands, 
-    mainWords: mainWords.slice(0, 3), 
-    specialWords: specialWords.slice(0, 3),
-    languages 
-  });
-
   return { numbers, brands, mainWords, specialWords, languages };
 }
 
@@ -135,7 +133,8 @@ function inferCategory(title: string, itemSpecifics: any): string {
   
   // カード系
   if (titleLower.includes('pokemon') || titleLower.includes('yugioh') || 
-      titleLower.includes('magic') || titleLower.includes('mtg')) {
+      titleLower.includes('magic') || titleLower.includes('mtg') ||
+      titleLower.includes('card')) {
     return 'card';
   }
   
@@ -148,6 +147,9 @@ function inferCategory(title: string, itemSpecifics: any): string {
   if (titleLower.includes('iphone') || titleLower.includes('ipad')) return 'phone';
   if (titleLower.includes('console') || titleLower.includes('switch')) return 'console';
   
+  // アニメ・キャラクター
+  if (titleLower.includes('anime') || titleLower.includes('manga')) return 'anime';
+  
   // Item Specificsから推定
   if (itemSpecifics?.['Type']) return itemSpecifics['Type'].toLowerCase();
   if (itemSpecifics?.['Category']) return itemSpecifics['Category'].toLowerCase();
@@ -155,22 +157,33 @@ function inferCategory(title: string, itemSpecifics: any): string {
   return 'collectible';
 }
 
+// =============================================================================
+// 段階的検索クエリ生成（Gemini指針）
+// =============================================================================
+
 /**
- * 🔥 段階的検索クエリを生成（ハイブリッド型）
+ * 🔥 段階的検索クエリを生成（Waterfall方式）
+ * 
+ * Gemini指針:
+ * - レベル1・2: 同時に投げる
+ * - 3件未満ならレベル3・4へ
+ * - 0件ならレベル5へ
  */
-function buildSearchQueries(title: string, itemSpecifics?: any): string[] {
-  const queries: string[] = [];
-  const exclusionStr = '-code -digital -online -redemption';
-  
-  // 🔥 タイトルからキーワード抽出
+function buildSearchQueries(title: string, itemSpecifics?: any): {
+  level12: string[];  // レベル1・2（同時実行）
+  level34: string[];  // レベル3・4（フォールバック1）
+  level5: string[];   // レベル5（フォールバック2）
+} {
+  const exclusionStr = '-code -digital -online -redemption -download';
   const extracted = extractKeywords(title);
   
-  // 🔥 Item Specificsから重要情報を抽出
+  // Item Specificsから重要情報を抽出
   const modelNumber = itemSpecifics?.['Card Number'] || 
                       itemSpecifics?.['Set Number'] || 
                       itemSpecifics?.['Model'] ||
                       itemSpecifics?.['Model Number'] ||
-                      extracted.numbers[0]; // タイトルから型番
+                      itemSpecifics?.['MPN'] ||
+                      extracted.numbers[0];
   
   const brand = itemSpecifics?.['Brand'] || 
                 extracted.brands[0];
@@ -182,21 +195,32 @@ function buildSearchQueries(title: string, itemSpecifics?: any): string[] {
   
   const language = itemSpecifics?.['Language'] ||
                    extracted.languages[0];
+  
+  const category = inferCategory(title, itemSpecifics);
+
+  const level12: string[] = [];
+  const level34: string[] = [];
+  const level5: string[] = [];
 
   // 🔥 レベル1: タイトル完全（最も厳密）
-  queries.push(`${title} ${exclusionStr}`.trim());
+  level12.push(`${title} ${exclusionStr}`.trim());
 
-  // 🔥 レベル2: 型番 + 主要キーワード + ブランド + 言語
-  if (modelNumber && mainKeyword && brand) {
-    const level2Parts = [modelNumber, mainKeyword, brand];
+  // 🔥 レベル2: 型番 + 主要キーワード + ブランド + 言語（やや緩め）
+  if (modelNumber && brand) {
+    const level2Parts = [modelNumber, brand];
+    if (mainKeyword) level2Parts.push(mainKeyword);
     if (language) level2Parts.push(language);
-    queries.push(`${level2Parts.join(' ')} ${exclusionStr}`.trim());
+    level12.push(`${level2Parts.join(' ')} ${exclusionStr}`.trim());
+  } else if (mainKeyword && brand) {
+    // 型番がない場合
+    const level2Parts = [mainKeyword, brand];
+    if (language) level2Parts.push(language);
+    level12.push(`${level2Parts.join(' ')} ${exclusionStr}`.trim());
   }
 
   // 🔥 レベル3: 型番 + ブランド + カテゴリ
   if (modelNumber && brand) {
-    const category = inferCategory(title, itemSpecifics);
-    queries.push(`${modelNumber} ${brand} ${category} ${exclusionStr}`.trim());
+    level34.push(`${modelNumber} ${brand} ${category} ${exclusionStr}`.trim());
   }
 
   // 🔥 レベル4: 主要キーワード + ブランド + 特別キーワード（型番なし）
@@ -205,23 +229,40 @@ function buildSearchQueries(title: string, itemSpecifics?: any): string[] {
     if (extracted.specialWords.length > 0) {
       level4Parts.push(extracted.specialWords[0]);
     }
-    if (language) level4Parts.push(language);
-    queries.push(`${level4Parts.join(' ')} ${exclusionStr}`.trim());
+    level34.push(`${level4Parts.join(' ')} ${exclusionStr}`.trim());
   }
 
-  // 🔥 レベル5: 型番 + カテゴリ（最後の手段）
+  // 🔥 レベル5: 型番/主要キーワード + カテゴリ（最後の手段）
   if (modelNumber) {
-    const category = inferCategory(title, itemSpecifics);
-    queries.push(`${modelNumber} ${category} ${exclusionStr}`.trim());
+    level5.push(`${modelNumber} ${category} ${exclusionStr}`.trim());
+  } else if (mainKeyword) {
+    level5.push(`${mainKeyword} ${category} ${exclusionStr}`.trim());
+  } else {
+    // 何もない場合はタイトルの最初の3単語
+    const firstWords = title.split(/\s+/).slice(0, 3).join(' ');
+    level5.push(`${firstWords} ${exclusionStr}`.trim());
   }
 
-  // 短すぎるクエリを除外（10文字未満）
-  const validQueries = queries.filter(q => q.replace(exclusionStr, '').trim().length >= 10);
-  
-  console.log('🔍 検索クエリ一覧:', validQueries);
+  // 重複を除去
+  const uniqueLevel12 = [...new Set(level12)].filter(q => q.replace(exclusionStr, '').trim().length >= 5);
+  const uniqueLevel34 = [...new Set(level34)].filter(q => q.replace(exclusionStr, '').trim().length >= 5);
+  const uniqueLevel5 = [...new Set(level5)].filter(q => q.replace(exclusionStr, '').trim().length >= 5);
 
-  return validQueries.length > 0 ? validQueries : queries; // 全て短い場合はそのまま
+  console.log('🔍 段階的検索クエリ:');
+  console.log(`  レベル1-2: ${uniqueLevel12.join(' | ')}`);
+  console.log(`  レベル3-4: ${uniqueLevel34.join(' | ')}`);
+  console.log(`  レベル5: ${uniqueLevel5.join(' | ')}`);
+
+  return {
+    level12: uniqueLevel12,
+    level34: uniqueLevel34,
+    level5: uniqueLevel5
+  };
 }
+
+// =============================================================================
+// OAuth トークン取得
+// =============================================================================
 
 /**
  * OAuth 2.0 トークン取得（Client Credentials Flow - Browse API用）
@@ -240,11 +281,10 @@ async function getAccessToken(): Promise<string> {
     throw new Error('EBAY_CLIENT_ID または EBAY_CLIENT_SECRET が設定されていません')
   }
 
-  console.log('🔑 Application Tokenを取得中（Browse API用）...')
+  console.log('🔑 Application Tokenを取得中...')
 
   const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
 
-  // Browse API用Application Token取得（スコープ: https://api.ebay.com/oauth/api_scope）
   const response = await fetch(EBAY_TOKEN_API, {
     method: 'POST',
     headers: {
@@ -265,7 +305,6 @@ async function getAccessToken(): Promise<string> {
 
   const data = await response.json()
 
-  // トークンをキャッシュ（expires_in秒後に期限切れ）
   cachedToken = {
     accessToken: data.access_token,
     expiresAt: Date.now() + data.expires_in * 1000
@@ -275,6 +314,10 @@ async function getAccessToken(): Promise<string> {
   return data.access_token
 }
 
+// =============================================================================
+// Browse API検索
+// =============================================================================
+
 /**
  * Browse APIで商品検索
  */
@@ -282,23 +325,21 @@ async function searchItems(accessToken: string, searchParams: {
   query: string
   categoryId?: string
   limit?: number
-}) {
+}): Promise<{ items: any[], total: number }> {
   const { query, categoryId, limit = 100 } = searchParams
 
-  // URLパラメータ構築
   const params = new URLSearchParams({
     q: query,
-    limit: Math.min(limit, 200).toString(), // Browse APIは最大200件
-    sort: 'price', // 価格順（昇順）
-    filter: 'buyingOptions:{FIXED_PRICE},price:[1..]' // 🔥 Buy It Nowのみ、$1以上
+    limit: Math.min(limit, 200).toString(),
+    sort: 'price',
+    filter: 'buyingOptions:{FIXED_PRICE},price:[1..]'
   })
 
-  if (categoryId) {
+  if (categoryId && categoryId !== '99999') {
     params.append('category_ids', categoryId)
   }
 
   const apiUrl = `${EBAY_BROWSE_API}?${params.toString()}`
-  console.log('📡 Browse API呼び出し:', apiUrl)
 
   const response = await fetch(apiUrl, {
     method: 'GET',
@@ -311,205 +352,353 @@ async function searchItems(accessToken: string, searchParams: {
 
   if (!response.ok) {
     const errorText = await response.text()
-    console.error('❌ Browse API Error:', errorText)
     
-    // レート制限エラー
     if (response.status === 429) {
-      throw new Error('eBay Browse APIのレート制限に達しました。しばらくしてから再度お試しください。')
+      throw new Error('RATE_LIMIT')
     }
 
     throw new Error(`Browse API Error: ${response.status} - ${errorText}`)
   }
 
   const data = await response.json()
-  return data
+  return {
+    items: data.itemSummaries || [],
+    total: data.total || 0
+  }
 }
 
 /**
- * 🔥 Item Specificsでフィルタリング + 精度スコア付与（完全動的）
+ * 🔥 Waterfall検索（Gemini指針）
+ * 
+ * 1. レベル1・2を同時に投げる
+ * 2. 結果が3件未満ならレベル3・4へ
+ * 3. それでも0件ならレベル5へ
  */
-function filterByItemSpecifics(items: any[], itemSpecifics: any): any[] {
+async function waterfallSearch(
+  accessToken: string,
+  ebayTitle: string,
+  itemSpecifics: any,
+  categoryId?: string
+): Promise<{
+  items: any[]
+  searchLevel: number
+  usedQuery: string
+  totalApiCalls: number
+}> {
+  const queries = buildSearchQueries(ebayTitle, itemSpecifics);
+  let allItems: any[] = [];
+  let searchLevel = 0;
+  let usedQuery = '';
+  let totalApiCalls = 0;
+
+  // 🔥 ステップ1: レベル1・2を同時実行
+  console.log('📡 ステップ1: レベル1-2 検索...');
+  const level12Results = await Promise.all(
+    queries.level12.map(async (query) => {
+      try {
+        totalApiCalls++;
+        const result = await searchItems(accessToken, { query, categoryId, limit: 50 });
+        return { query, items: result.items, total: result.total };
+      } catch (e) {
+        console.warn(`  ⚠️ クエリ失敗: ${query}`);
+        return { query, items: [], total: 0 };
+      }
+    })
+  );
+
+  // 結果をマージ（重複除去）
+  const seenIds = new Set<string>();
+  for (const result of level12Results) {
+    for (const item of result.items) {
+      if (!seenIds.has(item.itemId)) {
+        seenIds.add(item.itemId);
+        allItems.push(item);
+      }
+    }
+    if (result.items.length > 0 && !usedQuery) {
+      usedQuery = result.query;
+      searchLevel = 2;
+    }
+  }
+
+  console.log(`  ✅ レベル1-2結果: ${allItems.length}件`);
+
+  // 🔥 ステップ2: 3件未満ならレベル3・4へ
+  if (allItems.length < 3 && queries.level34.length > 0) {
+    console.log('📡 ステップ2: レベル3-4 検索...');
+    
+    const level34Results = await Promise.all(
+      queries.level34.map(async (query) => {
+        try {
+          totalApiCalls++;
+          const result = await searchItems(accessToken, { query, categoryId, limit: 50 });
+          return { query, items: result.items, total: result.total };
+        } catch (e) {
+          return { query, items: [], total: 0 };
+        }
+      })
+    );
+
+    for (const result of level34Results) {
+      for (const item of result.items) {
+        if (!seenIds.has(item.itemId)) {
+          seenIds.add(item.itemId);
+          allItems.push(item);
+        }
+      }
+      if (result.items.length > 0 && searchLevel < 4) {
+        usedQuery = result.query;
+        searchLevel = 4;
+      }
+    }
+
+    console.log(`  ✅ レベル3-4追加後: ${allItems.length}件`);
+  }
+
+  // 🔥 ステップ3: 0件ならレベル5へ
+  if (allItems.length === 0 && queries.level5.length > 0) {
+    console.log('📡 ステップ3: レベル5 検索（最後の手段）...');
+    
+    for (const query of queries.level5) {
+      try {
+        totalApiCalls++;
+        // カテゴリなしで検索
+        const result = await searchItems(accessToken, { query, limit: 50 });
+        
+        for (const item of result.items) {
+          if (!seenIds.has(item.itemId)) {
+            seenIds.add(item.itemId);
+            allItems.push(item);
+          }
+        }
+        
+        if (result.items.length > 0) {
+          usedQuery = query;
+          searchLevel = 5;
+          break;
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+
+    console.log(`  ✅ レベル5結果: ${allItems.length}件`);
+  }
+
+  if (allItems.length === 0) {
+    searchLevel = 0;
+    usedQuery = queries.level12[0] || ebayTitle;
+  }
+
+  return { items: allItems, searchLevel, usedQuery, totalApiCalls };
+}
+
+// =============================================================================
+// Item Specifics フィルタリング（加重マッチング）
+// =============================================================================
+
+/**
+ * 🔥 加重Item Specificsマッチング（Gemini指針）
+ * 
+ * 重み付け:
+ * - 型番(MPN): 0.7
+ * - ブランド: 0.2
+ * - タイトル/その他: 0.1
+ */
+function filterByItemSpecificsWeighted(items: any[], itemSpecifics: any, originalTitle: string): any[] {
   if (!itemSpecifics || Object.keys(itemSpecifics).length === 0) {
-    // Item Specificsがない場合、全商品を精度レベル3として返す
     return items.map(item => ({
       ...item,
       matchLevel: 3,
-      matchReason: 'キーワード検索のみ'
+      matchScore: 0.5,
+      matchReason: 'Item Specificsなし'
     }));
   }
 
-  // 🔥 全てのItem Specificsを動的に使用
-  const activeFields: { key: string; value: string }[] = [];
-  
-  Object.entries(itemSpecifics).forEach(([key, value]) => {
-    if (value && typeof value === 'string' && value.trim() !== '') {
-      activeFields.push({ key, value: String(value) });
-    }
-  });
+  // 重要フィールドの重み
+  const weights: Record<string, number> = {
+    'MPN': 0.7,
+    'Model': 0.7,
+    'Model Number': 0.7,
+    'Card Number': 0.7,
+    'Set Number': 0.7,
+    'Brand': 0.2,
+    'Manufacturer': 0.2,
+  };
+  const defaultWeight = 0.1;
 
-  console.log(`  🔍 Item Specificsフィルター: ${activeFields.map(f => `${f.key}="${f.value}"`).join(', ')}`);
+  // 型番フィールド
+  const mpnValue = itemSpecifics['MPN'] || 
+                   itemSpecifics['Model'] || 
+                   itemSpecifics['Model Number'] ||
+                   itemSpecifics['Card Number'] ||
+                   itemSpecifics['Set Number'];
+  
+  const brandValue = itemSpecifics['Brand'] || itemSpecifics['Manufacturer'];
 
   return items.map((item: any) => {
     const title = (item.title || '').toLowerCase();
-    let matchCount = 0;
+    let totalWeight = 0;
+    let matchedWeight = 0;
     const matchReasons: string[] = [];
 
-    // 各フィールドをチェック
-    activeFields.forEach(({ key, value }) => {
-      const valueLower = value.toLowerCase();
-      if (title.includes(valueLower)) {
-        matchCount++;
-        matchReasons.push(`${key}一致`);
+    // 型番チェック（重み0.7）
+    if (mpnValue) {
+      totalWeight += 0.7;
+      const mpnLower = String(mpnValue).toLowerCase();
+      if (title.includes(mpnLower)) {
+        matchedWeight += 0.7;
+        matchReasons.push(`型番一致(${mpnValue})`);
       }
-    });
+    }
 
-    // 精度レベルを決定（一致率ベース）
-    const totalFields = activeFields.length;
-    let finalLevel = 4;
+    // ブランドチェック（重み0.2）
+    if (brandValue) {
+      totalWeight += 0.2;
+      const brandLower = String(brandValue).toLowerCase();
+      if (title.includes(brandLower)) {
+        matchedWeight += 0.2;
+        matchReasons.push(`ブランド一致(${brandValue})`);
+      }
+    }
+
+    // その他のフィールド（重み0.1を分配）
+    const otherFields = Object.entries(itemSpecifics).filter(([key]) => 
+      !['MPN', 'Model', 'Model Number', 'Card Number', 'Set Number', 'Brand', 'Manufacturer'].includes(key)
+    );
     
-    if (totalFields > 0 && matchCount === totalFields) {
-      finalLevel = 1;  // 全て一致
-    } else if (matchCount >= Math.ceil(totalFields * 0.6)) {
-      finalLevel = 2;  // 60%以上一致
-    } else if (matchCount >= 1) {
-      finalLevel = 3;  // 1つ以上一致
+    if (otherFields.length > 0) {
+      const perFieldWeight = 0.1 / otherFields.length;
+      for (const [key, value] of otherFields) {
+        if (value && typeof value === 'string' && value.trim() !== '') {
+          totalWeight += perFieldWeight;
+          const valueLower = value.toLowerCase();
+          if (title.includes(valueLower)) {
+            matchedWeight += perFieldWeight;
+            matchReasons.push(`${key}一致`);
+          }
+        }
+      }
+    }
+
+    // スコア計算
+    const matchScore = totalWeight > 0 ? matchedWeight / totalWeight : 0;
+
+    // 🔥 Gemini指針: 型番が完全一致なら、スコア50%でもOK
+    let finalLevel = 4;
+    const hasMpnMatch = mpnValue && title.includes(String(mpnValue).toLowerCase());
+    
+    if (hasMpnMatch && matchScore >= 0.5) {
+      finalLevel = 1;  // 型番一致 + 50%以上 → 最高レベル
+    } else if (matchScore >= 0.7) {
+      finalLevel = 1;  // 70%以上
+    } else if (matchScore >= 0.6) {
+      finalLevel = 2;  // 60%以上
+    } else if (matchScore >= 0.3) {
+      finalLevel = 3;  // 30%以上
     }
 
     return {
       ...item,
       matchLevel: finalLevel,
+      matchScore: parseFloat(matchScore.toFixed(2)),
       matchReason: matchReasons.join(', ') || '不一致',
       isRecommended: finalLevel <= 2
     };
-  }).filter(item => item.matchLevel <= 3); // レベル4（不一致）を除外
+  })
+  .filter(item => item.matchLevel <= 3)
+  .sort((a, b) => {
+    // 1. matchLevelで比較
+    if (a.matchLevel !== b.matchLevel) {
+      return a.matchLevel - b.matchLevel;
+    }
+    // 2. matchScoreで比較
+    if (a.matchScore !== b.matchScore) {
+      return b.matchScore - a.matchScore;
+    }
+    // 3. 価格で比較
+    const priceA = parseFloat(a.price?.value || '999999');
+    const priceB = parseFloat(b.price?.value || '999999');
+    return priceA - priceB;
+  });
 }
 
 /**
- * 🔥 タイトルフィルタリング：デジタル商品を除外
+ * デジタル商品を除外
  */
 function filterDigitalProducts(items: any[]): any[] {
   const digitalKeywords = ['code', 'digital', 'online', 'redemption', 'download', 'email', 'message', 'sent', 'delivery'];
   
   return items.filter((item: any) => {
     const title = (item.title || '').toLowerCase();
-    const hasDigitalKeyword = digitalKeywords.some(keyword => title.includes(keyword));
-    
-    if (hasDigitalKeyword) {
-      console.log(`  ⚠️ デジタル商品除外: "${item.title}"`);
-      return false;
-    }
-    
-    return true;
+    return !digitalKeywords.some(keyword => title.includes(keyword));
   });
 }
 
+// =============================================================================
+// 分析・計算
+// =============================================================================
+
 /**
- * 🔥 日本人セラー判定
+ * 日本人セラー判定
  */
 function isJapaneseSeller(item: any): boolean {
-  // itemLocation.country が JP
-  if (item.itemLocation?.country === 'JP') {
-    return true
-  }
-  
-  // seller.location が Japan を含む
-  if (item.seller?.feedbackScore !== undefined && item.itemLocation?.country) {
-    return item.itemLocation.country === 'JP'
-  }
-  
-  // itemLocation.addressLine1 に日本語が含まれる
-  const address = item.itemLocation?.addressLine1 || ''
-  const hasJapanese = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(address)
-  if (hasJapanese) {
-    return true
-  }
-  
-  return false
+  if (item.itemLocation?.country === 'JP') return true;
+  const address = item.itemLocation?.addressLine1 || '';
+  return /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(address);
 }
 
 /**
- * 🔥 中央値を計算
+ * 中央値を計算
  */
 function calculateMedian(prices: number[]): number {
-  if (prices.length === 0) return 0
-  
-  const sorted = [...prices].sort((a, b) => a - b)
-  const middle = Math.floor(sorted.length / 2)
-  
-  if (sorted.length % 2 === 0) {
-    // 偶数の場合：中央2つの平均
-    return (sorted[middle - 1] + sorted[middle]) / 2
-  } else {
-    // 奇数の場合：中央の値
-    return sorted[middle]
-  }
+  if (prices.length === 0) return 0;
+  const sorted = [...prices].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[middle - 1] + sorted[middle]) / 2
+    : sorted[middle];
 }
 
 /**
- * 🔥 最安値・平均価格・中央値・日本人セラー数を計算
+ * 価格分析
  */
 function analyzePrices(items: any[]) {
   const prices = items
     .map((item: any) => parseFloat(item.price?.value || '0'))
-    .filter((price: number) => price > 0)
+    .filter((price: number) => price > 0);
 
   if (prices.length === 0) {
-    return {
-      lowestPrice: 0,
-      averagePrice: 0,
-      medianPrice: 0,
-      competitorCount: 0,
-      jpSellerCount: 0
-    }
+    return { lowestPrice: 0, averagePrice: 0, medianPrice: 0, competitorCount: 0, jpSellerCount: 0 };
   }
 
-  const lowestPrice = Math.min(...prices)
-  const averagePrice = prices.reduce((sum, price) => sum + price, 0) / prices.length
-  const medianPrice = calculateMedian(prices)
-  
-  // 🔥 日本人セラー数をカウント
-  const jpSellerCount = items.filter(item => isJapaneseSeller(item)).length
-
-  console.log(`  📊 価格分析: 商品数=${items.length}件, 最安値=${lowestPrice.toFixed(2)}, 平均=${averagePrice.toFixed(2)}, 中央値=${medianPrice.toFixed(2)}, 日本人セラー=${jpSellerCount}件`)
+  const jpSellerCount = items.filter(item => isJapaneseSeller(item)).length;
 
   return {
-    lowestPrice: parseFloat(lowestPrice.toFixed(2)),
-    averagePrice: parseFloat(averagePrice.toFixed(2)),
-    medianPrice: parseFloat(medianPrice.toFixed(2)),
+    lowestPrice: parseFloat(Math.min(...prices).toFixed(2)),
+    averagePrice: parseFloat((prices.reduce((sum, p) => sum + p, 0) / prices.length).toFixed(2)),
+    medianPrice: parseFloat(calculateMedian(prices).toFixed(2)),
     competitorCount: items.length,
     jpSellerCount
-  }
+  };
 }
 
 /**
  * 利益計算（簡易版）
  */
 function calculateProfit(lowestPriceUSD: number, costJPY: number, weightG: number) {
-  const JPY_TO_USD = 0.0067 // 1円 = 0.0067ドル（概算）
-  const costUSD = costJPY * JPY_TO_USD
+  const JPY_TO_USD = 0.0067;
+  const costUSD = costJPY * JPY_TO_USD;
 
-  // 送料計算（簡易版）
-  let shippingCostUSD = 12.99
-  if (weightG > 1000) shippingCostUSD = 18.99
-  if (weightG > 2000) shippingCostUSD = 24.99
+  let shippingCostUSD = 12.99;
+  if (weightG > 1000) shippingCostUSD = 18.99;
+  if (weightG > 2000) shippingCostUSD = 24.99;
 
-  // eBay手数料（12.9%）
-  const ebayFeeRate = 0.129
-  const ebayFee = lowestPriceUSD * ebayFeeRate
-
-  // PayPal手数料（3.49% + $0.49）
-  const paypalFeeRate = 0.0349
-  const paypalFixedFee = 0.49
-  const paypalFee = lowestPriceUSD * paypalFeeRate + paypalFixedFee
-
-  // 総費用
-  const totalCost = costUSD + shippingCostUSD + ebayFee + paypalFee
-
-  // 利益額
-  const profitAmount = lowestPriceUSD - totalCost
-
-  // 利益率
-  const profitMargin = lowestPriceUSD > 0 ? (profitAmount / lowestPriceUSD) * 100 : 0
+  const ebayFee = lowestPriceUSD * 0.129;
+  const paypalFee = lowestPriceUSD * 0.0349 + 0.49;
+  const totalCost = costUSD + shippingCostUSD + ebayFee + paypalFee;
+  const profitAmount = lowestPriceUSD - totalCost;
+  const profitMargin = lowestPriceUSD > 0 ? (profitAmount / lowestPriceUSD) * 100 : 0;
 
   return {
     profitAmount: parseFloat(profitAmount.toFixed(2)),
@@ -522,82 +711,76 @@ function calculateProfit(lowestPriceUSD: number, costJPY: number, weightG: numbe
       paypalFee: parseFloat(paypalFee.toFixed(2)),
       totalCost: parseFloat(totalCost.toFixed(2))
     }
-  }
+  };
 }
 
-/**
- * Supabaseに保存
- */
+// =============================================================================
+// DB保存
+// =============================================================================
+
 async function saveToDatabase(productId: string, data: any) {
   try {
-    // 数値のクリッピング（DBのカラムサイズに合わせる）
-    const updateData: any = {
-      // sm_*カラムに保存
-      sm_lowest_price: Math.max(0, Math.min(9999.99, data.lowestPrice || 0)),
-      sm_average_price: Math.max(0, Math.min(9999.99, data.averagePrice || 0)),
-      sm_median_price_usd: Math.max(0, Math.min(9999.99, data.medianPrice || 0)), // 🔥 追加
-      sm_competitor_count: Math.max(0, Math.min(9999, data.competitorCount || 0)),
-      sm_jp_seller_count: Math.max(0, Math.min(9999, data.jpSellerCount || 0)), // 🔥 追加
-      sm_jp_sellers: Math.max(0, Math.min(9999, data.jpSellerCount || 0)), // 🔥 旧カラムにも保存（ビュー互換性）
-      sm_competitors: Math.max(0, Math.min(9999, data.competitorCount || 0)), // 🔥 旧カラムにも保存（ビュー互換性）
-      sm_profit_amount_usd: Math.max(-999.99, Math.min(999.99, data.profitAmount || 0)),
-      sm_profit_margin: Math.max(-999.99, Math.min(999.99, data.profitMargin || 0)),
-      sm_analyzed_at: new Date().toISOString(), // 🔥 追加
-      updated_at: new Date().toISOString()
-    }
-
-    // ✅ ebay_api_dataにも保存（モーダル表示用）
     const { data: product } = await supabase
       .from('products_master')
       .select('ebay_api_data')
       .eq('id', productId)
-      .single()
+      .single();
 
-    const existingApiData = product?.ebay_api_data || {}
-    
-    // Browse APIの結果をebay_api_data.browse_resultに保存
-    updateData.ebay_api_data = {
-      ...existingApiData,
-      browse_result: {
-        lowestPrice: data.lowestPrice,
-        averagePrice: data.averagePrice,
-        medianPrice: data.medianPrice, // 🔥 追加
-        jpSellerCount: data.jpSellerCount, // 🔥 追加
-        competitorCount: data.competitorCount,
-        profitAmount: data.profitAmount,
-        profitMargin: data.profitMargin,
-        breakdown: data.breakdown,
-        items: data.items || [],
-        referenceItems: data.referenceItems || [],
-        searchedAt: new Date().toISOString(),
-        searchTitle: data.searchTitle,
-        searchLevel: data.searchLevel
+    const existingApiData = product?.ebay_api_data || {};
+
+    const updateData: any = {
+      sm_lowest_price: Math.max(0, Math.min(9999.99, data.lowestPrice || 0)),
+      sm_average_price: Math.max(0, Math.min(9999.99, data.averagePrice || 0)),
+      sm_median_price_usd: Math.max(0, Math.min(9999.99, data.medianPrice || 0)),
+      sm_competitor_count: Math.max(0, Math.min(9999, data.competitorCount || 0)),
+      sm_jp_seller_count: Math.max(0, Math.min(9999, data.jpSellerCount || 0)),
+      sm_jp_sellers: Math.max(0, Math.min(9999, data.jpSellerCount || 0)),
+      sm_competitors: Math.max(0, Math.min(9999, data.competitorCount || 0)),
+      sm_profit_amount_usd: Math.max(-999.99, Math.min(999.99, data.profitAmount || 0)),
+      sm_profit_margin: Math.max(-999.99, Math.min(999.99, data.profitMargin || 0)),
+      sm_analyzed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      ebay_api_data: {
+        ...existingApiData,
+        browse_result: {
+          lowestPrice: data.lowestPrice,
+          averagePrice: data.averagePrice,
+          medianPrice: data.medianPrice,
+          jpSellerCount: data.jpSellerCount,
+          competitorCount: data.competitorCount,
+          profitAmount: data.profitAmount,
+          profitMargin: data.profitMargin,
+          breakdown: data.breakdown,
+          items: data.items || [],
+          referenceItems: data.referenceItems || [],
+          searchedAt: new Date().toISOString(),
+          searchTitle: data.searchTitle,
+          searchLevel: data.searchLevel,
+          totalApiCalls: data.totalApiCalls
+        }
       }
-    }
+    };
 
     const { error } = await supabase
       .from('products_master')
       .update(updateData)
-      .eq('id', productId)
+      .eq('id', productId);
 
-    if (error) {
-      console.error('❌ DB保存エラー:', error)
-      throw error
-    }
-
-    console.log('✅ Supabaseに保存完了（sm_*カラム + ebay_api_data.browse_result）')
+    if (error) throw error;
+    console.log('✅ DB保存完了');
   } catch (error) {
-    console.error('❌ DB保存失敗:', error)
-    throw error
+    console.error('❌ DB保存失敗:', error);
+    throw error;
   }
 }
 
-/**
- * POSTエンドポイント
- */
+// =============================================================================
+// POSTエンドポイント
+// =============================================================================
+
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
+    const body = await request.json();
     const {
       productId,
       ebayTitle,
@@ -605,137 +788,73 @@ export async function POST(request: NextRequest) {
       ebayCategoryId,
       weightG = 500,
       actualCostJPY = 0
-    } = body
+    } = body;
 
-    console.log('🔍 Browse API検索リクエスト:', {
-      productId,
-      ebayTitle,
-      itemSpecifics,
-      ebayCategoryId,
-      weightG
-    })
+    console.log('🔍 Browse API検索リクエスト (v2 Waterfall):');
+    console.log(`  商品ID: ${productId}`);
+    console.log(`  タイトル: ${ebayTitle?.substring(0, 50)}...`);
+    console.log(`  カテゴリID: ${ebayCategoryId || 'なし'}`);
 
-    // ✅ ebayTitleをそのまま使用（シンプル化）
     if (!ebayTitle) {
       return NextResponse.json(
         { success: false, error: 'ebayTitle（英語タイトル）は必須です' },
         { status: 400 }
-      )
+      );
     }
-    
-    console.log('✅ ebayTitleを使用:', ebayTitle)
-    
-    // 🔥 カテゴリーIDを取得（優先順位：パラメータ > DBから取得）
-    let categoryIdToUse = ebayCategoryId
-    
+
+    // API呼び出し可能かチェック
+    const safetyCheck = await canMakeApiCallSafely(API_NAME);
+    const apiStatus = await getApiCallStatus(API_NAME);
+
+    if (!safetyCheck.canCall) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: safetyCheck.reason || 'API呼び出し制限に達しました',
+          errorCode: 'RATE_LIMIT_EXCEEDED',
+          apiStatus
+        },
+        { status: 429 }
+      );
+    }
+
+    // カテゴリIDを取得
+    let categoryIdToUse = ebayCategoryId;
     if (!categoryIdToUse && productId) {
       const { data: product } = await supabase
         .from('products_master')
         .select('ebay_category_id')
         .eq('id', productId)
-        .single()
+        .single();
       
       if (product?.ebay_category_id) {
-        categoryIdToUse = product.ebay_category_id
-        console.log('🎯 DBからカテゴリーIDを取得:', categoryIdToUse)
-      } else {
-        console.warn('⚠️ DBにカテゴリーIDがありません')
+        categoryIdToUse = product.ebay_category_id;
       }
     }
-    
-    if (categoryIdToUse) {
-      console.log('📋 使用するカテゴリーID:', categoryIdToUse)
-    } else {
-      console.warn('⚠️ カテゴリーIDが設定されていません。検索結果が0件になる可能性があります。')
-    }
 
-    // API呼び出し可能かチェック
-    const safetyCheck = await canMakeApiCallSafely(API_NAME)
-    const apiStatus = await getApiCallStatus(API_NAME)
-
-    if (!safetyCheck.canCall) {
-      console.error(`❌ API呼び出し制限: ${safetyCheck.reason}`)
-
-      let errorMessage = safetyCheck.reason || 'API呼び出し制限に達しました'
-
-      if (safetyCheck.waitTime) {
-        const waitMinutes = Math.ceil(safetyCheck.waitTime / 60000)
-        errorMessage += `\n\n${waitMinutes}分後に再度お試しください。`
-      }
-
-      return NextResponse.json(
-        {
-          success: false,
-          error: errorMessage,
-          errorCode: 'RATE_LIMIT_EXCEEDED',
-          apiStatus
-        },
-        { status: 429 }
-      )
-    }
-
-    console.log(`📊 API呼び出し状況: ${apiStatus.callCount}/${apiStatus.dailyLimit} (残り${apiStatus.remaining}回)`)
-
-    // API呼び出し前の待機処理
-    await waitBeforeApiCall()
-    console.log('✅ API呼び出し間隔OK')
+    await waitBeforeApiCall();
 
     // 1. アクセストークン取得
-    const accessToken = await getAccessToken()
+    const accessToken = await getAccessToken();
 
-    // 2. API呼び出しカウントを増加
-    await incrementApiCallCount(API_NAME)
+    // 2. 🔥 Waterfall検索を実行
+    const { items, searchLevel, usedQuery, totalApiCalls } = await waterfallSearch(
+      accessToken,
+      ebayTitle,
+      itemSpecifics,
+      categoryIdToUse
+    );
 
-    // 3. ✅ ebayTitleをそのまま使用
-    const searchQuery = ebayTitle.trim()
-    
-    console.log(`🔍 検索クエリ: ${searchQuery}`)
-    console.log(`📋 カテゴリーID: ${categoryIdToUse || 'なし'}`)  // 🔥 必ず表示
-
-    // 4. 検索実行
-    console.log(`🔍 検索開始: "${searchQuery}"`);
-    
-    const searchResult = await searchItems(accessToken, {
-      query: searchQuery,
-      categoryId: categoryIdToUse,  // 🔥 SMカテゴリーを使用
-      limit: 100
-    });
-
-    let items = searchResult.itemSummaries || [];
-    const totalCount = searchResult.total || 0;
-
-    console.log(`✅ 検索結果: ${items.length}件 / 総数: ${totalCount}件`);
-    
-    // 🔥 デジタル商品をフィルタリング
-    items = filterDigitalProducts(items);
-    console.log(`✅ デジタル除外後: ${items.length}件`);
-    
-    // 🔥 Item Specificsでフィルタリング
-    if (itemSpecifics) {
-      items = filterByItemSpecifics(items, itemSpecifics);
-      console.log(`✅ Item Specificsフィルター後: ${items.length}件`);
-      
-      // 🔥 精度順にソート（レベル1が最優先）
-      items.sort((a, b) => {
-        // 1. matchLevelで比較（小さいほど優先）
-        if (a.matchLevel !== b.matchLevel) {
-          return a.matchLevel - b.matchLevel;
-        }
-        // 2. 価格で比較（安い方が優先）
-        const priceA = parseFloat(a.price?.value || '999999');
-        const priceB = parseFloat(b.price?.value || '999999');
-        return priceA - priceB;
-      });
-      
-      console.log(`  🎯 精度分布: レベル1=${items.filter(i => i.matchLevel === 1).length}件, レベル2=${items.filter(i => i.matchLevel === 2).length}件, レベル3=${items.filter(i => i.matchLevel === 3).length}件`);
+    // API呼び出しカウントを増加（実際の呼び出し回数分）
+    for (let i = 0; i < totalApiCalls; i++) {
+      await incrementApiCallCount(API_NAME);
     }
 
-    console.log(`✅ 商品取得完了: ${items.length}件 / 総数: ${totalCount}件`)
+    console.log(`✅ Waterfall検索完了: ${items.length}件 (レベル${searchLevel}, API ${totalApiCalls}回)`);
 
     if (items.length === 0) {
-      console.warn('⚠️ 該当商品が見つかりませんでした')
+      console.warn('⚠️ 該当商品が見つかりませんでした');
       
-      // 🔥 0件の場合もDBに保存（画面表示用）
       if (productId) {
         await saveToDatabase(productId, {
           lowestPrice: 0,
@@ -748,9 +867,10 @@ export async function POST(request: NextRequest) {
           breakdown: {},
           items: [],
           referenceItems: [],
-          searchTitle: searchQuery,
-          searchLevel: 1
-        })
+          searchTitle: usedQuery,
+          searchLevel: 0,
+          totalApiCalls
+        });
       }
       
       return NextResponse.json({
@@ -762,57 +882,62 @@ export async function POST(request: NextRequest) {
         competitorCount: 0,
         profitAmount: 0,
         profitMargin: 0,
-        message: '該当商品が見つかりませんでした。検索ワードを変更して再度お試しください。',
+        message: '該当商品が見つかりませんでした。',
+        searchLevel: 0,
+        totalApiCalls,
         apiStatus: await getApiCallStatus(API_NAME)
-      })
+      });
     }
 
-    // 4. 最安値・平均価格・中央値・日本人セラー数を計算
-    const priceAnalysis = analyzePrices(items)
-    console.log('💰 最安値分析:', priceAnalysis)
+    // 3. デジタル商品をフィルタリング
+    let filteredItems = filterDigitalProducts(items);
 
-    // 5. 利益計算
-    const profitAnalysis = calculateProfit(
-      priceAnalysis.lowestPrice,
-      actualCostJPY,
-      weightG
-    )
-    console.log('💵 利益分析:', profitAnalysis)
+    // 4. 🔥 加重Item Specificsマッチング
+    if (itemSpecifics) {
+      filteredItems = filterByItemSpecificsWeighted(filteredItems, itemSpecifics, ebayTitle);
+      console.log(`✅ Item Specificsフィルター後: ${filteredItems.length}件`);
+      
+      const level1Count = filteredItems.filter(i => i.matchLevel === 1).length;
+      const level2Count = filteredItems.filter(i => i.matchLevel === 2).length;
+      const level3Count = filteredItems.filter(i => i.matchLevel === 3).length;
+      console.log(`  🎯 精度分布: L1=${level1Count}, L2=${level2Count}, L3=${level3Count}`);
+    }
 
-    // 6. Supabaseに保存
+    // 5. 価格分析
+    const priceAnalysis = analyzePrices(filteredItems);
+    console.log('💰 価格分析:', priceAnalysis);
+
+    // 6. 利益計算
+    const profitAnalysis = calculateProfit(priceAnalysis.lowestPrice, actualCostJPY, weightG);
+    console.log('💵 利益分析:', profitAnalysis);
+
+    // 7. DB保存
     if (productId) {
       await saveToDatabase(productId, {
         ...priceAnalysis,
         ...profitAnalysis,
-        items: items.slice(0, 10),
-        referenceItems: items.slice(0, 10),
-        searchTitle: searchQuery,
-        searchLevel: 1
-      })
+        items: filteredItems.slice(0, 20),
+        referenceItems: filteredItems.slice(0, 20),
+        searchTitle: usedQuery,
+        searchLevel,
+        totalApiCalls
+      });
     }
-
-    // 更新されたAPI状況を取得
-    const updatedApiStatus = await getApiCallStatus(API_NAME)
 
     return NextResponse.json({
       success: true,
-      lowestPrice: priceAnalysis.lowestPrice,
-      averagePrice: priceAnalysis.averagePrice,
-      medianPrice: priceAnalysis.medianPrice, // 🔥 追加
-      jpSellerCount: priceAnalysis.jpSellerCount, // 🔥 追加
-      competitorCount: priceAnalysis.competitorCount,
-      profitAmount: profitAnalysis.profitAmount,
-      profitMargin: profitAnalysis.profitMargin,
-      breakdown: profitAnalysis.breakdown,
-      items: items.slice(0, 10),
-      apiStatus: updatedApiStatus
-    })
+      ...priceAnalysis,
+      ...profitAnalysis,
+      items: filteredItems.slice(0, 20),
+      searchLevel,
+      usedQuery,
+      totalApiCalls,
+      apiStatus: await getApiCallStatus(API_NAME)
+    });
 
   } catch (error: any) {
-    console.error('❌ Browse API Error:', error)
-
-    // エラー時もAPI状況を返す
-    const apiStatus = await getApiCallStatus(API_NAME)
+    console.error('❌ Browse API Error:', error);
+    const apiStatus = await getApiCallStatus(API_NAME);
 
     return NextResponse.json(
       {
@@ -821,6 +946,6 @@ export async function POST(request: NextRequest) {
         apiStatus
       },
       { status: 500 }
-    )
+    );
   }
 }

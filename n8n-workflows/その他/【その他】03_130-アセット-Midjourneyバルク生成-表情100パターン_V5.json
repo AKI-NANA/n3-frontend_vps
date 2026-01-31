@@ -1,0 +1,381 @@
+{
+  "name": "【その他】03_130-アセット-Midjourneyバルク生成-表情100パターン_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mj-bulk-generate",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: mj-bulk-generate",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "mj-bulk-generate"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Midjourney バルク生成 初期化\nconst body = $input.first().json.body || $input.first().json || {};\n\nconst jobType = body.job_type || 'character_expressions'; // 'character_expressions', 'backgrounds', 'thumbnails', 'icons'\nconst basePrompt = body.base_prompt;\nconst crefImageUrl = body.cref_image_url; // --cref用参照画像\nconst channelId = body.channel_id;\nconst characterId = body.character_id;\nconst discordChannelId = body.discord_channel_id || process.env.MJ_DISCORD_CHANNEL_ID;\n\nif (!basePrompt) {\n  return [{ json: { error: true, message: 'base_prompt は必須です' } }];\n}\n\n// 表情パターン定義\nconst expressionVariations = {\n  character_expressions: [\n    { emotion: 'happy', pose: 'front', suffix: 'smiling warmly, looking at camera' },\n    { emotion: 'happy', pose: 'side', suffix: 'smiling, profile view' },\n    { emotion: 'happy', pose: 'three_quarter', suffix: 'smiling, 3/4 view' },\n    { emotion: 'serious', pose: 'front', suffix: 'serious expression, looking at camera' },\n    { emotion: 'serious', pose: 'side', suffix: 'serious expression, profile view' },\n    { emotion: 'thinking', pose: 'front', suffix: 'thoughtful expression, hand on chin' },\n    { emotion: 'thinking', pose: 'side', suffix: 'thinking, looking up' },\n    { emotion: 'excited', pose: 'front', suffix: 'excited, eyes wide, mouth open' },\n    { emotion: 'surprised', pose: 'front', suffix: 'surprised expression' },\n    { emotion: 'sad', pose: 'front', suffix: 'melancholy, looking down' },\n    { emotion: 'angry', pose: 'front', suffix: 'frustrated, frowning' },\n    { emotion: 'confident', pose: 'front', suffix: 'confident smile, arms crossed' },\n    { emotion: 'neutral', pose: 'front', suffix: 'neutral expression, relaxed' },\n    { emotion: 'neutral', pose: 'side', suffix: 'neutral, profile view' },\n    { emotion: 'explaining', pose: 'front', suffix: 'explaining gesture, pointing' },\n    { emotion: 'listening', pose: 'three_quarter', suffix: 'attentive, listening' },\n    { emotion: 'celebrating', pose: 'front', suffix: 'celebrating, arms up' },\n    { emotion: 'confused', pose: 'front', suffix: 'confused, head tilted' },\n    { emotion: 'determined', pose: 'front', suffix: 'determined look, fist raised' },\n    { emotion: 'friendly', pose: 'front', suffix: 'friendly wave' }\n  ],\n  backgrounds: [\n    { type: 'office', suffix: 'modern office background, soft lighting' },\n    { type: 'nature', suffix: 'serene nature scene, bokeh background' },\n    { type: 'studio', suffix: 'clean studio background, gradient' },\n    { type: 'classroom', suffix: 'classroom setting, educational' },\n    { type: 'abstract', suffix: 'abstract geometric background' }\n  ],\n  thumbnails: [\n    { style: 'attention', suffix: 'eye-catching, high contrast, bold colors' },\n    { style: 'minimal', suffix: 'minimalist, clean design' },\n    { style: 'dramatic', suffix: 'dramatic lighting, cinematic' }\n  ]\n};\n\nconst variations = body.variations || expressionVariations[jobType] || expressionVariations.character_expressions;\nconst totalImages = variations.length;\n\nconst jobId = 'mj_' + Date.now();\n\nreturn [{\n  json: {\n    job_id: jobId,\n    job_type: jobType,\n    base_prompt: basePrompt,\n    cref_image_url: crefImageUrl,\n    variations: variations,\n    total_images: totalImages,\n    channel_id: channelId,\n    character_id: characterId,\n    discord_channel_id: discordChannelId\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO mj_bulk_generation_jobs (id, job_type, status, base_prompt, cref_image_url, variations, total_images, channel_id, character_id, discord_channel_id, created_at) VALUES (gen_random_uuid(), $1, 'processing', $2, $3, $4, $5, $6, $7, $8, NOW()) RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.job_type, $json.base_prompt, $json.cref_image_url, JSON.stringify($json.variations), $json.total_images, $json.channel_id, $json.character_id, $json.discord_channel_id] }}"
+        }
+      },
+      "id": "save-job",
+      "name": "💾 ジョブ登録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// バリエーションごとにプロンプト生成\nconst config = $node['🔧 初期化'].json;\nconst dbResult = $input.first().json;\n\nconst tasks = config.variations.map((variation, idx) => {\n  // フルプロンプト構築\n  let fullPrompt = config.base_prompt;\n  \n  if (variation.suffix) {\n    fullPrompt += ', ' + variation.suffix;\n  }\n  \n  // --cref パラメータ追加\n  if (config.cref_image_url) {\n    fullPrompt += ' --cref ' + config.cref_image_url;\n  }\n  \n  // MJ標準パラメータ\n  fullPrompt += ' --ar 1:1 --v 6.1 --style raw';\n  \n  return {\n    index: idx,\n    variation: variation,\n    full_prompt: fullPrompt,\n    job_id: config.job_id,\n    db_id: dbResult[0]?.id,\n    channel_id: config.channel_id,\n    character_id: config.character_id,\n    discord_channel_id: config.discord_channel_id\n  };\n});\n\nreturn tasks.map(t => ({ json: t }));"
+      },
+      "id": "prepare-prompts",
+      "name": "📝 プロンプト準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "batchSize": 5,
+        "options": {}
+      },
+      "id": "batch-prompts",
+      "name": "📦 バッチ処理",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://discord.com/api/v10/interactions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ type: 2, application_id: process.env.MJ_APPLICATION_ID, channel_id: $json.discord_channel_id, data: { name: 'imagine', options: [{ name: 'prompt', value: $json.full_prompt }] } }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "send-mj-prompt",
+      "name": "🎨 MJ/imagine送信",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "discord-bot",
+          "name": "Discord Bot"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "amount": 30,
+        "unit": "seconds"
+      },
+      "id": "wait-generation",
+      "name": "⏳ 30秒待機",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 生成結果記録\nconst task = $node['📦 バッチ処理'].json;\n\n// この時点ではDiscord Webhookで結果を受け取る必要があるため、\n// ここでは送信完了のみ記録\nreturn [{\n  json: {\n    index: task.index,\n    variation: task.variation,\n    prompt_sent: true,\n    db_id: task.db_id,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "record-send",
+      "name": "📊 送信記録",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE mj_bulk_generation_jobs SET generated_count = generated_count + 1, updated_at = NOW() WHERE id = $1",
+        "options": {
+          "queryParams": "={{ [$json.db_id] }}"
+        }
+      },
+      "id": "update-count",
+      "name": "📊 カウント更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, job_id: $node['🔧 初期化'].json.job_id, total_images: $node['🔧 初期化'].json.total_images, message: 'MJバルク生成開始' }) }}",
+        "options": {
+          "responseCode": 202
+        }
+      },
+      "id": "respond-accepted",
+      "name": "受付応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: mj-bulk-generate": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💾 ジョブ登録",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "受付応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 ジョブ登録": {
+      "main": [
+        [
+          {
+            "node": "📝 プロンプト準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 プロンプト準備": {
+      "main": [
+        [
+          {
+            "node": "📦 バッチ処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 バッチ処理": {
+      "main": [
+        [
+          {
+            "node": "🎨 MJ/imagine送信",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎨 MJ/imagine送信": {
+      "main": [
+        [
+          {
+            "node": "⏳ 30秒待機",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⏳ 30秒待機": {
+      "main": [
+        [
+          {
+            "node": "📊 送信記録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 送信記録": {
+      "main": [
+        [
+          {
+            "node": "📊 カウント更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 カウント更新": {
+      "main": [
+        [
+          {
+            "node": "📦 バッチ処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "アセット"
+    },
+    {
+      "name": "V5"
+    },
+    {
+      "name": "Midjourney"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ]
+}

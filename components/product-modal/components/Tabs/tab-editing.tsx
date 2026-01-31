@@ -169,12 +169,21 @@ export function TabEditing({ product, onSave }: TabEditingProps) {
     setMessage(null)
 
     try {
-      const updates: Partial<Product> = {
+      // ✅ products_masterに存在するカラムのみトップレベルで使用
+      // rewritten_english_titleとmarket_research_summaryはlisting_data内に保存
+      const updates: Record<string, any> = {
+        // トップレベルカラム（存在するもののみ）
         material: formData.material || null,
         origin_country: formData.origin_country || null,
         hts_code: formData.hts_code || null,
-        rewritten_english_title: formData.rewritten_english_title || null,
-        market_research_summary: formData.market_research_summary || null
+        // ✅ listing_data内にHTS関連データもバックアップ
+        listing_data: {
+          material: formData.material || null,
+          origin_country: formData.origin_country || null,
+          hts_code: formData.hts_code || null,
+          rewritten_english_title: formData.rewritten_english_title || null,
+          market_research_summary: formData.market_research_summary || null,
+        }
       }
 
       // 親コンポーネントの保存関数を呼び出し

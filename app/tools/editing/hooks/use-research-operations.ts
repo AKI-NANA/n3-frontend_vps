@@ -7,8 +7,6 @@
  * 2. 商品がチェック選択されている場合 → SM分析結果から自動的に競合商品を選択
  * 3. Item Specifics、Condition等をDBに自動保存
  * 4. 画面をリロードして反映
- * 
- * ※ モーダルは開かない（データは自動的に保存される）
  */
 import { useState, useCallback } from 'react'
 import type { Product } from '../types/product'
@@ -20,6 +18,82 @@ interface UseResearchOperationsProps {
   onLoadProducts: () => Promise<void>
   getAllSelected: () => any[]
   clearAll: () => void
+}
+
+/**
+ * 単一のitemIdから詳細を取得（Trading API → Browse API の順で試す）
+ */
+async function fetchItemDetails(itemId: string): Promise<any> {
+  let itemDetails: any = null
+
+  // 1. まずTrading APIを試す（より詳細な情報が取れる可能性）
+  try {
+    console.log(`🔍 Trading API で詳細取得を試行: ${itemId}`)
+    const tradingResponse = await fetch('/api/ebay/get-item-details-trading', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ itemId })
+    })
+    const tradingData = await tradingResponse.json()
+    
+    if (tradingData.success && tradingData.itemDetails) {
+      console.log('✅ Trading API 成功')
+      itemDetails = { ...tradingData.itemDetails, dataSource: 'trading_api' }
+      return itemDetails
+    }
+  } catch (tradingErr) {
+    console.log('⚠️ Trading API 失敗、Browse APIにフォールバック')
+  }
+
+  // 2. Trading APIが失敗した場合、Browse APIを試す
+  try {
+    console.log(`🔍 Browse API で詳細取得: ${itemId}`)
+    const browseResponse = await fetch('/api/ebay/get-item-details', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ itemId })
+    })
+    const browseData = await browseResponse.json()
+    
+    if (browseData.success && browseData.itemDetails) {
+      console.log('✅ Browse API 成功')
+      itemDetails = { ...browseData.itemDetails, dataSource: 'browse_api' }
+      return itemDetails
+    }
+  } catch (browseErr) {
+    console.log('❌ Browse API も失敗')
+  }
+
+  return null
+}
+
+/**
+ * 競合データをDBに保存
+ */
+async function saveCompetitorData(productId: string | number, competitorData: any): Promise<boolean> {
+  try {
+    const saveResponse = await fetch('/api/products/save-competitor-data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        productId,
+        competitorData,
+        overwrite: false
+      })
+    })
+    const saveData = await saveResponse.json()
+    
+    if (saveData.success) {
+      console.log('✅ 競合データ保存成功:', saveData.savedFields)
+      return true
+    } else {
+      console.warn('⚠️ 競合データ保存失敗:', saveData.error)
+      return false
+    }
+  } catch (saveErr) {
+    console.warn('⚠️ 競合データ保存エラー:', saveErr)
+    return false
+  }
 }
 
 export function useResearchOperations({
@@ -89,15 +163,19 @@ export function useResearchOperations({
   }, [selectedIds, onShowToast, onLoadProducts])
 
   // SellerMirror詳細一括取得（③詳細ボタン）
-  // - 競合商品の詳細情報（Item Specifics, Condition等）を取得
-  // - DBに自動保存して画面リロード
-  // - モーダルは開かない
   const handleBatchFetchDetails = useCallback(async () => {
     // 1. まずMirrorタブで選択された競合商品をチェック
-    const selectedMirrorItems = getAllSelected()
+    const allMirrorItems = getAllSelected()
+    
+    // 現在チェックされている商品に関連するMirror選択のみを使用
+    const selectedProductIdSet = new Set(Array.from(selectedIds).map(id => String(id)))
+    const selectedMirrorItems = selectedIds.size > 0
+      ? allMirrorItems.filter(item => selectedProductIdSet.has(String(item.productId)))
+      : allMirrorItems
     
     console.log('🔍 handleBatchFetchDetails 呼び出し:')
-    console.log('  - selectedMirrorItems:', selectedMirrorItems.length, '件')
+    console.log('  - allMirrorItems (localStorage):', allMirrorItems.length, '件')
+    console.log('  - selectedMirrorItems (フィルター後):', selectedMirrorItems.length, '件')
     console.log('  - selectedIds (商品選択):', selectedIds.size, '件')
 
     // 2. Mirrorで選択がある場合はそれを使用
@@ -121,54 +199,78 @@ export function useResearchOperations({
     setResearching(true)
     onShowToast(`${selectedItems.length}件の詳細情報を取得します...`, 'success')
 
+    let successCount = 0
+    let failedCount = 0
+    let totalItemSpecifics = 0
+
     try {
       // 商品ごとにグループ化
-      const groupedByProduct: Record<string, string[]> = {}
+      const groupedByProduct: Record<string, { itemIds: string[], product: any }> = {}
       selectedItems.forEach(item => {
         if (!groupedByProduct[item.productId]) {
-          groupedByProduct[item.productId] = []
+          const product = products.find(p => String(p.id) === String(item.productId))
+          groupedByProduct[item.productId] = { itemIds: [], product }
         }
-        groupedByProduct[item.productId].push(item.itemId)
+        groupedByProduct[item.productId].itemIds.push(item.itemId)
       })
 
-      // 各商品の詳細を並行取得（APIがDBに自動保存）
-      const fetchPromises = Object.entries(groupedByProduct).map(async ([productId, itemIds]) => {
-        const response = await fetch('/api/sellermirror/batch-details', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ itemIds, productId })
-        })
+      // 各商品の詳細を順次取得
+      for (const [productId, { itemIds, product }] of Object.entries(groupedByProduct)) {
+        for (const itemId of itemIds) {
+          try {
+            // 詳細を取得
+            const itemDetails = await fetchItemDetails(itemId)
+            
+            if (itemDetails) {
+              // DBに保存
+              const saved = await saveCompetitorData(productId, {
+                itemId,
+                title: itemDetails.title,
+                itemSpecifics: itemDetails.itemSpecifics || {},
+                weight: itemDetails.weight,
+                dimensions: itemDetails.dimensions,
+                categoryId: itemDetails.categoryId,
+                categoryName: itemDetails.categoryName,
+                brand: itemDetails.brand,
+                model: itemDetails.model,
+                countryOfManufacture: itemDetails.countryOfManufacture,
+                condition: itemDetails.condition,
+                conditionId: itemDetails.conditionId,
+                price: itemDetails.price?.value || 0,
+                currency: itemDetails.price?.currency || 'USD',
+                image: itemDetails.image,
+                dataSource: itemDetails.dataSource
+              })
 
-        if (!response.ok) {
-          throw new Error(`商品ID${productId}の詳細取得失敗`)
+              if (saved) {
+                successCount++
+                const specsCount = Object.keys(itemDetails.itemSpecifics || {}).length
+                totalItemSpecifics += specsCount
+                console.log(`✅ ${productId}: ${specsCount}件のItem Specifics取得`)
+              } else {
+                failedCount++
+              }
+            } else {
+              failedCount++
+              console.log(`❌ ${productId}: 詳細取得失敗`)
+            }
+          } catch (err: any) {
+            failedCount++
+            console.error(`❌ ${productId}: ${err.message}`)
+          }
         }
-
-        return response.json()
-      })
-
-      const results = await Promise.all(fetchPromises)
-
-      const totalSuccess = results.reduce((sum, r) => sum + (r.summary?.success || 0), 0)
-      const totalFailed = results.reduce((sum, r) => sum + (r.summary?.failed || 0), 0)
-      
-      // 取得したItem Specificsの数を集計
-      let totalItemSpecifics = 0
-      results.forEach(r => {
-        if (r.itemSpecificsCount) {
-          totalItemSpecifics += r.itemSpecificsCount
-        }
-      })
+      }
 
       // 選択をクリア
       clearAll()
 
       // 成功メッセージ
-      if (totalFailed > 0) {
-        onShowToast(`✅ 詳細取得完了: 成功${totalSuccess}件、失敗${totalFailed}件`, 'success')
+      if (failedCount > 0) {
+        onShowToast(`✅ 詳細取得完了: 成功${successCount}件、失敗${failedCount}件`, 'success')
       } else if (totalItemSpecifics > 0) {
         onShowToast(`✅ 詳細取得完了！Item Specifics ${totalItemSpecifics}件を自動保存しました`, 'success')
       } else {
-        onShowToast(`✅ 詳細取得完了！${totalSuccess}件の商品詳細をDBに保存しました`, 'success')
+        onShowToast(`✅ 詳細取得完了！${successCount}件の商品詳細をDBに保存しました`, 'success')
       }
 
       // 画面をリロードして最新データを表示
@@ -180,52 +282,46 @@ export function useResearchOperations({
     } finally {
       setResearching(false)
     }
-  }, [onShowToast, onLoadProducts, clearAll])
+  }, [products, onShowToast, onLoadProducts, clearAll])
 
   // 商品選択からSM分析結果を使用して詳細取得
   const fetchDetailsFromProductSelection = useCallback(async () => {
-    const selectedProductIds = Array.from(selectedIds)
     const selectedProducts = products.filter(p => selectedIds.has(String(p.id)))
 
     console.log('📦 商品選択から競合情報を自動取得:')
     console.log('  - 選択商品数:', selectedProducts.length)
 
     // SM分析結果から競合商品のitemIdを抽出
-    const itemsToFetch: { productId: string; itemIds: string[] }[] = []
+    const itemsToFetch: { productId: string; itemId: string; product: any }[] = []
 
     for (const product of selectedProducts) {
-      // ✅ 修正: sm_selected_itemはトップレベルカラム
       const smSelectedItem = (product as any).sm_selected_item
-      
-      // SM分析結果から競合商品を取得
       const ebayData = (product as any).ebay_api_data || {}
       const referenceItems = ebayData.listing_reference?.referenceItems || []
       
-      let itemIds: string[] = []
+      let itemId: string | null = null
 
       if (smSelectedItem?.itemId) {
-        // ✅ 明示的に選択された競合商品がある
-        itemIds = [smSelectedItem.itemId]
-        console.log(`  - ${product.id}: SM選択済み商品を使用 (${smSelectedItem.itemId})`)
+        itemId = smSelectedItem.itemId
+        console.log(`  - ${product.id}: SM選択済み商品を使用 (${itemId})`)
       } else if (referenceItems.length > 0) {
         // SM分析結果からItem Specificsが多い商品を選択
         const sortedItems = [...referenceItems].sort((a: any, b: any) => {
-          // Item Specifics件数でソート（降順）
           const aCount = a.itemSpecificsCount || (a.itemSpecifics ? Object.keys(a.itemSpecifics).length : 0)
           const bCount = b.itemSpecificsCount || (b.itemSpecifics ? Object.keys(b.itemSpecifics).length : 0)
           return bCount - aCount
         })
-        itemIds = [sortedItems[0].itemId]
-        const specsCount = sortedItems[0].itemSpecificsCount || 0
-        console.log(`  - ${product.id}: SM分析結果から自動選択 (${itemIds[0]}, Specs: ${specsCount}件)`)
+        itemId = sortedItems[0].itemId
+        console.log(`  - ${product.id}: SM分析結果から自動選択 (${itemId})`)
       } else {
         console.log(`  - ${product.id}: 競合商品なし（SM分析未実行?）`)
       }
 
-      if (itemIds.length > 0) {
+      if (itemId) {
         itemsToFetch.push({
           productId: String(product.id),
-          itemIds
+          itemId,
+          product
         })
       }
     }
@@ -238,37 +334,54 @@ export function useResearchOperations({
     setResearching(true)
     onShowToast(`${itemsToFetch.length}件の商品詳細を取得します...`, 'success')
 
+    let successCount = 0
+    let failedCount = 0
+    let totalItemSpecifics = 0
+
     try {
-      // 各商品の詳細を並行取得
-      const fetchPromises = itemsToFetch.map(async ({ productId, itemIds }) => {
-        const response = await fetch('/api/sellermirror/batch-details', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ itemIds, productId })
-        })
+      for (const { productId, itemId } of itemsToFetch) {
+        try {
+          const itemDetails = await fetchItemDetails(itemId)
+          
+          if (itemDetails) {
+            const saved = await saveCompetitorData(productId, {
+              itemId,
+              title: itemDetails.title,
+              itemSpecifics: itemDetails.itemSpecifics || {},
+              weight: itemDetails.weight,
+              dimensions: itemDetails.dimensions,
+              categoryId: itemDetails.categoryId,
+              categoryName: itemDetails.categoryName,
+              brand: itemDetails.brand,
+              model: itemDetails.model,
+              countryOfManufacture: itemDetails.countryOfManufacture,
+              condition: itemDetails.condition,
+              conditionId: itemDetails.conditionId,
+              price: itemDetails.price?.value || 0,
+              currency: itemDetails.price?.currency || 'USD',
+              image: itemDetails.image,
+              dataSource: itemDetails.dataSource
+            })
 
-        if (!response.ok) {
-          throw new Error(`商品ID${productId}の詳細取得失敗`)
+            if (saved) {
+              successCount++
+              const specsCount = Object.keys(itemDetails.itemSpecifics || {}).length
+              totalItemSpecifics += specsCount
+            } else {
+              failedCount++
+            }
+          } else {
+            failedCount++
+          }
+        } catch (err: any) {
+          failedCount++
+          console.error(`❌ ${productId}: ${err.message}`)
         }
-
-        return response.json()
-      })
-
-      const results = await Promise.all(fetchPromises)
-
-      const totalSuccess = results.reduce((sum, r) => sum + (r.summary?.success || 0), 0)
-      const totalFailed = results.reduce((sum, r) => sum + (r.summary?.failed || 0), 0)
-      
-      let totalItemSpecifics = 0
-      results.forEach(r => {
-        if (r.itemSpecificsCount) {
-          totalItemSpecifics += r.itemSpecificsCount
-        }
-      })
+      }
 
       // 成功メッセージ
-      if (totalFailed > 0) {
-        onShowToast(`✅ 詳細取得完了: 成功${totalSuccess}件、失敗${totalFailed}件`, 'success')
+      if (failedCount > 0) {
+        onShowToast(`✅ 詳細取得完了: 成功${successCount}件、失敗${failedCount}件`, 'success')
       } else if (totalItemSpecifics > 0) {
         onShowToast(`✅ Item Specifics ${totalItemSpecifics}件を自動保存しました`, 'success')
       } else {

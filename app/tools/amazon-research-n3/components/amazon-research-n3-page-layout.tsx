@@ -45,10 +45,11 @@ import type { AmazonResearchItem, ResearchFilterType, ResearchSortType, RiskFlag
 // 定数
 // ============================================================
 
-type L2TabId = 'research' | 'automation' | 'history';
+type L2TabId = 'research' | 'automation' | 'history' | 'ai_tools';
 
 const L2_TABS: { id: L2TabId; label: string; labelEn: string; icon: React.ElementType }[] = [
   { id: 'research', label: 'リサーチ', labelEn: 'Research', icon: Search },
+  { id: 'ai_tools', label: 'AI分析', labelEn: 'AI Tools', icon: Sparkles },
   { id: 'automation', label: '自動化', labelEn: 'Automation', icon: Bot },
   { id: 'history', label: '履歴', labelEn: 'History', icon: History },
 ];
@@ -666,6 +667,81 @@ const AutomationTab = memo(function AutomationTab() {
 });
 
 // ============================================================
+// AI Toolsタブ (Extension Slot)
+// ============================================================
+
+const AIToolsTab = memo(function AIToolsTab() {
+  const [activePanel, setActivePanel] = useState<'agent' | 'market' | 'competitor'>('agent');
+  
+  // Lazy load extension slot components
+  const [ResearchAgentPanel, setResearchAgentPanel] = useState<React.ComponentType | null>(null);
+  const [MarketScorePanel, setMarketScorePanel] = useState<React.ComponentType | null>(null);
+  const [CompetitorScanPanel, setCompetitorScanPanel] = useState<React.ComponentType | null>(null);
+  
+  useEffect(() => {
+    // Dynamic import for extension slot components
+    import('../extension-slot/research-agent-panel').then(m => setResearchAgentPanel(() => m.ResearchAgentPanel));
+    import('../extension-slot/market-score-panel').then(m => setMarketScorePanel(() => m.MarketScorePanel));
+    import('../extension-slot/competitor-scan-panel').then(m => setCompetitorScanPanel(() => m.CompetitorScanPanel));
+  }, []);
+  
+  const panels = [
+    { id: 'agent' as const, label: 'AIリサーチ', icon: Bot, color: '#8B5CF6' },
+    { id: 'market' as const, label: '市場分析', icon: BarChart3, color: '#10B981' },
+    { id: 'competitor' as const, label: '競合分析', icon: Users, color: '#F59E0B' },
+  ];
+  
+  return (
+    <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      {/* 左サイドバー */}
+      <div style={{ width: 200, borderRight: '1px solid var(--panel-border)', background: 'var(--panel)', display: 'flex', flexDirection: 'column', padding: 12 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Sparkles size={12} /> AI分析ツール
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {panels.map(({ id, label, icon: Icon, color }) => (
+            <button
+              key={id}
+              onClick={() => setActivePanel(id)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '10px 12px', borderRadius: 6,
+                background: activePanel === id ? `${color}15` : 'transparent',
+                border: activePanel === id ? `1px solid ${color}40` : '1px solid transparent',
+                color: activePanel === id ? color : 'var(--text-muted)',
+                cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
+              }}
+            >
+              <Icon size={16} />
+              <span style={{ fontSize: 12, fontWeight: 500 }}>{label}</span>
+            </button>
+          ))}
+        </div>
+        
+        <div style={{ marginTop: 'auto', padding: 8, background: 'var(--highlight)', borderRadius: 6 }}>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>💡 Dispatch API経由</div>
+          <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>すべてのAI分析は/api/dispatchを経由してn8nで実行されます</div>
+        </div>
+      </div>
+      
+      {/* メインパネル */}
+      <div style={{ flex: 1, overflow: 'auto' }}>
+        {activePanel === 'agent' && ResearchAgentPanel && <ResearchAgentPanel />}
+        {activePanel === 'market' && MarketScorePanel && <MarketScorePanel />}
+        {activePanel === 'competitor' && CompetitorScanPanel && <CompetitorScanPanel />}
+        
+        {/* ローディング */}
+        {!ResearchAgentPanel && !MarketScorePanel && !CompetitorScanPanel && (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Loader2 size={24} className="animate-spin" style={{ color: 'var(--accent)' }} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
+
+// ============================================================
 // メインコンポーネント
 // ============================================================
 
@@ -787,6 +863,39 @@ export function AmazonResearchN3PageLayout() {
     showToast('📥 Excelエクスポート準備中...', 'success');
     // TODO: 実装
   }, [showToast]);
+  
+  // 🔬 Send to Catalog: 選択した商品をediting-n3のResearch待ちへ送る
+  const [isSendingToCatalog, setIsSendingToCatalog] = useState(false);
+  
+  const handleSendToCatalog = useCallback(async () => {
+    if (selectedIds.size === 0) {
+      showToast('商品を選択してください', 'warning');
+      return;
+    }
+    
+    setIsSendingToCatalog(true);
+    try {
+      const res = await fetch('/api/research/send-to-catalog', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        showToast(`✅ ${data.updated}件をCatalogへ送信しました`, 'success');
+        // ステータスを更新
+        selectedIds.forEach(id => updateItem(id, { status: 'pending' }));
+        deselectAll();
+      } else {
+        showToast(`❌ ${data.error || 'エラーが発生しました'}`, 'error');
+      }
+    } catch (err) {
+      console.error('Send to catalog error:', err);
+      showToast('❌ 送信エラーが発生しました', 'error');
+    }
+    setIsSendingToCatalog(false);
+  }, [selectedIds, showToast, updateItem, deselectAll]);
   
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg)' }}>
@@ -932,7 +1041,15 @@ export function AmazonResearchN3PageLayout() {
                   </select>
                   <N3Divider orientation="vertical" style={{ height: 20 }} />
                   <N3Button variant="secondary" size="sm" icon={<FileSpreadsheet size={12} />} onClick={handleExport}>Excel</N3Button>
-                  <N3Button variant="primary" size="sm" icon={<ArrowRight size={12} />} disabled={selectedIds.size === 0}>登録({selectedIds.size})</N3Button>
+                  <N3Button 
+                    variant="primary" 
+                    size="sm" 
+                    icon={isSendingToCatalog ? <Loader2 size={12} className="animate-spin" /> : <ArrowRight size={12} />} 
+                    disabled={selectedIds.size === 0 || isSendingToCatalog}
+                    onClick={handleSendToCatalog}
+                  >
+                    {isSendingToCatalog ? '送信中...' : `🔬Catalogへ(${selectedIds.size})`}
+                  </N3Button>
                   <N3ViewModeToggle value={viewMode as 'list' | 'card'} onChange={(m) => setViewMode(m)} size="sm" />
                 </div>
               </div>
@@ -1005,6 +1122,8 @@ export function AmazonResearchN3PageLayout() {
           )}
           
           {activeL2Tab === 'automation' && <AutomationTab />}
+          
+          {activeL2Tab === 'ai_tools' && <AIToolsTab />}
           
           {activeL2Tab === 'history' && (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>

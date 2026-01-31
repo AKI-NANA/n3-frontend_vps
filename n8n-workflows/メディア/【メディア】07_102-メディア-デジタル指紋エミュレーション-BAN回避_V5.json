@@ -1,0 +1,322 @@
+{
+  "name": "【メディア】07_102-メディア-デジタル指紋エミュレーション-BAN回避_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "fingerprint-generate",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: fingerprint-generate",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "fingerprint-generate"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst channelId = body.channel_id;\nconst accountId = body.account_id;\nconst platform = body.platform || 'youtube';\nconst requestType = body.request_type || 'upload';\n\nif (!channelId && !accountId) {\n  return [{ json: { error: true, message: 'channel_id または account_id は必須です', code: 'MISSING_PARAM' } }];\n}\n\nreturn [{\n  json: {\n    channel_id: channelId,\n    account_id: accountId || channelId,\n    platform: platform,\n    request_type: requestType,\n    session_id: `FP-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT mc.channel_id, mc.proxy_ip, mc.proxy_port, mc.proxy_user, mc.proxy_pass, mc.browser_profile_id, mc.device_fingerprint, mc.last_fingerprint_rotation, mc.fingerprint_seed FROM media_channels mc WHERE mc.channel_id = $1 OR mc.channel_id IN (SELECT channel_id FROM channel_accounts WHERE account_id = $1)",
+        "options": {
+          "queryParams": "={{ [$json.channel_id || $json.account_id] }}"
+        }
+      },
+      "id": "get-channel-config",
+      "name": "📊 チャンネル設定取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 高度デジタル指紋エミュレーション（Gemini指示書準拠）\nconst initData = $node['🔐 初期化'].json;\nconst channelConfig = $input.first().json;\nconst config = Array.isArray(channelConfig) ? channelConfig[0] : channelConfig;\n\n// シード値（チャンネル固有 + 日付で決定論的ランダム）\nconst seed = (config?.fingerprint_seed || initData.channel_id || 'default') + new Date().toISOString().split('T')[0];\nfunction seededRandom(seedStr, index = 0) {\n  let hash = 0;\n  const str = seedStr + index.toString();\n  for (let i = 0; i < str.length; i++) {\n    const char = str.charCodeAt(i);\n    hash = ((hash << 5) - hash) + char;\n    hash = hash & hash;\n  }\n  return Math.abs(hash % 1000) / 1000;\n}\n\n// User-Agent生成\nconst chromeVersions = ['120.0.6099.109', '120.0.6099.129', '121.0.6167.85', '121.0.6167.139', '122.0.6261.57', '122.0.6261.94', '123.0.6312.58', '123.0.6312.86'];\nconst windowsVersions = ['10.0; Win64; x64', '10.0; WOW64', '11.0; Win64; x64'];\nconst macVersions = ['Intel Mac OS X 10_15_7', 'Intel Mac OS X 11_6_0', 'Intel Mac OS X 12_6_0', 'Intel Mac OS X 13_4_0', 'Intel Mac OS X 14_0_0'];\n\nconst isWindows = seededRandom(seed, 1) > 0.4;\nconst chromeVersion = chromeVersions[Math.floor(seededRandom(seed, 2) * chromeVersions.length)];\nlet userAgent;\n\nif (isWindows) {\n  const winVer = windowsVersions[Math.floor(seededRandom(seed, 3) * windowsVersions.length)];\n  userAgent = `Mozilla/5.0 (Windows NT ${winVer}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion} Safari/537.36`;\n} else {\n  const macVer = macVersions[Math.floor(seededRandom(seed, 3) * macVersions.length)];\n  userAgent = `Mozilla/5.0 (Macintosh; ${macVer}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion} Safari/537.36`;\n}\n\n// Screen Resolution\nconst screenSizes = [\n  { width: 1920, height: 1080 },\n  { width: 1366, height: 768 },\n  { width: 1536, height: 864 },\n  { width: 1440, height: 900 },\n  { width: 1280, height: 720 },\n  { width: 2560, height: 1440 },\n  { width: 3840, height: 2160 }\n];\nconst screen = screenSizes[Math.floor(seededRandom(seed, 4) * screenSizes.length)];\n\n// Color Depth\nconst colorDepths = [24, 32];\nconst colorDepth = colorDepths[Math.floor(seededRandom(seed, 5) * colorDepths.length)];\n\n// Timezone\nconst timezones = [\n  { name: 'Asia/Tokyo', offset: 540 },\n  { name: 'America/New_York', offset: -300 },\n  { name: 'America/Los_Angeles', offset: -480 },\n  { name: 'Europe/London', offset: 0 },\n  { name: 'Europe/Paris', offset: 60 },\n  { name: 'Australia/Sydney', offset: 660 }\n];\nconst timezone = timezones[Math.floor(seededRandom(seed, 6) * timezones.length)];\n\n// Language\nconst languages = [\n  { code: 'ja-JP', accept: 'ja-JP,ja;q=0.9,en-US;q=0.8,en;q=0.7' },\n  { code: 'en-US', accept: 'en-US,en;q=0.9' },\n  { code: 'en-GB', accept: 'en-GB,en;q=0.9,en-US;q=0.8' }\n];\nconst language = languages[Math.floor(seededRandom(seed, 7) * languages.length)];\n\n// Hardware\nconst hardwareConcurrency = [4, 8, 12, 16][Math.floor(seededRandom(seed, 8) * 4)];\nconst deviceMemory = [4, 8, 16, 32][Math.floor(seededRandom(seed, 9) * 4)];\n\n// Canvas Fingerprint Noise（微小なノイズを追加してユニーク化）\nconst canvasNoise = {\n  r_offset: Math.floor(seededRandom(seed, 10) * 3) - 1,\n  g_offset: Math.floor(seededRandom(seed, 11) * 3) - 1,\n  b_offset: Math.floor(seededRandom(seed, 12) * 3) - 1\n};\n\n// WebGL Vendor/Renderer\nconst webglConfigs = [\n  { vendor: 'Google Inc. (NVIDIA)', renderer: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3080 Direct3D11 vs_5_0 ps_5_0, D3D11)' },\n  { vendor: 'Google Inc. (NVIDIA)', renderer: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Direct3D11 vs_5_0 ps_5_0, D3D11)' },\n  { vendor: 'Google Inc. (Intel)', renderer: 'ANGLE (Intel, Intel(R) UHD Graphics 630 Direct3D11 vs_5_0 ps_5_0, D3D11)' },\n  { vendor: 'Google Inc. (AMD)', renderer: 'ANGLE (AMD, AMD Radeon RX 6800 XT Direct3D11 vs_5_0 ps_5_0, D3D11)' },\n  { vendor: 'Apple Inc.', renderer: 'Apple M1' },\n  { vendor: 'Apple Inc.', renderer: 'Apple M2' }\n];\nconst webgl = webglConfigs[Math.floor(seededRandom(seed, 13) * webglConfigs.length)];\n\n// Audio Context Fingerprint\nconst audioContextNoise = seededRandom(seed, 14) * 0.0000001;\n\n// Font List（部分的にランダム）\nconst baseFonts = ['Arial', 'Helvetica', 'Times New Roman', 'Georgia', 'Verdana', 'Courier New'];\nconst optionalFonts = ['Segoe UI', 'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Source Sans Pro', 'Noto Sans', 'Meiryo', 'MS Gothic', 'Hiragino Sans'];\nconst includedOptional = optionalFonts.filter((_, i) => seededRandom(seed, 15 + i) > 0.5);\nconst fonts = [...baseFonts, ...includedOptional];\n\n// Plugins（Chrome標準）\nconst plugins = [\n  { name: 'PDF Viewer', filename: 'internal-pdf-viewer' },\n  { name: 'Chrome PDF Viewer', filename: 'internal-pdf-viewer' },\n  { name: 'Chromium PDF Viewer', filename: 'internal-pdf-viewer' },\n  { name: 'Microsoft Edge PDF Viewer', filename: 'internal-pdf-viewer' },\n  { name: 'WebKit built-in PDF', filename: 'internal-pdf-viewer' }\n];\n\n// Proxy設定（チャンネル固有）\nconst proxy = config?.proxy_ip ? {\n  host: config.proxy_ip,\n  port: config.proxy_port || 8080,\n  username: config.proxy_user || null,\n  password: config.proxy_pass || null,\n  type: 'residential'\n} : null;\n\nconst fingerprint = {\n  session_id: initData.session_id,\n  channel_id: initData.channel_id,\n  account_id: initData.account_id,\n  platform: initData.platform,\n  \n  // Browser Identity\n  user_agent: userAgent,\n  accept_language: language.accept,\n  \n  // Screen & Display\n  screen_width: screen.width,\n  screen_height: screen.height,\n  screen_resolution: `${screen.width}x${screen.height}`,\n  available_screen_width: screen.width,\n  available_screen_height: screen.height - (seededRandom(seed, 20) > 0.5 ? 40 : 30), // Taskbar\n  color_depth: colorDepth,\n  pixel_ratio: seededRandom(seed, 21) > 0.7 ? 2 : 1,\n  \n  // Hardware\n  hardware_concurrency: hardwareConcurrency,\n  device_memory: deviceMemory,\n  max_touch_points: 0,\n  \n  // Timezone & Locale\n  timezone: timezone.name,\n  timezone_offset: timezone.offset,\n  language: language.code,\n  languages: [language.code, 'en-US', 'en'],\n  \n  // WebGL\n  webgl_vendor: webgl.vendor,\n  webgl_renderer: webgl.renderer,\n  \n  // Canvas Noise\n  canvas_noise: canvasNoise,\n  \n  // Audio\n  audio_context_noise: audioContextNoise,\n  \n  // Fonts & Plugins\n  fonts: fonts,\n  plugins: plugins,\n  \n  // Network\n  proxy: proxy,\n  \n  // HTTP Headers for requests\n  http_headers: {\n    'User-Agent': userAgent,\n    'Accept-Language': language.accept,\n    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',\n    'Accept-Encoding': 'gzip, deflate, br',\n    'Sec-Ch-Ua': `\"Not_A Brand\";v=\"8\", \"Chromium\";v=\"${chromeVersion.split('.')[0]}\", \"Google Chrome\";v=\"${chromeVersion.split('.')[0]}\"`,\n    'Sec-Ch-Ua-Mobile': '?0',\n    'Sec-Ch-Ua-Platform': isWindows ? '\"Windows\"' : '\"macOS\"',\n    'Sec-Fetch-Dest': 'document',\n    'Sec-Fetch-Mode': 'navigate',\n    'Sec-Fetch-Site': 'none',\n    'Sec-Fetch-User': '?1',\n    'Upgrade-Insecure-Requests': '1'\n  },\n  \n  // Metadata\n  fingerprint_hash: seed,\n  generated_at: new Date().toISOString(),\n  valid_until: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()\n};\n\nreturn [{ json: fingerprint }];"
+      },
+      "id": "generate-fingerprint",
+      "name": "🎭 指紋生成エンジン",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO fingerprint_sessions (session_id, channel_id, account_id, platform, user_agent, screen_resolution, timezone, language, hardware_concurrency, device_memory, webgl_vendor, webgl_renderer, proxy_config, http_headers, fingerprint_hash, valid_until) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14::jsonb, $15, $16) ON CONFLICT (session_id) DO UPDATE SET http_headers = $14::jsonb, valid_until = $16 RETURNING id, session_id",
+        "options": {
+          "queryParams": "={{ [$json.session_id, $json.channel_id, $json.account_id, $json.platform, $json.user_agent, $json.screen_resolution, $json.timezone, $json.language, $json.hardware_concurrency, $json.device_memory, $json.webgl_vendor, $json.webgl_renderer, JSON.stringify($json.proxy), JSON.stringify($json.http_headers), $json.fingerprint_hash, $json.valid_until] }}"
+        }
+      },
+      "id": "save-session",
+      "name": "💾 セッション保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const fingerprint = $node['🎭 指紋生成エンジン'].json;\nconst saveResult = $input.first().json;\n\nreturn [{\n  json: {\n    success: true,\n    session_id: fingerprint.session_id,\n    channel_id: fingerprint.channel_id,\n    platform: fingerprint.platform,\n    \n    // クライアントが使用するヘッダー\n    http_headers: fingerprint.http_headers,\n    \n    // プロキシ設定\n    proxy: fingerprint.proxy,\n    \n    // ブラウザ指紋（AdsPower/Puppeteer用）\n    browser_fingerprint: {\n      user_agent: fingerprint.user_agent,\n      screen: {\n        width: fingerprint.screen_width,\n        height: fingerprint.screen_height,\n        availWidth: fingerprint.available_screen_width,\n        availHeight: fingerprint.available_screen_height,\n        colorDepth: fingerprint.color_depth,\n        pixelRatio: fingerprint.pixel_ratio\n      },\n      hardware: {\n        concurrency: fingerprint.hardware_concurrency,\n        memory: fingerprint.device_memory,\n        maxTouchPoints: fingerprint.max_touch_points\n      },\n      timezone: {\n        name: fingerprint.timezone,\n        offset: fingerprint.timezone_offset\n      },\n      language: {\n        primary: fingerprint.language,\n        list: fingerprint.languages\n      },\n      webgl: {\n        vendor: fingerprint.webgl_vendor,\n        renderer: fingerprint.webgl_renderer\n      },\n      canvas_noise: fingerprint.canvas_noise,\n      audio_noise: fingerprint.audio_context_noise,\n      fonts: fingerprint.fonts,\n      plugins: fingerprint.plugins\n    },\n    \n    valid_until: fingerprint.valid_until\n  }\n}];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: fingerprint-generate": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📊 チャンネル設定取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 チャンネル設定取得": {
+      "main": [
+        [
+          {
+            "node": "🎭 指紋生成エンジン",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎭 指紋生成エンジン": {
+      "main": [
+        [
+          {
+            "node": "💾 セッション保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 セッション保存": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 60,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Security",
+      "color": "#e67e22"
+    },
+    {
+      "name": "AntiDetect",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false,
+  "meta": {
+    "description": "N3-102 高度デジタル指紋エミュレーション V5-PRODUCTION - BAN回避用ブラウザ指紋生成",
+    "version": "5.0",
+    "changelog": "2026-01-20: Gemini指示書準拠 - User-Agent, Screen, Canvas, WebGL, Hardware, Audio, Timezone完全エミュレーション",
+    "gemini_requirements_met": [
+      "user_agent_rotation",
+      "screen_size_emulation",
+      "canvas_fingerprint",
+      "hardware_info",
+      "webgl_spoofing",
+      "timezone_emulation",
+      "proxy_integration"
+    ]
+  }
+}

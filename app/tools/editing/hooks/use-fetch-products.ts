@@ -29,9 +29,42 @@ import type {
 // Query Keys
 // ============================================================
 
+/**
+ * React Query キー設計 v2 - 指示書準拠
+ * 
+ * 構造:
+ * ['products', 'list', { workflow_status, search, sort, filters }]
+ * 
+ * ⚠️ 重要: workflowPhase（L4）は含めない
+ * - L3変更 → 正しく再取得
+ * - L4変更 → キャッシュ使い回し（クライアントフィルタ）
+ * 
+ * @see docs/WORKSPACE_REFACTORING_DESIGN_V1.md
+ */
 export const PRODUCT_QUERY_KEYS = {
   all: ['products'] as const,
-  list: (params: FetchProductsParams) => ['products', 'list', params] as const,
+  
+  /**
+   * リストクエリキー
+   * ⭐ L3フィルター（listFilter）はAPI再取得トリガー
+   * ⭐ L4フィルター（workflowPhase）は含めない（クライアント側フィルタ）
+   */
+  list: (params: FetchProductsParams) => [
+    'products', 
+    'list', 
+    {
+      // L3: API再取得対象
+      listFilter: params.listFilter,
+      // ページネーション
+      page: params.page,
+      pageSize: params.pageSize,
+      // ソート
+      sort: params.sort,
+      // その他フィルター
+      filters: params.filters,
+    }
+  ] as const,
+  
   detail: (id: string) => ['products', 'detail', id] as const,
 };
 
@@ -92,6 +125,9 @@ export function useFetchProducts(options: UseFetchProductsOptions = {}): UseFetc
   const filters = useProductUIStore((state) => state.filters);
   const sort = useProductUIStore((state) => state.sort);
   const listFilter = useProductUIStore((state) => state.listFilter);
+  
+  // 🔧 デバッグ: listFilterの変化を追跡
+  console.log('[useFetchProducts] Current listFilter from store:', listFilter);
 
   const queryParams: FetchProductsParams = useMemo(() => ({
     page: currentPage,
@@ -142,10 +178,10 @@ export function useFetchProducts(options: UseFetchProductsOptions = {}): UseFetc
       
       return normalizeProducts(response.products, response.total);
     },
-    staleTime: options.staleTime ?? 5 * 60 * 1000,  // 5分間キャッシュ
-    gcTime: options.gcTime ?? 30 * 60 * 1000,       // 30分間保持
+    staleTime: options.staleTime ?? 0,  // 🔧 デバッグ: キャッシュ無効化
+    gcTime: options.gcTime ?? 30 * 60 * 1000,
     refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    refetchOnMount: true,  // 🔧 デバッグ: マウント時に常に再フェッチ
     enabled: options.enabled ?? true,
   });
 

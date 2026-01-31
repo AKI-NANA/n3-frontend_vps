@@ -204,6 +204,9 @@ export function TabMirror({ product }: TabMirrorProps) {
 
   const ebayData = (product as any)?.ebay_api_data || {};
   const listingReference = ebayData?.listing_reference;
+  // ✅ browse_resultも確認（n8nからのデータ）
+  const browseResult = ebayData?.browse_result;
+  const browseItems = browseResult?.items || [];
   const referenceItems = listingReference?.referenceItems || [];
   const categoryId = ebayData?.category_id || listingReference?.suggestedCategory;
   const categoryName = ebayData?.category_name || listingReference?.suggestedCategoryPath;
@@ -215,13 +218,31 @@ export function TabMirror({ product }: TabMirrorProps) {
 
   const selectedItemId = dbSelectedItem?.itemId || (selectedItemIds.length > 0 ? selectedItemIds[0] : null);
 
-  // 全アイテム = API取得（最新） + 手動追加
+  // 全アイテム = API取得（最新） + 手動追加 + browse_result（n8n）
   const allItems = useMemo(() => {
     // freshReferenceItemsがあればそれを使用（最新データ）
     const apiItems = freshReferenceItems.length > 0 ? freshReferenceItems : referenceItems;
-    const combined = [...apiItems, ...manualItems];
+    // ✅ browse_resultも統合（重複除外）
+    const browseItemsNormalized = browseItems.map((item: any) => ({
+      ...item,
+      itemId: item.itemId,
+      title: item.title,
+      price: item.price?.value || item.price,
+      condition: item.condition,
+      seller: item.seller,
+      image: item.image?.imageUrl || item.image,
+      itemWebUrl: item.itemWebUrl,
+      itemSpecifics: item.itemSpecifics,
+      isFromBrowse: true,
+    }));
+    
+    // 重複を除外して結合
+    const existingIds = new Set(apiItems.map((item: any) => item.itemId));
+    const newBrowseItems = browseItemsNormalized.filter((item: any) => !existingIds.has(item.itemId));
+    
+    const combined = [...apiItems, ...newBrowseItems, ...manualItems];
     return combined;
-  }, [referenceItems, freshReferenceItems, manualItems]);
+  }, [referenceItems, freshReferenceItems, browseItems, manualItems]);
 
   // 価格でソート + コンディション別にグループ化
   const sortedItems = useMemo(() => {
@@ -410,6 +431,11 @@ export function TabMirror({ product }: TabMirrorProps) {
                 {manualItems.length > 0 && (
                   <span style={{ color: T.purple, marginLeft: '0.5rem' }}>
                     (手動追加: {manualItems.length}件)
+                  </span>
+                )}
+                {browseItems.length > 0 && (
+                  <span style={{ color: T.accent, marginLeft: '0.5rem' }}>
+                    (n8n: {browseItems.length}件)
                   </span>
                 )}
               </div>

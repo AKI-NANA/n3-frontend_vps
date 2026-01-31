@@ -1,9 +1,11 @@
 // lib/n8n/workflows/research-workflows.ts
 /**
  * リサーチ関連のn8nワークフロー定義
+ * 
+ * Phase A-2: 全実行を dispatchService 経由に統一
  */
 
-import { n8nClient } from '../n8n-client';
+import { dispatchService } from '../n8n-client';
 
 export interface ResearchRequest {
   keyword?: string;
@@ -26,10 +28,10 @@ export class ResearchWorkflows {
     keyword?: string;
     category?: string;
   }) {
-    return n8nClient.execute({
-      workflow: 'research-amazon',
+    return dispatchService.execute({
+      toolId: 'amazon-research-bulk',
       action: 'analyze-product',
-      data: {
+      params: {
         asin: request.asin,
         keyword: request.keyword,
         category: request.category,
@@ -37,7 +39,7 @@ export class ResearchWorkflows {
         include_competitors: true,
       },
       options: {
-        timeout: 60000,
+        timeout: 60,
       }
     });
   }
@@ -46,13 +48,13 @@ export class ResearchWorkflows {
    * Keepa価格履歴取得
    */
   async getKeepaData(asins: string[]) {
-    return n8nClient.execute({
-      workflow: 'research-keepa',
+    return dispatchService.execute({
+      toolId: 'keepa-sync',
       action: 'get-price-history',
-      data: {
+      params: {
         asins,
-        stats: 180, // 180日間のデータ
-        domain: 1, // Amazon.com
+        stats: 180,
+        domain: 1,
         include_sales_rank: true,
       }
     });
@@ -65,10 +67,10 @@ export class ResearchWorkflows {
     condition?: 'new' | 'used' | 'all';
     soldOnly?: boolean;
   }) {
-    return n8nClient.execute({
-      workflow: 'research-ebay',
+    return dispatchService.execute({
+      toolId: 'sm-batch',
       action: 'find-completed-items',
-      data: {
+      params: {
         keyword,
         condition: options?.condition || 'all',
         sold_only: options?.soldOnly || true,
@@ -81,10 +83,10 @@ export class ResearchWorkflows {
    * ヤフオク商品スクレイピング
    */
   async scrapeYahooAuction(url: string) {
-    return n8nClient.execute({
-      workflow: 'research-yahoo',
+    return dispatchService.execute({
+      toolId: 'research-agent',
       action: 'scrape-product',
-      data: {
+      params: {
         url,
         include_images: true,
         translate_title: true,
@@ -97,10 +99,10 @@ export class ResearchWorkflows {
    * 競合分析
    */
   async analyzeCompetitor(sellerId: string, platform: string) {
-    return n8nClient.execute({
-      workflow: 'research-competitor',
+    return dispatchService.execute({
+      toolId: 'amazon-competitor-scan',
       action: 'analyze-seller',
-      data: {
+      params: {
         seller_id: sellerId,
         platform,
         analyze_pricing: true,
@@ -120,10 +122,10 @@ export class ResearchWorkflows {
     weight?: number;
     dimensions?: { length: number; width: number; height: number };
   }) {
-    return n8nClient.execute({
-      workflow: 'research-profit',
+    return dispatchService.execute({
+      toolId: 'profit-calculate',
       action: 'calculate',
-      data: {
+      params: {
         purchase_price: data.purchasePrice,
         selling_price: data.sellingPrice,
         platform: data.platform,
@@ -140,10 +142,10 @@ export class ResearchWorkflows {
    * トレンド分析
    */
   async analyzeTrends(category: string, days: number = 30) {
-    return n8nClient.execute({
-      workflow: 'research-trends',
+    return dispatchService.execute({
+      toolId: 'trend-agent',
       action: 'analyze-category',
-      data: {
+      params: {
         category,
         days,
         platforms: ['amazon', 'ebay'],
@@ -159,16 +161,15 @@ export class ResearchWorkflows {
     type: 'asin' | 'keyword' | 'url';
     platform: string;
   }>) {
-    return n8nClient.execute({
-      workflow: 'research-batch',
+    return dispatchService.execute({
+      toolId: 'amazon-research-bulk',
       action: 'batch-analyze',
-      data: {
+      params: {
         items,
-        parallel: 3, // 並列処理数
+        parallel: 3,
       },
       options: {
-        async: true,
-        timeout: 300000,
+        timeout: 300,
       }
     });
   }
@@ -177,16 +178,44 @@ export class ResearchWorkflows {
    * AIによる商品分析
    */
   async aiAnalysis(productData: any) {
-    return n8nClient.execute({
-      workflow: 'research-ai',
+    return dispatchService.execute({
+      toolId: 'research-agent',
       action: 'analyze-with-ai',
-      data: {
+      params: {
         product_data: productData,
         generate_title: true,
         generate_description: true,
         generate_keywords: true,
         suggest_category: true,
         predict_demand: true,
+      }
+    });
+  }
+
+  /**
+   * Amazon価格トラッキング
+   */
+  async trackAmazonPrices(asins: string[], threshold: number = 5) {
+    return dispatchService.execute({
+      toolId: 'amazon-price-tracker',
+      action: 'track-prices',
+      params: {
+        asins,
+        threshold_percent: threshold,
+      }
+    });
+  }
+
+  /**
+   * クロスリージョン価格差分析
+   */
+  async analyzeArbitrage(productId: string) {
+    return dispatchService.execute({
+      toolId: 'arbitrage-scan',
+      action: 'analyze',
+      params: {
+        product_id: productId,
+        regions: ['us', 'uk', 'de', 'jp'],
       }
     });
   }

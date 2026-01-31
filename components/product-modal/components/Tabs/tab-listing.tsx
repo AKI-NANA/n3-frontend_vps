@@ -1,13 +1,15 @@
 'use client';
 
-// TabListing - V8.3
+// TabListing - V8.4
 // デザインシステムV4準拠
-// 機能: 基本情報編集、Item Specifics、EU GPSR - 全て維持
+// 機能: 基本情報編集、Item Specifics、EU GPSR、🔥 AI監査パネル
 
 import { useState, useEffect } from 'react';
 import type { Product } from '@/types/product';
 import { getCategoryMapping, mergeItemSpecificsToFormData } from '@/app/tools/editing/config/ebay-item-specifics-mapping';
 import { convertYahooToEbayCondition } from '@/lib/condition-mapping';
+import { AIAuditPanel } from './components/ai-audit-panel';
+import { toast } from 'sonner';
 
 const T = {
   bg: '#F1F5F9', panel: '#ffffff', panelBorder: '#e2e8f0', highlight: '#f1f5f9',
@@ -19,11 +21,14 @@ export interface TabListingProps {
   product: Product | null;
   marketplace: string;
   marketplaceName: string;
+  onSave?: (updates: any) => void;
 }
 
-export function TabListing({ product, marketplace, marketplaceName }: TabListingProps) {
+export function TabListing({ product, marketplace, marketplaceName, onSave }: TabListingProps) {
   const listingData = (product as any)?.listing_data || {};
   const ebayData = (product as any)?.ebay_api_data || {};
+  
+  const [saving, setSaving] = useState(false);
 
   const [basicForm, setBasicForm] = useState({
     title: '',
@@ -100,7 +105,64 @@ export function TabListing({ product, marketplace, marketplaceName }: TabListing
   }, [product]);
 
   const handleSave = async () => {
-    alert('保存機能は実装中です');
+    if (!product?.id) {
+      toast.error('商品IDが不明です');
+      return;
+    }
+    
+    setSaving(true);
+    try {
+      const updates = {
+        english_title: basicForm.title,
+        ebay_category_id: basicForm.categoryId || null,
+        // listing_dataに詳細を保存
+        listing_data: {
+          ...listingData,
+          english_title: basicForm.title,
+          ebay_price_usd: basicForm.price,
+          quantity: basicForm.quantity,
+          condition: basicForm.condition,
+          condition_id: basicForm.conditionId,
+          ebay_category_id: basicForm.categoryId,
+          // EU GPSR
+          eu_responsible_company_name: euForm.companyName || null,
+          eu_responsible_address_line1: euForm.address || null,
+          eu_responsible_city: euForm.city || null,
+          eu_responsible_postal_code: euForm.postalCode || null,
+          eu_responsible_country: euForm.country || null,
+          // Item Specifics
+          item_specifics: itemSpecifics,
+        }
+      };
+      
+      const response = await fetch('/api/products/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: product.id,
+          updates
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (response.ok && result.success) {
+        toast.success('保存しました');
+        onSave?.(updates);
+        
+        // UI同期イベントをディスパッチ
+        window.dispatchEvent(new CustomEvent('n3:product-updated', { 
+          detail: { productId: product.id, updates, source: 'tab-listing' } 
+        }));
+      } else {
+        throw new Error(result.error || '保存に失敗しました');
+      }
+    } catch (error: any) {
+      console.error('[TabListing] 保存エラー:', error);
+      toast.error(`エラー: ${error.message}`);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const isEuComplete = euForm.companyName && euForm.address && euForm.city && euForm.postalCode && euForm.country;
@@ -222,20 +284,28 @@ export function TabListing({ product, marketplace, marketplaceName }: TabListing
             </button>
             <button
               onClick={handleSave}
+              disabled={saving}
               style={{
                 padding: '0.375rem 1rem',
                 fontSize: '11px',
                 fontWeight: 600,
                 borderRadius: '4px',
                 border: 'none',
-                background: '#1e293b',
+                background: saving ? T.textMuted : '#1e293b',
                 color: '#fff',
-                cursor: 'pointer',
+                cursor: saving ? 'not-allowed' : 'pointer',
               }}
             >
-              <i className="fas fa-save" style={{ marginRight: '0.25rem' }}></i> Save
+              {saving ? (
+                <><i className="fas fa-spinner fa-spin" style={{ marginRight: '0.25rem' }}></i> Saving...</>
+              ) : (
+                <><i className="fas fa-save" style={{ marginRight: '0.25rem' }}></i> Save</>
+              )}
             </button>
           </div>
+
+          {/* 🔥 AI監査パネル */}
+          <AIAuditPanel product={product} />
         </div>
       </div>
     </div>

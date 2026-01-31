@@ -7,6 +7,9 @@ import {
 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 
+// Tenant組織切替
+import { OrganizationSwitcher } from "@/components/tenant"
+
 // N3コンポーネント
 import {
   N3LanguageSwitch,
@@ -49,6 +52,17 @@ export default function Header() {
                         pathname === '/tools/editing-n3' || pathname.startsWith('/tools/editing-n3/') ||
                         pathname === '/tools/editing-legacy' || pathname.startsWith('/tools/editing-legacy/')
   
+  // N3ページ（サイドバーのみ、ヘッダー非表示）
+  const isN3PageWithSidebar = pathname === '/tools/research-n3' || pathname.startsWith('/tools/research-n3/') ||
+                              pathname === '/tools/bookkeeping-n3' || pathname.startsWith('/tools/bookkeeping-n3/') ||
+                              pathname === '/tools/amazon-research-n3' || pathname.startsWith('/tools/amazon-research-n3/') ||
+                              pathname === '/tools/control-n3' || pathname.startsWith('/tools/control-n3/') ||
+                              pathname === '/tools/listing-n3' || pathname.startsWith('/tools/listing-n3/') ||
+                              pathname === '/tools/operations-n3' || pathname.startsWith('/tools/operations-n3/') ||
+                              pathname === '/tools/finance-n3' || pathname.startsWith('/tools/finance-n3/') ||
+                              pathname === '/tools/command-center' || pathname.startsWith('/tools/command-center/') ||
+                              pathname === '/tools/workspace' || pathname.startsWith('/tools/workspace/')
+  
   // Update clocks
   useEffect(() => {
     const update = () => {
@@ -82,8 +96,8 @@ export default function Header() {
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
-  // /tools/editing では表示しない
-  if (isEditingPage) {
+  // /tools/editing では表示しない、またはN3ページでも表示しない
+  if (isEditingPage || isN3PageWithSidebar) {
     return null
   }
 
@@ -118,6 +132,11 @@ export default function Header() {
 
         {/* Exchange Rate */}
         <N3CurrencyDisplay value={149.50} trend="up" />
+
+        <N3Divider orientation="vertical" />
+
+        {/* Organization Switcher */}
+        <OrganizationSwitcher />
 
         <N3Divider orientation="vertical" />
 

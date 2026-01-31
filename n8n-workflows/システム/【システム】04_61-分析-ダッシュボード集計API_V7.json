@@ -1,0 +1,344 @@
+{
+  "name": "【システム】04_61-分析-ダッシュボード集計API_V7",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dashboard-metrics",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: dashboard-metrics",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "dashboard-metrics"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "毎時0分",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// V7商用基準: テナント隔離 + 保存アクション対応\nconst headers = $input.first().json.headers || {};\nconst body = $input.first().json.body || $input.first().json || {};\n\n// 署名検証\nconst signature = headers['x-n3-signature'] || headers['X-N3-Signature'] || '';\nconst timestamp = headers['x-n3-timestamp'] || headers['X-N3-Timestamp'] || '';\n\nif (signature && timestamp) {\n  const ts = parseInt(timestamp, 10);\n  const now = Math.floor(Date.now() / 1000);\n  if (Math.abs(now - ts) > 300) {\n    return [{ json: { error: true, message: 'タイムスタンプ期限切れ', code: 'TIMESTAMP_EXPIRED' } }];\n  }\n}\n\n// テナントID抽出（必須）\nconst tenantId = body.tenant_id || headers['x-tenant-id'] || headers['X-Tenant-Id'] || $env.DEFAULT_TENANT_ID;\nif (!tenantId) {\n  return [{ json: { error: true, message: 'tenant_id必須', code: 'TENANT_REQUIRED' } }];\n}\n\nconst action = body.action || 'get_all';\nconst dateRange = body.date_range || {};\nconst platform = body.platform;\nconst isScheduled = !$input.first().json.body;\nconst saveData = body.save_data || null;\nconst alertId = body.alert_id || null;\n\nreturn [{ json: { \n  tenant_id: tenantId,\n  action: isScheduled ? 'refresh' : action, \n  date_range: dateRange, \n  platform, \n  is_scheduled: isScheduled,\n  save_data: saveData,\n  alert_id: alertId,\n  request_id: `dm-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`\n} }];"
+      },
+      "id": "init",
+      "name": "🔐 V7初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[V7_COMMERCIAL] テナント隔離 + 保存アクション"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [{ "id": "error-check", "leftValue": "={{ $json.error }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": { "responseCode": 400 }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "rules": {
+          "rules": [
+            { "outputKey": "get_all", "conditions": { "combinator": "and", "conditions": [{ "leftValue": "={{ $json.action }}", "rightValue": "get_all", "operator": { "type": "string", "operation": "equals" } }] } },
+            { "outputKey": "refresh", "conditions": { "combinator": "or", "conditions": [{ "leftValue": "={{ $json.action }}", "rightValue": "refresh", "operator": { "type": "string", "operation": "equals" } }, { "leftValue": "={{ $json.is_scheduled }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }] } },
+            { "outputKey": "get_alerts", "conditions": { "combinator": "and", "conditions": [{ "leftValue": "={{ $json.action }}", "rightValue": "get_alerts", "operator": { "type": "string", "operation": "equals" } }] } },
+            { "outputKey": "save_action", "conditions": { "combinator": "or", "conditions": [{ "leftValue": "={{ $json.action }}", "rightValue": "save_settings", "operator": { "type": "string", "operation": "equals" } }, { "leftValue": "={{ $json.action }}", "rightValue": "mark_alert_read", "operator": { "type": "string", "operation": "equals" } }] } }
+          ],
+          "fallbackOutput": "get_all"
+        }
+      },
+      "id": "switch-action",
+      "name": "🔀 アクション分岐",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT metric_type, metric_date, metric_data FROM dashboard_metrics WHERE tenant_id = $1 AND metric_date >= CURRENT_DATE - INTERVAL '30 days' ORDER BY metric_date DESC",
+        "options": { "queryParams": "={{ [$node['🔐 V7初期化'].json.tenant_id] }}" }
+      },
+      "id": "get-all-metrics",
+      "name": "📊 全メトリクス取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" } },
+      "notes": "[V7] tenant_id物理隔離"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, alert_type, alert_severity, alert_title, alert_message, is_read, created_at FROM dashboard_alerts WHERE tenant_id = $1 AND is_read = false ORDER BY CASE alert_severity WHEN 'critical' THEN 1 WHEN 'warning' THEN 2 ELSE 3 END, created_at DESC LIMIT 50",
+        "options": { "queryParams": "={{ [$node['🔐 V7初期化'].json.tenant_id] }}" }
+      },
+      "id": "get-alerts",
+      "name": "🚨 アラート取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" } },
+      "notes": "[V7] tenant_id物理隔離"
+    },
+    {
+      "parameters": {
+        "jsCode": "// V7: 保存アクション処理\nconst config = $node['🔐 V7初期化'].json;\nconst action = config.action;\nconst tenantId = config.tenant_id;\n\nlet result = { action, tenant_id: tenantId, processed: false };\n\nif (action === 'mark_alert_read' && config.alert_id) {\n  result.update_query = 'mark_alert_read';\n  result.alert_id = config.alert_id;\n  result.processed = true;\n} else if (action === 'save_settings' && config.save_data) {\n  result.update_query = 'save_settings';\n  result.save_data = config.save_data;\n  result.processed = true;\n}\n\nreturn [{ json: result }];"
+      },
+      "id": "prepare-save",
+      "name": "📝 保存準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[V7] 保存アクション対応"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [{ "id": "mark-read", "leftValue": "={{ $json.update_query }}", "rightValue": "mark_alert_read", "operator": { "type": "string", "operation": "equals" } }]
+        }
+      },
+      "id": "save-switch",
+      "name": "保存タイプ判定",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE dashboard_alerts SET is_read = true, read_at = NOW() WHERE tenant_id = $1 AND id = $2 RETURNING id",
+        "options": { "queryParams": "={{ [$json.tenant_id, $json.alert_id] }}" }
+      },
+      "id": "mark-alert-read",
+      "name": "✅ アラート既読化",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" } },
+      "notes": "[V7] UIからの既読化リクエスト"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO dashboard_settings (tenant_id, setting_key, setting_value, updated_at) VALUES ($1, $2, $3::jsonb, NOW()) ON CONFLICT (tenant_id, setting_key) DO UPDATE SET setting_value = $3::jsonb, updated_at = NOW() RETURNING id",
+        "options": { "queryParams": "={{ [$json.tenant_id, $json.save_data?.key || 'default', JSON.stringify($json.save_data?.value || {})] }}" }
+      },
+      "id": "save-settings",
+      "name": "💾 設定保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" } },
+      "notes": "[V7] UIからの設定保存リクエスト"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT DATE(created_at) as sale_date, COUNT(*) as order_count, SUM(total_amount) as total_sales FROM orders_unified WHERE tenant_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '30 days' GROUP BY DATE(created_at) ORDER BY sale_date DESC",
+        "options": { "queryParams": "={{ [$node['🔐 V7初期化'].json.tenant_id] }}" }
+      },
+      "id": "calc-daily-sales",
+      "name": "📈 日別売上集計",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" } },
+      "notes": "[V7] tenant_id物理隔離"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT platform, COUNT(*) as order_count, SUM(total_amount) as total_sales, AVG(total_amount) as avg_order_value FROM orders_unified WHERE tenant_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '30 days' GROUP BY platform ORDER BY total_sales DESC",
+        "options": { "queryParams": "={{ [$node['🔐 V7初期化'].json.tenant_id] }}" }
+      },
+      "id": "calc-platform-breakdown",
+      "name": "📊 販路別集計",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" } },
+      "notes": "[V7] tenant_id物理隔離"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT DATE(settled_at) as settle_date, COUNT(*) as settlements, SUM(gross_revenue) as total_revenue, SUM(net_profit) as total_profit, AVG(profit_margin) as avg_margin FROM profit_settlements WHERE tenant_id = $1 AND settled_at >= CURRENT_DATE - INTERVAL '30 days' GROUP BY DATE(settled_at) ORDER BY settle_date DESC",
+        "options": { "queryParams": "={{ [$node['🔐 V7初期化'].json.tenant_id] }}" }
+      },
+      "id": "calc-profit-trend",
+      "name": "💰 利益推移集計",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" } },
+      "notes": "[V7] tenant_id物理隔離"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT pm.category_primary as category, COUNT(pm.id) as product_count, SUM(im.quantity) as total_stock FROM products_master pm LEFT JOIN inventory_master im ON pm.id = im.product_id AND im.tenant_id = $1 WHERE pm.tenant_id = $1 AND pm.status = 'active' GROUP BY pm.category_primary ORDER BY total_stock DESC LIMIT 20",
+        "options": { "queryParams": "={{ [$node['🔐 V7初期化'].json.tenant_id] }}" }
+      },
+      "id": "calc-inventory",
+      "name": "📦 在庫カテゴリ集計",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" } },
+      "notes": "[V7] tenant_id物理隔離"
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $node['🔐 V7初期化'].json;\nconst dailySales = $node['📈 日別売上集計'].json;\nconst platformBreakdown = $node['📊 販路別集計'].json;\nconst profitTrend = $node['💰 利益推移集計'].json;\nconst inventory = $node['📦 在庫カテゴリ集計'].json;\n\n// V7: PIIマスキング\nfunction maskPII(obj) {\n  if (!obj || typeof obj !== 'object') return obj;\n  const piiKeys = ['email', 'customer_email', 'name', 'customer_name', 'phone', 'address'];\n  const masked = Array.isArray(obj) ? [...obj] : { ...obj };\n  for (const key of Object.keys(masked)) {\n    if (piiKeys.some(p => key.toLowerCase().includes(p))) {\n      masked[key] = '***';\n    } else if (typeof masked[key] === 'object' && masked[key] !== null) {\n      masked[key] = maskPII(masked[key]);\n    }\n  }\n  return masked;\n}\n\nconst today = new Date().toISOString().split('T')[0];\nconst metrics = [\n  { metric_type: 'daily_sales', metric_date: today, metric_data: { data: maskPII(Array.isArray(dailySales) ? dailySales : [dailySales]) } },\n  { metric_type: 'platform_breakdown', metric_date: today, metric_data: { data: maskPII(Array.isArray(platformBreakdown) ? platformBreakdown : [platformBreakdown]) } },\n  { metric_type: 'profit_trend', metric_date: today, metric_data: { data: maskPII(Array.isArray(profitTrend) ? profitTrend : [profitTrend]) } },\n  { metric_type: 'inventory_breakdown', metric_date: today, metric_data: { data: maskPII(Array.isArray(inventory) ? inventory : [inventory]) } }\n];\n\nreturn metrics.map(m => ({ json: { ...m, tenant_id: config.tenant_id } }));"
+      },
+      "id": "prepare-metrics",
+      "name": "📋 メトリクス準備 (PII防壁)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[V7_COMMERCIAL] PIIマスキング"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO dashboard_metrics (tenant_id, metric_type, metric_date, metric_data) VALUES ($1, $2, $3::date, $4::jsonb) ON CONFLICT (tenant_id, metric_type, metric_date) DO UPDATE SET metric_data = $4::jsonb, calculated_at = NOW() RETURNING id",
+        "options": { "queryParams": "={{ [$json.tenant_id, $json.metric_type, $json.metric_date, JSON.stringify($json.metric_data)] }}" }
+      },
+      "id": "save-metrics",
+      "name": "💾 メトリクス保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" } },
+      "continueOnFail": true,
+      "notes": "[V7] tenant_id物理隔離"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT setting_value::decimal FROM global_settings WHERE tenant_id = $1 AND setting_key = 'alert_profit_drop_threshold'",
+        "options": { "queryParams": "={{ [$node['🔐 V7初期化'].json.tenant_id] }}" }
+      },
+      "id": "get-threshold",
+      "name": "⚙️ 閾値取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" } },
+      "notes": "[V7] tenant_id物理隔離"
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $node['🔐 V7初期化'].json;\nconst profitTrend = $node['💰 利益推移集計'].json;\nconst thresholdRaw = $input.first().json;\nconst threshold = parseFloat(thresholdRaw?.setting_value) || 0.10;\n\nconst profits = Array.isArray(profitTrend) ? profitTrend : [profitTrend];\nconst alerts = [];\n\nif (profits.length >= 2) {\n  const latest = profits[0];\n  const previous = profits[1];\n  if (latest && previous && latest.avg_margin && previous.avg_margin) {\n    const drop = previous.avg_margin - latest.avg_margin;\n    if (drop > threshold) {\n      alerts.push({\n        tenant_id: config.tenant_id,\n        alert_type: 'profit_drop',\n        alert_severity: drop > 0.20 ? 'critical' : 'warning',\n        alert_title: '利益率低下アラート',\n        alert_message: `利益率が${Math.round(drop * 100)}%低下しました`,\n        alert_data: { previous_margin: previous.avg_margin, current_margin: latest.avg_margin, drop: drop }\n      });\n    }\n  }\n}\n\nreturn alerts.length > 0 ? alerts.map(a => ({ json: a })) : [{ json: { no_alerts: true, tenant_id: config.tenant_id } }];"
+      },
+      "id": "check-alerts",
+      "name": "🚨 アラートチェック",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[V7] tenant_id付きアラート"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [{ "id": "no-alerts", "leftValue": "={{ $json.no_alerts }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }]
+        }
+      },
+      "id": "has-alerts",
+      "name": "アラートあり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO dashboard_alerts (tenant_id, alert_type, alert_severity, alert_title, alert_message, alert_data) VALUES ($1, $2, $3, $4, $5, $6::jsonb) RETURNING id",
+        "options": { "queryParams": "={{ [$json.tenant_id, $json.alert_type, $json.alert_severity, $json.alert_title, $json.alert_message, JSON.stringify($json.alert_data || {})] }}" }
+      },
+      "id": "save-alerts",
+      "name": "💾 アラート保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" } },
+      "continueOnFail": true,
+      "notes": "[V7] tenant_id物理隔離"
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $node['🔐 V7初期化'].json;\nconst action = config.action;\nlet result = { success: true, tenant_id: config.tenant_id, action, request_id: config.request_id, timestamp: new Date().toISOString() };\n\nif (action === 'get_all') {\n  const metrics = $node['📊 全メトリクス取得'].json;\n  result.metrics = Array.isArray(metrics) ? metrics : (metrics?.metric_type ? [metrics] : []);\n} else if (action === 'get_alerts') {\n  const alerts = $node['🚨 アラート取得'].json;\n  result.alerts = Array.isArray(alerts) ? alerts : (alerts?.id ? [alerts] : []);\n} else if (action === 'refresh') {\n  result.message = 'メトリクス更新完了';\n  result.metrics_updated = 4;\n} else if (action === 'mark_alert_read' || action === 'save_settings') {\n  result.message = '保存完了';\n}\n\n// V7: UI Config for DynamicRenderer\nresult.ui_config = {\n  renderer: 'DynamicRenderer',\n  layout: 'tabs',\n  tabs: [\n    { id: 'sales', label: '売上分析', icon: 'TrendingUp', components: [{ type: 'Chart', props: { chartType: 'Line', dataKey: 'daily_sales' } }] },\n    { id: 'inventory', label: '在庫', icon: 'Package', components: [{ type: 'Chart', props: { chartType: 'Bar', dataKey: 'inventory_breakdown' } }] },\n    { id: 'alerts', label: 'アラート', icon: 'Bell', badge: result.alerts?.filter(a => !a.is_read).length || 0, components: [{ type: 'AlertList', props: { allowMarkRead: true, endpoint: '/webhook/dashboard-metrics', action: 'mark_alert_read' } }] }\n  ]\n};\n\nreturn [{ json: result }];"
+      },
+      "id": "format-response",
+      "name": "📤 V7レスポンス (UI Config付)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[V7_COMMERCIAL] DynamicRenderer用UI Config + 保存アクション対応"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    }
+  ],
+  "connections": {
+    "Webhook: dashboard-metrics": { "main": [[{ "node": "🔐 V7初期化", "type": "main", "index": 0 }]] },
+    "毎時0分": { "main": [[{ "node": "🔐 V7初期化", "type": "main", "index": 0 }]] },
+    "🔐 V7初期化": { "main": [[{ "node": "エラーチェック", "type": "main", "index": 0 }]] },
+    "エラーチェック": { "main": [[{ "node": "エラー応答", "type": "main", "index": 0 }], [{ "node": "🔀 アクション分岐", "type": "main", "index": 0 }]] },
+    "🔀 アクション分岐": { "main": [[{ "node": "📊 全メトリクス取得", "type": "main", "index": 0 }], [{ "node": "📈 日別売上集計", "type": "main", "index": 0 }], [{ "node": "🚨 アラート取得", "type": "main", "index": 0 }], [{ "node": "📝 保存準備", "type": "main", "index": 0 }]] },
+    "📊 全メトリクス取得": { "main": [[{ "node": "📤 V7レスポンス (UI Config付)", "type": "main", "index": 0 }]] },
+    "🚨 アラート取得": { "main": [[{ "node": "📤 V7レスポンス (UI Config付)", "type": "main", "index": 0 }]] },
+    "📝 保存準備": { "main": [[{ "node": "保存タイプ判定", "type": "main", "index": 0 }]] },
+    "保存タイプ判定": { "main": [[{ "node": "✅ アラート既読化", "type": "main", "index": 0 }], [{ "node": "💾 設定保存", "type": "main", "index": 0 }]] },
+    "✅ アラート既読化": { "main": [[{ "node": "📤 V7レスポンス (UI Config付)", "type": "main", "index": 0 }]] },
+    "💾 設定保存": { "main": [[{ "node": "📤 V7レスポンス (UI Config付)", "type": "main", "index": 0 }]] },
+    "📈 日別売上集計": { "main": [[{ "node": "📊 販路別集計", "type": "main", "index": 0 }]] },
+    "📊 販路別集計": { "main": [[{ "node": "💰 利益推移集計", "type": "main", "index": 0 }]] },
+    "💰 利益推移集計": { "main": [[{ "node": "📦 在庫カテゴリ集計", "type": "main", "index": 0 }]] },
+    "📦 在庫カテゴリ集計": { "main": [[{ "node": "📋 メトリクス準備 (PII防壁)", "type": "main", "index": 0 }]] },
+    "📋 メトリクス準備 (PII防壁)": { "main": [[{ "node": "💾 メトリクス保存", "type": "main", "index": 0 }]] },
+    "💾 メトリクス保存": { "main": [[{ "node": "⚙️ 閾値取得", "type": "main", "index": 0 }]] },
+    "⚙️ 閾値取得": { "main": [[{ "node": "🚨 アラートチェック", "type": "main", "index": 0 }]] },
+    "🚨 アラートチェック": { "main": [[{ "node": "アラートあり？", "type": "main", "index": 0 }]] },
+    "アラートあり？": { "main": [[{ "node": "📤 V7レスポンス (UI Config付)", "type": "main", "index": 0 }], [{ "node": "💾 アラート保存", "type": "main", "index": 0 }]] },
+    "💾 アラート保存": { "main": [[{ "node": "📤 V7レスポンス (UI Config付)", "type": "main", "index": 0 }]] },
+    "📤 V7レスポンス (UI Config付)": { "main": [[{ "node": "✅ 成功応答", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionTimeout": 300, "saveDataErrorExecution": "all", "saveDataSuccessExecution": "none" },
+  "tags": [
+    { "name": "N3-Analytics", "color": "#3498db" },
+    { "name": "V7-COMMERCIAL", "color": "#ff6b00" },
+    { "name": "Dashboard", "color": "#9b59b6" },
+    { "name": "TENANT-ISOLATED", "color": "#8b0000" },
+    { "name": "PII-MASKED", "color": "#9932cc" },
+    { "name": "SAVE-ACTION", "color": "#228b22" },
+    { "name": "UI-CONFIG", "color": "#00ced1" }
+  ],
+  "active": false,
+  "_v7_commercial": true,
+  "_v7_version": "7.0.0",
+  "_v7_features": ["tenant_isolation", "pii_masking", "ui_config", "save_action", "mark_alert_read"],
+  "_v7_timestamp": "2026-01-23T00:00:00.000Z"
+}

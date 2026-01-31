@@ -1,0 +1,540 @@
+{
+  "name": "【司令塔】01_11-出品管理-スコアリングディスパッチャー_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "cron-hourly",
+      "name": "1時間ごと実行",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT pm.id, pm.sku, pm.product_name, pm.title, pm.user_id, pm.updated_at, pm.ebay_site, pm.sm_views, pm.sm_watches, pm.sm_sold_count, pm.sm_confidence_score, pm.calculated_profit_margin, pm.image_urls, pm.listing_price FROM products_master pm LEFT JOIN inventory_master im ON im.product_master_id = pm.id WHERE pm.workflow_status = 'approved' AND pm.listing_status IN ('not_listed', 'pending') AND pm.user_id IS NOT NULL AND COALESCE(im.physical_quantity, 1) > 0 ORDER BY pm.sm_confidence_score DESC NULLS LAST LIMIT 500",
+        "options": {}
+      },
+      "id": "get-pending",
+      "name": "出品待ち取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ Array.isArray($json) ? $json.length : ($json.id ? 1 : 0) }}",
+              "operation": "equal",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "check-empty",
+      "name": "対象有無",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { message: '出品待ちなし' } }];"
+      },
+      "id": "no-products",
+      "name": "対象なし",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const products = Array.isArray($input.first().json) ? $input.first().json : [$input.first().json];\nconst results = products.map(p => {\n  let score = 0;\n  score += Math.min(30, (p.sm_views || 0) / 10);\n  score += Math.min(25, (p.sm_watches || 0) * 5);\n  score += Math.min(20, (p.sm_sold_count || 0) * 4);\n  score += Math.min(15, (p.calculated_profit_margin || 0) * 0.5);\n  score += (p.sm_confidence_score || 50) / 10;\n  let tier = score >= 70 ? 'immediate' : score >= 50 ? 'high' : score >= 30 ? 'medium' : 'low';\n  return { product_id: p.id, user_id: p.user_id, updated_at: p.updated_at, name: (p.product_name || p.title || '').substring(0, 60), sku: p.sku, score: Math.round(score * 10) / 10, tier, ebay_site: p.ebay_site || 'US', image_urls: p.image_urls, listing_price: p.listing_price };\n}).sort((a, b) => b.score - a.score);\nreturn results.map(r => ({ json: r }));"
+      },
+      "id": "calc-scores",
+      "name": "スコア計算",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "jsCode": "const products = $input.all().map(i => i.json);\nconst immediate = products.filter(p => p.tier === 'immediate');\nconst high = products.filter(p => p.tier === 'high');\nconst summary = { total: products.length, immediate: immediate.length, high: high.length, medium: products.filter(p => p.tier === 'medium').length, low: products.filter(p => p.tier === 'low').length, top_5: immediate.slice(0, 5).map(p => ({ id: p.product_id, name: p.name, score: p.score })) };\nreturn [{ json: { summary, immediate, high, all: products } }];"
+      },
+      "id": "classify",
+      "name": "Tier分類",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.summary.immediate }}",
+              "operation": "larger",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "has-immediate",
+      "name": "即時出品あり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nreturn data.immediate.slice(0, 20).map(p => ({ json: p }));"
+      },
+      "id": "extract-immediate",
+      "name": "即時出品抽出",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "batchSize": 5,
+        "options": {}
+      },
+      "id": "batch",
+      "name": "バッチ分割",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_WEBHOOK_URL || '={{ $vars.API_BASE_URL || $env.N8N_WEBHOOK_URL }}/webhook' }}/listing-execute",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N3-Signature",
+              "value": "={{ $env.N8N_INTERNAL_TOKEN || \"\" }}"
+            },
+            {
+              "name": "X-N3-Token-Timestamp",
+              "value": "={{ Date.now() }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ user_id: $json.user_id, product_id: $json.product_id, target: 'ebay', marketplace: 'EBAY_' + $json.ebay_site, priority: 'immediate', score: $json.score }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "dispatch-ebay",
+      "name": "eBay出品ディスパッチ（内部認証）",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "amount": 3,
+        "unit": "seconds"
+      },
+      "id": "wait",
+      "name": "レート制限待機",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE products_master SET listing_score = $1, listing_tier = $2, listing_dispatched_at = NOW(), updated_at = NOW() WHERE id = $3 AND user_id = $4 AND updated_at = $5",
+        "options": {
+          "queryParams": "={{ [{{ $node['バッチ分割'].json.score }}, {{ $node['バッチ分割'].json.tier }}, {{ $node['バッチ分割'].json.product_id }}, {{ $node['バッチ分割'].json.user_id }}, {{ $node['バッチ分割'].json.updated_at }}] }}"
+        }
+      },
+      "id": "update-score",
+      "name": "スコア記録（楽観的ロック）",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $node['Tier分類'].json.summary.immediate }}",
+              "operation": "largerEqual",
+              "value2": 5
+            }
+          ]
+        }
+      },
+      "id": "check-media",
+      "name": "メディア対象あり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO media_queue (user_id, template_type, product_ids, props_json, status, created_at) SELECT $1, 'product_showcase', ARRAY[$2]::uuid[], '{{ JSON.stringify({ products: $node['Tier分類'].json.immediate.slice(0, 5).map(p => ({ id: p.product_id, name: p.name, score: p.score, price: p.listing_price })) }).replace(/'/g, \"''\") }}'::jsonb, 'pending', NOW() WHERE NOT EXISTS (SELECT 1 FROM media_queue WHERE status = 'pending' AND created_at > NOW() - INTERVAL '1 hour')",
+        "options": {
+          "queryParams": "={{ [{{ $node['Tier分類'].json.immediate[0].user_id }}, {{ $node['Tier分類'].json.immediate.slice(0, 5).map(p => \"'\" + p.product_id + \"'\").join(',') }}] }}"
+        }
+      },
+      "id": "queue-media",
+      "name": "🎬 メディアキュー登録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=[info][title]📊 出品スコアリングレポート[/title]対象: {{ $node['Tier分類'].json.summary.total }}件\\n\\n【Tier分布】\\n🔴即時(70+): {{ $node['Tier分類'].json.summary.immediate }}件\\n🟠高(50-69): {{ $node['Tier分類'].json.summary.high }}件\\n🟡中(30-49): {{ $node['Tier分類'].json.summary.medium }}件\\n⚪低(0-29): {{ $node['Tier分類'].json.summary.low }}件\\n\\n【Top5】\\n{{ $node['Tier分類'].json.summary.top_5.map(p => p.score + '点: ' + p.name).join('\\n') }}[/info]"
+            }
+          ]
+        }
+      },
+      "id": "notify",
+      "name": "ChatWork通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM listing_history WHERE created_at < NOW() - INTERVAL '7 days'",
+        "options": {}
+      },
+      "id": "purge",
+      "name": "🗑️ 履歴パージ",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "1時間ごと実行": {
+      "main": [
+        [
+          {
+            "node": "出品待ち取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "出品待ち取得": {
+      "main": [
+        [
+          {
+            "node": "対象有無",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "対象有無": {
+      "main": [
+        [
+          {
+            "node": "対象なし",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "スコア計算",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "スコア計算": {
+      "main": [
+        [
+          {
+            "node": "Tier分類",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tier分類": {
+      "main": [
+        [
+          {
+            "node": "即時出品あり？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "即時出品あり？": {
+      "main": [
+        [
+          {
+            "node": "即時出品抽出",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "メディア対象あり？",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "メディア対象あり？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "即時出品抽出": {
+      "main": [
+        [
+          {
+            "node": "バッチ分割",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "バッチ分割": {
+      "main": [
+        [
+          {
+            "node": "eBay出品ディスパッチ（内部認証）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "eBay出品ディスパッチ（内部認証）": {
+      "main": [
+        [
+          {
+            "node": "レート制限待機",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "レート制限待機": {
+      "main": [
+        [
+          {
+            "node": "スコア記録（楽観的ロック）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "メディア対象あり？": {
+      "main": [
+        [
+          {
+            "node": "🎬 メディアキュー登録",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "ChatWork通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎬 メディアキュー登録": {
+      "main": [
+        [
+          {
+            "node": "ChatWork通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ChatWork通知": {
+      "main": [
+        [
+          {
+            "node": "🗑️ 履歴パージ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "スコア記録（楽観的ロック）": {
+      "main": [
+        [
+          {
+            "node": "📊 実行ログ送信 (成功)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🗑️ 履歴パージ": {
+      "main": [
+        [
+          {
+            "node": "📊 実行ログ送信 (成功)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "対象なし": {
+      "main": [
+        [
+          {
+            "node": "📊 実行ログ送信 (成功)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 1800,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none"
+  },
+  "tags": [
+    {
+      "name": "N3-Listing",
+      "color": "#1e90ff"
+    },
+    {
+      "name": "V4-PRODUCTION",
+      "color": "#ff0000"
+    },
+    {
+      "name": "Scoring",
+      "color": "#ffd700"
+    },
+    {
+      "name": "Multi-Tenant",
+      "color": "#00bfff"
+    },
+    {
+      "name": "Media-Bridge",
+      "color": "#9932cc"
+    },
+    {
+      "name": "500MB-Safe",
+      "color": "#32cd32"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

@@ -1,0 +1,530 @@
+{
+  "name": "【出品】02_06b-eBay出品-エラー復旧エージェント_V7",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "v821-error-recovery-agent",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: エラー復旧依頼",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "v821-error-recovery-agent"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================\n// 🔐 V7-27次元防衛: JITトークン検証 + HMAC署名検証\n// ========================================\n\nconst headers = $input.first().json.headers || {};\nconst body = $input.first().json.body || $input.first().json;\n\n// JITトークン検証\nconst jitToken = headers['x-n3-jit-token'] || headers['X-N3-JIT-Token'];\nconst tokenExpiry = headers['x-n3-token-expiry'] || headers['X-N3-Token-Expiry'];\n\nif (jitToken && tokenExpiry) {\n  const expiryTs = parseInt(tokenExpiry, 10);\n  const now = Math.floor(Date.now() / 1000);\n  \n  if (now > expiryTs) {\n    return [{ json: { error: true, message: 'JITトークン期限切れ', code: 'JIT_TOKEN_EXPIRED' } }];\n  }\n  \n  const apiUrl = $env.N3_API_URL || 'http://localhost:3000';\n  try {\n    const verifyResponse = await fetch(`${apiUrl}/api/n8n-auth/verify-jit-token`, {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json' },\n      body: JSON.stringify({ token: jitToken, expiry: tokenExpiry })\n    });\n    const verifyResult = await verifyResponse.json();\n    if (!verifyResult.valid) {\n      return [{ json: { error: true, message: 'JITトークン無効', code: 'INVALID_JIT_TOKEN' } }];\n    }\n  } catch (e) {\n    console.log('JITトークン検証エラー: ' + e.message);\n  }\n}\n\n// HMAC署名検証\nconst signature = headers['x-n3-signature'] || headers['X-N3-Signature'] || '';\nconst timestamp = headers['x-n3-timestamp'] || headers['X-N3-Timestamp'] || '';\n\nif (signature && timestamp) {\n  const secret = $env.N3_HMAC_SECRET;\n  if (!secret) {\n    return [{ json: { error: true, message: 'N3_HMAC_SECRET未設定', code: 'CONFIG_ERROR' } }];\n  }\n  \n  const ts = parseInt(timestamp, 10);\n  const now = Math.floor(Date.now() / 1000);\n  if (Math.abs(now - ts) > 300) {\n    return [{ json: { error: true, message: 'タイムスタンプ期限切れ', code: 'TIMESTAMP_EXPIRED' } }];\n  }\n  \n  try {\n    const verifyUrl = $env.PRICING_ENGINE_URL || 'http://localhost:8000';\n    const response = await fetch(`${verifyUrl}/verify-signature`, {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json' },\n      body: JSON.stringify({ payload: JSON.stringify(body), signature, timestamp })\n    });\n    const result = await response.json();\n    if (!result.valid) {\n      return [{ json: { error: true, message: '署名検証失敗', code: 'INVALID_SIGNATURE' } }];\n    }\n  } catch (e) {\n    console.log('署名検証スキップ: ' + e.message);\n  }\n}\n\nreturn [{ json: { ...body, _auth_verified: true } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "id": "jit_hmac_verify",
+      "name": "🔐 JIT+HMAC検証"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================\n// 🔥 燃焼上限チェック\n// ========================================\n\nconst body = $input.first().json;\nconst userId = body.user_id || 'default';\n\nconst dailyLimit = parseInt($env.BURN_LIMIT_DAILY || '1000', 10);\nconst apiUrl = $env.N3_API_URL || 'http://localhost:3000';\n\ntry {\n  const usageResponse = await fetch(`${apiUrl}/api/cost-tracking/check-limit`, {\n    method: 'POST',\n    headers: { 'Content-Type': 'application/json' },\n    body: JSON.stringify({ user_id: userId, operation: 'error_recovery', estimated_cost: 0.10, daily_limit: dailyLimit })\n  });\n  \n  const usageResult = await usageResponse.json();\n  \n  if (usageResult.limit_exceeded) {\n    return [{ json: { error: true, message: `燃焼上限超過`, code: 'BURN_LIMIT_EXCEEDED' } }];\n  }\n  \n  return [{ json: { ...body, _burn_limit_checked: true } }];\n} catch (e) {\n  return [{ json: { ...body, _burn_limit_checked: false } }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "id": "burn_limit_check",
+      "name": "🔥 燃焼上限チェック"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================\n// 💰 V7-特化: 修復価値判定 (ROI Check)\n// 「直す価値があるか」を最初に判定\n// ========================================\n\nconst body = $input.first().json;\nconst productId = body.product_id;\nconst userId = body.user_id || 'default';\n\nif (body.error) {\n  return [{ json: body }];\n}\n\nconst apiUrl = $env.N3_API_URL || 'http://localhost:3000';\n\ntry {\n  // 商品の期待利益を取得\n  const profitResponse = await fetch(`${apiUrl}/api/products/${productId}/expected-profit`, {\n    method: 'GET',\n    headers: { 'Content-Type': 'application/json' }\n  });\n  \n  const profitResult = await profitResponse.json();\n  \n  // 修復コスト vs 期待利益を計算\n  const repairCost = 0.15; // AI呼び出しコスト（USD）\n  const expectedProfit = profitResult.expected_profit_usd || 0;\n  const repairROI = expectedProfit > 0 ? (expectedProfit - repairCost) / repairCost : -1;\n  \n  // 修復価値判定閾値\n  const minROI = parseFloat($env.REPAIR_MIN_ROI || '0.5');\n  \n  if (repairROI < minROI) {\n    return [{ json: { \n      ...body, \n      should_repair: false, \n      route_to_exit_strategy: true,\n      repair_roi: repairROI,\n      expected_profit: expectedProfit,\n      repair_cost: repairCost,\n      reason: `修復ROI(${repairROI.toFixed(2)})が閾値(${minROI})未満`\n    } }];\n  }\n  \n  return [{ json: { \n    ...body, \n    should_repair: true, \n    repair_roi: repairROI,\n    expected_profit: expectedProfit \n  } }];\n} catch (e) {\n  // 判定失敗時は修復を試みる\n  return [{ json: { ...body, should_repair: true, roi_check_error: e.message } }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "id": "repair_value_check",
+      "name": "💰 修復価値判定 (ROI Check)"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.route_to_exit_strategy }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-exit-strategy",
+      "name": "Exit Strategy分岐",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N3_API_URL || 'http://localhost:3000' }}/api/exit-strategy/route",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ product_id: $json.product_id, user_id: $json.user_id, reason: $json.reason, repair_roi: $json.repair_roi, action: 'disposal_or_discount' }) }}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "exit-strategy-api",
+      "name": "🚪 Exit Strategy Engine",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const exitResult = $input.first().json;\nreturn [{ json: { success: true, action: 'routed_to_exit_strategy', exit_result: exitResult } }];"
+      },
+      "id": "exit-response",
+      "name": "Exit Strategy結果",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// V7: 入力検証（認証済みデータ）\nconst body = $input.first().json;\n\nif (body.error) {\n  return [{ json: body }];\n}\n\nconst apiUrl = $env.N3_API_URL;\nconst secret = $env.N8N_INTERNAL_SECRET;\nif (!apiUrl) return [{ json: { error: true, message: 'N3_API_URL未設定', code: 'CONFIG_ERROR' } }];\nif (!secret) return [{ json: { error: true, message: 'N8N_INTERNAL_SECRET未設定', code: 'CONFIG_ERROR' } }];\n\nconst productId = body.product_id;\nconst marketplace = body.marketplace || 'ebay_us';\nconst limit = body.limit || 10;\nconst force = body.force || false;\nconst userId = body.user_id || 'default';\n\nreturn [{ json: { \n  product_id: productId, \n  marketplace: marketplace, \n  user_id: userId,\n  limit: limit,\n  force: force,\n  should_repair: body.should_repair,\n  repair_roi: body.repair_roi,\n  request_timestamp: new Date().toISOString()\n} }];"
+      },
+      "id": "validate",
+      "name": "リクエスト検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.error }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": { "responseCode": 403 }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT p.id, p.sku, p.english_title, p.title, p.ebay_category_id, p.ddp_price_usd, p.price_usd, p.condition, p.listing_data, COALESCE(p.ebay_account, 'mjt') as ebay_account, p.user_id, p.updated_at, elh.error_code, elh.error_message, elh.created_at as error_at, COALESCE((SELECT COUNT(*) FROM error_recovery_attempts era WHERE era.product_id = p.id AND era.created_at > NOW() - INTERVAL '24 hours'), 0) as retry_count_24h FROM products_master p INNER JOIN ebay_listing_history elh ON p.id = elh.product_id WHERE p.workflow_status = 'error' AND p.user_id = $1 AND elh.result = 'error' AND elh.created_at = (SELECT MAX(created_at) FROM ebay_listing_history WHERE product_id = p.id) AND ($2 = true OR NOT EXISTS (SELECT 1 FROM error_recovery_attempts era WHERE era.product_id = p.id AND era.created_at > NOW() - INTERVAL '24 hours')) ORDER BY elh.created_at DESC LIMIT $3",
+        "options": {
+          "queryParams": "={{ [$json.user_id, $json.force, $json.limit] }}"
+        }
+      },
+      "id": "get-errors",
+      "name": "エラー商品取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ Array.isArray($json) ? $json.length : ($json.id ? 1 : 0) }}",
+              "operation": "equal",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "check-empty",
+      "name": "対象有無",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { success: true, summary: { total: 0 }, message: 'エラー商品なし' } }];"
+      },
+      "id": "no-errors",
+      "name": "対象なし",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT error_code, error_category, auto_recoverable, recovery_strategy, required_fields FROM ebay_error_dictionary",
+        "options": {}
+      },
+      "id": "get-dict",
+      "name": "エラー辞書取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const errors = $node['エラー商品取得'].json;\nconst errorArr = Array.isArray(errors) ? errors : [errors];\nconst dictArr = Array.isArray($input.first().json) ? $input.first().json : [$input.first().json];\nconst errorDict = dictArr.reduce((acc, e) => { if (e.error_code) acc[e.error_code] = e; return acc; }, {});\n\nreturn errorArr.filter(p => p.id).map(p => {\n  const info = errorDict[p.error_code] || { error_category: 'unknown', auto_recoverable: false, recovery_strategy: 'Manual review' };\n  return { json: {\n    user_id: p.user_id, product_id: p.id, sku: p.sku, updated_at: p.updated_at,\n    title: p.english_title || p.title, category_id: p.ebay_category_id, condition: p.condition,\n    price_usd: p.ddp_price_usd || p.price_usd, listing_data: p.listing_data, ebay_account: p.ebay_account,\n    error_code: p.error_code, error_message: p.error_message, error_category: info.error_category,\n    auto_recoverable: info.auto_recoverable, recovery_strategy: info.recovery_strategy,\n    retry_count_24h: p.retry_count_24h || 0\n  } };\n});"
+      },
+      "id": "prepare",
+      "name": "エラー情報整理",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "batch",
+      "name": "1件ずつ処理",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.auto_recoverable }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-recoverable",
+      "name": "自動復旧可能？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nreturn [{ json: { ...data, success: false, action: 'not_auto_recoverable', reason: data.recovery_strategy } }];"
+      },
+      "id": "not-recoverable",
+      "name": "自動復旧不可",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N3_API_URL || 'http://localhost:3000' }}/api/ai/analyze",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'gemini-1.5-flash', prompt: 'eBay出品エラーを解析し修正データを提案してください。\\n\\n【商品】SKU: ' + $json.sku + ', タイトル: ' + $json.title + ', カテゴリID: ' + $json.category_id + '\\n【エラー】コード: ' + $json.error_code + ', メッセージ: ' + ($json.error_message || '').substring(0, 300) + '\\n【カテゴリ】' + $json.error_category + '\\n【戦略】' + $json.recovery_strategy + '\\n\\nJSON形式で回答: {\"diagnosis\":\"診断\",\"corrections\":{\"Brand\":\"値\",\"MPN\":\"値\"},\"confidence\":0.8,\"reasoning\":\"理由\"}' }) }}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "ai-diagnose",
+      "name": "Gemini: エラー診断",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO ai_decision_traces (user_id, workflow_name, node_name, input_data, output_data, model_used, confidence_score, reasoning, created_at) VALUES ($1, 'error-recovery-agent-v7', 'Gemini診断', $2::jsonb, $3::jsonb, 'gemini-1.5-flash', $4, $5, NOW())",
+        "options": {
+          "queryParams": "={{ [$node['リクエスト検証'].json.user_id, JSON.stringify({sku: $node['1件ずつ処理'].json.sku, error_code: $node['1件ずつ処理'].json.error_code}), JSON.stringify($input.first().json).substring(0, 1000), 0.8, 'AI診断実行'] }}"
+        }
+      },
+      "id": "ai-decision-trace",
+      "name": "📝 AI Decision Trace保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "let ai = { diagnosis: 'Parse error', corrections: {}, confidence: 0.5, reasoning: '' };\ntry {\n  const text = $node['Gemini: エラー診断'].json.text || $node['Gemini: エラー診断'].json.candidates?.[0]?.content?.parts?.[0]?.text || '{}';\n  const jsonMatch = text.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) ai = JSON.parse(jsonMatch[0]);\n} catch (e) { ai.reasoning = 'AI応答パース失敗'; }\n\nconst prev = $node['1件ずつ処理'].json;\nconst confidence = ai.confidence || 0.5;\n\nif (confidence < 0.6) {\n  return [{ json: { ...prev, success: false, action: 'needs_review', reason: '信頼度低(' + Math.round(confidence*100) + '%)' } }];\n}\n\nlet listingData = {};\ntry { listingData = typeof prev.listing_data === 'string' ? JSON.parse(prev.listing_data || '{}') : (prev.listing_data || {}); } catch (e) {}\n\nconst itemSpecifics = listingData.item_specifics || {};\nfor (const [key, value] of Object.entries(ai.corrections || {})) {\n  if (value && typeof value === 'string') itemSpecifics[key] = value;\n}\nif (!itemSpecifics.MPN && prev.error_category === 'item_specifics') itemSpecifics.MPN = 'Does Not Apply';\nif (!itemSpecifics.Brand && prev.error_category === 'item_specifics') itemSpecifics.Brand = 'Unbranded';\nlistingData.item_specifics = itemSpecifics;\n\nreturn [{ json: { ...prev, success: true, action: 'data_corrected', ai_diagnosis: ai, updated_listing_data: listingData, corrections: ai.corrections || {}, confidence } }];"
+      },
+      "id": "parse-apply",
+      "name": "診断結果パース＆修正適用",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.success }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-success",
+      "name": "修正成功？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE products_master SET listing_data = $1::jsonb, workflow_status = 'approved', updated_at = NOW() WHERE id = $2 AND user_id = $3 AND updated_at = $4 RETURNING id",
+        "options": {
+          "queryParams": "={{ [JSON.stringify($json.updated_listing_data), $json.product_id, $json.user_id, $json.updated_at] }}"
+        }
+      },
+      "id": "update-product",
+      "name": "修正データDB保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO error_recovery_attempts (user_id, product_id, sku, original_error_code, original_error_message, ai_diagnosis, recovery_strategy, data_corrections, retry_result, attempt_number, created_at) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8::jsonb, $9, $10, NOW())",
+        "options": {
+          "queryParams": "={{ [$json.user_id, $json.product_id, $json.sku, $json.error_code, ($json.error_message || '').substring(0, 200), JSON.stringify({d: ($json.ai_diagnosis?.diagnosis || '').substring(0, 100), c: $json.confidence}), ($json.recovery_strategy || '').substring(0, 100), JSON.stringify($json.corrections || {}), $json.action, ($json.retry_count_24h || 0) + 1] }}"
+        }
+      },
+      "id": "log-attempt",
+      "name": "復旧ログ保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "amount": 1,
+        "unit": "seconds"
+      },
+      "id": "wait",
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all().map(i => i.json);\nconst recovered = results.filter(r => r.action === 'data_corrected').length;\nconst needsReview = results.filter(r => r.action === 'needs_review').length;\nconst notRecoverable = results.filter(r => r.action === 'not_auto_recoverable').length;\n\nreturn [{ json: {\n  success: true,\n  summary: { total: results.length, recovered, needs_review: needsReview, not_recoverable: notRecoverable },\n  details: results.slice(0, 10).map(r => ({ sku: r.sku, action: r.action, conf: r.confidence })),\n  ts: new Date().toISOString(),\n  v7_features: ['roi_check', 'exit_strategy', 'ai_decision_trace']\n} }];"
+      },
+      "id": "aggregate",
+      "name": "結果集約",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM error_recovery_attempts WHERE created_at < NOW() - INTERVAL '30 days'",
+        "options": {}
+      },
+      "id": "purge",
+      "name": "🗑️ 履歴パージ",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.summary.recovered }}",
+              "operation": "larger",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "check-notify",
+      "name": "復旧あり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "{{ $env.CHATWORK_API_URL }}/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-ChatWorkToken", "value": "={{ $env.CHATWORK_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=[info][title]🔧 V7エラー復旧AIエージェント完了[/title]処理: {{ $json.summary.total }}件\\n✅自動復旧: {{ $json.summary.recovered }}件\\n⚠️要確認: {{ $json.summary.needs_review }}件\\n❌復旧不可: {{ $json.summary.not_recoverable }}件\\n🚪Exit Strategy: ROI判定済み[/info]"
+            }
+          ]
+        }
+      },
+      "id": "notify",
+      "name": "ChatWork通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($node['結果集約'].json) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "respond",
+      "name": "応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    }
+  ],
+  "connections": {
+    "Webhook: エラー復旧依頼": {
+      "main": [[{ "node": "🔐 JIT+HMAC検証", "type": "main", "index": 0 }]]
+    },
+    "🔐 JIT+HMAC検証": {
+      "main": [[{ "node": "🔥 燃焼上限チェック", "type": "main", "index": 0 }]]
+    },
+    "🔥 燃焼上限チェック": {
+      "main": [[{ "node": "💰 修復価値判定 (ROI Check)", "type": "main", "index": 0 }]]
+    },
+    "💰 修復価値判定 (ROI Check)": {
+      "main": [[{ "node": "Exit Strategy分岐", "type": "main", "index": 0 }]]
+    },
+    "Exit Strategy分岐": {
+      "main": [
+        [{ "node": "🚪 Exit Strategy Engine", "type": "main", "index": 0 }],
+        [{ "node": "リクエスト検証", "type": "main", "index": 0 }]
+      ]
+    },
+    "🚪 Exit Strategy Engine": {
+      "main": [[{ "node": "Exit Strategy結果", "type": "main", "index": 0 }]]
+    },
+    "Exit Strategy結果": {
+      "main": [[{ "node": "応答", "type": "main", "index": 0 }]]
+    },
+    "リクエスト検証": {
+      "main": [[{ "node": "エラーチェック", "type": "main", "index": 0 }]]
+    },
+    "エラーチェック": {
+      "main": [
+        [{ "node": "エラー応答", "type": "main", "index": 0 }],
+        [{ "node": "エラー商品取得", "type": "main", "index": 0 }]
+      ]
+    },
+    "エラー商品取得": {
+      "main": [[{ "node": "対象有無", "type": "main", "index": 0 }]]
+    },
+    "対象有無": {
+      "main": [
+        [{ "node": "対象なし", "type": "main", "index": 0 }],
+        [{ "node": "エラー辞書取得", "type": "main", "index": 0 }]
+      ]
+    },
+    "対象なし": {
+      "main": [[{ "node": "応答", "type": "main", "index": 0 }]]
+    },
+    "エラー辞書取得": {
+      "main": [[{ "node": "エラー情報整理", "type": "main", "index": 0 }]]
+    },
+    "エラー情報整理": {
+      "main": [[{ "node": "1件ずつ処理", "type": "main", "index": 0 }]]
+    },
+    "1件ずつ処理": {
+      "main": [
+        [{ "node": "自動復旧可能？", "type": "main", "index": 0 }],
+        [{ "node": "結果集約", "type": "main", "index": 0 }]
+      ]
+    },
+    "自動復旧可能？": {
+      "main": [
+        [{ "node": "Gemini: エラー診断", "type": "main", "index": 0 }],
+        [{ "node": "自動復旧不可", "type": "main", "index": 0 }]
+      ]
+    },
+    "Gemini: エラー診断": {
+      "main": [[{ "node": "📝 AI Decision Trace保存", "type": "main", "index": 0 }]]
+    },
+    "📝 AI Decision Trace保存": {
+      "main": [[{ "node": "診断結果パース＆修正適用", "type": "main", "index": 0 }]]
+    },
+    "診断結果パース＆修正適用": {
+      "main": [[{ "node": "修正成功？", "type": "main", "index": 0 }]]
+    },
+    "修正成功？": {
+      "main": [
+        [{ "node": "修正データDB保存", "type": "main", "index": 0 }],
+        [{ "node": "復旧ログ保存", "type": "main", "index": 0 }]
+      ]
+    },
+    "修正データDB保存": {
+      "main": [[{ "node": "復旧ログ保存", "type": "main", "index": 0 }]]
+    },
+    "自動復旧不可": {
+      "main": [[{ "node": "復旧ログ保存", "type": "main", "index": 0 }]]
+    },
+    "復旧ログ保存": {
+      "main": [[{ "node": "Wait", "type": "main", "index": 0 }]]
+    },
+    "Wait": {
+      "main": [[{ "node": "1件ずつ処理", "type": "main", "index": 0 }]]
+    },
+    "結果集約": {
+      "main": [[{ "node": "🗑️ 履歴パージ", "type": "main", "index": 0 }]]
+    },
+    "🗑️ 履歴パージ": {
+      "main": [[{ "node": "復旧あり？", "type": "main", "index": 0 }]]
+    },
+    "復旧あり？": {
+      "main": [
+        [{ "node": "ChatWork通知", "type": "main", "index": 0 }],
+        [{ "node": "応答", "type": "main", "index": 0 }]
+      ]
+    },
+    "ChatWork通知": {
+      "main": [[{ "node": "応答", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionTimeout": 300,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none"
+  },
+  "tags": [
+    { "name": "27DIM-FORTRESS", "color": "#dc143c" },
+    { "name": "V7-ENHANCED", "color": "#00ff00" },
+    { "name": "ROI-CHECK", "color": "#ffd700" },
+    { "name": "EXIT-STRATEGY", "color": "#ff6347" },
+    { "name": "AI-DECISION-TRACE", "color": "#9932cc" }
+  ],
+  "active": false,
+  "_27dim_converted": true,
+  "_27dim_version": "1.0.0",
+  "_27dim_timestamp": "2026-01-24T00:00:00.000000+00:00",
+  "_special_features": ["ROI_Check", "Exit_Strategy_Engine", "AI_Decision_Trace"]
+}

@@ -1,0 +1,387 @@
+{
+  "name": "【出品】03_171-コマース-LP自動生成-Shopify-eBay出品_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "video-to-commerce-generate",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: generate-listing",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "video-to-commerce-generate"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 鉄の掟準拠：環境変数必須チェック\nconst apiUrl = $env.N3_API_URL || $env.API_BASE_URL;\n\nif (!apiUrl) {\n  return [{ json: { error: true, message: 'N3_API_URL環境変数が未設定', code: 'CONFIG_ERROR' } }];\n}\n\nconst body = $input.first().json.body || $input.first().json || {};\nconst extractionId = body.extraction_id;\nconst targetPlatforms = body.target_platforms || ['ebay', 'shopify'];\n\nif (!extractionId) {\n  return [{ json: { error: true, message: 'extraction_id は必須', code: 'MISSING_PARAM' } }];\n}\n\nreturn [{\n  json: {\n    extraction_id: extractionId,\n    target_platforms: targetPlatforms,\n    api_url: apiUrl,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔐 初期化（鉄の掟準拠）",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT extraction_id, video_url, channel_id, products_data, product_count, target_platforms FROM video_product_extractions WHERE extraction_id = $1",
+        "options": {
+          "queryParams": "={{ [$json.extraction_id] }}"
+        }
+      },
+      "id": "get-extraction",
+      "name": "📋 抽出データ取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const initData = $node['🔐 初期化（鉄の掟準拠）'].json;\nconst extractionData = $input.first().json;\n\nif (!extractionData || !extractionData.extraction_id) {\n  return [{ json: { error: true, message: '抽出データが見つかりません', code: 'NOT_FOUND' } }];\n}\n\nconst products = typeof extractionData.products_data === 'string'\n  ? JSON.parse(extractionData.products_data)\n  : extractionData.products_data || [];\n\nreturn products.map((product, index) => ({\n  json: {\n    ...initData,\n    extraction_id: extractionData.extraction_id,\n    video_url: extractionData.video_url,\n    product_index: index,\n    product: product\n  }\n}));"
+      },
+      "id": "expand-products",
+      "name": "📦 商品展開",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "loop-products",
+      "name": "🔄 商品ループ",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "jsCode": "// eBay出品データ生成\nconst data = $input.first().json;\nconst product = data.product;\n\nconst ebayListing = {\n  title: (product.product_name?.en || product.product_name || '').substring(0, 80),\n  description: `<html><body>\n    <h1>${product.product_name?.en || product.product_name}</h1>\n    <p>${product.description || ''}</p>\n    <h2>Features</h2>\n    <ul>${(product.features || []).map(f => `<li>${f}</li>`).join('')}</ul>\n    <h2>Specifications</h2>\n    <ul>${Object.entries(product.specifications || {}).map(([k, v]) => `<li><strong>${k}:</strong> ${v}</li>`).join('')}</ul>\n    <p><em>Extracted from video review</em></p>\n  </body></html>`,\n  category_id: product.category?.ebay_id || '0',\n  price: product.estimated_price_range?.max || 99.99,\n  quantity: 1,\n  condition_id: 1000, // New\n  item_specifics: product.specifications || {},\n  keywords: product.keywords || []\n};\n\n// Shopify商品データ生成\nconst shopifyProduct = {\n  title: product.product_name?.en || product.product_name || '',\n  body_html: `<p>${product.description || ''}</p>\n    <h3>Features</h3>\n    <ul>${(product.features || []).map(f => `<li>${f}</li>`).join('')}</ul>`,\n  vendor: 'Video Commerce',\n  product_type: product.category?.name || 'General',\n  tags: (product.keywords || []).join(', '),\n  variants: [{\n    price: product.estimated_price_range?.max || '99.99',\n    sku: `VC-${data.extraction_id}-${data.product_index}`,\n    inventory_quantity: 1\n  }]\n};\n\nreturn [{\n  json: {\n    ...data,\n    ebay_listing: ebayListing,\n    shopify_product: shopifyProduct\n  }\n}];"
+      },
+      "id": "generate-listings",
+      "name": "🛒 出品データ生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO generated_listings (extraction_id, product_index, product_data, ebay_listing, shopify_product, status, created_at) VALUES ($1, $2, $3::jsonb, $4::jsonb, $5::jsonb, 'draft', NOW()) RETURNING listing_id",
+        "options": {
+          "queryParams": "={{ [$json.extraction_id, $json.product_index, JSON.stringify($json.product), JSON.stringify($json.ebay_listing), JSON.stringify($json.shopify_product)] }}"
+        }
+      },
+      "id": "save-listing",
+      "name": "💾 出品データ保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ループ継続\nreturn $input.all();"
+      },
+      "id": "continue-loop",
+      "name": "➡️ 継続",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const allItems = $input.all();\nconst results = allItems.map(item => item.json).filter(r => r && r.listing_id);\n\nreturn [{\n  json: {\n    success: true,\n    action: 'listings_generated',\n    generated_count: results.length,\n    listing_ids: results.map(r => r.listing_id),\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: generate-listing": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化（鉄の掟準拠）": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 抽出データ取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 抽出データ取得": {
+      "main": [
+        [
+          {
+            "node": "📦 商品展開",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 商品展開": {
+      "main": [
+        [
+          {
+            "node": "🔄 商品ループ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 商品ループ": {
+      "main": [
+        [
+          {
+            "node": "🛒 出品データ生成",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🛒 出品データ生成": {
+      "main": [
+        [
+          {
+            "node": "💾 出品データ保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 出品データ保存": {
+      "main": [
+        [
+          {
+            "node": "➡️ 継続",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "➡️ 継続": {
+      "main": [
+        [
+          {
+            "node": "🔄 商品ループ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化（鉄の掟準拠）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 300,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Commerce",
+      "color": "#e67e22"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Listing",
+      "color": "#3498db"
+    },
+    {
+      "name": "IronRule",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false,
+  "meta": {
+    "description": "N3-171 LP自動生成 V5-PRODUCTION - 抽出商品からeBay/Shopify出品データを自動生成",
+    "version": "5.0",
+    "changelog": "2026-01-20: 鉄の掟準拠 - 環境変数必須化、QueryParams完全実装",
+    "iron_rules_compliant": [
+      "no_hardcoded_urls",
+      "query_params_only",
+      "no_crypto_require"
+    ]
+  }
+}

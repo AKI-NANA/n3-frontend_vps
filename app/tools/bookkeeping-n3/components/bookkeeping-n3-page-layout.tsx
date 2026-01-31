@@ -575,8 +575,9 @@ export function BookkeepingN3PageLayout() {
   
   const showHoverPanel = !isPinned && hoveredTab !== null && isHeaderHovered;
   
+  // 🔥 v3: height: 100% に変更（workspaceからの埋め込み時に親要素に従う）
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg)' }}>
+    <div style={{ display: 'flex', height: '100%', minHeight: '100vh', overflow: 'hidden', background: 'var(--bg)' }}>
       <div 
         ref={mainContentRef} 
         id="main-scroll-container" 

@@ -2,34 +2,86 @@
 /**
  * eBay 商品詳細取得API
  * 
+ * 🔥 v2.1: アカウント別トークン対応（green, mjt等）
+ * 
  * Browse API の getItem エンドポイントを使用して
  * 選択した競合商品の詳細情報（Item Specifics等）を取得
  */
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
+import type { GetItemDetailsResponse } from '@/types/hybrid-ai-pipeline'
 
 const EBAY_BROWSE_API = 'https://api.ebay.com/buy/browse/v1/item'
 const EBAY_TOKEN_API = 'https://api.ebay.com/identity/v1/oauth2/token'
 
-// アクセストークンのキャッシュ
-let cachedToken: {
-  accessToken: string
-  expiresAt: number
-} | null = null
+// Supabaseクライアント
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+)
+
+// アカウント別クレデンシャル
+interface AccountCredentials {
+  clientId: string
+  clientSecret: string
+}
+
+function getAccountCredentials(account: string): AccountCredentials {
+  const accountUpper = account.toUpperCase()
+  
+  // 🔥 アカウント別の環境変数を取得
+  const clientId = process.env[`EBAY_CLIENT_ID_${accountUpper}`] || process.env.EBAY_CLIENT_ID || ''
+  const clientSecret = process.env[`EBAY_CLIENT_SECRET_${accountUpper}`] || process.env.EBAY_CLIENT_SECRET || ''
+  
+  console.log(`  🔑 アカウント: ${account} → CLIENT_ID: ${clientId?.substring(0, 15)}...`)
+  
+  return { clientId, clientSecret }
+}
+
+// アカウント別トークンキャッシュ
+const tokenCache = new Map<string, { accessToken: string; expiresAt: number }>()
 
 /**
- * OAuth 2.0 トークン取得（Client Credentials Flow）
+ * 🔥 アカウント別アクセストークン取得
  */
-async function getAccessToken(): Promise<string> {
-  // キャッシュが有効な場合は再利用
-  if (cachedToken && cachedToken.expiresAt > Date.now() + 5 * 60 * 1000) {
-    return cachedToken.accessToken
+async function getAccessToken(account: string = 'green'): Promise<string> {
+  const cacheKey = account.toLowerCase()
+  
+  // キャッシュチェック
+  const cached = tokenCache.get(cacheKey)
+  if (cached && cached.expiresAt > Date.now() + 5 * 60 * 1000) {
+    console.log(`  ✅ キャッシュトークン使用: ${account}`)
+    return cached.accessToken
   }
-
-  const clientId = process.env.EBAY_CLIENT_ID
-  const clientSecret = process.env.EBAY_CLIENT_SECRET
-
+  
+  // 🔥 まずDBからトークンを取得
+  const { data: tokenData, error: tokenError } = await supabase
+    .from('ebay_tokens')
+    .select('access_token, expires_at')
+    .eq('account', cacheKey)
+    .single()
+  
+  if (!tokenError && tokenData) {
+    const expiresAt = new Date(tokenData.expires_at).getTime()
+    
+    // DBのトークンが有効な場合
+    if (expiresAt > Date.now() + 5 * 60 * 1000) {
+      console.log(`  ✅ DBトークン使用: ${account}`)
+      tokenCache.set(cacheKey, {
+        accessToken: tokenData.access_token,
+        expiresAt
+      })
+      return tokenData.access_token
+    }
+  }
+  
+  // 🔥 DBにトークンがないか期限切れの場合、新規取得
+  console.log(`  🔑 新規トークン取得: ${account}`)
+  
+  const { clientId, clientSecret } = getAccountCredentials(account)
+  
   if (!clientId || !clientSecret) {
-    throw new Error('EBAY_CLIENT_ID または EBAY_CLIENT_SECRET が設定されていません')
+    throw new Error(`${account}アカウントのeBayクレデンシャルが設定されていません`)
   }
 
   const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
@@ -48,22 +100,24 @@ async function getAccessToken(): Promise<string> {
 
   if (!response.ok) {
     const errorText = await response.text()
-    throw new Error(`トークン取得失敗: ${response.status} - ${errorText}`)
+    console.error(`  ❌ トークン取得エラー (${account}):`, errorText)
+    throw new Error(`トークン取得失敗 (${account}): ${response.status}`)
   }
 
   const data = await response.json()
-
-  cachedToken = {
+  
+  // キャッシュに保存
+  tokenCache.set(cacheKey, {
     accessToken: data.access_token,
     expiresAt: Date.now() + data.expires_in * 1000
-  }
+  })
 
+  console.log(`  ✅ 新規トークン取得成功: ${account}`)
   return data.access_token
 }
 
 /**
  * eBay Item ID を正規化
- * v1|123456789|0 形式の場合、123456789 部分を抽出
  */
 function normalizeItemId(itemId: string): string {
   if (itemId.startsWith('v1|')) {
@@ -71,34 +125,6 @@ function normalizeItemId(itemId: string): string {
     return parts[1] || itemId
   }
   return itemId
-}
-
-/**
- * Browse API getItem エンドポイントで詳細取得
- */
-async function getItemDetails(accessToken: string, itemId: string) {
-  // URLエンコード（itemIdにパイプが含まれる可能性）
-  const encodedItemId = encodeURIComponent(itemId)
-  const apiUrl = `${EBAY_BROWSE_API}/${encodedItemId}`
-
-  console.log('📡 Browse API getItem:', apiUrl)
-
-  const response = await fetch(apiUrl, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
-      'Content-Type': 'application/json'
-    }
-  })
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    console.error('❌ Browse API getItem Error:', errorText)
-    throw new Error(`Browse API Error: ${response.status}`)
-  }
-
-  return await response.json()
 }
 
 /**
@@ -113,7 +139,6 @@ function parseItemSpecifics(localizedAspects: any[]): Record<string, string> {
 
   for (const aspect of localizedAspects) {
     if (aspect.name && aspect.value) {
-      // 値が配列の場合はカンマ区切りに
       const value = Array.isArray(aspect.value) 
         ? aspect.value.join(', ') 
         : String(aspect.value)
@@ -128,7 +153,6 @@ function parseItemSpecifics(localizedAspects: any[]): Record<string, string> {
  * 重量を抽出（グラムに変換）
  */
 function extractWeight(item: any): number | undefined {
-  // itemSpecifics から Weight を探す
   const weightSpec = item.localizedAspects?.find(
     (a: any) => a.name?.toLowerCase().includes('weight')
   )
@@ -138,11 +162,9 @@ function extractWeight(item: any): number | undefined {
     const match = String(value).match(/[\d.]+/)
     if (match) {
       let weight = parseFloat(match[0])
-      // ポンドの場合はグラムに変換
       if (String(value).toLowerCase().includes('lb') || String(value).toLowerCase().includes('pound')) {
         weight = weight * 453.592
       }
-      // オンスの場合はグラムに変換
       if (String(value).toLowerCase().includes('oz') || String(value).toLowerCase().includes('ounce')) {
         weight = weight * 28.3495
       }
@@ -150,9 +172,7 @@ function extractWeight(item: any): number | undefined {
     }
   }
 
-  // shippingOptions から推定
   if (item.shippingOptions?.[0]?.shippingCost?.value) {
-    // 送料から重量を推定（簡易）
     const shippingCost = parseFloat(item.shippingOptions[0].shippingCost.value)
     if (shippingCost < 5) return 100
     if (shippingCost < 10) return 300
@@ -168,8 +188,6 @@ function extractWeight(item: any): number | undefined {
  * 寸法を抽出（cmに変換）
  */
 function extractDimensions(item: any): { length: number; width: number; height: number } | undefined {
-  const dimensionNames = ['dimensions', 'size', 'item length', 'item width', 'item height']
-  
   let length: number | undefined
   let width: number | undefined
   let height: number | undefined
@@ -185,7 +203,6 @@ function extractDimensions(item: any): { length: number; width: number; height: 
 
     let num = parseFloat(match[0])
     
-    // インチの場合はcmに変換
     if (String(value).toLowerCase().includes('in') || String(value).toLowerCase().includes('inch')) {
       num = num * 2.54
     }
@@ -206,10 +223,168 @@ function extractDimensions(item: any): { length: number; width: number; height: 
   return undefined
 }
 
+/**
+ * 原産国を抽出
+ */
+function extractOriginCountry(itemSpecifics: Record<string, string>): string | null {
+  const originFields = [
+    'Country/Region of Manufacture',
+    'Country of Manufacture',
+    'Country of Origin',
+    'Made In',
+    'Origin',
+    'Country',
+    '製造国',
+    '原産国',
+  ]
+  
+  for (const field of originFields) {
+    if (itemSpecifics[field]) {
+      return itemSpecifics[field]
+    }
+  }
+  
+  return null
+}
+
+/**
+ * conditionDescriptors を抽出
+ */
+function extractConditionDescriptors(item: any): any[] | undefined {
+  if (item.conditionDescriptors && Array.isArray(item.conditionDescriptors)) {
+    return item.conditionDescriptors.map((desc: any) => ({
+      name: desc.name,
+      values: Array.isArray(desc.values) ? desc.values : [desc.values],
+    }))
+  }
+  return undefined
+}
+
+/**
+ * 共通のレスポンス構築ロジック
+ */
+function buildItemDetailsResponse(item: any, itemId: string): any {
+  const itemSpecifics = parseItemSpecifics(item.localizedAspects)
+  const weight = extractWeight(item)
+  const dimensions = extractDimensions(item)
+  const categoryId = item.categoryId || item.categoryPath?.split('|').pop()
+  const categoryPath = item.categoryPath
+  const originCountry = extractOriginCountry(itemSpecifics)
+  const conditionDescriptors = extractConditionDescriptors(item)
+  
+  const priceInfo = {
+    value: parseFloat(item.price?.value || '0'),
+    currency: item.price?.currency || 'USD',
+  }
+
+  return {
+    success: true,
+    itemId: item.itemId || itemId,
+    title: item.title,
+    categoryId,
+    categoryPath,
+    condition: item.condition,
+    conditionDescription: item.conditionDescription,
+    conditionDescriptors,
+    itemSpecifics,
+    originCountry,
+    price: priceInfo,
+    seller: item.seller ? {
+      username: item.seller.username,
+      feedbackScore: item.seller.feedbackScore,
+      feedbackPercentage: item.seller.feedbackPercentage,
+    } : undefined,
+    image: item.image,
+    itemLocation: item.itemLocation ? {
+      country: item.itemLocation.country,
+      city: item.itemLocation.city,
+      postalCode: item.itemLocation.postalCode,
+    } : undefined,
+    weight,
+    dimensions,
+    shippingOptions: item.shippingOptions || [],
+    brand: itemSpecifics['Brand'] || itemSpecifics['ブランド'],
+    model: itemSpecifics['Model'] || itemSpecifics['MPN'],
+    color: itemSpecifics['Color'] || itemSpecifics['カラー'],
+    material: itemSpecifics['Material'] || itemSpecifics['素材'],
+    rawLocalizedAspects: item.localizedAspects,
+  }
+}
+
+/**
+ * GETメソッド: クエリパラメータでitemIdを受け取る
+ * 🔥 account パラメータ追加
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const itemId = request.nextUrl.searchParams.get('itemId')
+    const marketplaceId = request.nextUrl.searchParams.get('marketplaceId') || 'EBAY_US'
+    const account = request.nextUrl.searchParams.get('account') || 'green'  // 🔥 デフォルトgreen
+
+    if (!itemId) {
+      return NextResponse.json(
+        { success: false, error: 'itemId クエリパラメータは必須です' },
+        { status: 400 }
+      )
+    }
+
+    console.log('🔍 [GET] 商品詳細取得:', itemId, 'account:', account, 'marketplace:', marketplaceId)
+
+    // 1. 🔥 アカウント別アクセストークン取得
+    const accessToken = await getAccessToken(account)
+
+    // 2. 詳細取得
+    const encodedItemId = encodeURIComponent(itemId)
+    const apiUrl = `${EBAY_BROWSE_API}/${encodedItemId}`
+
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'X-EBAY-C-MARKETPLACE-ID': marketplaceId,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ Browse API getItem Error:', errorText)
+      return NextResponse.json(
+        { success: false, error: `Browse API Error: ${response.status}`, details: errorText },
+        { status: response.status }
+      )
+    }
+
+    const item = await response.json()
+    const result = buildItemDetailsResponse(item, itemId)
+
+    console.log('✅ [GET] 詳細取得成功:', {
+      itemId: result.itemId,
+      title: result.title?.slice(0, 50),
+      specsCount: Object.keys(result.itemSpecifics || {}).length,
+      originCountry: result.originCountry,
+      price: result.price,
+    })
+
+    return NextResponse.json(result)
+
+  } catch (error: any) {
+    console.error('❌ [GET] 詳細取得エラー:', error)
+    return NextResponse.json(
+      { success: false, error: error.message || 'Unknown error' },
+      { status: 500 }
+    )
+  }
+}
+
+/**
+ * POSTメソッド: リクエストボディでitemIdを受け取る
+ * 🔥 account パラメータ追加
+ */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { itemId } = body
+    const { itemId, marketplaceId = 'EBAY_US', account = 'green' } = body  // 🔥 デフォルトgreen
 
     if (!itemId) {
       return NextResponse.json(
@@ -218,24 +393,43 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log('🔍 商品詳細取得:', itemId)
+    console.log('🔍 [POST] 商品詳細取得:', itemId, 'account:', account)
 
-    // 1. アクセストークン取得
-    const accessToken = await getAccessToken()
+    // 1. 🔥 アカウント別アクセストークン取得
+    const accessToken = await getAccessToken(account)
 
     // 2. 詳細取得
-    const item = await getItemDetails(accessToken, itemId)
+    const encodedItemId = encodeURIComponent(itemId)
+    const apiUrl = `${EBAY_BROWSE_API}/${encodedItemId}`
 
-    // 3. データ整形
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'X-EBAY-C-MARKETPLACE-ID': marketplaceId,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ Browse API getItem Error:', errorText)
+      return NextResponse.json(
+        { success: false, error: `Browse API Error: ${response.status}`, details: errorText },
+        { status: response.status }
+      )
+    }
+
+    const item = await response.json()
+
+    // データ整形
     const itemSpecifics = parseItemSpecifics(item.localizedAspects)
     const weight = extractWeight(item)
     const dimensions = extractDimensions(item)
-
-    // 4. カテゴリ情報
     const categoryId = item.categoryId || item.categoryPath?.split('|').pop()
-    const categoryName = item.categoryPath?.split('|').pop() || ''
+    const originCountry = extractOriginCountry(itemSpecifics)
+    const conditionDescriptors = extractConditionDescriptors(item)
 
-    // 5. 結果を構築
     const itemDetails = {
       itemId: item.itemId || itemId,
       title: item.title,
@@ -244,28 +438,34 @@ export async function POST(request: NextRequest) {
       dimensions,
       shippingOptions: item.shippingOptions || [],
       categoryId,
-      categoryName,
-      // 追加情報
+      categoryName: item.categoryPath?.split('|').pop() || '',
+      categoryPath: item.categoryPath,
       condition: item.condition,
       conditionId: item.conditionId,
+      conditionDescription: item.conditionDescription,
+      conditionDescriptors,
       brand: itemSpecifics['Brand'] || itemSpecifics['ブランド'],
       model: itemSpecifics['Model'] || itemSpecifics['MPN'],
       color: itemSpecifics['Color'] || itemSpecifics['カラー'],
       material: itemSpecifics['Material'] || itemSpecifics['素材'],
-      countryOfManufacture: itemSpecifics['Country/Region of Manufacture'] || itemSpecifics['Country of Manufacture'],
-      // 生データ
+      countryOfManufacture: originCountry,
+      originCountry,
+      price: {
+        value: parseFloat(item.price?.value || '0'),
+        currency: item.price?.currency || 'USD',
+      },
       rawLocalizedAspects: item.localizedAspects,
       image: item.image?.imageUrl,
-      price: item.price,
-      seller: item.seller
+      seller: item.seller,
+      itemLocation: item.itemLocation,
     }
 
-    console.log('✅ 詳細取得成功:', {
+    console.log('✅ [POST] 詳細取得成功:', {
       itemId: itemDetails.itemId,
       title: itemDetails.title?.slice(0, 50),
       specsCount: Object.keys(itemSpecifics).length,
       weight,
-      dimensions
+      originCountry,
     })
 
     return NextResponse.json({
@@ -274,7 +474,7 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error('❌ 詳細取得エラー:', error)
+    console.error('❌ [POST] 詳細取得エラー:', error)
     return NextResponse.json(
       { success: false, error: error.message || 'Unknown error' },
       { status: 500 }

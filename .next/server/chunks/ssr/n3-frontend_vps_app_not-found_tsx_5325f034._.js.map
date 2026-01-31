@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 4, "column": 0}, "map": {"version":3,"sources":["file:///Users/aritahiroaki/n3-frontend_vps/app/not-found.tsx"],"sourcesContent":["export default function NotFound() {\n  return (\n    <div style={{ padding: '2rem', textAlign: 'center' }}>\n      <h2>404 - ページが見つかりません</h2>\n      <a href=\"/\">ホームに戻る</a>\n    </div>\n  )\n}\n"],"names":[],"mappings":";;;;;;AAAe,SAAS;IACtB,qBACE,oQAAC;QAAI,OAAO;YAAE,SAAS;YAAQ,WAAW;QAAS;;0BACjD,oQAAC;0BAAG;;;;;;0BACJ,oQAAC;gBAAE,MAAK;0BAAI;;;;;;;;;;;;AAGlB","debugId":null}}]
+}

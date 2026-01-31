@@ -118,7 +118,8 @@ export async function POST(request: NextRequest) {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
-          'Content-Language': 'en-US'
+          'Content-Language': 'en-US',
+          'Accept-Language': 'en-US'
         },
         body: JSON.stringify(listingPayload)
       }
@@ -152,7 +153,8 @@ export async function POST(request: NextRequest) {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
-          'Content-Language': 'en-US'
+          'Content-Language': 'en-US',
+          'Accept-Language': 'en-US'
         },
         body: JSON.stringify(offerPayload)
       }
@@ -174,7 +176,9 @@ export async function POST(request: NextRequest) {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Content-Language': 'en-US',
+          'Accept-Language': 'en-US'
         }
       }
     );

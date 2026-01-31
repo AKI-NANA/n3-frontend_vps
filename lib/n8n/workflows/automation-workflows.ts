@@ -1,9 +1,11 @@
 // lib/n8n/workflows/automation-workflows.ts
 /**
  * 自動化関連のn8nワークフロー定義
+ * 
+ * Phase A-2: 全実行を dispatchService 経由に統一
  */
 
-import { n8nClient } from '../n8n-client';
+import { dispatchService } from '../n8n-client';
 
 export class AutomationWorkflows {
   /**
@@ -15,10 +17,10 @@ export class AutomationWorkflows {
     dailyLimit: number;
     timeSlots: Array<{ hour: number; minute: number }>;
   }) {
-    return n8nClient.execute({
-      workflow: 'automation-listing',
+    return dispatchService.execute({
+      toolId: 'listing-execute',
       action: 'setup-schedule',
-      data: {
+      params: {
         enabled: config.enabled,
         platforms: config.platforms,
         daily_limit: config.dailyLimit,
@@ -33,14 +35,14 @@ export class AutomationWorkflows {
   async setupPriceAutomation(config: {
     enabled: boolean;
     strategy: 'competitive' | 'fixed-margin' | 'dynamic';
-    checkInterval: number; // 分
+    checkInterval: number;
     minMargin: number;
     maxDiscount: number;
   }) {
-    return n8nClient.execute({
-      workflow: 'automation-pricing',
+    return dispatchService.execute({
+      toolId: 'fx-price-adjust',
       action: 'setup-price-automation',
-      data: config
+      params: config
     });
   }
 
@@ -52,10 +54,10 @@ export class AutomationWorkflows {
     threshold: number;
     suppliers: Array<{ id: string; priority: number }>;
   }) {
-    return n8nClient.execute({
-      workflow: 'automation-restock',
+    return dispatchService.execute({
+      toolId: 'supplier-switch',
       action: 'setup-restock',
-      data: config
+      params: config
     });
   }
 
@@ -67,10 +69,10 @@ export class AutomationWorkflows {
     retryInterval: number;
     notifyAfterFail: boolean;
   }) {
-    return n8nClient.execute({
-      workflow: 'automation-retry',
+    return dispatchService.execute({
+      toolId: 'listing-error-recovery',
       action: 'setup-retry',
-      data: config
+      params: config
     });
   }
 
@@ -82,10 +84,10 @@ export class AutomationWorkflows {
     recipients: string[];
     includeMetrics: string[];
   }) {
-    return n8nClient.execute({
-      workflow: 'automation-report',
+    return dispatchService.execute({
+      toolId: 'accounting-sync',
       action: 'setup-report',
-      data: config
+      params: config
     });
   }
 
@@ -100,10 +102,10 @@ export class AutomationWorkflows {
       priority: 'low' | 'normal' | 'high';
     }>;
   }) {
-    return n8nClient.execute({
-      workflow: 'automation-notify',
+    return dispatchService.execute({
+      toolId: 'sentinel-monitor',
       action: 'setup-notifications',
-      data: config
+      params: config
     });
   }
 
@@ -111,13 +113,10 @@ export class AutomationWorkflows {
    * ワークフロー実行履歴取得
    */
   async getExecutionHistory(workflow?: string, limit: number = 100) {
-    return n8nClient.execute({
-      workflow: 'automation-history',
-      action: 'get-history',
-      data: {
-        workflow,
-        limit,
-      }
+    return dispatchService.getJobs({
+      toolId: workflow,
+      limit,
+      sortOrder: 'desc',
     });
   }
 
@@ -125,25 +124,24 @@ export class AutomationWorkflows {
    * ワークフローを停止
    */
   async stopWorkflow(workflowId: string) {
-    return n8nClient.execute({
-      workflow: 'automation-control',
-      action: 'stop-workflow',
-      data: {
-        workflow_id: workflowId,
-      }
-    });
+    return dispatchService.cancelJob(workflowId);
   }
 
   /**
-   * ワークフローを再開
+   * ワークフローを再開（リトライ）
    */
   async resumeWorkflow(workflowId: string) {
-    return n8nClient.execute({
-      workflow: 'automation-control',
-      action: 'resume-workflow',
-      data: {
-        workflow_id: workflowId,
-      }
+    return dispatchService.retryJob(workflowId);
+  }
+
+  /**
+   * システム監視
+   */
+  async monitorSystem() {
+    return dispatchService.execute({
+      toolId: 'sentinel-monitor',
+      action: 'check-health',
+      params: {}
     });
   }
 }

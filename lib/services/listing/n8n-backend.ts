@@ -220,9 +220,12 @@ export class N8nBackend extends ListingBackend {
       'ebay-end': 'ebay-end-listing',
       'amazon-list': 'amazon-listing',
       'amazon-update': 'amazon-update',
-      'qoo10-list': 'qoo10-listing',
+      'qoo10-list': 'qoo10-listing-execute',
+      'qoo10-update': 'qoo10-inventory-sync',
       'shopee-list': 'shopee-listing',
-      'mercari-list': 'mercari-listing'
+      'mercari-list': 'mercari-listing',
+      'yahoo-list': 'yahoo-listing-execute',
+      'yahoo-update': 'yahoo-inventory-monitor'
     };
     
     const key = `${platform}-${action}`;

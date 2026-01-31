@@ -4,10 +4,10 @@ const nextConfig: NextConfig = {
   // Docker Standalone Output
   output: 'standalone',
   
-  // Turbopackを無効化（Next.js 16でWebpackを使用）
-  turbopack: {},
-  
   // ESLintをビルド時に無視（開発速度向上）
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   
   // TypeScriptエラーをビルド時に無視
   typescript: {
@@ -15,23 +15,26 @@ const nextConfig: NextConfig = {
   },
   
   // ===========================
-  // メモリリーク防止の最重要設定
+  // 🚀 高速化設定
   // ===========================
   experimental: {
     // ビルド時はworkerThreadsを無効化（DataCloneError回避）
     workerThreads: false,
     cpus: 2,
-    // コンパイル対象を絞り込む
+    // パッケージインポート最適化（バンドルサイズ削減）
     optimizePackageImports: [
       'lucide-react',
       '@radix-ui/react-icons',
+      'recharts',
+      'date-fns',
+      'lodash',
     ],
   },
   
-  // ページキャッシュを最小化
+  // ページキャッシュを最適化（メモリ節約 + 高速化）
   onDemandEntries: {
-    maxInactiveAge: 10 * 1000,
-    pagesBufferLength: 1,
+    maxInactiveAge: 15 * 1000,  // 15秒でアンロード（メモリ解放）
+    pagesBufferLength: 2,       // 2ページまでキャッシュ
   },
   
   // ===========================
@@ -57,9 +60,28 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ['ssh2', 'puppeteer', 'playwright'],
   
   // ===========================
-  // Webpack設定（シンプル版）
+  // Webpack設定（高速化版）
   // ===========================
   webpack: (config, { dev, isServer }) => {
+    // 開発モードの高速化
+    if (dev) {
+      config.watchOptions = {
+        poll: 1000,        // 1秒ごとにポーリング
+        aggregateTimeout: 300,
+        ignored: [
+          '**/node_modules/**',
+          '**/.git/**',
+          '**/.next/**',
+          '**/n8n-workflows/**',
+          '**/_backup/**',
+          '**/_archives/**',
+        ],
+      };
+      
+      // ソースマップを簡略化（高速化）
+      config.devtool = 'eval-cheap-module-source-map';
+    }
+    
     // Webpack publicPath設定
     if (!isServer) {
       config.output = {
@@ -78,6 +100,14 @@ const nextConfig: NextConfig = {
         crypto: false,
       };
     }
+    
+    // キャッシュ設定（高速化）
+    config.cache = {
+      type: 'filesystem',
+      buildDependencies: {
+        config: [__filename],
+      },
+    };
     
     // 警告を抑制
     config.ignoreWarnings = [

@@ -11,6 +11,8 @@
  * 6. HTS推測（既存ツールの結果を含む）
  * 7. 素材（material）
  * 8. その他必要項目
+ * 
+ * 🔥 v2.0: AI監査用JSONエクスポート機能追加
  */
 
 interface ProductForAI {
@@ -26,16 +28,19 @@ interface ProductForAI {
   release_date?: string
   category_name?: string
   category_id?: string
+  ebay_category_id?: string
   length_cm?: number
   width_cm?: number
   height_cm?: number
   weight_g?: number
   condition?: string
+  condition_name?: string
   primary_image_url?: string
   gallery_images?: string[]
   brand?: string
   hts_code?: string
   hts_confidence?: string
+  hts_duty_rate?: number
   origin_country?: string
   material?: string
   sm_lowest_price?: number
@@ -43,6 +48,198 @@ interface ProductForAI {
   sm_competitor_count?: number
   sm_sales_count?: number
   listing_data?: any
+  ebay_api_data?: any
+  stock_quantity?: number
+  current_stock?: number
+}
+
+// ============================================================
+// 🔥 AI監査用JSONエクスポート（新機能）
+// ============================================================
+
+/**
+ * AI監査用の構造化データを生成
+ * HTSコード、利益計算、配送設定の妥当性をAIがチェックするためのデータ
+ */
+export function generateAIAuditData(products: ProductForAI[]): object[] {
+  return products.map(p => {
+    const listingData = p.listing_data || {}
+    const ebayData = p.ebay_api_data || {}
+    
+    // コスト計算
+    const purchasePrice = p.purchase_price_jpy || p.cost_price || p.price_jpy || 0
+    const exchangeRate = listingData.exchange_rate || 150
+    const finalPrice = listingData.ddp_price_usd || 0
+    const ebayFee = finalPrice * 0.132
+    const paypalFee = finalPrice * 0.029 + 0.30
+    const shippingCost = listingData.shipping_cost_usd || 0
+    const purchasePriceUsd = purchasePrice / exchangeRate
+    const estimatedProfit = finalPrice - purchasePriceUsd - ebayFee - paypalFee - shippingCost
+    
+    return {
+      // 1. 商品基本情報
+      basicInfo: {
+        sku: p.sku || '',
+        productId: p.id,
+        title: p.english_title || p.title_en || p.title || '',
+        titleJa: p.title || '',
+        categoryId: ebayData.category_id || p.ebay_category_id || p.category_id || '',
+        categoryName: p.category_name || '',
+        material: listingData.item_specifics?.Material || p.material || 'Not specified',
+        countryOfOrigin: listingData.item_specifics?.['Country/Region of Manufacture'] || p.origin_country || 'Unknown',
+        condition: listingData.condition || listingData.condition_en || p.condition_name || p.condition || 'Used',
+        conditionId: listingData.condition_id || 3000,
+        conditionDescriptors: listingData.condition_descriptors || null,
+      },
+      
+      // 2. コスト計算の根拠
+      costBreakdown: {
+        purchasePriceJpy: purchasePrice,
+        exchangeRate: exchangeRate,
+        purchasePriceUsd: Math.round(purchasePriceUsd * 100) / 100,
+        finalPriceUsd: finalPrice,
+        ebayFeeUsd: Math.round(ebayFee * 100) / 100,
+        ebayFeePercent: 13.2,
+        paymentFeeUsd: Math.round(paypalFee * 100) / 100,
+        shippingCostUsd: shippingCost,
+        estimatedProfitUsd: Math.round(estimatedProfit * 100) / 100,
+        profitMarginPercent: finalPrice > 0 ? Math.round((estimatedProfit / finalPrice) * 10000) / 100 : 0,
+      },
+      
+      // 3. 物流データ
+      logistics: {
+        weightGrams: listingData.weight_g || p.weight_g || 0,
+        dimensions: {
+          lengthCm: listingData.length_cm || p.length_cm || 0,
+          widthCm: listingData.width_cm || p.width_cm || 0,
+          heightCm: listingData.height_cm || p.height_cm || 0,
+        },
+        shippingPolicyId: listingData.shipping_policy_id?.toString() || '',
+        shippingPolicyName: listingData.shipping_policy_name || '',
+        carrierCode: listingData.carrier_code || 'JAPANPOST',
+      },
+      
+      // 4. 税務データ
+      taxCompliance: {
+        htsCode: listingData.hts_code || p.hts_code || '',
+        htsDescription: listingData.hts_description || '',
+        dutyRatePercent: listingData.duty_rate || p.hts_duty_rate || 0,
+        confidenceLevel: p.hts_confidence || 'unknown',
+      },
+      
+      // 5. 市場データ
+      marketData: {
+        lowestPriceUsd: p.sm_lowest_price || listingData.sm_lowest_price || null,
+        averagePriceUsd: p.sm_average_price || listingData.sm_average_price || null,
+        competitorCount: p.sm_competitor_count || listingData.sm_competitor_count || null,
+        salesCount: p.sm_sales_count || listingData.sm_sales_count || null,
+      },
+      
+      // 6. 在庫情報
+      inventory: {
+        quantity: p.stock_quantity || p.current_stock || 1,
+      },
+      
+      // 7. Item Specifics
+      itemSpecifics: listingData.item_specifics || {},
+      
+      // 8. eBay API送信予定データ
+      ebayApiPayload: {
+        inventoryItem: {
+          sku: p.sku,
+          condition: listingData.condition || 'USED_EXCELLENT',
+          conditionId: listingData.condition_id || 4000,
+          conditionDescriptors: listingData.condition_descriptors || null,
+        },
+        offer: {
+          categoryId: ebayData.category_id || p.ebay_category_id || '',
+          price: finalPrice,
+          quantity: p.stock_quantity || p.current_stock || 1,
+        },
+      },
+      
+      // 9. データ品質フラグ
+      dataQuality: {
+        hasPurchasePrice: purchasePrice > 0,
+        hasFinalPrice: finalPrice > 0,
+        hasWeight: (listingData.weight_g || p.weight_g || 0) > 0,
+        hasDimensions: (listingData.length_cm || p.length_cm || 0) > 0,
+        hasHtsCode: !!(listingData.hts_code || p.hts_code),
+        hasOriginCountry: !!(listingData.item_specifics?.['Country/Region of Manufacture'] || p.origin_country),
+        hasConditionDescriptors: !!listingData.condition_descriptors,
+        isProfitable: estimatedProfit > 0,
+      },
+    }
+  })
+}
+
+/**
+ * AI監査用プロンプト（JSONデータ + 検証指示）を生成
+ */
+export function generateAIAuditPrompt(products: ProductForAI[]): string {
+  const auditData = generateAIAuditData(products)
+  
+  // 警告が必要な商品をカウント
+  const warnings = {
+    noHts: products.filter(p => !(p.listing_data?.hts_code || p.hts_code)).length,
+    noOrigin: products.filter(p => !(p.listing_data?.item_specifics?.['Country/Region of Manufacture'] || p.origin_country)).length,
+    noWeight: products.filter(p => !(p.listing_data?.weight_g || p.weight_g)).length,
+    noProfit: auditData.filter((d: any) => !d.dataQuality.isProfitable).length,
+    noConditionDescriptors: products.filter(p => !p.listing_data?.condition_descriptors).length,
+  }
+  
+  return `あなたはeBay輸出の専門コンサルタント、および国際物流・税関のスペシャリストです。
+以下のJSONデータを分析し、出品の「安全性」と「利益の妥当性」を多角的に検証してください。
+
+【対象商品】${products.length}件
+
+【警告サマリー】
+- HTSコード未設定: ${warnings.noHts}件
+- 原産国未設定: ${warnings.noOrigin}件
+- 重量未設定: ${warnings.noWeight}件
+- 赤字の可能性: ${warnings.noProfit}件
+- Condition Descriptors未設定: ${warnings.noConditionDescriptors}件
+
+【検証ステップ】
+
+1. **HTSコードの整合性**: 
+   - 商品タイトルと素材から判断して、設定されたHTSコード（関税番号）は米国税関の基準で適切か？
+   - トレカ: 4911.91.40 (紙製) または 9504.40.00 (カードゲーム)
+   - フィギュア: 9503.00.00
+   - カメラ: 9006.59
+   - 時計: 9102.xx
+
+2. **関税リスクの評価**: 
+   - このHTSコードに基づき、バイヤーが支払うべき想定関税率は正しいか？
+   - アンチダンピング税等のリスクはないか？
+
+3. **価格計算の正確性**: 
+   - 為替、手数料、送料、原価から計算された「最終利益」に計算ミスはないか？
+   - eBay手数料: 13.2%
+   - 決済手数料: 2.9% + $0.30
+
+4. **物流の妥当性**: 
+   - 商品重量に対し、選択された配送ポリシーの料金設定は赤字のリスクがないか？
+
+5. **eBay規約遵守**: 
+   - このカテゴリで必須とされるAspects（属性）は全て網羅されているか？
+
+6. **Condition設定**: 
+   - conditionIdとconditionDescriptorsは、カテゴリに対して適切か？
+   - トレカカテゴリ(183454等)は conditionId: 4000 + conditionDescriptors が必須
+
+【入力データ (JSON)】
+${JSON.stringify(auditData, null, 2)}
+
+【出力形式】
+各商品について以下の形式でレポートしてください：
+
+## [SKU: xxx] 商品名
+- ✅ 正常: [項目]
+- ⚠️ 警告: [項目] - 理由
+- ❌ エラー: [項目] - 理由と修正方法
+
+最後に全体のサマリーを記載してください。`
 }
 
 /**

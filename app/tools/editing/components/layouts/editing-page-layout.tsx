@@ -174,6 +174,15 @@ export function EditingPageLayout() {
   const { handleProductHover, handleProductClick } = useProductInteraction();
   const { getAllSelected, clearAll } = useMirrorSelectionStore();
 
+  // 🔥 ページ読み込み時にlocalStorageの古いMirror選択をクリア
+  useEffect(() => {
+    const oldSelections = getAllSelected();
+    if (oldSelections.length > 0) {
+      console.log('🧹 ページ読み込み時に古いMirror選択をクリア:', oldSelections.length, '件');
+      clearAll();
+    }
+  }, []); // 初回マウント時のみ実行
+
   const exportOps = useExportOperations({ products, selectedIds, showToast });
   const crudOps = useCRUDOperations({
     selectedIds, saveAllModified, deleteProducts, updateLocalProduct, showToast, deselectAll,

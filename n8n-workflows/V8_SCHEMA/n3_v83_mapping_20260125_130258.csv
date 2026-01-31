@@ -1,0 +1,8 @@
+Path,Name,Changed,Changes
+共通モジュール/embedded_logic.json,【共通】embedded_logic - 帝国OS共通ロジック集,True,Inserted CORE-Dispatcher after Webhook: embedded-logic
+出品/【出品】15_ローカル-eBay出品処理-完成版v5_V5.json,【出品】15_ローカル-eBay出品処理-完成版v5_V5,True,Inserted CORE-Dispatcher after 出品リクエスト受信
+メディア/【メディア】52a_ElevenLabs音声生成-EMOTION-AI_V6.json,N3-52a-メディア-ElevenLabs音声生成-V6-EMOTION-AI,True,Inserted CORE-Dispatcher after Webhook: voice-generate
+メディア/【メディア】52a_ElevenLabs音声生成_V5.json,N3-52a-メディア-ElevenLabs音声生成-V5-PRODUCTION,True,Inserted CORE-Dispatcher after Webhook: voice-generate
+リサーチ/【リサーチ】03_18-リサーチ-自律型AIトレンドエージェント_V5.json,【リサーチ】03_18-リサーチ-自律型AIトレンドエージェント_V5,True,Inserted CORE-Dispatcher after Webhook: trend-agent
+出品/_archive/【出品】01_ローカル-eBay出品処理-完成版v6修正_V6.json,【出品】01_ローカル-eBay出品処理-完成版v6修正_V6,True,Inserted CORE-Dispatcher after 出品リクエスト受信
+システム/_old/【システム】02_17-システム-統合Webhookゲートウェイ_V5.json,【システム】02_17-システム-統合Webhookゲートウェイ_V5,True,Inserted CORE-Dispatcher after Webhook: global-router

@@ -1,0 +1,457 @@
+{
+  "name": "【メディア】06_100-メディア-Puppeteer自動録画-VPS画面キャプチャ_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "puppeteer-record",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: puppeteer-record",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "puppeteer-record"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// Puppeteer自動録画 初期化\n// ============================================================================\n\nconst body = $input.first().json.body || $input.first().json || {};\n\nconst targetUrl = body.target_url;\nconst actions = body.actions || []; // [{type: 'click', selector: '#btn'}, {type: 'wait', ms: 2000}]\nconst resolution = body.resolution || '1920x1080';\nconst fps = body.fps || 30;\nconst durationLimit = body.duration_limit_seconds || 300;\nconst channelId = body.channel_id;\nconst contentId = body.content_id;\n\nif (!targetUrl) {\n  return [{ json: { error: true, message: 'target_url は必須です', code: 'MISSING_PARAM' } }];\n}\n\nconst jobId = 'rec_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);\n\nreturn [{\n  json: {\n    job_id: jobId,\n    target_url: targetUrl,\n    actions: actions,\n    resolution: resolution,\n    fps: fps,\n    duration_limit: durationLimit,\n    channel_id: channelId,\n    content_id: contentId,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO puppeteer_recording_jobs (id, job_type, status, target_url, target_actions, resolution, fps, duration_limit_seconds, channel_id, content_id) VALUES ($1, 'browser_record', 'processing', $2, $3, $4, $5, $6, $7, $8) RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.job_id, $json.target_url, JSON.stringify($json.actions), $json.resolution, $json.fps, $json.duration_limit, $json.channel_id, $json.content_id] }}"
+        }
+      },
+      "id": "save-job",
+      "name": "💾 ジョブ登録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// Puppeteerスクリプト生成\n// VPS上で実行するためのNode.jsスクリプトを生成\n// ============================================================================\n\nconst config = $node['🔧 初期化'].json;\nconst [width, height] = config.resolution.split('x').map(Number);\n\nconst puppeteerScript = `\nconst puppeteer = require('puppeteer');\nconst { PuppeteerScreenRecorder } = require('puppeteer-screen-recorder');\nconst path = require('path');\n\n(async () => {\n  const browser = await puppeteer.launch({\n    headless: 'new',\n    args: ['--no-sandbox', '--disable-setuid-sandbox', '--window-size=${width},${height}']\n  });\n  \n  const page = await browser.newPage();\n  await page.setViewport({ width: ${width}, height: ${height} });\n  \n  const outputPath = '/tmp/recordings/${config.job_id}.mp4';\n  \n  const recorder = new PuppeteerScreenRecorder(page, {\n    fps: ${config.fps},\n    ffmpeg_Path: '/usr/bin/ffmpeg',\n    videoFrame: { width: ${width}, height: ${height} },\n    aspectRatio: '16:9'\n  });\n  \n  await page.goto('${config.target_url}', { waitUntil: 'networkidle2', timeout: 60000 });\n  \n  await recorder.start(outputPath);\n  \n  // アクション実行\n  const actions = ${JSON.stringify(config.actions)};\n  for (const action of actions) {\n    try {\n      switch (action.type) {\n        case 'click':\n          await page.click(action.selector);\n          break;\n        case 'type':\n          await page.type(action.selector, action.text);\n          break;\n        case 'scroll':\n          await page.evaluate((amount) => window.scrollBy(0, amount), action.amount || 500);\n          break;\n        case 'wait':\n          await new Promise(r => setTimeout(r, action.ms || 1000));\n          break;\n        case 'screenshot':\n          await page.screenshot({ path: action.path || '/tmp/screenshot.png' });\n          break;\n      }\n      await new Promise(r => setTimeout(r, 500)); // アクション間の間隔\n    } catch (e) {\n      console.error('Action failed:', action, e.message);\n    }\n  }\n  \n  // 最大録画時間まで待機（または早期終了）\n  const maxDuration = Math.min(${config.duration_limit} * 1000, 300000);\n  const startTime = Date.now();\n  while (Date.now() - startTime < maxDuration) {\n    await new Promise(r => setTimeout(r, 1000));\n  }\n  \n  await recorder.stop();\n  await browser.close();\n  \n  console.log(JSON.stringify({\n    success: true,\n    output_path: outputPath,\n    job_id: '${config.job_id}',\n    duration_seconds: (Date.now() - startTime) / 1000\n  }));\n})();\n`;\n\nreturn [{\n  json: {\n    ...config,\n    puppeteer_script: puppeteerScript,\n    output_path: `/tmp/recordings/${config.job_id}.mp4`\n  }\n}];"
+      },
+      "id": "generate-script",
+      "name": "📝 スクリプト生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "command": "={{ 'mkdir -p /tmp/recordings && echo \\'' + $json.puppeteer_script.replace(/'/g, \"'\\\\''\") + '\\' > /tmp/puppeteer_job_' + $json.job_id + '.js && node /tmp/puppeteer_job_' + $json.job_id + '.js' }}",
+        "options": {
+          "timeout": 360000
+        }
+      },
+      "id": "execute-puppeteer",
+      "name": "🎬 Puppeteer実行",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 実行結果解析\n// ============================================================================\n\nconst config = $node['📝 スクリプト生成'].json;\nconst execResult = $input.first().json;\n\nlet success = false;\nlet outputPath = config.output_path;\nlet durationSeconds = 0;\nlet errorMessage = null;\n\ntry {\n  if (execResult.stdout) {\n    const result = JSON.parse(execResult.stdout.trim());\n    success = result.success;\n    outputPath = result.output_path;\n    durationSeconds = result.duration_seconds;\n  }\n} catch (e) {\n  errorMessage = execResult.stderr || e.message;\n}\n\nreturn [{\n  json: {\n    job_id: config.job_id,\n    success: success,\n    output_path: outputPath,\n    duration_seconds: durationSeconds,\n    error_message: errorMessage,\n    channel_id: config.channel_id,\n    content_id: config.content_id\n  }\n}];"
+      },
+      "id": "parse-result",
+      "name": "📋 結果解析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "success-check",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-success",
+      "name": "成功？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "media-assets",
+        "fileName": "=recordings/{{ $json.channel_id || 'general' }}/{{ $json.job_id }}.mp4",
+        "filePath": "={{ $json.output_path }}"
+      },
+      "id": "upload-storage",
+      "name": "📤 Storage Upload",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-api",
+          "name": "Supabase API"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE puppeteer_recording_jobs SET status = 'completed', output_path = $2, actual_duration_seconds = $3, completed_at = NOW() WHERE id = $1",
+        "options": {
+          "queryParams": "={{ [$json.job_id, $json.output_path, $json.duration_seconds] }}"
+        }
+      },
+      "id": "update-success",
+      "name": "✅ 成功更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE puppeteer_recording_jobs SET status = 'failed', error_message = $2, completed_at = NOW() WHERE id = $1",
+        "options": {
+          "queryParams": "={{ [$json.job_id, $json.error_message || 'Unknown error'] }}"
+        }
+      },
+      "id": "update-failure",
+      "name": "❌ 失敗更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $node['📋 結果解析'].json;\nconst supabaseUrl = $env.SUPABASE_URL || '{{$env.SUPABASE_URL}}';\nconst publicUrl = data.success ? `${supabaseUrl}/storage/v1/object/public/media-assets/recordings/${data.channel_id || 'general'}/${data.job_id}.mp4` : null;\n\nreturn [{\n  json: {\n    success: data.success,\n    job_id: data.job_id,\n    video_url: publicUrl,\n    duration_seconds: data.duration_seconds,\n    channel_id: data.channel_id,\n    content_id: data.content_id,\n    error: data.error_message\n  }\n}];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": "={{ $json.success ? 200 : 500 }}"
+        }
+      },
+      "id": "respond",
+      "name": "✅ 応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: puppeteer-record": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💾 ジョブ登録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 ジョブ登録": {
+      "main": [
+        [
+          {
+            "node": "📝 スクリプト生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 スクリプト生成": {
+      "main": [
+        [
+          {
+            "node": "🎬 Puppeteer実行",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎬 Puppeteer実行": {
+      "main": [
+        [
+          {
+            "node": "📋 結果解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 結果解析": {
+      "main": [
+        [
+          {
+            "node": "成功？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "成功？": {
+      "main": [
+        [
+          {
+            "node": "📤 Storage Upload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "❌ 失敗更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📤 Storage Upload": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ 成功更新": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "❌ 失敗更新": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "✅ 応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 600,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Puppeteer",
+      "color": "#3498db"
+    },
+    {
+      "name": "Phase12",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

@@ -1,0 +1,229 @@
+{
+  "name": "N3-QUEUE-WORKER",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "n3_qw_schedule",
+      "name": "Every Minute",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) as running_count FROM n3_job_queue WHERE status = 'running';",
+        "options": {}
+      },
+      "id": "n3_qw_check_running",
+      "name": "Check Running",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [450, 300],
+      "credentials": { "postgres": { "id": "n3-supabase-postgres", "name": "N3 Supabase Postgres" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const runningCount = $input.all()[0].json.running_count || 0;\nconst maxSlots = 10;\nconst availableSlots = Math.max(0, maxSlots - runningCount);\n\nreturn [{\n  json: {\n    running_count: runningCount,\n    available_slots: availableSlots,\n    should_process: availableSlots > 0\n  }\n}];"
+      },
+      "id": "n3_qw_calc_slots",
+      "name": "Calculate Slots",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "has_slots",
+              "leftValue": "={{ $json.should_process }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "n3_qw_has_slots",
+      "name": "Has Slots?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH next_jobs AS (\n  SELECT id, workflow_name, payload, priority, created_by, tenant_id\n  FROM n3_job_queue\n  WHERE status = 'waiting'\n  ORDER BY priority DESC, created_at ASC\n  LIMIT {{ $('Calculate Slots').item.json.available_slots }}\n  FOR UPDATE SKIP LOCKED\n)\nUPDATE n3_job_queue q\nSET status = 'running', started_at = NOW()\nFROM next_jobs nj\nWHERE q.id = nj.id\nRETURNING q.id, q.workflow_name, q.payload, q.priority, q.created_by, q.tenant_id;",
+        "options": {}
+      },
+      "id": "n3_qw_get_jobs",
+      "name": "Get & Lock Jobs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1050, 300],
+      "credentials": { "postgres": { "id": "n3-supabase-postgres", "name": "N3 Supabase Postgres" } }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "has_jobs",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "n3_qw_has_jobs",
+      "name": "Has Jobs?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "n3_qw_split",
+      "name": "Split Jobs",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "value": "={{ $json.workflow_name }}",
+          "mode": "id"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "n3_qw_execute",
+      "name": "Execute Job",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [1650, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE n3_job_queue\nSET \n  status = 'done',\n  finished_at = NOW(),\n  execution_time_ms = EXTRACT(EPOCH FROM (NOW() - started_at)) * 1000,\n  result = '{{ JSON.stringify($json || {}) }}'::jsonb\nWHERE id = '{{ $('Split Jobs').item.json.id }}';",
+        "options": {}
+      },
+      "id": "n3_qw_update_done",
+      "name": "Update Done",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1850, 300],
+      "credentials": { "postgres": { "id": "n3-supabase-postgres", "name": "N3 Supabase Postgres" } },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE n3_job_queue\nSET \n  status = 'failed',\n  finished_at = NOW(),\n  execution_time_ms = EXTRACT(EPOCH FROM (NOW() - started_at)) * 1000,\n  error_message = '{{ $json.message || \"Unknown error\" }}',\n  retry_count = retry_count + 1\nWHERE id = '{{ $('Split Jobs').item.json.id }}';",
+        "options": {}
+      },
+      "id": "n3_qw_update_failed",
+      "name": "Update Failed",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1850, 500],
+      "credentials": { "postgres": { "id": "n3-supabase-postgres", "name": "N3 Supabase Postgres" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 実行統計をまとめる\nconst items = $input.all();\nconst processed = items.length;\n\nreturn [{\n  json: {\n    processed: processed,\n    timestamp: new Date().toISOString(),\n    message: processed > 0 ? `Processed ${processed} job(s)` : 'No jobs to process'\n  }\n}];"
+      },
+      "id": "n3_qw_summary",
+      "name": "Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2050, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { message: 'No slots available', timestamp: new Date().toISOString() } }];"
+      },
+      "id": "n3_qw_no_slots",
+      "name": "No Slots",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { message: 'No waiting jobs', timestamp: new Date().toISOString() } }];"
+      },
+      "id": "n3_qw_no_jobs",
+      "name": "No Jobs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1450, 500]
+    }
+  ],
+  "connections": {
+    "Every Minute": { "main": [[{ "node": "Check Running", "type": "main", "index": 0 }]] },
+    "Check Running": { "main": [[{ "node": "Calculate Slots", "type": "main", "index": 0 }]] },
+    "Calculate Slots": { "main": [[{ "node": "Has Slots?", "type": "main", "index": 0 }]] },
+    "Has Slots?": {
+      "main": [
+        [{ "node": "Get & Lock Jobs", "type": "main", "index": 0 }],
+        [{ "node": "No Slots", "type": "main", "index": 0 }]
+      ]
+    },
+    "Get & Lock Jobs": { "main": [[{ "node": "Has Jobs?", "type": "main", "index": 0 }]] },
+    "Has Jobs?": {
+      "main": [
+        [{ "node": "Split Jobs", "type": "main", "index": 0 }],
+        [{ "node": "No Jobs", "type": "main", "index": 0 }]
+      ]
+    },
+    "Split Jobs": { 
+      "main": [
+        [{ "node": "Execute Job", "type": "main", "index": 0 }],
+        [{ "node": "Summary", "type": "main", "index": 0 }]
+      ]
+    },
+    "Execute Job": { "main": [[{ "node": "Update Done", "type": "main", "index": 0 }]] },
+    "Update Done": { "main": [[{ "node": "Split Jobs", "type": "main", "index": 0 }]] }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "v8.3.0",
+  "meta": {
+    "n3_version": "V8.3",
+    "description": "キューワーカー - 毎分実行、待機ジョブを処理",
+    "created_at": "2026-01-25"
+  },
+  "tags": [
+    { "name": "V8.3" },
+    { "name": "Worker" },
+    { "name": "Queue" }
+  ]
+}

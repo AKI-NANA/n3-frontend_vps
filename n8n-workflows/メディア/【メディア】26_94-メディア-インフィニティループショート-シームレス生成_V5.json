@@ -1,0 +1,254 @@
+{
+  "name": "【メディア】26_94-メディア-インフィニティループショート-シームレス生成_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "infinity-loop",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: infinity-loop",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "infinity-loop"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nreturn [{ json: { content_id: body.content_id, script: body.script, topic: body.topic, channel_id: body.channel_id, timestamp: new Date().toISOString() } }];"
+      },
+      "id": "init",
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-goog-api-key",
+              "value": "={{ $env.GEMINI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: `あなたはショート動画の脚本家です。以下の内容から「無限ループ」するショート動画の脚本を生成してください。\n\n【重要な条件】\n1. 動画の最後の文は「未完の状態」で終わり、冒頭のフックに自然に繋がること\n2. 視聴者が「もう一度最初から見たい」と思うような構成にすること\n3. 末尾と冒頭で同じ単語やフレーズを使用してシームレスに繋げること\n\n【トピック】\n${$json.topic || '指定なし'}\n\n【元の脚本】\n${$json.script || '新規作成'}\n\n【出力形式】JSONのみ\n{\n  \"opening_hook\": \"冒頭のフック文（15文字以内）\",\n  \"main_content\": \"本編（200文字以内）\",\n  \"closing_bridge\": \"末尾の繋ぎ文（冒頭に繋がる未完の文）\",\n  \"loop_seamless_score\": 0.85,\n  \"audio_crossfade_ms\": 500,\n  \"loop_explanation\": \"ループの仕組みの説明\"\n}` }] }], generationConfig: { temperature: 0.7, maxOutputTokens: 1024 } }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "generate-loop-script",
+      "name": "🔄 ループ脚本生成",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const initData = $node['🔧 初期化'].json;\nconst geminiResult = $input.first().json;\n\nlet loopData = {\n  opening_hook: '',\n  main_content: '',\n  closing_bridge: '',\n  loop_seamless_score: 0,\n  audio_crossfade_ms: 500\n};\n\ntry {\n  const content = geminiResult?.candidates?.[0]?.content?.parts?.[0]?.text || '';\n  const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) loopData = JSON.parse(jsonMatch[0]);\n} catch (e) {}\n\nreturn [{ json: { content_id: initData.content_id, channel_id: initData.channel_id, ...loopData } }];"
+      },
+      "id": "parse-loop",
+      "name": "📋 ループデータパース",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO loop_script_metadata (content_id, opening_hook, closing_bridge, loop_seamless_score, audio_crossfade_ms, ai_loop_analysis) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (content_id) DO UPDATE SET opening_hook = $2, closing_bridge = $3, loop_seamless_score = $4, audio_crossfade_ms = $5, ai_loop_analysis = $6, regeneration_count = loop_script_metadata.regeneration_count + 1, updated_at = NOW() RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.content_id || 'temp_' + Date.now(), $json.opening_hook, $json.closing_bridge, $json.loop_seamless_score, $json.audio_crossfade_ms, $json.loop_explanation || ''] }}"
+        }
+      },
+      "id": "save-loop",
+      "name": "💾 ループメタデータ保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const loopData = $node['📋 ループデータパース'].json;\nreturn [{ json: { success: true, action: 'infinity_loop', content_id: loopData.content_id, loop_seamless_score: loopData.loop_seamless_score, opening_hook: loopData.opening_hook, closing_bridge: loopData.closing_bridge, remotion_props: { opening_hook: loopData.opening_hook, main_content: loopData.main_content, closing_bridge: loopData.closing_bridge, audio_crossfade_ms: loopData.audio_crossfade_ms, enable_seamless_loop: true } } }];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: infinity-loop": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "🔄 ループ脚本生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 ループ脚本生成": {
+      "main": [
+        [
+          {
+            "node": "📋 ループデータパース",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 ループデータパース": {
+      "main": [
+        [
+          {
+            "node": "💾 ループメタデータ保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 ループメタデータ保存": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 120
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Shorts",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

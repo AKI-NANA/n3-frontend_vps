@@ -25,7 +25,7 @@ import { memo, type ReactNode, type CSSProperties } from 'react';
 // Types
 // ============================================================
 
-export type FilterTabVariant = 'default' | 'inventory' | 'status' | 'primary' | 'verified';
+export type FilterTabVariant = 'default' | 'inventory' | 'status' | 'primary' | 'verified' | 'archive';
 
 export interface N3FilterTabProps {
   /** ID */
@@ -120,6 +120,16 @@ const getVariantStyles = (variant: FilterTabVariant, active: boolean): CSSProper
         background: 'transparent',
         color: 'var(--verified, #10b981)',
         border: '1px solid var(--verified, #10b981)',
+      },
+    },
+    archive: {
+      active: {
+        background: 'var(--archive, #6b7280)',
+        color: 'white',
+      },
+      inactive: {
+        background: 'transparent',
+        color: 'var(--text-muted, #888)',
       },
     },
   };

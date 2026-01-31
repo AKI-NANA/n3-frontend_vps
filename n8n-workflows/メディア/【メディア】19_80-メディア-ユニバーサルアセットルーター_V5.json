@@ -1,0 +1,410 @@
+{
+  "name": "【メディア】19_80-メディア-ユニバーサルアセットルーター_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "asset-router",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: asset-router",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "asset-router"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// ユニバーサル・アセット・ルーター 初期化\n// channels テーブルの brand_config に基づき、配色・フォント・ボイス・MJ画像群を一括ロード\n// ============================================================================\n\nconst body = $input.first().json.body || $input.first().json || {};\n\nconst channelId = body.channel_id;\nconst productId = body.product_id;\nconst contentType = body.content_type || 'youtube_short';\nconst genre = body.genre || 'general';\nconst language = body.language || 'ja';\n\nif (!channelId) {\n  return [{ json: { error: true, message: 'channel_id は必須です', code: 'MISSING_PARAM' } }];\n}\n\nreturn [{\n  json: {\n    channel_id: channelId,\n    product_id: productId,\n    content_type: contentType,\n    genre: genre,\n    language: language,\n    request_id: `AR-${Date.now()}`\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT mc.*, mc.brand_config, mc.voice_config, mc.mj_asset_library, mc.template_preset, mc.template_config, mc.target_locales FROM media_channels mc WHERE mc.channel_id = $1 AND mc.is_active = TRUE",
+        "options": {
+          "queryParams": "={{ [$json.channel_id] }}"
+        }
+      },
+      "id": "get-channel",
+      "name": "📺 チャンネル設定取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM mj_asset_library WHERE channel_id = $1 AND is_active = TRUE ORDER BY asset_type, asset_category, usage_count DESC",
+        "options": {
+          "queryParams": "={{ [$node['🔐 初期化'].json.channel_id] }}"
+        }
+      },
+      "id": "get-mj-assets",
+      "name": "🎨 MJアセット取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM bgm_library WHERE is_active = TRUE AND (genre = $1 OR genre = 'universal') ORDER BY usage_count DESC LIMIT 20",
+        "options": {
+          "queryParams": "={{ [$node['🔐 初期化'].json.genre] }}"
+        }
+      },
+      "id": "get-bgm",
+      "name": "🎵 BGM取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM elevenlabs_voices WHERE is_active = TRUE AND $1 = ANY(supported_languages) ORDER BY total_characters_generated DESC LIMIT 5",
+        "options": {
+          "queryParams": "={{ [$node['🔐 初期化'].json.language] }}"
+        }
+      },
+      "id": "get-voices",
+      "name": "🎙️ ボイス取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// アセットルーター：全データ統合\n// ============================================================================\n\nconst initData = $node['🔐 初期化'].json;\nconst channelData = $node['📺 チャンネル設定取得'].json;\nconst mjAssets = $node['🎨 MJアセット取得'].json || [];\nconst bgmList = $node['🎵 BGM取得'].json || [];\nconst voiceList = $node['🎙️ ボイス取得'].json || [];\n\nconst channel = Array.isArray(channelData) ? channelData[0] : channelData;\n\nif (!channel) {\n  return [{ json: { error: true, message: 'チャンネルが見つかりません', code: 'CHANNEL_NOT_FOUND' } }];\n}\n\n// brand_configをパース\nconst brandConfig = typeof channel.brand_config === 'string' \n  ? JSON.parse(channel.brand_config) \n  : channel.brand_config || {};\n\nconst voiceConfig = typeof channel.voice_config === 'string'\n  ? JSON.parse(channel.voice_config)\n  : channel.voice_config || {};\n\nconst templateConfig = typeof channel.template_config === 'string'\n  ? JSON.parse(channel.template_config)\n  : channel.template_config || {};\n\n// MJアセットをカテゴリ別に整理\nconst assetsByType = {};\nconst assets = Array.isArray(mjAssets) ? mjAssets : [mjAssets].filter(a => a && a.id);\nassets.forEach(asset => {\n  const key = `${asset.asset_type}_${asset.asset_category || 'default'}`;\n  if (!assetsByType[key]) assetsByType[key] = [];\n  assetsByType[key].push({\n    id: asset.id,\n    tag: asset.asset_tag,\n    url: asset.public_url || asset.original_url,\n    thumbnail: asset.thumbnail_url\n  });\n});\n\n// BGMをランダム選択\nconst bgms = Array.isArray(bgmList) ? bgmList : [bgmList].filter(b => b && b.id);\nconst selectedBgm = bgms.length > 0 ? bgms[Math.floor(Math.random() * bgms.length)] : null;\n\n// ボイスを選択（チャンネル設定優先）\nconst voices = Array.isArray(voiceList) ? voiceList : [voiceList].filter(v => v && v.id);\nconst selectedVoice = voiceConfig.voice_id \n  ? voices.find(v => v.voice_id === voiceConfig.voice_id) || voices[0]\n  : voices[0];\n\n// テンプレートプリセットに基づく追加設定\nconst presetDefaults = {\n  'kids': { saturation: 1.3, animation: 'bouncy', fontSize: 1.2 },\n  'professional': { saturation: 1.0, animation: 'subtle', fontSize: 1.0 },\n  'travel': { saturation: 1.1, animation: 'cinematic', fontSize: 1.1, kenBurnsIntensity: 1.5 },\n  'education': { saturation: 1.0, animation: 'educational', fontSize: 1.0 }\n};\nconst presetConfig = presetDefaults[channel.template_preset] || presetDefaults['professional'];\n\n// 最終アセットパッケージ\nconst assetPackage = {\n  channel_id: channel.channel_id,\n  channel_name: channel.channel_name,\n  template_preset: channel.template_preset,\n  \n  // ビジュアル設定\n  colors: brandConfig.colors || {\n    primary: '#ff6b35',\n    secondary: '#fbbf24',\n    accent: '#3b82f6',\n    background: '#0f172a',\n    text: '#ffffff'\n  },\n  \n  fonts: brandConfig.fonts || {\n    title: 'Noto Sans JP',\n    body: 'Noto Sans JP',\n    accent: 'M PLUS Rounded 1c'\n  },\n  \n  // ロゴ・ウォーターマーク\n  logo_url: brandConfig.logo_url,\n  watermark_url: brandConfig.watermark_url,\n  intro_video_url: brandConfig.intro_video_url,\n  outro_video_url: brandConfig.outro_video_url,\n  \n  // アニメーション設定\n  animation: {\n    style: presetConfig.animation,\n    saturation: presetConfig.saturation,\n    fontSize_multiplier: presetConfig.fontSize,\n    ken_burns_intensity: presetConfig.kenBurnsIntensity || 1.0\n  },\n  \n  // MJアセット\n  mj_assets: assetsByType,\n  mj_asset_count: assets.length,\n  \n  // 音声設定\n  voice: selectedVoice ? {\n    voice_id: selectedVoice.voice_id,\n    voice_name: selectedVoice.voice_name,\n    stability: voiceConfig.stability || selectedVoice.default_stability || 0.5,\n    similarity_boost: voiceConfig.similarity_boost || selectedVoice.default_similarity_boost || 0.75,\n    style: voiceConfig.style || selectedVoice.default_style || 0.2\n  } : null,\n  \n  // BGM設定\n  bgm: selectedBgm ? {\n    id: selectedBgm.id,\n    title: selectedBgm.title,\n    url: selectedBgm.public_url,\n    duration: selectedBgm.duration_seconds,\n    volume: selectedBgm.recommended_volume || 0.15,\n    duck_level_db: selectedBgm.duck_level_db || -12\n  } : null,\n  \n  // 言語設定\n  language: initData.language,\n  target_locales: channel.target_locales,\n  \n  // メタデータ\n  request_id: initData.request_id,\n  loaded_at: new Date().toISOString()\n};\n\nreturn [{ json: assetPackage }];"
+      },
+      "id": "build-package",
+      "name": "📦 アセットパッケージ構築",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "pkg-error",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-pkg-error",
+      "name": "パッケージエラー？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": 404
+        }
+      },
+      "id": "respond-pkg-error",
+      "name": "パッケージエラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, asset_package: $json }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: asset-router": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📺 チャンネル設定取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📺 チャンネル設定取得": {
+      "main": [
+        [
+          {
+            "node": "🎨 MJアセット取得",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "🎵 BGM取得",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "🎙️ ボイス取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎨 MJアセット取得": {
+      "main": [
+        [
+          {
+            "node": "📦 アセットパッケージ構築",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎵 BGM取得": {
+      "main": [
+        [
+          {
+            "node": "📦 アセットパッケージ構築",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎙️ ボイス取得": {
+      "main": [
+        [
+          {
+            "node": "📦 アセットパッケージ構築",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 アセットパッケージ構築": {
+      "main": [
+        [
+          {
+            "node": "パッケージエラー？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "パッケージエラー？": {
+      "main": [
+        [
+          {
+            "node": "パッケージエラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 120,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Asset-Router",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

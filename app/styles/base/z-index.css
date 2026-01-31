@@ -1,0 +1,247 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Z-Index Management
+   
+   Z-INDEX階層定義（明確な優先順位）
+   ============================================================
+   
+   Layer 0    (0)      : Base content
+   Layer 10   (10-19)  : Floating elements within content
+   Layer 20   (20-29)  : Sticky headers, sub-toolbars
+   Layer 30   (30-39)  : Sidebar (expanded state)
+   Layer 40   (40-49)  : Main header, filter bars
+   Layer 50   (50-59)  : Dropdowns, popovers
+   Layer 60   (60-69)  : Hover panels, floating panels
+   Layer 70   (70-79)  : Side panels (audit panel, grouping panel)
+   Layer 80   (80-89)  : Modals (background)
+   Layer 90   (90-99)  : Modals (content)
+   Layer 100  (100+)   : Tooltips, toasts, notifications
+   Layer 999  (9999+)  : Critical overlays (loading, error)
+   
+   ============================================================ */
+
+:root {
+  /* Z-Index Variables */
+  --z-base: 0;
+  --z-floating: 10;
+  --z-sticky: 20;
+  --z-sidebar: 30;
+  --z-header: 40;
+  --z-dropdown: 50;
+  --z-hover-panel: 60;
+  --z-side-panel: 70;
+  --z-modal-backdrop: 80;
+  --z-modal: 90;
+  --z-tooltip: 100;
+  --z-toast: 110;
+  --z-notification: 120;
+  --z-critical: 9999;
+}
+
+/* ============================================================
+   Header & Navigation
+   ============================================================ */
+
+/* メインヘッダー */
+.n3-header,
+.n3-page-header,
+[data-component="page-header"] {
+  z-index: var(--z-header) !important;
+  position: relative;
+}
+
+/* サブツールバー */
+.n3-sub-toolbar,
+[data-component="sub-toolbar"] {
+  z-index: calc(var(--z-header) - 1) !important;
+}
+
+/* 折りたたみヘッダー */
+.n3-collapsible-header {
+  z-index: var(--z-header) !important;
+}
+
+/* ============================================================
+   Hover Panels (ツールパネルなど)
+   ============================================================ */
+
+/* ホバー時に展開するパネル */
+.n3-hover-panel,
+[data-component="hover-panel"] {
+  z-index: var(--z-hover-panel) !important;
+  position: absolute;
+}
+
+/* ピン留めされたパネル */
+.n3-pinned-panel,
+[data-component="pinned-panel"] {
+  z-index: var(--z-hover-panel) !important;
+  position: relative;
+}
+
+/* ============================================================
+   Side Panels (監査パネル、グルーピングパネルなど)
+   ============================================================ */
+
+.n3-side-panel,
+.n3-audit-panel,
+.n3-grouping-panel,
+[data-component="side-panel"] {
+  z-index: var(--z-side-panel) !important;
+}
+
+/* ============================================================
+   Dropdowns & Popovers
+   ============================================================ */
+
+.n3-dropdown,
+.n3-popover,
+.n3-select-dropdown,
+[data-component="dropdown"] {
+  z-index: var(--z-dropdown) !important;
+}
+
+/* ユーザーメニュー、通知ドロップダウン */
+.n3-user-menu,
+.n3-notification-dropdown {
+  z-index: var(--z-dropdown) !important;
+}
+
+/* ============================================================
+   Filter Modals & Overlays
+   ============================================================ */
+
+/* 絞り込みモーダル - 背景を明確に */
+.n3-filter-modal,
+.n3-filter-overlay,
+[data-component="filter-modal"] {
+  z-index: var(--z-modal-backdrop) !important;
+  background: rgba(248, 250, 252, 0.98) !important; /* 薄いグレー背景 */
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--shadow-lg);
+}
+
+/* ============================================================
+   Modals
+   ============================================================ */
+
+/* モーダル背景 */
+.n3-modal-backdrop,
+[data-component="modal-backdrop"] {
+  z-index: var(--z-modal-backdrop) !important;
+}
+
+/* モーダル本体 */
+.n3-modal,
+.n3-modal-content,
+[data-component="modal"] {
+  z-index: var(--z-modal) !important;
+}
+
+/* ============================================================
+   Tooltips
+   ============================================================ */
+
+.n3-tooltip,
+[data-component="tooltip"] {
+  z-index: var(--z-tooltip) !important;
+}
+
+/* Feature Tooltip (機能解説) */
+.n3-feature-tooltip {
+  z-index: var(--z-tooltip) !important;
+}
+
+/* ============================================================
+   Toasts & Notifications
+   ============================================================ */
+
+.n3-toast,
+.n3-toast-container,
+[data-component="toast"] {
+  z-index: var(--z-toast) !important;
+}
+
+.n3-notification,
+.n3-notification-bell-dropdown {
+  z-index: var(--z-notification) !important;
+}
+
+/* ============================================================
+   Critical Overlays (Loading, Error)
+   ============================================================ */
+
+.n3-loading-overlay,
+.n3-error-overlay,
+.n3-processing-overlay,
+[data-component="loading-overlay"] {
+  z-index: var(--z-critical) !important;
+}
+
+/* 無限ループ検知画面 */
+.n3-infinite-loop-guard {
+  z-index: var(--z-critical) !important;
+}
+
+/* ============================================================
+   Smart Process Panel (スマート処理パネル)
+   
+   ⚠️ 重要: このパネルは常に他のUIの上に表示される
+   ============================================================ */
+
+.n3-smart-process-panel,
+[data-component="smart-process-panel"] {
+  z-index: var(--z-side-panel) !important;
+  position: fixed !important;
+}
+
+/* 処理中のオーバーレイ */
+.n3-smart-process-overlay {
+  z-index: calc(var(--z-modal-backdrop) + 1) !important;
+  position: fixed !important;
+  inset: 0 !important;
+  background: rgba(0, 0, 0, 0.5) !important;
+  backdrop-filter: blur(4px);
+}
+
+/* 処理進捗パネル */
+.n3-smart-process-progress {
+  z-index: calc(var(--z-modal) + 1) !important;
+  position: fixed !important;
+}
+
+/* ============================================================
+   Sidebar
+   ============================================================ */
+
+.n3-sidebar {
+  z-index: var(--z-sidebar);
+}
+
+.n3-sidebar--expanded {
+  z-index: calc(var(--z-sidebar) + 5);
+}
+
+/* ============================================================
+   Content Area Adjustments
+   ============================================================ */
+
+/* メインコンテンツ領域 */
+.n3-main-content {
+  z-index: var(--z-base);
+  position: relative;
+}
+
+/* スクロール可能なコンテンツ */
+.n3-scroll-content {
+  z-index: var(--z-base);
+}
+
+/* 選択バー・アクションバー */
+.n3-selection-bar,
+.n3-action-bar,
+.n3-approval-action-bar {
+  z-index: calc(var(--z-sticky) + 5);
+  position: sticky;
+  bottom: 0;
+}

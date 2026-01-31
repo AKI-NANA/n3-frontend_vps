@@ -15,7 +15,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { 
   FileText, AlertTriangle, Book, Rocket, Settings, Plus, 
   Search, Calendar, Tag, ExternalLink, ChevronRight,
-  RefreshCw, Trash2, Edit, Eye, Copy, Check
+  RefreshCw, Trash2, Edit, Eye, Copy, Check, Zap, Bot
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -37,7 +37,7 @@ interface DocItem {
   status: 'active' | 'deprecated' | 'draft';
 }
 
-type DocCategory = 'errors' | 'guides' | 'api' | 'architecture' | 'deployment';
+type DocCategory = 'errors' | 'guides' | 'api' | 'architecture' | 'deployment' | 'n8n' | 'ai';
 
 interface TabConfig {
   id: DocCategory;
@@ -53,6 +53,8 @@ interface TabConfig {
 const TABS: TabConfig[] = [
   { id: 'errors', label: 'エラー集', icon: <AlertTriangle size={16} />, color: '#ef4444' },
   { id: 'guides', label: 'ガイド', icon: <Book size={16} />, color: '#3b82f6' },
+  { id: 'n8n', label: 'n8nワークフロー', icon: <Zap size={16} />, color: '#F59E0B' },
+  { id: 'ai', label: 'AIエージェント', icon: <Bot size={16} />, color: '#8B5CF6' },
   { id: 'api', label: 'API仕様', icon: <FileText size={16} />, color: '#8b5cf6' },
   { id: 'architecture', label: 'アーキテクチャ', icon: <Settings size={16} />, color: '#06b6d4' },
   { id: 'deployment', label: 'デプロイ', icon: <Rocket size={16} />, color: '#22c55e' },
@@ -1013,6 +1015,109 @@ function getMockDocs(category: DocCategory): DocItem[] {
         createdAt: '2024-12-22T00:00:00Z',
         updatedAt: '2024-12-22T00:00:00Z',
         tags: ['緊急対応', 'キャッシュ'],
+        status: 'active',
+      },
+    ],
+    n8n: [
+      {
+        id: 'n8n-001',
+        title: '自律型出品ハブ (Listing Hub)',
+        description: 'eBay, Amazon, Qoo10等へのマルチプラットフォーム出品の中央司令塔',
+        category: 'n8n',
+        path: '02_DEV_LAB/n8n-workflows/PRODUCTION/出品/N3_V8.2.1_AUTONOMOUS_LISTING_HUB.json',
+        createdAt: '2025-01-26T00:00:00Z',
+        updatedAt: '2025-01-26T00:00:00Z',
+        tags: ['出品', 'eBay', 'Amazon', '自動化'],
+        status: 'active',
+      },
+      {
+        id: 'n8n-002',
+        title: 'Global Stock Killer',
+        description: '緊急時に全販路の在庫を一括停止するキルスイッチ',
+        category: 'n8n',
+        path: '02_DEV_LAB/n8n-workflows/PRODUCTION/在庫/【在庫】01_GlobalStockKiller_V8-ARMORED.json',
+        createdAt: '2025-01-26T00:00:00Z',
+        updatedAt: '2025-01-26T00:00:00Z',
+        tags: ['在庫', '緊急停止', '防衛'],
+        status: 'active',
+      },
+      {
+        id: 'n8n-003',
+        title: '自律型SMエージェント',
+        description: 'SellerMirrorを使った競合分析の自動化',
+        category: 'n8n',
+        path: '02_DEV_LAB/n8n-workflows/PRODUCTION/リサーチ/N3_V8.2.1_AUTONOMOUS_SM_AGENT.json',
+        createdAt: '2025-01-26T00:00:00Z',
+        updatedAt: '2025-01-26T00:00:00Z',
+        tags: ['リサーチ', 'SM分析', '競合調査'],
+        status: 'active',
+      },
+      {
+        id: 'n8n-004',
+        title: '目利きエージェント',
+        description: 'AIによる商品価値判定',
+        category: 'n8n',
+        path: '02_DEV_LAB/n8n-workflows/PRODUCTION/リサーチ/【リサーチ】01_14-リサーチ-目利きエージェント_V7.json',
+        createdAt: '2025-01-26T00:00:00Z',
+        updatedAt: '2025-01-26T00:00:00Z',
+        tags: ['リサーチ', 'AI', '価値判定'],
+        status: 'active',
+      },
+      {
+        id: 'n8n-005',
+        title: '多販路受注統合ハブ',
+        description: '全販路からの受注を統合管理',
+        category: 'n8n',
+        path: '02_DEV_LAB/n8n-workflows/PRODUCTION/受注/【受注】01_09-受注-多販路受注統合ハブ_V5.json',
+        createdAt: '2025-01-26T00:00:00Z',
+        updatedAt: '2025-01-26T00:00:00Z',
+        tags: ['受注', '統合', 'マルチチャネル'],
+        status: 'active',
+      },
+      {
+        id: 'n8n-006',
+        title: '11言語自動翻訳',
+        description: '商品情報を11言語に自動翻訳',
+        category: 'n8n',
+        path: '02_DEV_LAB/n8n-workflows/PRODUCTION/翻訳/【翻訳】03_52d-メディア-多言語展開-11言語自動変換_V5.json',
+        createdAt: '2025-01-26T00:00:00Z',
+        updatedAt: '2025-01-26T00:00:00Z',
+        tags: ['翻訳', '多言語', 'グローバル'],
+        status: 'active',
+      },
+    ],
+    ai: [
+      {
+        id: 'ai-001',
+        title: 'AI自動返信',
+        description: '問い合わせへのAI自動返信システム',
+        category: 'ai',
+        path: '02_DEV_LAB/n8n-workflows/PRODUCTION/AI/【AI】01_11-問い合わせ-AI自動返信_V5.json',
+        createdAt: '2025-01-26T00:00:00Z',
+        updatedAt: '2025-01-26T00:00:00Z',
+        tags: ['AI', '自動返信', 'CS'],
+        status: 'active',
+      },
+      {
+        id: 'ai-002',
+        title: 'AIカテゴリマッピング',
+        description: 'AIによるカテゴリ自動分類',
+        category: 'ai',
+        path: '02_DEV_LAB/n8n-workflows/PRODUCTION/AI/【AI】02_46-AIカテゴリマッピング-category-mapper_V5.json',
+        createdAt: '2025-01-26T00:00:00Z',
+        updatedAt: '2025-01-26T00:00:00Z',
+        tags: ['AI', 'カテゴリ', '自動分類'],
+        status: 'active',
+      },
+      {
+        id: 'ai-003',
+        title: 'AEO AIエンジン最適化',
+        description: 'AIエンジン最適化によるSEO強化',
+        category: 'ai',
+        path: '02_DEV_LAB/n8n-workflows/PRODUCTION/AI/【AI】03_53-AEO-AIエンジン最適化_V5.json',
+        createdAt: '2025-01-26T00:00:00Z',
+        updatedAt: '2025-01-26T00:00:00Z',
+        tags: ['AI', 'AEO', 'SEO'],
         status: 'active',
       },
     ],

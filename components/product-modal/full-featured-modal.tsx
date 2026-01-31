@@ -35,6 +35,7 @@ const TabHTML = lazy(() => import('./components/Tabs/tab-html').then(m => ({ def
 const TabFinal = lazy(() => import('./components/Tabs/tab-final').then(m => ({ default: m.TabFinal })));
 const TabQoo10 = lazy(() => import('./components/Tabs/tab-qoo10').then(m => ({ default: m.TabQoo10 })));
 const TabMultiListing = lazy(() => import('./components/Tabs/tab-multi-listing').then(m => ({ default: m.TabMultiListing })));
+const TabSMAnalysis = lazy(() => import('./components/Tabs/tab-sm-analysis').then(m => ({ default: m.TabSMAnalysis })));
 
 // タブの遅延ロード（国内用）
 const TabDataDomestic = lazy(() => import('./components/Tabs/tab-data-domestic').then(m => ({ default: m.TabDataDomestic })));
@@ -145,7 +146,7 @@ export function FullFeaturedModal({ isOpen, onClose, product, onSave, onRefresh 
       <Suspense fallback={<LoadingFallback />}>
         {activeTab === 'overview' && <TabOverview product={product} marketplace={marketplace} />}
         {activeTab === 'data' && <TabData product={product} />}
-        {activeTab === 'images' && <TabImages product={product} maxImages={mpConfig.maxImages} marketplace={marketplace} onSave={handleSave} />}
+        {activeTab === 'images' && <TabImages key={`images-${refreshKey}`} product={product} maxImages={mpConfig.maxImages} marketplace={marketplace} onSave={handleSave} onRefresh={handleRefresh} />}
         {activeTab === 'tools' && <TabTools product={product} onSave={handleSave} onRefresh={handleRefresh} />}
         {activeTab === 'mirror' && <TabMirror product={product} />}
         {activeTab === 'competitors' && <TabCompetitors product={product} />}
@@ -159,7 +160,7 @@ export function FullFeaturedModal({ isOpen, onClose, product, onSave, onRefresh 
         {activeTab === 'multi-listing' && <TabMultiListing product={product} onSave={handleSave} onRefresh={handleRefresh} />}
       </Suspense>
     );
-  }, [activeTab, product, marketplace, mpConfig.maxImages, mpConfig.name, handleSave, handleRefresh, isDomestic]);
+  }, [activeTab, product, marketplace, mpConfig.maxImages, mpConfig.name, handleSave, handleRefresh, isDomestic, refreshKey]);
 
   return (
     <DialogPrimitive.Root open={isOpen} onOpenChange={(open) => !open && handleClose()}>

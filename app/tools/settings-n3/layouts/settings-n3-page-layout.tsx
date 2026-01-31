@@ -28,7 +28,7 @@ import { N3Badge } from '@/components/n3/presentational/n3-badge';
 import { N3TreeView, TreeNode } from '@/components/n3/container/n3-tree-view';
 import { useSettingsIntegrated } from '../hooks';
 import { AutomationSettingsPanel } from '../components';
-import type { SettingsL3Tab, HTSCode, EbaySettings, AutomationRule, Credential } from '../types/settings';
+import type { SettingsL3Tab, HTSCode, EbaySettings, EbaySettingsExtended, AutomationRule, Credential } from '../types/settings';
 
 // L3タブ設定
 const L3_TABS: { id: SettingsL3Tab; label: string; icon: React.ReactNode }[] = [
@@ -55,16 +55,38 @@ const EbaySettingCard = memo(function EbaySettingCard({
   setting,
   onToggle,
 }: {
-  setting: EbaySettings;
+  setting: EbaySettings | EbaySettingsExtended | any;
   onToggle: () => void;
 }) {
+  // 値を文字列に変換するヘルパー
+  const formatValue = (val: any): string => {
+    if (val === null || val === undefined) return '-';
+    if (typeof val === 'object') {
+      // オブジェクトの場合はサマリを返す
+      if ('accepted' in val) return val.accepted ? '有効' : '無効';
+      if ('domestic' in val) return val.domestic || '-';
+      return JSON.stringify(val).slice(0, 30);
+    }
+    return String(val);
+  };
+
+  // アカウント名の取得
+  const accountName = setting.accountName || setting.name || 'eBay Account';
+  const siteId = setting.siteId || setting.site || 'EBAY_US';
+  const isActive = setting.isActive ?? setting.enabled ?? true;
+
+  // ポリシー値の取得
+  const paymentPolicy = formatValue(setting.paymentPolicy);
+  const shippingPolicy = formatValue(setting.shippingPolicy || setting.defaultShipping);
+  const returnPolicy = formatValue(setting.returnPolicy);
+
   return (
     <div
       style={{
         padding: '16px',
         background: 'var(--panel)',
         borderRadius: 'var(--style-radius-lg, 12px)',
-        border: `1px solid ${setting.isActive ? 'var(--color-success)' : 'var(--panel-border)'}`,
+        border: `1px solid ${isActive ? 'var(--color-success)' : 'var(--panel-border)'}`,
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
@@ -72,32 +94,32 @@ const EbaySettingCard = memo(function EbaySettingCard({
           <ShoppingBag size={18} style={{ color: 'var(--color-primary)' }} />
           <div>
             <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>
-              {setting.accountName || 'eBay Account'}
+              {accountName}
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-              {setting.siteId || 'EBAY_US'}
+              {siteId}
             </div>
           </div>
         </div>
         <N3Button
-          variant={setting.isActive ? 'success' : 'secondary'}
+          variant={isActive ? 'success' : 'secondary'}
           size="xs"
           onClick={onToggle}
         >
-          {setting.isActive ? <Check size={12} /> : <Play size={12} />}
-          {setting.isActive ? '有効' : '無効'}
+          {isActive ? <Check size={12} /> : <Play size={12} />}
+          {isActive ? '有効' : '無効'}
         </N3Button>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
         {[
-          { label: '支払ポリシー', value: setting.paymentPolicy },
-          { label: '配送ポリシー', value: setting.shippingPolicy },
-          { label: '返品ポリシー', value: setting.returnPolicy },
+          { label: '支払ポリシー', value: paymentPolicy },
+          { label: '配送ポリシー', value: shippingPolicy },
+          { label: '返品ポリシー', value: returnPolicy },
         ].map(item => (
           <div key={item.label} style={{ padding: '8px', background: 'var(--highlight)', borderRadius: '6px' }}>
             <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '2px' }}>{item.label}</div>
-            <div style={{ fontSize: '12px', color: 'var(--text)' }}>{item.value || '-'}</div>
+            <div style={{ fontSize: '12px', color: 'var(--text)' }}>{item.value}</div>
           </div>
         ))}
       </div>

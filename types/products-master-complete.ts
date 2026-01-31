@@ -54,6 +54,19 @@ export interface ProductsMaster {
   // ===== 画像・メディア =====
   images: string[] | null;
   primary_image: string | null;
+  primary_image_url: string | null;
+  gallery_images: string[] | null;
+  image_urls: string[] | null;
+  image_count: number | null;
+  
+  // ===== 画像管理（V9.0追加） =====
+  manual_images: string[] | null;       // 手動アップロード画像
+  supplier_images: string[] | null;     // 仕入れ先画像
+  listing_images: string[] | null;      // 出品用選択済み画像（順序保持）
+  
+  // ===== HTMLキャッシュ =====
+  generated_html: string | null;        // 生成済みHTMLテンプレート
+  html_generated_at: string | null;     // HTML生成日時
   
   // ===== JSONB データ =====
   listing_data: ListingData | null;

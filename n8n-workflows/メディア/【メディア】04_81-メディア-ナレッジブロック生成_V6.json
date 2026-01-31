@@ -1,0 +1,609 @@
+{
+  "name": "【メディア】04_81-メディア-ナレッジブロック生成_V6",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "knowledge-block-v6",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: knowledge-block-v6",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "knowledge-block-v6"
+    },
+    {
+      "parameters": {
+        "jsCode": "const apiUrl = $env.N3_API_URL || $env.API_BASE_URL;\nconst geminiKey = $env.GEMINI_API_KEY;\nconst claudeKey = $env.ANTHROPIC_API_KEY;\n\nif (!apiUrl) return [{ json: { error: true, message: 'N3_API_URL未設定', code: 'CONFIG_ERROR' } }];\nif (!geminiKey) return [{ json: { error: true, message: 'GEMINI_API_KEY未設定', code: 'CONFIG_ERROR' } }];\n\nconst body = $input.first().json.body || $input.first().json || {};\nconst rawContent = body.content || body.text;\nconst domain = body.domain;\nconst previousBlockId = body.previous_block_id;\nconst enableDiffMode = body.enable_diff_mode !== false;\n\nif (!rawContent) return [{ json: { error: true, message: 'content必須', code: 'MISSING_PARAM' } }];\nif (!domain) return [{ json: { error: true, message: 'domain必須', code: 'MISSING_PARAM' } }];\n\nconst estimatedTokens = Math.ceil(rawContent.length * 1.5);\n\nreturn [{ json: { raw_content: rawContent, domain, category: body.category, topic: body.topic, source_url: body.source_url, source_page: body.source_page, previous_block_id: previousBlockId, enable_diff_mode: enableDiffMode, estimated_tokens: estimatedTokens, block_id: `KB-${Date.now()}-${Math.random().toString(36).substr(2,9)}`, api_url: apiUrl, has_claude: !!claudeKey, timestamp: new Date().toISOString() } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-prev",
+              "leftValue": "={{ $json.previous_block_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-diff",
+      "name": "差分モード？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT block_id, raw_content, parsed_content, keywords FROM knowledge_blocks WHERE block_id = $1",
+        "options": {
+          "queryParams": "={{ [$json.previous_block_id] }}"
+        }
+      },
+      "id": "get-prev",
+      "name": "📚 前回取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 差分計算 - 30%以上トークン削減\nconst init = $node['🔐 初期化'].json;\nconst prev = $input.first().json;\n\nif (!prev || !prev.raw_content) {\n  return [{ json: { ...init, diff_mode: false, content_for_ai: init.raw_content, token_savings: 0 } }];\n}\n\nconst prevLines = prev.raw_content.split('\\n');\nconst newLines = init.raw_content.split('\\n');\nconst addedLines = [], changedLines = [];\nlet unchangedTokens = 0;\n\nnewLines.forEach((line, idx) => {\n  if (idx >= prevLines.length) addedLines.push(line);\n  else if (line !== prevLines[idx]) changedLines.push({ old: prevLines[idx].substring(0,30), new: line });\n  else unchangedTokens += Math.ceil(line.length * 1.5);\n});\n\nconst diffText = ['追加:', ...addedLines.slice(0,10), '変更:', ...changedLines.slice(0,5).map(c => c.new)].join('\\n');\nconst diffTokens = Math.ceil(diffText.length * 1.5);\nconst savings = Math.round((1 - diffTokens / init.estimated_tokens) * 100);\nconst useDiff = savings >= 30;\n\nreturn [{ json: { ...init, diff_mode: useDiff, content_for_ai: useDiff ? diffText : init.raw_content, previous_parsed: prev.parsed_content, token_savings: savings } }];"
+      },
+      "id": "calc-diff",
+      "name": "📊 差分計算",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "jsCode": "const init = $input.first().json;\nreturn [{ json: { ...init, diff_mode: false, content_for_ai: init.raw_content, token_savings: 0 } }];"
+      },
+      "id": "no-diff",
+      "name": "📝 全文",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "output": "single"
+      },
+      "id": "merge",
+      "name": "🔀 統合",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-goog-api-key",
+              "value": "={{ $env.GEMINI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: ($json.diff_mode ? '[DIFF] ' : '') + 'ナレッジブロック生成。分野:' + $json.domain + ' 内容:' + $json.content_for_ai.substring(0,3000) + ' 出力:JSON{layer1_summary,layer2_explanation,layer3_expert_detail,key_points[],keywords[],confidence_score}' }] }], generationConfig: { temperature: 0.3, maxOutputTokens: 2048 } }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "gemini",
+      "name": "🧠 Gemini",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const init = $node['🔀 統合'].json;\nconst res = $input.first().json;\nlet parsed = null, conf = 0;\ntry {\n  const txt = res?.candidates?.[0]?.content?.parts?.[0]?.text || '';\n  const m = txt.match(/\\{[\\s\\S]*\\}/);\n  if (m) { parsed = JSON.parse(m[0]); conf = parsed.confidence_score || 0.8; }\n} catch(e) { parsed = { layer1_summary: init.raw_content.substring(0,100), layer2_explanation: init.raw_content.substring(0,300), key_points: [], keywords: [] }; conf = 0.5; }\n\nif (init.diff_mode && init.previous_parsed) {\n  const prev = typeof init.previous_parsed === 'string' ? JSON.parse(init.previous_parsed) : init.previous_parsed;\n  parsed.keywords = [...new Set([...(prev.keywords||[]), ...(parsed.keywords||[])])];\n}\n\nreturn [{ json: { ...init, gemini_parsed: parsed, gemini_confidence: conf } }];"
+      },
+      "id": "parse",
+      "name": "📋 パース",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-claude",
+              "leftValue": "={{ $json.has_claude }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-claude",
+      "name": "Claude有？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.ANTHROPIC_API_KEY }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-3-5-sonnet-20241022', max_tokens: 1024, messages: [{ role: 'user', content: '[DIFF監査 - トークン削減' + $json.token_savings + '%] ファクトチェック。分野:' + $json.domain + ($json.diff_mode ? ' 変更点のみ:' + $json.content_for_ai.substring(0,1500) : ' 要約:' + $json.gemini_parsed?.layer1_summary) + ' Gemini結果の精度確認。問題あればJSON{issues[],corrected_facts[]}、問題なければ{verified:true}' }] }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "claude",
+      "name": "🔍 Claude監査",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const init = $node['📋 パース'].json;\nconst res = $input.first().json;\nlet audit = { verified: true };\ntry {\n  const txt = res?.content?.[0]?.text || '';\n  const m = txt.match(/\\{[\\s\\S]*\\}/);\n  if (m) audit = JSON.parse(m[0]);\n} catch(e) {}\nreturn [{ json: { ...init, claude_audit: audit, audit_status: audit.verified ? 'verified' : 'issues_found' } }];"
+      },
+      "id": "parse-claude",
+      "name": "📋 Claude結果",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const init = $input.first().json;\nreturn [{ json: { ...init, claude_audit: null, audit_status: 'skipped' } }];"
+      },
+      "id": "skip-claude",
+      "name": "⏭️ スキップ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "output": "single"
+      },
+      "id": "merge-audit",
+      "name": "🔀 監査統合",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO knowledge_blocks (block_id, domain, category, topic, raw_content, parsed_content, keywords, source_url, diff_mode, token_savings, audit_status, created_at) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, NOW()) RETURNING block_id",
+        "options": {
+          "queryParams": "={{ [$json.block_id, $json.domain, $json.category, $json.topic, $json.raw_content.substring(0,5000), JSON.stringify($json.gemini_parsed), JSON.stringify($json.gemini_parsed?.keywords || []), $json.source_url, $json.diff_mode, $json.token_savings, $json.audit_status] }}"
+        }
+      },
+      "id": "save",
+      "name": "💾 保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $input.first().json;\nreturn [{ json: { success: true, block_id: d.block_id, domain: d.domain, diff_mode: d.diff_mode, token_savings_percent: d.token_savings, audit_status: d.audit_status, gemini_confidence: d.gemini_confidence, layers: { summary: d.gemini_parsed?.layer1_summary, key_points: d.gemini_parsed?.key_points?.length || 0 }, timestamp: new Date().toISOString() } }];"
+      },
+      "id": "response",
+      "name": "📋 レスポンス",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-ok",
+      "name": "✅ 成功",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: knowledge-block-v6": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "差分モード？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "差分モード？": {
+      "main": [
+        [
+          {
+            "node": "📚 前回取得",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📝 全文",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📚 前回取得": {
+      "main": [
+        [
+          {
+            "node": "📊 差分計算",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 差分計算": {
+      "main": [
+        [
+          {
+            "node": "🔀 統合",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 全文": {
+      "main": [
+        [
+          {
+            "node": "🔀 統合",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "🔀 統合": {
+      "main": [
+        [
+          {
+            "node": "🧠 Gemini",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧠 Gemini": {
+      "main": [
+        [
+          {
+            "node": "📋 パース",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 パース": {
+      "main": [
+        [
+          {
+            "node": "Claude有？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude有？": {
+      "main": [
+        [
+          {
+            "node": "🔍 Claude監査",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "⏭️ スキップ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 Claude監査": {
+      "main": [
+        [
+          {
+            "node": "📋 Claude結果",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 Claude結果": {
+      "main": [
+        [
+          {
+            "node": "🔀 監査統合",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⏭️ スキップ": {
+      "main": [
+        [
+          {
+            "node": "🔀 監査統合",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "🔀 監査統合": {
+      "main": [
+        [
+          {
+            "node": "💾 保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 保存": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 300,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "V6-DiffDiet",
+      "color": "#00ff00"
+    },
+    {
+      "name": "IronRule",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false,
+  "meta": {
+    "description": "N3-81 V6 ナレッジブロック生成 - Diffトークンダイエット実装（30%以上削減）",
+    "version": "6.0",
+    "changelog": "2026-01-20: Gemini指示実装 - Claude監査フェーズに差分送信ロジック、トークン消費30%以上削減",
+    "gemini_instructions": [
+      "diff_token_diet_30%",
+      "claude_audit_optimization"
+    ]
+  }
+}

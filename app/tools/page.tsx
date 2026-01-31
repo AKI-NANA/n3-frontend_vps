@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -160,27 +159,4 @@ export default function ToolsHubPage() {
       </div>
     </div>
   )
-=======
-// app/tools/editing-n3/page.tsx
-/**
- * Editing N3 Page - N3デザインシステム版エントリーポイント
- * 
- * このファイルは、N3コンポーネントを使用した新しいUIを提供します。
- * Hooks、Services、Typesはすべて tools/editing から参照し、
- * UI層のみをN3コンポーネントで置き換えています。
- * 
- * 設計原則:
- * - Hooks層（ビジネスロジック）: tools/editing からそのまま参照
- * - Services層（API通信）: tools/editing からそのまま参照
- * - Types層（型定義）: tools/editing からそのまま参照
- * - UI層（コンポーネント）: N3コンポーネントで再構築
- */
-
-'use client';
-
-import { EditingN3PageLayout } from './components/layouts/editing-n3-page-layout';
-
-export default function EditingN3Page() {
-  return <EditingN3PageLayout />;
->>>>>>> fdea69ee91cbefc7650420e2b4b21ad0cc0488ce
 }

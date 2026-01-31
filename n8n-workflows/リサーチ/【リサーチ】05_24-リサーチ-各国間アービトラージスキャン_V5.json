@@ -1,0 +1,535 @@
+{
+  "name": "【リサーチ】05_24-リサーチ-各国間アービトラージスキャン_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cross-border-scan",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: cross-border-scan",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "cross-border-scan"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 */6 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "6時間ごと実行",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst apiUrl = $env.N3_API_URL || '{{$env.GATEWAY_URL}}';\nconst asins = body.asins || [];\nconst sourceMarkets = body.source_markets || ['amazon_us', 'amazon_jp', 'ebay_us'];\nconst destMarkets = body.dest_markets || ['amazon_de', 'ebay_de', 'ebay_uk', 'amazon_uk'];\nconst minMargin = parseFloat(body.min_margin) || 0.20;\nconst maxItems = body.max_items || 100;\nconst isScheduled = !$input.first().json.body;\nreturn [{ json: { asins: asins, source_markets: sourceMarkets, dest_markets: destMarkets, min_margin: minMargin, max_items: maxItems, is_scheduled: isScheduled, api_url: apiUrl } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-scheduled",
+              "leftValue": "={{ $json.is_scheduled }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-scheduled",
+      "name": "スケジュール？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT DISTINCT asin FROM products_master WHERE asin IS NOT NULL AND asin != '' AND status = 'active' ORDER BY RANDOM() LIMIT 100",
+        "options": {}
+      },
+      "id": "get-asins",
+      "name": "📦 ASIN取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: $node['🔐 初期化'].json }];"
+      },
+      "id": "pass-config",
+      "name": "設定パス",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $node['🔐 初期化'].json;\nlet asins = config.asins;\nif (config.is_scheduled) {\n  const dbAsins = $node['📦 ASIN取得'].json;\n  const asinsArray = Array.isArray(dbAsins) ? dbAsins : [dbAsins];\n  asins = asinsArray.map(r => r.asin).filter(a => a);\n}\nif (asins.length === 0) return [{ json: { no_asins: true } }];\nreturn asins.slice(0, config.max_items).map(asin => ({ json: { asin, config } }));"
+      },
+      "id": "prepare-asins",
+      "name": "📋 ASIN準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "no-asins",
+              "leftValue": "={{ $json.no_asins }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-asins",
+      "name": "ASINあり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { success: true, message: 'スキャン対象なし', opportunities: [] } }];"
+      },
+      "id": "no-asins",
+      "name": "対象なし",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.config.api_url }}/api/research/global-price-scan",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ asin: $json.asin, markets: [...$json.config.source_markets, ...$json.config.dest_markets] }) }}",
+        "options": {
+          "timeout": 90000
+        }
+      },
+      "id": "scan-prices",
+      "name": "🌍 グローバル価格スキャン",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const scanResult = $input.first().json;\nconst item = $node['📋 ASIN準備'].json;\nconst config = item.config;\nconst prices = scanResult.prices || scanResult.data || {};\n\n// 為替レート\nconst rates = { 'USD': 1, 'JPY': 0.0067, 'EUR': 1.08, 'GBP': 1.27 };\nconst currencyMap = { 'amazon_us': 'USD', 'amazon_jp': 'JPY', 'amazon_de': 'EUR', 'amazon_uk': 'GBP', 'ebay_us': 'USD', 'ebay_de': 'EUR', 'ebay_uk': 'GBP' };\n\nconst opportunities = [];\nconst sourceMarkets = config.source_markets.filter(m => prices[m]);\nconst destMarkets = config.dest_markets.filter(m => prices[m]);\n\nfor (const source of sourceMarkets) {\n  const sourcePrice = parseFloat(prices[source]?.price || 0);\n  const sourceCurrency = currencyMap[source] || 'USD';\n  const sourcePriceUsd = sourcePrice * (rates[sourceCurrency] || 1);\n  if (sourcePriceUsd <= 0) continue;\n  \n  for (const dest of destMarkets) {\n    if (source === dest) continue;\n    const destPrice = parseFloat(prices[dest]?.price || 0);\n    const destCurrency = currencyMap[dest] || 'USD';\n    const destPriceUsd = destPrice * (rates[destCurrency] || 1);\n    if (destPriceUsd <= 0) continue;\n    \n    const forwarderFee = 8;\n    const shippingCost = 15;\n    const dutyRate = dest.includes('uk') || dest.includes('de') ? 0.05 : 0.03;\n    const vatRate = dest.includes('de') ? 0.19 : (dest.includes('uk') ? 0.20 : 0);\n    const platformFee = dest.includes('amazon') ? 0.15 : 0.13;\n    \n    const totalCost = sourcePriceUsd + forwarderFee + shippingCost + (sourcePriceUsd * dutyRate);\n    const costWithVat = totalCost * (1 + vatRate);\n    const netRevenue = destPriceUsd * (1 - platformFee);\n    const netProfit = netRevenue - costWithVat;\n    const margin = destPriceUsd > 0 ? netProfit / destPriceUsd : 0;\n    \n    if (margin >= config.min_margin) {\n      const score = Math.min(100, Math.round(margin * 200));\n      opportunities.push({\n        asin: item.asin,\n        source_market: source,\n        source_price: sourcePrice,\n        source_currency: sourceCurrency,\n        dest_market: dest,\n        dest_price: destPrice,\n        dest_currency: destCurrency,\n        total_cost_usd: Math.round(costWithVat * 100) / 100,\n        net_profit_usd: Math.round(netProfit * 100) / 100,\n        profit_margin: Math.round(margin * 1000) / 10,\n        opportunity_score: score\n      });\n    }\n  }\n}\n\nreturn [{ json: { asin: item.asin, opportunities } }];"
+      },
+      "id": "calc-arbitrage",
+      "name": "💹 アービトラージ計算",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all().map(i => i.json);\nconst allOpps = results.flatMap(r => r.opportunities || []);\nconst sorted = allOpps.sort((a, b) => b.opportunity_score - a.opportunity_score);\nconst top20 = sorted.slice(0, 20);\nreturn [{ json: { success: true, scanned_asins: results.length, total_opportunities: allOpps.length, top_opportunities: top20 } }];"
+      },
+      "id": "aggregate",
+      "name": "📊 集計",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-opps",
+              "leftValue": "={{ $json.total_opportunities }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "larger"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-opps",
+      "name": "機会あり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO arbitrage_opportunities (asin, source_market, source_price, source_currency, dest_market, dest_price, dest_currency, total_cost, net_profit, profit_margin, opportunity_score, status, expires_at) SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'new', NOW() + INTERVAL '7 days' WHERE NOT EXISTS (SELECT 1 FROM arbitrage_opportunities WHERE asin = $1 AND source_market = $2 AND dest_market = $5 AND status = 'new')",
+        "options": {
+          "queryParams": "={{ [$json.top_opportunities[0]?.asin, $json.top_opportunities[0]?.source_market, $json.top_opportunities[0]?.source_price, $json.top_opportunities[0]?.source_currency, $json.top_opportunities[0]?.dest_market, $json.top_opportunities[0]?.dest_price, $json.top_opportunities[0]?.dest_currency, $json.top_opportunities[0]?.total_cost_usd, $json.top_opportunities[0]?.net_profit_usd, $json.top_opportunities[0]?.profit_margin / 100, $json.top_opportunities[0]?.opportunity_score] }}"
+        }
+      },
+      "id": "save-top",
+      "name": "💾 TOP保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=[info][title]💹 クロスボーダースキャン完了[/title]スキャン数: {{ $json.scanned_asins }}件\\n発見機会: {{ $json.total_opportunities }}件\\n\\n【TOP3】\\n{{ $json.top_opportunities.slice(0,3).map(o => `・${o.asin}: ${o.source_market}→${o.dest_market} $${o.net_profit_usd} (${o.profit_margin}%)`).join('\\n') }}[/info]"
+            }
+          ]
+        }
+      },
+      "id": "notify",
+      "name": "📢 通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: cross-border-scan": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6時間ごと実行": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "スケジュール？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "スケジュール？": {
+      "main": [
+        [
+          {
+            "node": "📦 ASIN取得",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "設定パス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 ASIN取得": {
+      "main": [
+        [
+          {
+            "node": "📋 ASIN準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "設定パス": {
+      "main": [
+        [
+          {
+            "node": "📋 ASIN準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 ASIN準備": {
+      "main": [
+        [
+          {
+            "node": "ASINあり？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ASINあり？": {
+      "main": [
+        [
+          {
+            "node": "対象なし",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🌍 グローバル価格スキャン",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "対象なし": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🌍 グローバル価格スキャン": {
+      "main": [
+        [
+          {
+            "node": "💹 アービトラージ計算",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💹 アービトラージ計算": {
+      "main": [
+        [
+          {
+            "node": "📊 集計",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 集計": {
+      "main": [
+        [
+          {
+            "node": "機会あり？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "機会あり？": {
+      "main": [
+        [
+          {
+            "node": "💾 TOP保存",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 TOP保存": {
+      "main": [
+        [
+          {
+            "node": "📢 通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📢 通知": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 900,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Intel",
+      "color": "#9400d3"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Cross-Border",
+      "color": "#ffd700"
+    },
+    {
+      "name": "Arbitrage",
+      "color": "#ff6347"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

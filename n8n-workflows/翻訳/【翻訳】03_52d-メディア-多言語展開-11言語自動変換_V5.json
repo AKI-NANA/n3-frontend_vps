@@ -1,0 +1,432 @@
+{
+  "name": "【翻訳】03_52d-メディア-多言語展開-11言語自動変換_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "multilingual-generate",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: multilingual-generate",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "multilingual-generate"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 多言語展開初期化\n// Gemini回答準拠: 11言語、地域別法規制・単位・通貨自動置換\n// ============================================================================\n\nconst body = $input.first().json.body || $input.first().json || {};\n\n// 元コンテンツ\nconst sourceScript = body.script;\nconst sourceLanguage = body.source_language || 'ja';\nconst productId = body.product_id;\nconst contentId = body.content_id;\nconst videoType = body.video_type || 'youtube_short';\n\n// 対象言語設定（11言語）\nconst targetLanguages = body.target_languages || [\n  'en',      // 英語（US/UK/AU）\n  'zh-CN',   // 中国語（簡体字）\n  'zh-TW',   // 中国語（繁体字）\n  'ko',      // 韓国語\n  'es',      // スペイン語\n  'pt',      // ポルトガル語（ブラジル）\n  'de',      // ドイツ語\n  'fr',      // フランス語\n  'it',      // イタリア語\n  'th',      // タイ語\n  'vi'       // ベトナム語\n];\n\n// 言語別ElevenLabsボイスID（Gemini推奨）\nconst voiceMap = {\n  'en': 'EXAVITQu4vr4xnSDxMaL',      // Rachel (英語)\n  'zh-CN': 'pNInz6obpgDQGcFmaJgB',   // Adam (多言語)\n  'zh-TW': 'pNInz6obpgDQGcFmaJgB',\n  'ko': 'pNInz6obpgDQGcFmaJgB',\n  'es': 'onwK4e9ZLuTAKqWW03F9',      // Daniel (多言語)\n  'pt': 'onwK4e9ZLuTAKqWW03F9',\n  'de': 'onwK4e9ZLuTAKqWW03F9',\n  'fr': 'onwK4e9ZLuTAKqWW03F9',\n  'it': 'onwK4e9ZLuTAKqWW03F9',\n  'th': 'pNInz6obpgDQGcFmaJgB',\n  'vi': 'pNInz6obpgDQGcFmaJgB'\n};\n\n// 言語別YouTubeチャンネルID（Hub & Spoke モデル）\nconst channelMap = body.channel_map || {};\n\nif (!sourceScript) {\n  return [{ json: { error: true, message: 'script は必須です', code: 'MISSING_PARAM' } }];\n}\n\nreturn [{\n  json: {\n    product_id: productId,\n    content_id: contentId,\n    source_script: sourceScript,\n    source_language: sourceLanguage,\n    target_languages: targetLanguages,\n    video_type: videoType,\n    voice_map: voiceMap,\n    channel_map: channelMap,\n    batch_id: `batch-${Date.now()}`\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔐 多言語初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 言語ごとのバッチアイテム生成\n// ============================================================================\n\nconst data = $input.first().json;\nconst items = [];\n\nfor (const lang of data.target_languages) {\n  items.push({\n    json: {\n      ...data,\n      target_language: lang,\n      voice_id: data.voice_map[lang] || data.voice_map['en'],\n      channel_id: data.channel_map[lang] || null\n    }\n  });\n}\n\nreturn items;"
+      },
+      "id": "split-languages",
+      "name": "🔀 言語分割",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "batchSize": 3,
+        "options": {}
+      },
+      "id": "batch-process",
+      "name": "📦 バッチ処理 (3並列)",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-goog-api-key",
+              "value": "={{ $env.GEMINI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: `あなたはプロの翻訳者です。以下の日本語スクリプトを${$json.target_language}に翻訳してください。\n\n【翻訳ルール】\n1. 自然な口語表現を使用（堅い翻訳は禁止）\n2. 通貨は現地通貨に換算（例: 1万円 → $65 USD, €55 EUR）\n3. 単位は現地基準に変換（例: cm → inches for US）\n4. 法規制に関する表現は一般的な注意喚起に置換\n5. 文化的に不適切な表現は調整\n\n【元スクリプト（日本語）】\n${$json.source_script}\n\n【出力】\n翻訳結果のみを出力。説明は不要。` }] }], generationConfig: { temperature: 0.3, maxOutputTokens: 2048 } }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "gemini-translate",
+      "name": "🌐 Gemini翻訳",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 翻訳結果パース & 音声生成リクエスト準備\n// ============================================================================\n\nconst prevData = $node['📦 バッチ処理 (3並列)'].json;\nconst geminiResult = $input.first().json;\n\nlet translatedScript = '';\n\ntry {\n  translatedScript = geminiResult?.candidates?.[0]?.content?.parts?.[0]?.text || '';\n  translatedScript = translatedScript.trim();\n} catch (e) {\n  translatedScript = prevData.source_script; // フォールバック\n}\n\nreturn [{\n  json: {\n    ...prevData,\n    translated_script: translatedScript,\n    translation_status: translatedScript ? 'success' : 'fallback'\n  }\n}];"
+      },
+      "id": "parse-translation",
+      "name": "📋 翻訳パース",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_URL || '{{$env.N8N_BASE_URL}}' }}/webhook/voice-generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $json.translated_script, voice_id: $json.voice_id, product_id: $json.product_id, language: $json.target_language, genre: 'general', add_breath: true }) }}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "generate-voice",
+      "name": "🎙️ 音声生成",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 音声結果処理\n// ============================================================================\n\nconst prevData = $node['📋 翻訳パース'].json;\nconst voiceResult = $input.first().json;\n\nreturn [{\n  json: {\n    product_id: prevData.product_id,\n    content_id: prevData.content_id,\n    batch_id: prevData.batch_id,\n    target_language: prevData.target_language,\n    channel_id: prevData.channel_id,\n    translated_script: prevData.translated_script,\n    audio_url: voiceResult.audio_url || null,\n    audio_duration: voiceResult.duration_seconds || null,\n    voice_id: prevData.voice_id,\n    video_type: prevData.video_type,\n    translation_status: prevData.translation_status,\n    voice_status: voiceResult.success ? 'success' : 'error'\n  }\n}];"
+      },
+      "id": "process-voice",
+      "name": "📋 音声結果処理",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO multilingual_content (product_id, content_id, batch_id, language_code, translated_script, audio_url, audio_duration, channel_id, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (content_id, language_code) DO UPDATE SET translated_script = EXCLUDED.translated_script, audio_url = EXCLUDED.audio_url, audio_duration = EXCLUDED.audio_duration, updated_at = NOW() RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.product_id, $json.content_id, $json.batch_id, $json.target_language, $json.translated_script, $json.audio_url, $json.audio_duration, $json.channel_id, $json.voice_status] }}"
+        }
+      },
+      "id": "save-content",
+      "name": "💾 多言語コンテンツ保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "id": "aggregate-results",
+      "name": "📊 結果集約",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 最終レスポンス生成\n// ============================================================================\n\nconst allItems = $input.first().json.data || $input.all().map(i => i.json);\nconst initData = $node['🔐 多言語初期化'].json;\n\nconst successCount = allItems.filter(i => i.voice_status === 'success').length;\nconst errorCount = allItems.filter(i => i.voice_status === 'error').length;\n\nconst languageResults = allItems.map(item => ({\n  language: item.target_language,\n  audio_url: item.audio_url,\n  translation_status: item.translation_status,\n  voice_status: item.voice_status\n}));\n\nreturn [{\n  json: {\n    success: true,\n    batch_id: initData.batch_id,\n    product_id: initData.product_id,\n    content_id: initData.content_id,\n    total_languages: initData.target_languages.length,\n    success_count: successCount,\n    error_count: errorCount,\n    languages: languageResults\n  }\n}];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: multilingual-generate": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 多言語初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🔀 言語分割",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 言語分割": {
+      "main": [
+        [
+          {
+            "node": "📦 バッチ処理 (3並列)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 バッチ処理 (3並列)": {
+      "main": [
+        [
+          {
+            "node": "🌐 Gemini翻訳",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🌐 Gemini翻訳": {
+      "main": [
+        [
+          {
+            "node": "📋 翻訳パース",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 翻訳パース": {
+      "main": [
+        [
+          {
+            "node": "🎙️ 音声生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎙️ 音声生成": {
+      "main": [
+        [
+          {
+            "node": "📋 音声結果処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 音声結果処理": {
+      "main": [
+        [
+          {
+            "node": "💾 多言語コンテンツ保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 多言語コンテンツ保存": {
+      "main": [
+        [
+          {
+            "node": "📊 結果集約",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 結果集約": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 多言語初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 1800,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Multilingual",
+      "color": "#2ecc71"
+    },
+    {
+      "name": "11-Languages",
+      "color": "#3498db"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}
