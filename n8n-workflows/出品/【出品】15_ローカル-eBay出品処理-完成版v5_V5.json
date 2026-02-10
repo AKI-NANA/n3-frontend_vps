@@ -1,0 +1,727 @@
+{
+  "name": "【出品】15_ローカル-eBay出品処理-完成版v5_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "n3-listing-local",
+        "authentication": "basicAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-node",
+      "name": "出品リクエスト受信",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "n3-listing-local",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "YOUR_BASIC_AUTH_CREDENTIAL_ID",
+          "name": "N3 Webhook Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================\n// リクエスト検証・変数設定\n// ========================================\n\n// ベースURL（ローカル/VPS切り替え）\nconst BASE_URL = '{{$env.N3_API_URL}}';\n// VPS用: const BASE_URL = 'http://{{$env.VPS_HOST}}:3000';\n\n// Webhookデータの取得（.bodyのラップ対応）\nconst rawData = $input.first().json;\nlet input = rawData.body || rawData;\n\n// bodyが文字列の場合はパース\nif (typeof input === 'string') {\n  try { input = JSON.parse(input); } catch (e) { input = {}; }\n}\n\n// デバッグログ\nconsole.log('受信データ:', JSON.stringify(input));\n\n// 必須チェック\nif (!input.action) {\n  throw new Error('action フィールドは必須です。受信データ: ' + JSON.stringify(rawData));\n}\n\nconst validActions = ['list_now', 'schedule', 'reserve'];\nif (!validActions.includes(input.action)) {\n  throw new Error('無効なaction: ' + input.action);\n}\n\nconst ids = input.ids || [];\nconst hasItems = ids.length > 0;\n\nreturn [{\n  json: {\n    BASE_URL,\n    action: input.action,\n    ids: ids,\n    account: input.account || 'account1',\n    itemCount: ids.length,\n    hasItems: hasItems,\n    requestId: 'req_' + Date.now(),\n    timestamp: new Date().toISOString(),\n    results: {\n      success: [],\n      failed: [],\n      successCount: 0,\n      failedCount: 0\n    }\n  }\n}];"
+      },
+      "id": "validate-node",
+      "name": "リクエスト検証・変数設定",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.hasItems }}",
+                    "rightValue": false,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "対象なし"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "list_now",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "即時出品"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "schedule",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "スケジュール"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "switch-node",
+      "name": "アクション振り分け",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('リクエスト検証・変数設定').item.json.BASE_URL }}/api/system-logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ message: 'ℹ️ 出品対象なし（正常稼働中）', type: 'info', source: 'n8n' }) }}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "no-item-log",
+      "name": "対象なしログ",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, message: '対象商品なし', count: 0 }) }}",
+        "options": {}
+      },
+      "id": "resp-no-item",
+      "name": "対象なしレスポンス",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('リクエスト検証・変数設定').item.json.BASE_URL }}/api/products/get-by-ids",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ ids: $('リクエスト検証・変数設定').item.json.ids }) }}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "fetch-products",
+      "name": "商品データ取得",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// 商品データを個別アイテムに分割\nconst response = $input.first().json;\nconst products = response.data || [];\nconst baseData = $('リクエスト検証・変数設定').item.json;\n\nif (products.length === 0) {\n  return [{ json: { noProducts: true, ...baseData } }];\n}\n\nreturn products.map(product => ({\n  json: {\n    ...product,\n    BASE_URL: baseData.BASE_URL,\n    account: baseData.account,\n    requestId: baseData.requestId\n  }\n}));"
+      },
+      "id": "split-products",
+      "name": "商品データ分割",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "batch-node",
+      "name": "1件ずつ処理",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "notes": "\n[PATCHER] WARNING: SplitInBatches直後にWaitノードがありません。API制限に注意してください。"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.BASE_URL }}/api/ebay/listing",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ productId: $json.id, account: $json.account }) }}",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "ebay-listing",
+      "name": "eBay出品実行",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// 出品結果を判定\nconst result = $input.first().json;\nconst productData = $('商品データ分割').item.json;\n\nconst isSuccess = result.success === true && result.listingId;\n\nreturn [{\n  json: {\n    isSuccess,\n    productId: productData.id,\n    productTitle: productData.title,\n    listingId: result.listingId || null,\n    offerId: result.offerId || null,\n    error: result.error || null,\n    BASE_URL: productData.BASE_URL\n  }\n}];"
+      },
+      "id": "judge-result",
+      "name": "結果判定",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "success-check",
+              "leftValue": "={{ $json.isSuccess }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-success",
+      "name": "成功/失敗分岐",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.BASE_URL }}/api/system-logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ message: '✅ eBay出品成功: ' + $json.productTitle + ' (ItemID: ' + $json.listingId + ')', type: 'success', source: 'n8n', metadata: { productId: $json.productId, listingId: $json.listingId } }) }}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "log-success",
+      "name": "成功ログ記録",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.BASE_URL }}/api/system-logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ message: '❌ eBay出品失敗: ' + $json.productTitle + ' - ' + ($json.error || '不明なエラー'), type: 'error', source: 'n8n', metadata: { productId: $json.productId, error: $json.error } }) }}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "log-error",
+      "name": "エラーログ記録",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// 次のバッチへ進む\nreturn $input.all();"
+      },
+      "id": "loop-back",
+      "name": "次の商品へ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, message: '出品処理完了' }) }}",
+        "options": {}
+      },
+      "id": "resp-success",
+      "name": "完了レスポンス",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('リクエスト検証・変数設定').item.json.BASE_URL }}/api/listing/execute-scheduled",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ ids: $('リクエスト検証・変数設定').item.json.ids, scheduledAt: $('リクエスト検証・変数設定').item.json.scheduledAt }) }}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "save-schedule",
+      "name": "スケジュール保存",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('リクエスト検証・変数設定').item.json.BASE_URL }}/api/system-logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ message: '📅 出品スケジュール登録完了: ' + $('リクエスト検証・変数設定').item.json.itemCount + '件', type: 'info', source: 'n8n' }) }}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "log-schedule",
+      "name": "スケジュールログ",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, message: 'スケジュール登録完了' }) }}",
+        "options": {}
+      },
+      "id": "resp-schedule",
+      "name": "スケジュールレスポンス",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    },
+    {
+      "id": "n3_core_7eb06192",
+      "name": "[V8.3] CORE-Dispatcher",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        450,
+        300
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": "={{ $vars.CORE_DISPATCHER_ID }}",
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "notes": "V8.3: Auth/Circuit-Breaker/Burn-Limit/Queue"
+    }
+  ],
+  "connections": {
+    "出品リクエスト受信": {
+      "main": [
+        [
+          {
+            "node": "[V8.3] CORE-Dispatcher",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "リクエスト検証・変数設定": {
+      "main": [
+        [
+          {
+            "node": "アクション振り分け",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "アクション振り分け": {
+      "main": [
+        [
+          {
+            "node": "対象なしログ",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "商品データ取得",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "スケジュール保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "対象なしログ": {
+      "main": [
+        [
+          {
+            "node": "対象なしレスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "商品データ取得": {
+      "main": [
+        [
+          {
+            "node": "商品データ分割",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "商品データ分割": {
+      "main": [
+        [
+          {
+            "node": "1件ずつ処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "1件ずつ処理": {
+      "main": [
+        [
+          {
+            "node": "eBay出品実行",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "完了レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "eBay出品実行": {
+      "main": [
+        [
+          {
+            "node": "結果判定",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "結果判定": {
+      "main": [
+        [
+          {
+            "node": "成功/失敗分岐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "成功/失敗分岐": {
+      "main": [
+        [
+          {
+            "node": "成功ログ記録",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "エラーログ記録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "成功ログ記録": {
+      "main": [
+        [
+          {
+            "node": "次の商品へ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーログ記録": {
+      "main": [
+        [
+          {
+            "node": "次の商品へ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "次の商品へ": {
+      "main": [
+        [
+          {
+            "node": "1件ずつ処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "スケジュール保存": {
+      "main": [
+        [
+          {
+            "node": "スケジュールログ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "スケジュールログ": {
+      "main": [
+        [
+          {
+            "node": "スケジュールレスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "リクエスト検証・変数設定",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[V8.3] CORE-Dispatcher": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "triggerCount": 0,
+  "versionId": "v5-final",
+  "meta": {
+    "n3_version": "V8.3",
+    "transformed_at": "2026-01-25T13:02:58.703926"
+  }
+}

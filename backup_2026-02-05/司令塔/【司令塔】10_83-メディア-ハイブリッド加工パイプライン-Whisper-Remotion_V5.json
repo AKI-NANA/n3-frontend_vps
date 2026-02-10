@@ -1,0 +1,579 @@
+{
+  "name": "【司令塔】10_83-メディア-ハイブリッド加工パイプライン-Whisper-Remotion_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "hybrid-process",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: hybrid-process",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "hybrid-process"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// ハイブリッド加工パイプライン 初期化\n// 外注mp4 + AIテロップ合成\n// ============================================================================\n\nconst body = $input.first().json.body || $input.first().json || {};\n\nconst sourcePath = body.source_path || body.video_url;\nconst sourceType = body.source_type || 'upload';  // upload, dropbox, google_drive, s3\nconst channelId = body.channel_id;\nconst productIds = body.product_ids || [];\nconst autoPublish = body.auto_publish === true;\nconst captionStyle = body.caption_style || 'dynamic';\nconst priority = body.priority || 5;\n\nif (!sourcePath) {\n  return [{ json: { error: true, message: 'source_path は必須です', code: 'MISSING_PARAM' } }];\n}\n\nconst jobId = `HYB-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;\n\nreturn [{\n  json: {\n    job_id: jobId,\n    source_path: sourcePath,\n    source_type: sourceType,\n    channel_id: channelId,\n    product_ids: productIds,\n    auto_publish: autoPublish,\n    caption_style: captionStyle,\n    priority: priority\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO hybrid_processing_queue (job_id, source_path, source_type, channel_id, product_ids, auto_publish, caption_config, priority, whisper_status, render_status) VALUES ($1, $2, $3, $4, $5::integer[], $6, $7::jsonb, $8, 'pending', 'pending') RETURNING id, job_id",
+        "options": {
+          "queryParams": "={{ [$json.job_id, $json.source_path, $json.source_type, $json.channel_id, '{' + $json.product_ids.join(',') + '}', $json.auto_publish, JSON.stringify({ style: $json.caption_style }), $json.priority] }}"
+        }
+      },
+      "id": "save-job",
+      "name": "💾 ジョブ登録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/audio/transcriptions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.OPENAI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "whisper-1"
+            },
+            {
+              "name": "file",
+              "value": "={{ $node['🔐 初期化'].json.source_path }}",
+              "parameterType": "formData"
+            },
+            {
+              "name": "response_format",
+              "value": "verbose_json"
+            },
+            {
+              "name": "timestamp_granularities[]",
+              "value": "word"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "whisper-transcribe",
+      "name": "🎤 Whisper文字起こし",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// Whisper結果パース\n// ============================================================================\n\nconst initData = $node['🔐 初期化'].json;\nconst whisperResult = $input.first().json;\n\nlet transcription = {\n  text: '',\n  segments: [],\n  words: [],\n  language: 'ja',\n  duration: 0\n};\n\nlet whisperStatus = 'completed';\n\nif (whisperResult && whisperResult.text) {\n  transcription = {\n    text: whisperResult.text,\n    segments: whisperResult.segments || [],\n    words: whisperResult.words || [],\n    language: whisperResult.language || 'ja',\n    duration: whisperResult.duration || 0\n  };\n} else if (whisperResult && whisperResult.error) {\n  whisperStatus = 'error';\n  console.log('Whisper error:', whisperResult.error);\n} else {\n  // フォールバック：簡易テキスト\n  whisperStatus = 'fallback';\n  transcription.text = '文字起こしに失敗しました。手動で追加してください。';\n}\n\nreturn [{\n  json: {\n    ...initData,\n    whisper_status: whisperStatus,\n    whisper_result: transcription,\n    whisper_text: transcription.text,\n    whisper_language: transcription.language,\n    source_duration: transcription.duration\n  }\n}];"
+      },
+      "id": "parse-whisper",
+      "name": "📋 Whisper結果パース",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE hybrid_processing_queue SET whisper_status = $2, whisper_result = $3::jsonb, whisper_language = $4, source_duration_seconds = $5 WHERE job_id = $1",
+        "options": {
+          "queryParams": "={{ [$json.job_id, $json.whisper_status, JSON.stringify($json.whisper_result), $json.whisper_language, $json.source_duration] }}"
+        }
+      },
+      "id": "update-whisper",
+      "name": "💾 Whisper結果保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-goog-api-key",
+              "value": "={{ $env.GEMINI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: `以下の動画の文字起こしを分析し、構造化データを生成してください。\n\n【文字起こし】\n${$node['📋 Whisper結果パース'].json.whisper_text.substring(0, 3000)}\n\n【出力形式】JSONのみ\n{\n  \"summary\": \"動画の要約（100文字）\",\n  \"topics\": [\"トピック1\", \"トピック2\"],\n  \"key_moments\": [{\"time\": 0, \"text\": \"ハイライト\", \"importance\": \"high\"}],\n  \"product_mentions\": [\"商品名\"],\n  \"suggested_title\": \"YouTubeタイトル案\",\n  \"suggested_description\": \"説明文案\",\n  \"tags\": [\"タグ1\", \"タグ2\"]\n}` }] }], generationConfig: { temperature: 0.3, maxOutputTokens: 2048 } }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "gemini-analyze",
+      "name": "🧠 Gemini内容分析",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// Gemini分析結果パース\n// ============================================================================\n\nconst prevData = $node['📋 Whisper結果パース'].json;\nconst geminiResult = $input.first().json;\n\nlet analysis = {\n  summary: '',\n  topics: [],\n  key_moments: [],\n  product_mentions: [],\n  suggested_title: '',\n  suggested_description: '',\n  tags: []\n};\n\ntry {\n  const responseText = geminiResult?.candidates?.[0]?.content?.parts?.[0]?.text || '';\n  const jsonMatch = responseText.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    analysis = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  console.log('Gemini parse error:', e.message);\n}\n\nreturn [{\n  json: {\n    ...prevData,\n    gemini_analysis: analysis\n  }\n}];"
+      },
+      "id": "parse-gemini",
+      "name": "📋 Gemini結果パース",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// Remotion用キャプションデータ生成\n// ============================================================================\n\nconst data = $input.first().json;\nconst whisperResult = data.whisper_result || {};\nconst segments = whisperResult.segments || [];\nconst words = whisperResult.words || [];\n\n// セグメントからキャプションを生成\nconst captions = segments.map((seg, idx) => ({\n  id: idx + 1,\n  start: seg.start || 0,\n  end: seg.end || 0,\n  text: seg.text || '',\n  type: 'caption',\n  style: data.caption_style || 'dynamic',\n  animation: 'spring'\n}));\n\n// キーモーメントにハイライトを追加\nconst keyMoments = (data.gemini_analysis?.key_moments || []).map((km, idx) => ({\n  id: `highlight-${idx}`,\n  time: km.time || 0,\n  text: km.text || '',\n  type: 'highlight',\n  importance: km.importance || 'normal'\n}));\n\n// Remotion Props\nconst remotionProps = {\n  videoUrl: data.source_path,\n  duration: data.source_duration || 60,\n  captions: captions,\n  highlights: keyMoments,\n  overlay: {\n    logo: true,\n    watermark: true,\n    progressBar: true,\n    subscribeCta: true\n  },\n  style: {\n    captionFont: 'Noto Sans JP',\n    captionSize: 48,\n    captionColor: '#ffffff',\n    captionBackground: 'rgba(0,0,0,0.7)',\n    highlightColor: '#ffd700'\n  }\n};\n\nreturn [{\n  json: {\n    ...data,\n    generated_captions: captions,\n    remotion_props: remotionProps,\n    caption_count: captions.length\n  }\n}];"
+      },
+      "id": "generate-captions",
+      "name": "📝 キャプション生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE hybrid_processing_queue SET gemini_analysis = $2::jsonb, generated_captions = $3::jsonb, render_status = 'ready', updated_at = NOW() WHERE job_id = $1",
+        "options": {
+          "queryParams": "={{ [$json.job_id, JSON.stringify($json.gemini_analysis), JSON.stringify($json.generated_captions)] }}"
+        }
+      },
+      "id": "save-captions",
+      "name": "💾 キャプション保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $node['📝 キャプション生成'].json.auto_publish }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-auto-render",
+      "name": "自動レンダリング？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.REMOTION_API_URL || 'http://localhost:3100' }}/api/render",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ composition: 'HybridVideo', props: $node['📝 キャプション生成'].json.remotion_props, outputFormat: 'mp4' }) }}",
+        "options": {
+          "timeout": 600000
+        }
+      },
+      "id": "trigger-render",
+      "name": "🎬 Remotionレンダリング",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $node['📝 キャプション生成'].json;\nconst renderResult = $input.first().json;\n\nreturn [{\n  json: {\n    success: true,\n    job_id: data.job_id,\n    status: renderResult?.renderId ? 'rendering' : 'ready',\n    render_id: renderResult?.renderId || null,\n    whisper_status: data.whisper_status,\n    caption_count: data.caption_count,\n    suggested_title: data.gemini_analysis?.suggested_title,\n    message: renderResult?.renderId ? 'レンダリングを開始しました' : 'レンダリング準備完了。手動で開始してください。'\n  }\n}];"
+      },
+      "id": "format-render-response",
+      "name": "📋 レンダリング応答",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nreturn [{\n  json: {\n    success: true,\n    job_id: data.job_id,\n    status: 'ready',\n    whisper_status: data.whisper_status,\n    caption_count: data.caption_count,\n    suggested_title: data.gemini_analysis?.suggested_title,\n    message: 'ハイブリッド加工準備完了。レンダリングは手動で開始してください。',\n    remotion_props: data.remotion_props\n  }\n}];"
+      },
+      "id": "format-ready-response",
+      "name": "📋 準備完了応答",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: hybrid-process": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💾 ジョブ登録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 ジョブ登録": {
+      "main": [
+        [
+          {
+            "node": "🎤 Whisper文字起こし",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎤 Whisper文字起こし": {
+      "main": [
+        [
+          {
+            "node": "📋 Whisper結果パース",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 Whisper結果パース": {
+      "main": [
+        [
+          {
+            "node": "💾 Whisper結果保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 Whisper結果保存": {
+      "main": [
+        [
+          {
+            "node": "🧠 Gemini内容分析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧠 Gemini内容分析": {
+      "main": [
+        [
+          {
+            "node": "📋 Gemini結果パース",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 Gemini結果パース": {
+      "main": [
+        [
+          {
+            "node": "📝 キャプション生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 キャプション生成": {
+      "main": [
+        [
+          {
+            "node": "💾 キャプション保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 キャプション保存": {
+      "main": [
+        [
+          {
+            "node": "自動レンダリング？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "自動レンダリング？": {
+      "main": [
+        [
+          {
+            "node": "🎬 Remotionレンダリング",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 準備完了応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎬 Remotionレンダリング": {
+      "main": [
+        [
+          {
+            "node": "📋 レンダリング応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レンダリング応答": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 準備完了応答": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 600,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Hybrid",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "Whisper",
+      "color": "#3498db"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

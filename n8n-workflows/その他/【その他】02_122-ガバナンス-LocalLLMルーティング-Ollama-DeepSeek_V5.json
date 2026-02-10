@@ -1,0 +1,543 @@
+{
+  "name": "【その他】02_122-ガバナンス-LocalLLMルーティング-Ollama-DeepSeek_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "llm-route",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: llm-route",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "llm-route"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Local LLM ルーティング 初期化\nconst body = $input.first().json.body || $input.first().json || {};\n\nconst taskType = body.task_type; // 'translation', 'script_generation', 'fact_check', 'emotion_analysis'\nconst prompt = body.prompt;\nconst channelTier = body.channel_tier || 'B'; // 'S', 'A', 'B', 'C', 'D'\nconst contentLength = body.content_length || (prompt ? prompt.length : 0);\nconst requiresAccuracy = body.requires_accuracy || false;\nconst maxTokens = body.max_tokens || 2048;\nconst temperature = body.temperature || 0.7;\n\nif (!taskType || !prompt) {\n  return [{ json: { error: true, message: 'task_type と prompt は必須です' } }];\n}\n\nconst requestId = 'llm_' + Date.now();\n\nreturn [{\n  json: {\n    request_id: requestId,\n    task_type: taskType,\n    prompt: prompt,\n    channel_tier: channelTier,\n    content_length: contentLength,\n    requires_accuracy: requiresAccuracy,\n    max_tokens: maxTokens,\n    temperature: temperature\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM llm_routing_config WHERE task_type = $1 AND is_active = true LIMIT 1",
+        "options": {
+          "queryParams": "={{ [$json.task_type] }}"
+        }
+      },
+      "id": "fetch-config",
+      "name": "📥 ルーティング設定取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ルーティング判定ロジック\nconst request = $node['🔧 初期化'].json;\nconst configResult = $input.first().json;\nconst config = configResult[0];\n\n// デフォルト設定\nlet routingConfig = {\n  primary_model: 'gemini-1.5-flash',\n  fallback_model: 'ollama/llama3.2',\n  use_local_if: { channel_tier: ['B', 'C', 'D'], content_length_under: 2000 },\n  use_cloud_if: { channel_tier: ['S', 'A'], requires_accuracy: true },\n  local_cost_per_1k_tokens: 0,\n  cloud_cost_per_1k_tokens: 0.0001\n};\n\nif (config) {\n  routingConfig = {\n    primary_model: config.primary_model,\n    fallback_model: config.fallback_model,\n    use_local_if: typeof config.use_local_if === 'string' ? JSON.parse(config.use_local_if) : config.use_local_if,\n    use_cloud_if: typeof config.use_cloud_if === 'string' ? JSON.parse(config.use_cloud_if) : config.use_cloud_if,\n    local_cost_per_1k_tokens: config.local_cost_per_1k_tokens || 0,\n    cloud_cost_per_1k_tokens: config.cloud_cost_per_1k_tokens || 0.0001\n  };\n}\n\n// ルーティング判定\nlet useLocal = false;\nlet selectedModel = routingConfig.primary_model;\nlet reason = '';\n\n// ローカル使用条件チェック\nconst localConditions = routingConfig.use_local_if || {};\nconst cloudConditions = routingConfig.use_cloud_if || {};\n\n// クラウド強制条件\nif (cloudConditions.channel_tier && cloudConditions.channel_tier.includes(request.channel_tier)) {\n  useLocal = false;\n  reason = `チャンネルTier ${request.channel_tier} はクラウド優先`;\n} else if (cloudConditions.requires_accuracy && request.requires_accuracy) {\n  useLocal = false;\n  reason = '高精度要求のためクラウド使用';\n}\n// ローカル使用条件\nelse if (localConditions.channel_tier && localConditions.channel_tier.includes(request.channel_tier)) {\n  if (!localConditions.content_length_under || request.content_length < localConditions.content_length_under) {\n    useLocal = true;\n    selectedModel = routingConfig.fallback_model;\n    reason = `Tier ${request.channel_tier} かつコンテンツ長 ${request.content_length} のためローカル使用`;\n  }\n}\n\n// コスト計算\nconst estimatedTokens = Math.ceil(request.content_length / 4) + request.max_tokens;\nconst estimatedCost = useLocal \n  ? (estimatedTokens / 1000) * routingConfig.local_cost_per_1k_tokens\n  : (estimatedTokens / 1000) * routingConfig.cloud_cost_per_1k_tokens;\n\nreturn [{\n  json: {\n    ...request,\n    use_local: useLocal,\n    selected_model: selectedModel,\n    routing_reason: reason || 'デフォルトルーティング',\n    estimated_cost_usd: estimatedCost,\n    fallback_model: routingConfig.fallback_model\n  }\n}];"
+      },
+      "id": "route-decision",
+      "name": "🔀 ルーティング判定",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "use-local",
+              "leftValue": "={{ $json.use_local }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-local",
+      "name": "ローカル？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ process.env.OLLAMA_URL || 'http://localhost:11434' }}/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: $json.selected_model.replace('ollama/', ''), prompt: $json.prompt, stream: false, options: { temperature: $json.temperature, num_predict: $json.max_tokens } }) }}",
+        "options": {
+          "timeout": 120000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "call-ollama",
+      "name": "🖥️ Ollama呼び出し",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: $json.prompt }] }], generationConfig: { temperature: $json.temperature, maxOutputTokens: $json.max_tokens } }) }}",
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "call-gemini",
+      "name": "☁️ Gemini呼び出し",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "gemini-api",
+          "name": "Gemini API"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Ollama結果処理\nconst request = $node['🔀 ルーティング判定'].json;\nconst result = $input.first().json;\n\nlet output = '';\nlet success = false;\nlet needsFallback = false;\n\nif (result.response) {\n  output = result.response;\n  success = true;\n} else if (result.error) {\n  needsFallback = true;\n}\n\nreturn [{\n  json: {\n    ...request,\n    output: output,\n    success: success,\n    needs_fallback: needsFallback,\n    model_used: request.selected_model,\n    actual_cost_usd: success ? request.estimated_cost_usd : 0\n  }\n}];"
+      },
+      "id": "parse-ollama",
+      "name": "📋 Ollama結果解析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Gemini結果処理\nconst request = $node['🔀 ルーティング判定'].json;\nconst result = $input.first().json;\n\nlet output = '';\nlet success = false;\n\nif (result.candidates && result.candidates[0]) {\n  output = result.candidates[0].content.parts[0].text;\n  success = true;\n}\n\nreturn [{\n  json: {\n    ...request,\n    output: output,\n    success: success,\n    needs_fallback: false,\n    model_used: 'gemini-1.5-flash',\n    actual_cost_usd: request.estimated_cost_usd\n  }\n}];"
+      },
+      "id": "parse-gemini",
+      "name": "📋 Gemini結果解析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "needs-fallback",
+              "leftValue": "={{ $json.needs_fallback }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-fallback",
+      "name": "フォールバック？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: $node['🔀 ルーティング判定'].json.prompt }] }], generationConfig: { temperature: $node['🔀 ルーティング判定'].json.temperature, maxOutputTokens: $node['🔀 ルーティング判定'].json.max_tokens } }) }}",
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "fallback-gemini",
+      "name": "☁️ Geminiフォールバック",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "gemini-api",
+          "name": "Gemini API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// フォールバック結果処理\nconst request = $node['🔀 ルーティング判定'].json;\nconst result = $input.first().json;\n\nlet output = '';\nlet success = false;\n\nif (result.candidates && result.candidates[0]) {\n  output = result.candidates[0].content.parts[0].text;\n  success = true;\n}\n\nreturn [{\n  json: {\n    ...request,\n    output: output,\n    success: success,\n    model_used: 'gemini-1.5-flash (fallback)',\n    actual_cost_usd: request.estimated_cost_usd,\n    used_fallback: true\n  }\n}];"
+      },
+      "id": "parse-fallback",
+      "name": "📋 フォールバック解析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "id": "merge-results",
+      "name": "🔀 結果統合",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: $json.success, output: $json.output, model_used: $json.model_used, cost_usd: $json.actual_cost_usd, routing_reason: $json.routing_reason, used_fallback: $json.used_fallback || false }) }}",
+        "options": {}
+      },
+      "id": "respond-result",
+      "name": "応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: llm-route": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📥 ルーティング設定取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📥 ルーティング設定取得": {
+      "main": [
+        [
+          {
+            "node": "🔀 ルーティング判定",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 ルーティング判定": {
+      "main": [
+        [
+          {
+            "node": "ローカル？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ローカル？": {
+      "main": [
+        [
+          {
+            "node": "🖥️ Ollama呼び出し",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "☁️ Gemini呼び出し",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🖥️ Ollama呼び出し": {
+      "main": [
+        [
+          {
+            "node": "📋 Ollama結果解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "☁️ Gemini呼び出し": {
+      "main": [
+        [
+          {
+            "node": "📋 Gemini結果解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 Ollama結果解析": {
+      "main": [
+        [
+          {
+            "node": "フォールバック？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "フォールバック？": {
+      "main": [
+        [
+          {
+            "node": "☁️ Geminiフォールバック",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🔀 結果統合",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "☁️ Geminiフォールバック": {
+      "main": [
+        [
+          {
+            "node": "📋 フォールバック解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 フォールバック解析": {
+      "main": [
+        [
+          {
+            "node": "🔀 結果統合",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 Gemini結果解析": {
+      "main": [
+        [
+          {
+            "node": "🔀 結果統合",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "🔀 結果統合": {
+      "main": [
+        [
+          {
+            "node": "応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "ガバナンス"
+    },
+    {
+      "name": "V5"
+    },
+    {
+      "name": "LLM"
+    },
+    {
+      "name": "コスト最適化"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ]
+}

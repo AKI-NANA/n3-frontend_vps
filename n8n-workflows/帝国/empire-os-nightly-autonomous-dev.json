@@ -1,0 +1,148 @@
+{
+  "name": "🏛️ 帝国OS 夜間自律開発",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 24
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "毎日 AM 3:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300],
+      "notes": "毎日午前3時に自律開発サイクルを起動"
+    },
+    {
+      "parameters": {
+        "command": "cd /home/user/n3-frontend_new && node governance/nightly-autonomous-dev.js 2>&1",
+        "timeout": 600
+      },
+      "id": "execute-autonomous-dev",
+      "name": "🤖 自律開発実行",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [480, 300],
+      "notes": "夜間自律開発スクリプトを実行（最大10分）"
+    },
+    {
+      "parameters": {
+        "filePath": "/home/user/n3-frontend_new/governance/nightly_result.json"
+      },
+      "id": "read-result",
+      "name": "📄 結果読み込み",
+      "type": "n8n-nodes-base.readBinaryFiles",
+      "typeVersion": 1,
+      "position": [720, 300],
+      "notes": "nightly_result.json を読み込む"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 結果JSONをパース\nconst resultJson = $input.first().json;\n\nlet latest = {};\ntry {\n  if (typeof resultJson === 'string') {\n    latest = JSON.parse(resultJson).latest || {};\n  } else if (resultJson.data) {\n    latest = JSON.parse(Buffer.from(resultJson.data).toString()).latest || {};\n  } else {\n    latest = resultJson.latest || resultJson;\n  }\n} catch (e) {\n  latest = { status: 'parse_error', error: e.message };\n}\n\n// Chatwork用メッセージ生成\nconst statusEmoji = {\n  success: '✅',\n  failed: '❌',\n  no_task: '📭',\n  dry_run: '🔮',\n  error: '💥'\n};\n\nconst emoji = statusEmoji[latest.status] || '❓';\n\nconst message = `[info][title]${emoji} 帝国OS 夜間自律開発レポート[/title]\n📅 実行日時: ${latest.timestamp || '不明'}\n📝 タスク: ${latest.task_description || 'なし'}\n📊 最終スコア: ${latest.final_score || '-'}点\n🔄 リトライ回数: ${latest.retry_count || 0}回\n⏱️ 実行時間: ${latest.duration_readable || '-'}\n\n🚀 昇格ファイル: ${(latest.promoted_files || []).length}件\n${(latest.promoted_files || []).slice(0, 5).map(f => '  • ' + f).join('\\n') || '  (なし)'}\n\n${latest.errors && latest.errors.length > 0 ? '⚠️ エラー:\\n' + latest.errors.slice(0, 3).join('\\n') : ''}[/info]`;\n\nreturn [{\n  json: {\n    message,\n    status: latest.status,\n    score: latest.final_score,\n    task: latest.task_key\n  }\n}];"
+      },
+      "id": "format-message",
+      "name": "📝 メッセージ整形",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, 300],
+      "notes": "Chatwork通知用のメッセージを生成"
+    },
+    {
+      "parameters": {
+        "roomId": "={{ $env.CHATWORK_ROOM_ID }}",
+        "body": "={{ $json.message }}"
+      },
+      "id": "chatwork-notify",
+      "name": "💬 Chatwork通知",
+      "type": "n8n-nodes-base.chatwork",
+      "typeVersion": 1,
+      "position": [1200, 300],
+      "credentials": {
+        "chatworkApi": {
+          "id": "chatwork-credential-id",
+          "name": "Chatwork API"
+        }
+      },
+      "notes": "実行結果をChatworkへ通知"
+    }
+  ],
+  "connections": {
+    "毎日 AM 3:00": {
+      "main": [
+        [
+          {
+            "node": "🤖 自律開発実行",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 自律開発実行": {
+      "main": [
+        [
+          {
+            "node": "📄 結果読み込み",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📄 結果読み込み": {
+      "main": [
+        [
+          {
+            "node": "📝 メッセージ整形",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 メッセージ整形": {
+      "main": [
+        [
+          {
+            "node": "💬 Chatwork通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "saveDataSuccessExecution": "all",
+    "timezone": "Asia/Tokyo"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "帝国OS",
+      "color": "#F59E0B"
+    },
+    {
+      "name": "自律開発",
+      "color": "#22C55E"
+    },
+    {
+      "name": "夜間バッチ",
+      "color": "#6366F1"
+    }
+  ],
+  "meta": {
+    "version": "1.0.0",
+    "created_at": "2026-02-05",
+    "description": "夜間に自律的にタスクを実装・監査・昇格するワークフロー",
+    "author": "N3 Empire OS"
+  }
+}

@@ -1,0 +1,304 @@
+{
+  "name": "【防衛】05_204-防衛-GoogleEarth録画-座標自動旋回_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "earth-record",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: earth-record",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "earth-record"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// フェーズ5: Google Earth自動録画（Style D 没入型）\n// 座標を渡すと自動で旋回録画\n// ============================================================================\n\nconst body = $input.first().json.body || $input.first().json || {};\n\nconst latitude = body.latitude || body.lat;\nconst longitude = body.longitude || body.lng;\nconst altitude = body.altitude || body.alt || 1000; // メートル\nconst pitch = body.pitch || -45; // カメラ角度（-90=真下、0=水平）\nconst rotationDegrees = body.rotation_degrees || 360; // 回転角度\nconst rotationSpeedDps = body.rotation_speed || 2.0; // 度/秒\nconst durationSeconds = body.duration_seconds || 180; // 録画時間\nconst resolution = body.resolution || '1080p';\nconst channelId = body.channel_id;\nconst contentId = body.content_id;\n\nif (!latitude || !longitude) {\n  return [{ json: { error: true, message: 'latitude と longitude は必須です', code: 'MISSING_COORDINATES' } }];\n}\n\n// Google Earth WebのURL生成\nconst earthUrl = `https://earth.google.com/web/@${latitude},${longitude},${altitude}a,0d,${pitch}y,0h,0t,0r`;\n\nreturn [{\n  json: {\n    latitude: parseFloat(latitude),\n    longitude: parseFloat(longitude),\n    altitude: parseInt(altitude),\n    pitch: parseInt(pitch),\n    rotation_degrees: parseInt(rotationDegrees),\n    rotation_speed_dps: parseFloat(rotationSpeedDps),\n    duration_seconds: parseInt(durationSeconds),\n    resolution: resolution,\n    channel_id: channelId,\n    content_id: contentId,\n    earth_url: earthUrl,\n    job_id: `earth-${Date.now()}`,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🌍 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO earth_recording_jobs (job_id, latitude, longitude, altitude_meters, pitch_degrees, rotation_degrees, rotation_speed_dps, duration_seconds, resolution, channel_id, content_id, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'pending') RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.job_id, $json.latitude, $json.longitude, $json.altitude, $json.pitch, $json.rotation_degrees, $json.rotation_speed_dps, $json.duration_seconds, $json.resolution, $json.channel_id, $json.content_id] }}"
+        }
+      },
+      "id": "create-job",
+      "name": "💾 ジョブ作成",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// Puppeteerスクリプト生成（VPSで実行用）\n// ============================================================================\n\nconst data = $node['🌍 初期化'].json;\n\nconst puppeteerScript = `\nconst puppeteer = require('puppeteer');\nconst { execSync } = require('child_process');\n\nasync function recordEarthRotation() {\n  const browser = await puppeteer.launch({\n    headless: false, // 録画には表示が必要\n    args: [\n      '--window-size=1920,1080',\n      '--disable-gpu',\n      '--no-sandbox',\n      '--disable-setuid-sandbox'\n    ]\n  });\n\n  const page = await browser.newPage();\n  await page.setViewport({ width: 1920, height: 1080 });\n\n  // Google Earth Webにアクセス\n  await page.goto('${data.earth_url}', { waitUntil: 'networkidle2', timeout: 60000 });\n\n  // ロード待機（Earth 3D表示の完了を待つ）\n  await page.waitForTimeout(10000);\n\n  // FFmpegで画面録画開始\n  const ffmpegProcess = execSync(\n    'ffmpeg -f x11grab -video_size 1920x1080 -framerate 30 -i :0 -c:v libx264 -preset ultrafast output_${data.job_id}.mp4 &',\n    { shell: true }\n  );\n\n  // 旋回アニメーション（マウスドラッグで回転）\n  const totalRotation = ${data.rotation_degrees};\n  const rotationSpeed = ${data.rotation_speed_dps}; // 度/秒\n  const totalTime = totalRotation / rotationSpeed; // 秒\n  const steps = Math.ceil(totalTime * 10); // 100ms間隔\n  const degreePerStep = totalRotation / steps;\n\n  for (let i = 0; i < steps; i++) {\n    // 中心からドラッグして回転\n    await page.mouse.move(960, 540);\n    await page.mouse.down();\n    await page.mouse.move(960 + (degreePerStep * 2), 540, { steps: 5 });\n    await page.mouse.up();\n    await page.waitForTimeout(100);\n  }\n\n  // 追加待機\n  await page.waitForTimeout(2000);\n\n  // FFmpeg停止\n  execSync('pkill -f \"ffmpeg.*output_${data.job_id}\"', { shell: true });\n\n  await browser.close();\n  console.log('Recording completed: output_${data.job_id}.mp4');\n}\n\nrecordEarthRotation().catch(console.error);\n`;\n\nreturn [{\n  json: {\n    ...data,\n    puppeteer_script: puppeteerScript,\n    execution_instructions: [\n      '1. VPSにSSH接続',\n      '2. Puppeteerスクリプトを保存: earth_record.js',\n      '3. 仮想ディスプレイ起動: Xvfb :0 -screen 0 1920x1080x24 &',\n      '4. スクリプト実行: DISPLAY=:0 node earth_record.js',\n      '5. 完了後、動画をSupabase Storageにアップロード'\n    ]\n  }\n}];"
+      },
+      "id": "generate-script",
+      "name": "🤖 Puppeteerスクリプト生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE earth_recording_jobs SET status = 'script_ready' WHERE job_id = $1",
+        "options": {
+          "queryParams": "={{ [$node['🌍 初期化'].json.job_id] }}"
+        }
+      },
+      "id": "update-status",
+      "name": "💾 状態更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $node['🤖 Puppeteerスクリプト生成'].json;\nreturn [{ json: { success: true, action: 'earth_record', job_id: data.job_id, latitude: data.latitude, longitude: data.longitude, earth_url: data.earth_url, duration_seconds: data.duration_seconds, status: 'script_ready', message: 'Google Earth録画ジョブを作成しました。VPSでPuppeteerスクリプトを実行してください。', instructions: data.execution_instructions } }];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: earth-record": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🌍 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💾 ジョブ作成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 ジョブ作成": {
+      "main": [
+        [
+          {
+            "node": "🤖 Puppeteerスクリプト生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 Puppeteerスクリプト生成": {
+      "main": [
+        [
+          {
+            "node": "💾 状態更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 状態更新": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🌍 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 60,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "GoogleEarth",
+      "color": "#3498db"
+    },
+    {
+      "name": "Phase-5",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

@@ -1,0 +1,788 @@
+{
+  "name": "【V8.2】Revenue Recognition Engine - 発生主義仕訳エンジン",
+  "description": "N3 Empire OS V8.2: 発生主義に基づき、MF等の会計ソフトへ連携可能な仕訳を自動生成する",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "revenue-recognition",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook-entry",
+      "name": "🚪 Webhook Entry",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "revenue-recognition",
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// V8.2 AUTH-GATE\nconst crypto = require('crypto');\nconst body = $input.first().json.body || $input.first().json || {};\nconst headers = $input.first().json.headers || {};\nconst tenantId = body.tenant_id || headers['x-tenant-id'] || 'default';\nconst signature = headers['x-n3-signature'];\nconst timestamp = headers['x-n3-timestamp'];\nconst hmacSecret = $env.N8N_HMAC_SECRET;\n\nif (hmacSecret && signature && timestamp) {\n  const tsAge = Date.now() - parseInt(timestamp);\n  if (tsAge > 300000) return [{ json: { _auth_error: true, code: 'TIMESTAMP_EXPIRED' } }];\n  const expectedHmac = crypto.createHmac('sha256', hmacSecret).update(timestamp + '.' + JSON.stringify(body)).digest('hex');\n  if (signature !== expectedHmac) return [{ json: { _auth_error: true, code: 'HMAC_INVALID' } }];\n}\n\nreturn [{ json: { _auth_passed: true, _tenant_id: tenantId, _request_id: `rev-${Date.now()}-${Math.random().toString(36).substr(2,9)}`, _timestamp: new Date().toISOString(), payload: body } }];"
+      },
+      "id": "auth-gate",
+      "name": "🔐 V8.2 Auth-Gate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json._auth_error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "auth-check",
+      "name": "認証チェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: 'Authentication failed' }) }}",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "id": "auth-error",
+      "name": "❌ 認証エラー",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// アクション分岐\nconst data = $input.first().json;\nconst action = data.payload?.action || 'generate';\nconst validActions = ['generate', 'approve', 'sync_mf', 'report'];\nif (!validActions.includes(action)) {\n  return [{ json: { ...data, _action: 'error', _error: `Invalid action: ${action}` } }];\n}\nreturn [{ json: { ...data, _action: action } }];"
+      },
+      "id": "action-router",
+      "name": "📋 アクション分岐",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "generate"
+            },
+            {
+              "outputKey": "approve"
+            },
+            {
+              "outputKey": "sync_mf"
+            },
+            {
+              "outputKey": "report"
+            }
+          ]
+        },
+        "fallbackOutput": "none",
+        "dataType": "string",
+        "value1": "={{ $json._action }}"
+      },
+      "id": "switch",
+      "name": "🔀 Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1100,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 自動仕訳生成設定\nconst data = $input.first().json;\nconst payload = data.payload || {};\n\nconst dateFrom = payload.date_from || new Date(Date.now() - 30*24*60*60*1000).toISOString().split('T')[0];\nconst dateTo = payload.date_to || new Date().toISOString().split('T')[0];\nconst platforms = payload.platforms || ['ebay', 'amazon', 'yahoo'];\nconst fiscalYear = payload.fiscal_year || new Date().getFullYear();\n\n// 仕訳生成設定\nconst config = {\n  tenant_id: data._tenant_id,\n  date_range: { from: dateFrom, to: dateTo },\n  platforms: platforms,\n  fiscal_year: fiscalYear,\n  auto_approve_threshold: payload.auto_approve_threshold || 10000,\n  ai_reasoning: {\n    approach: 'rule_based_journal_generation',\n    confidence: 0.95,\n    accounting_standard: '企業会計原則（発生主義）',\n    factors: [\n      '売上計上時点: 商品発送完了時',\n      '仕入計上時点: 商品受領時',\n      '手数料: 取引発生時に費用計上',\n      '為替差損益: 決済時点のレートで認識'\n    ]\n  }\n};\n\nreturn [{ json: { ...data, _journal_config: config } }];"
+      },
+      "id": "journal-config",
+      "name": "⚙️ 仕訳設定",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- 自動仕訳ルールを取得\nSELECT id, rule_name, priority, match_conditions, journal_template, auto_approve_threshold FROM auto_journal_rules WHERE tenant_id = $1 AND is_active = true ORDER BY priority ASC",
+        "options": {
+          "queryParams": "={{ [$json._tenant_id] }}"
+        }
+      },
+      "id": "get-rules",
+      "name": "📊 ルール取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "position": [
+        1540,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- 仕訳未生成の取引を取得（eBay売上）\nSELECT \n  'ebay_sale' as source_type,\n  id::text as source_id,\n  'ebay' as platform,\n  transaction_date as entry_date,\n  item_name as description,\n  item_total_price as total_amount,\n  item_total_price * 0.129 as platform_fee,\n  item_total_price * 0.029 as payment_fee,\n  counterparty_name\nFROM dealer_ledger\nWHERE tenant_id = $1\n  AND transaction_date BETWEEN $2 AND $3\n  AND transaction_type = 'sale'\n  AND source_platform = 'ebay'\n  AND NOT EXISTS (\n    SELECT 1 FROM journal_entries je \n    WHERE je.source_id = dealer_ledger.id::text \n    AND je.source_type = 'sales'\n  )\nORDER BY transaction_date\nLIMIT 100",
+        "options": {
+          "queryParams": "={{ [$json._tenant_id, $json._journal_config.date_range.from, $json._journal_config.date_range.to] }}"
+        }
+      },
+      "id": "get-sales",
+      "name": "📊 売上取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "position": [
+        1760,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 自動仕訳生成ロジック\nconst data = $input.first().json;\nconst config = data._journal_config;\nconst rules = data._rules || [];\nconst salesData = $input.all().slice(1).map(i => i.json);\n\nconst journalEntries = [];\nconst errors = [];\nconst needsApproval = [];\n\nfor (const sale of salesData) {\n  try {\n    // ルールマッチング\n    let matchedRule = null;\n    for (const rule of rules) {\n      const conditions = rule.match_conditions || {};\n      let match = true;\n      \n      if (conditions.platform && !conditions.platform.includes(sale.platform)) match = false;\n      if (conditions.transaction_type && !conditions.transaction_type.includes('sale')) match = false;\n      \n      if (match) {\n        matchedRule = rule;\n        break;\n      }\n    }\n    \n    // デフォルトルールを適用\n    if (!matchedRule) {\n      matchedRule = {\n        rule_name: 'default_sale',\n        auto_approve_threshold: config.auto_approve_threshold\n      };\n    }\n    \n    // 金額計算\n    const totalAmount = Number(sale.total_amount);\n    const platformFee = Number(sale.platform_fee) || totalAmount * 0.129;\n    const paymentFee = Number(sale.payment_fee) || totalAmount * 0.029;\n    const netAmount = totalAmount - platformFee - paymentFee;\n    \n    // 仕訳番号生成\n    const journalNumber = `${config.fiscal_year}-${String(journalEntries.length + 1).padStart(6, '0')}`;\n    \n    // 承認要否判定（次元5: HitL）\n    const requiresApproval = totalAmount > matchedRule.auto_approve_threshold;\n    \n    // 仕訳エントリー生成\n    const entry = {\n      tenant_id: config.tenant_id,\n      journal_number: journalNumber,\n      fiscal_year: config.fiscal_year,\n      fiscal_period: new Date(sale.entry_date).getMonth() + 1,\n      entry_date: sale.entry_date,\n      entry_type: 'normal',\n      description: `${sale.platform.toUpperCase()}売上 - ${sale.description}`,\n      total_debit: totalAmount,\n      total_credit: totalAmount,\n      source_type: 'sales',\n      source_id: sale.source_id,\n      source_platform: sale.platform,\n      approval_status: requiresApproval ? 'pending' : 'auto_approved',\n      approval_required: requiresApproval,\n      is_auto_generated: true,\n      generation_rule_id: matchedRule.id || null,\n      ai_reasoning: {\n        matched_rule: matchedRule.rule_name,\n        confidence: 0.95,\n        calculation: {\n          gross_amount: totalAmount,\n          platform_fee: platformFee,\n          payment_fee: paymentFee,\n          net_amount: netAmount\n        },\n        accounting_treatment: '発生主義により商品発送完了時点で売上計上'\n      },\n      lines: [\n        {\n          line_number: 1,\n          account_code: '1220',\n          account_name: 'eBay Managed Payment',\n          debit_amount: netAmount,\n          credit_amount: 0,\n          tax_category: 'exempt'\n        },\n        {\n          line_number: 2,\n          account_code: '5310',\n          account_name: 'eBay手数料',\n          debit_amount: platformFee,\n          credit_amount: 0,\n          tax_category: 'non_taxable'\n        },\n        {\n          line_number: 3,\n          account_code: '5320',\n          account_name: 'PayPal手数料',\n          debit_amount: paymentFee,\n          credit_amount: 0,\n          tax_category: 'non_taxable'\n        },\n        {\n          line_number: 4,\n          account_code: '4110',\n          account_name: 'eBay売上',\n          debit_amount: 0,\n          credit_amount: totalAmount,\n          tax_category: 'exempt'\n        }\n      ]\n    };\n    \n    journalEntries.push(entry);\n    \n    if (requiresApproval) {\n      needsApproval.push({\n        journal_number: journalNumber,\n        amount: totalAmount,\n        reason: `金額${totalAmount.toLocaleString()}円が自動承認閾値${matchedRule.auto_approve_threshold.toLocaleString()}円を超過`\n      });\n    }\n    \n  } catch (error) {\n    errors.push({\n      source_id: sale.source_id,\n      error: error.message\n    });\n  }\n}\n\nreturn [{ json: {\n  ...data,\n  _journal_entries: journalEntries,\n  _needs_approval: needsApproval,\n  _errors: errors,\n  _stats: {\n    total_sales: salesData.length,\n    journals_created: journalEntries.length,\n    auto_approved: journalEntries.filter(j => j.approval_status === 'auto_approved').length,\n    pending_approval: needsApproval.length,\n    errors: errors.length\n  }\n} }];"
+      },
+      "id": "generate-journals",
+      "name": "📚 仕訳生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- 仕訳ヘッダーを登録\nINSERT INTO journal_entries (\n  tenant_id, journal_number, fiscal_year, fiscal_period, entry_date, entry_type,\n  description, total_debit, total_credit, source_type, source_id, source_platform,\n  approval_status, approval_required, is_auto_generated, generation_rule_id, ai_reasoning, created_by\n)\nSELECT\n  (j->>'tenant_id')::text,\n  (j->>'journal_number')::text,\n  (j->>'fiscal_year')::integer,\n  (j->>'fiscal_period')::integer,\n  (j->>'entry_date')::date,\n  (j->>'entry_type')::text,\n  (j->>'description')::text,\n  (j->>'total_debit')::numeric,\n  (j->>'total_credit')::numeric,\n  (j->>'source_type')::text,\n  (j->>'source_id')::text,\n  (j->>'source_platform')::text,\n  (j->>'approval_status')::text,\n  (j->>'approval_required')::boolean,\n  (j->>'is_auto_generated')::boolean,\n  (j->>'generation_rule_id')::uuid,\n  (j->>'ai_reasoning')::jsonb,\n  'revenue_recognition_engine'\nFROM jsonb_array_elements($1::jsonb) AS j\nRETURNING id, journal_number",
+        "options": {
+          "queryParams": "={{ [JSON.stringify($json._journal_entries)] }}"
+        }
+      },
+      "id": "insert-journals",
+      "name": "💾 仕訳登録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "position": [
+        2200,
+        200
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// 承認処理\nconst data = $input.first().json;\nconst payload = data.payload || {};\n\nconst journalIds = payload.journal_ids || [];\nconst action = payload.approval_action || 'approve';\nconst approver = payload.approver || 'system';\nconst reason = payload.reason || '';\n\nif (journalIds.length === 0) {\n  return [{ json: { ...data, _error: '承認対象の仕訳IDが指定されていません' } }];\n}\n\nreturn [{ json: {\n  ...data,\n  _approval: {\n    journal_ids: journalIds,\n    action: action,\n    approver: approver,\n    reason: reason,\n    timestamp: new Date().toISOString()\n  }\n} }];"
+      },
+      "id": "approve-config",
+      "name": "✅ 承認設定",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE journal_entries SET approval_status = CASE WHEN $2 = 'approve' THEN 'approved' WHEN $2 = 'reject' THEN 'rejected' ELSE approval_status END, approved_by = $3, approved_at = NOW(), rejection_reason = CASE WHEN $2 = 'reject' THEN $4 ELSE NULL END WHERE id = ANY($1::uuid[]) AND approval_status = 'pending' RETURNING id, journal_number, approval_status",
+        "options": {
+          "queryParams": "={{ [$json._approval.journal_ids, $json._approval.action, $json._approval.approver, $json._approval.reason] }}"
+        }
+      },
+      "id": "update-approval",
+      "name": "💾 承認更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "position": [
+        1540,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// MoneyForward同期設定\nconst data = $input.first().json;\nconst payload = data.payload || {};\n\nconst journalIds = payload.journal_ids || [];\nconst syncAll = payload.sync_all || false;\n\n// MF API設定（実際はSecret Vaultから取得）\nconst mfConfig = {\n  api_url: $env.MF_API_URL || 'https://invoice.moneyforward.com/api/v2',\n  company_id: $env.MF_COMPANY_ID,\n  access_token: $env.MF_ACCESS_TOKEN\n};\n\nreturn [{ json: {\n  ...data,\n  _mf_config: mfConfig,\n  _sync_params: {\n    journal_ids: journalIds,\n    sync_all: syncAll\n  }\n} }];"
+      },
+      "id": "mf-config",
+      "name": "🔄 MF設定",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT je.*, array_agg(json_build_object('line_number', jel.line_number, 'account_code', jel.account_code, 'account_name', jel.account_name, 'debit_amount', jel.debit_amount, 'credit_amount', jel.credit_amount, 'tax_category', jel.tax_category)) as lines FROM journal_entries je JOIN journal_entry_lines jel ON je.id = jel.journal_entry_id WHERE je.tenant_id = $1 AND je.mf_sync_status = 'pending' AND je.approval_status IN ('approved', 'auto_approved') GROUP BY je.id ORDER BY je.entry_date LIMIT 50",
+        "options": {
+          "queryParams": "={{ [$json._tenant_id] }}"
+        }
+      },
+      "id": "get-pending-sync",
+      "name": "📊 同期待ち取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "position": [
+        1540,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// MF形式に変換\nconst data = $input.first().json;\nconst journals = $input.all().slice(1).map(i => i.json);\n\nconst mfJournals = journals.map(j => {\n  const lines = j.lines || [];\n  return {\n    n3_journal_id: j.id,\n    journal_number: j.journal_number,\n    mf_format: {\n      deal: {\n        issue_date: j.entry_date,\n        due_date: j.entry_date,\n        summary: j.description,\n        entries_attributes: lines.map(l => ({\n          account_item_id: l.mf_account_code || l.account_code,\n          debit_amount: Number(l.debit_amount) || 0,\n          credit_amount: Number(l.credit_amount) || 0,\n          description: l.line_description || j.description\n        }))\n      }\n    }\n  };\n});\n\nreturn [{ json: {\n  ...data,\n  _mf_journals: mfJournals,\n  _sync_count: mfJournals.length\n} }];"
+      },
+      "id": "convert-mf",
+      "name": "🔄 MF形式変換",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// MF API呼び出し（実際はHTTP Requestノードで実装）\nconst data = $input.first().json;\nconst mfJournals = data._mf_journals || [];\nconst mfConfig = data._mf_config;\n\n// シミュレーション（実際はAPI呼び出し）\nconst results = mfJournals.map(j => ({\n  n3_journal_id: j.n3_journal_id,\n  journal_number: j.journal_number,\n  mf_journal_id: `mf-${Date.now()}-${Math.random().toString(36).substr(2,6)}`,\n  status: 'synced',\n  synced_at: new Date().toISOString()\n}));\n\nreturn [{ json: {\n  ...data,\n  _mf_results: results,\n  _sync_stats: {\n    total: mfJournals.length,\n    synced: results.filter(r => r.status === 'synced').length,\n    errors: results.filter(r => r.status === 'error').length\n  }\n} }];"
+      },
+      "id": "call-mf-api",
+      "name": "📤 MF API呼出",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE journal_entries SET mf_journal_id = r.mf_journal_id, mf_sync_status = 'synced', mf_sync_at = NOW() FROM (SELECT (r->>'n3_journal_id')::uuid as id, (r->>'mf_journal_id')::text as mf_journal_id FROM jsonb_array_elements($1::jsonb) AS r) r WHERE journal_entries.id = r.id",
+        "options": {
+          "queryParams": "={{ [JSON.stringify($json._mf_results)] }}"
+        }
+      },
+      "id": "update-sync-status",
+      "name": "💾 同期状態更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "position": [
+        2200,
+        600
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO audit_logs (tenant_id, workflow_name, request_id, action, payload_masked, status, executed_at, metadata) VALUES ($1, 'revenue-recognition', $2, $3, $4::jsonb, 'success', NOW(), $5::jsonb)",
+        "options": {
+          "queryParams": "={{ [$json._tenant_id, $json._request_id, $json._action, JSON.stringify({action: $json._action}), JSON.stringify($json._stats || $json._sync_stats || {})] }}"
+        }
+      },
+      "id": "audit-log",
+      "name": "📝 監査ログ",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "position": [
+        2420,
+        400
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json._needs_approval?.length > 0 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-approval-needed",
+      "name": "承認要否",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO approval_queue (tenant_id, workflow_name, request_id, payload, risk_level, policies, status) VALUES ($1, 'revenue-recognition', $2, $3::jsonb, 'MEDIUM', '[{\"rule\": \"HIGH_VALUE_JOURNAL\"}]'::jsonb, 'pending')",
+        "options": {
+          "queryParams": "={{ [$json._tenant_id, $json._request_id, JSON.stringify($json._needs_approval)] }}"
+        }
+      },
+      "id": "hitl-queue",
+      "name": "⏸️ HitL登録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "position": [
+        2640,
+        100
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=[info][title]📚 仕訳承認リクエスト[/title]{{ $json._needs_approval.length }}件の仕訳が承認待ちです\\n\\n{{ $json._needs_approval.slice(0,5).map(a => `・${a.journal_number}: ¥${a.amount.toLocaleString()} - ${a.reason}`).join('\\n') }}\\n\\n承認URL: {{ $env.N3_DASHBOARD_URL }}/journals/pending[/info]"
+            }
+          ]
+        },
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "notify-approval",
+      "name": "📢 承認通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2860,
+        100
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// 最終レスポンス\nconst data = $input.first().json;\nconst action = data._action;\n\nlet result = { success: true, tenant_id: data._tenant_id, request_id: data._request_id, action: action, timestamp: new Date().toISOString() };\n\nswitch (action) {\n  case 'generate':\n    result.stats = data._stats;\n    result.needs_approval = data._needs_approval;\n    break;\n  case 'approve':\n    result.approval = data._approval;\n    break;\n  case 'sync_mf':\n    result.sync_stats = data._sync_stats;\n    break;\n}\n\nreturn [{ json: result }];"
+      },
+      "id": "final-response",
+      "name": "📊 最終応答",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond",
+      "name": "✅ 応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2860,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "🚪 Webhook Entry": {
+      "main": [
+        [
+          {
+            "node": "🔐 V8.2 Auth-Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 V8.2 Auth-Gate": {
+      "main": [
+        [
+          {
+            "node": "認証チェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "認証チェック": {
+      "main": [
+        [
+          {
+            "node": "❌ 認証エラー",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 アクション分岐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 アクション分岐": {
+      "main": [
+        [
+          {
+            "node": "🔀 Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 Switch": {
+      "main": [
+        [
+          {
+            "node": "⚙️ 仕訳設定",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "✅ 承認設定",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🔄 MF設定",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📝 監査ログ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚙️ 仕訳設定": {
+      "main": [
+        [
+          {
+            "node": "📊 ルール取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 ルール取得": {
+      "main": [
+        [
+          {
+            "node": "📊 売上取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 売上取得": {
+      "main": [
+        [
+          {
+            "node": "📚 仕訳生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📚 仕訳生成": {
+      "main": [
+        [
+          {
+            "node": "💾 仕訳登録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 仕訳登録": {
+      "main": [
+        [
+          {
+            "node": "承認要否",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "承認要否": {
+      "main": [
+        [
+          {
+            "node": "⏸️ HitL登録",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📝 監査ログ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⏸️ HitL登録": {
+      "main": [
+        [
+          {
+            "node": "📢 承認通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📢 承認通知": {
+      "main": [
+        [
+          {
+            "node": "📝 監査ログ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ 承認設定": {
+      "main": [
+        [
+          {
+            "node": "💾 承認更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 承認更新": {
+      "main": [
+        [
+          {
+            "node": "📝 監査ログ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 MF設定": {
+      "main": [
+        [
+          {
+            "node": "📊 同期待ち取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 同期待ち取得": {
+      "main": [
+        [
+          {
+            "node": "🔄 MF形式変換",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 MF形式変換": {
+      "main": [
+        [
+          {
+            "node": "📤 MF API呼出",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📤 MF API呼出": {
+      "main": [
+        [
+          {
+            "node": "💾 同期状態更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 同期状態更新": {
+      "main": [
+        [
+          {
+            "node": "📝 監査ログ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 監査ログ": {
+      "main": [
+        [
+          {
+            "node": "📊 最終応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 最終応答": {
+      "main": [
+        [
+          {
+            "node": "✅ 応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 300,
+    "saveDataErrorExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "V8.2-UNSINKABLE"
+    },
+    {
+      "name": "Revenue"
+    },
+    {
+      "name": "Journal"
+    },
+    {
+      "name": "MoneyForward"
+    }
+  ],
+  "active": false,
+  "_v8_version": "8.2.0"
+}

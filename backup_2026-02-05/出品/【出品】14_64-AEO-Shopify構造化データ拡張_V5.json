@@ -1,0 +1,422 @@
+{
+  "name": "【出品】14_64-AEO-Shopify構造化データ拡張_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "shopify-aeo",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: shopify-aeo",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "shopify-aeo"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 */3 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "3時間ごと",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst action = body.action || 'sync_all'; // sync_all, sync_single, calc_advantage\nconst productId = body.product_id;\nconst isScheduled = !$input.first().json.body;\nreturn [{ json: { action: isScheduled ? 'sync_all' : action, product_id: productId, is_scheduled: isScheduled } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT pm.*, im.purchase_price, ao.aeo_score, ao.json_ld_product as existing_json_ld, lg.calculated_price_usd as ebay_price FROM products_master pm LEFT JOIN inventory_master im ON pm.id = im.product_id LEFT JOIN aeo_optimization ao ON pm.id = ao.product_id LEFT JOIN listing_gateway lg ON pm.id = lg.product_id AND lg.dest_platform = 'ebay' WHERE pm.status = 'active' AND ($1::integer IS NULL OR pm.id = $1) ORDER BY pm.updated_at DESC LIMIT 50",
+        "options": {
+          "queryParams": "={{ [$node['🔐 初期化'].json.product_id || null] }}"
+        }
+      },
+      "id": "get-products",
+      "name": "📦 商品取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const products = $input.first().json;\nconst productList = Array.isArray(products) ? products : (products?.id ? [products] : []);\nif (productList.length === 0) return [{ json: { no_data: true, message: '対象商品なし' } }];\nreturn productList.map(p => ({ json: p }));"
+      },
+      "id": "prepare-products",
+      "name": "📋 商品準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "no-data",
+              "leftValue": "={{ $json.no_data }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-data",
+      "name": "データあり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, message: $json.message, synced: 0 }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-no-data",
+      "name": "対象なし応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "const p = $input.first().json;\n\n// 価格優位性計算\nconst ebayPrice = parseFloat(p.ebay_price) || 0;\nconst purchasePrice = parseFloat(p.purchase_price) || 0;\nconst ebayFeeRate = 0.12; // eBay手数料12%\nconst shopifyFeeRate = 0.029; // Shopify手数料2.9%\n\n// Shopify戦略的価格（手数料差を活かす）\nlet shopifyPrice = 0;\nlet priceAdvantage = 0;\nlet priceAdvantageText = '';\n\nif (ebayPrice > 0) {\n  // eBay価格から手数料差分を引いた価格\n  shopifyPrice = Math.round(ebayPrice * (1 - (ebayFeeRate - shopifyFeeRate)) * 100) / 100;\n  priceAdvantage = Math.round((1 - shopifyPrice / ebayPrice) * 100);\n  priceAdvantageText = `eBayより${priceAdvantage}%お得`;\n}\n\n// 状態詳細\nconst conditionMap = {\n  'new': { grade: 'mint', text: '新品・未使用' },\n  'like_new': { grade: 'excellent', text: '未使用に近い' },\n  'good': { grade: 'good', text: '目立つ傷なし' },\n  'fair': { grade: 'fair', text: '使用感あり' }\n};\nconst condition = conditionMap[p.condition] || { grade: 'good', text: '良好' };\n\n// JSON-LD Product\nconst jsonLdProduct = {\n  '@context': 'https://schema.org',\n  '@type': 'Product',\n  name: p.title,\n  description: p.description,\n  sku: p.sku,\n  brand: { '@type': 'Brand', name: p.brand || 'Japan Vintage' },\n  category: p.category_primary,\n  image: p.image_url,\n  itemCondition: `https://schema.org/${condition.grade === 'mint' ? 'NewCondition' : 'UsedCondition'}`,\n  offers: {\n    '@type': 'Offer',\n    price: shopifyPrice,\n    priceCurrency: 'USD',\n    availability: 'https://schema.org/InStock',\n    seller: { '@type': 'Organization', name: 'N3 Japan Direct' },\n    priceValidUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]\n  }\n};\n\n// JSON-LD Offer（比較用）\nconst jsonLdOffer = {\n  '@context': 'https://schema.org',\n  '@type': 'AggregateOffer',\n  lowPrice: shopifyPrice,\n  highPrice: ebayPrice,\n  priceCurrency: 'USD',\n  offerCount: 2\n};\n\n// AEOスコア計算\nlet completeness = 50;\nif (p.title && p.title.length > 20) completeness += 10;\nif (p.description && p.description.length > 100) completeness += 15;\nif (p.image_url) completeness += 10;\nif (p.brand) completeness += 10;\nif (shopifyPrice > 0) completeness += 5;\n\nlet freshness = 100;\nconst daysSinceUpdate = Math.floor((Date.now() - new Date(p.updated_at).getTime()) / (1000 * 60 * 60 * 24));\nif (daysSinceUpdate > 7) freshness -= 20;\nif (daysSinceUpdate > 30) freshness -= 30;\nif (daysSinceUpdate > 90) freshness -= 30;\n\nlet trust = 50;\nif (priceAdvantage >= 5) trust += 20;\nif (priceAdvantage >= 10) trust += 15;\nif (condition.grade === 'mint' || condition.grade === 'excellent') trust += 15;\n\nconst totalScore = Math.round((completeness + freshness + trust) / 3);\n\nreturn [{ json: { product_id: p.id, shopify_price: shopifyPrice, ebay_price: ebayPrice, competitor_prices: { ebay: ebayPrice, shopify: shopifyPrice }, price_advantage_percent: priceAdvantage, price_advantage_text: priceAdvantageText, condition_grade: condition.grade, condition_details: condition.text, json_ld_product: jsonLdProduct, json_ld_offer: jsonLdOffer, aeo_completeness_score: completeness, aeo_freshness_score: freshness, aeo_trust_score: trust, aeo_total_score: totalScore } }];"
+      },
+      "id": "calc-aeo",
+      "name": "🎯 AEO計算",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO shopify_aeo_data (product_id, competitor_prices, price_advantage_percent, price_advantage_text, condition_grade, condition_details, json_ld_product, json_ld_offer, aeo_completeness_score, aeo_freshness_score, aeo_trust_score, aeo_total_score, sync_status) VALUES ($1, $2::jsonb, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10, $11, $12, 'pending') ON CONFLICT (product_id) DO UPDATE SET competitor_prices = $2::jsonb, price_advantage_percent = $3, price_advantage_text = $4, condition_grade = $5, condition_details = $6, json_ld_product = $7::jsonb, json_ld_offer = $8::jsonb, aeo_completeness_score = $9, aeo_freshness_score = $10, aeo_trust_score = $11, aeo_total_score = $12, sync_status = 'pending', updated_at = NOW() RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.product_id, JSON.stringify($json.competitor_prices), $json.price_advantage_percent, $json.price_advantage_text, $json.condition_grade, $json.condition_details, JSON.stringify($json.json_ld_product), JSON.stringify($json.json_ld_offer), $json.aeo_completeness_score, $json.aeo_freshness_score, $json.aeo_trust_score, $json.aeo_total_score] }}"
+        }
+      },
+      "id": "save-aeo",
+      "name": "💾 AEO保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://{{ $env.SHOPIFY_STORE }}.myshopify.com/admin/api/2024-01/products/{{ $node['📋 商品準備'].json.shopify_product_id }}/metafields.json",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Shopify-Access-Token",
+              "value": "={{ $env.SHOPIFY_ACCESS_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ metafield: { namespace: 'aeo', key: 'structured_data', value: JSON.stringify($node['🎯 AEO計算'].json.json_ld_product), type: 'json' } }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "sync-shopify",
+      "name": "🛒 Shopify同期",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE shopify_aeo_data SET sync_status = 'synced', last_synced_to_shopify = NOW() WHERE product_id = $1",
+        "options": {
+          "queryParams": "={{ [$node['🎯 AEO計算'].json.product_id] }}"
+        }
+      },
+      "id": "update-sync-status",
+      "name": "📝 同期ステータス更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all().map(i => i.json);\nconst synced = results.filter(r => !r.error).length;\nconst avgScore = results.length > 0 ? Math.round(results.reduce((sum, r) => sum + (r.aeo_total_score || 0), 0) / results.length) : 0;\nreturn [{ json: { success: true, synced_count: synced, total: results.length, average_aeo_score: avgScore } }];"
+      },
+      "id": "aggregate",
+      "name": "📊 集計",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: shopify-aeo": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3時間ごと": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "📦 商品取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 商品取得": {
+      "main": [
+        [
+          {
+            "node": "📋 商品準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 商品準備": {
+      "main": [
+        [
+          {
+            "node": "データあり？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "データあり？": {
+      "main": [
+        [
+          {
+            "node": "対象なし応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🎯 AEO計算",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎯 AEO計算": {
+      "main": [
+        [
+          {
+            "node": "💾 AEO保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 AEO保存": {
+      "main": [
+        [
+          {
+            "node": "🛒 Shopify同期",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🛒 Shopify同期": {
+      "main": [
+        [
+          {
+            "node": "📝 同期ステータス更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 同期ステータス更新": {
+      "main": [
+        [
+          {
+            "node": "📊 集計",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 集計": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 600,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-AEO",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Shopify",
+      "color": "#95bf47"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

@@ -1,0 +1,583 @@
+{
+  "name": "【リサーチ】03_18-リサーチ-自律型AIトレンドエージェント_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "trend-agent",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: trend-agent",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "trend-agent"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 3 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "毎日AM3時実行",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst apiUrl = $env.N3_API_URL || '{{$env.GATEWAY_URL}}';\nconst isScheduled = !$input.first().json.body;\nconst targetRegions = body.regions || ['US', 'JP', 'DE', 'GB'];\nconst maxNiches = body.max_niches || 3;\nconst itemsPerNiche = body.items_per_niche || 5;\nreturn [{ json: { target_regions: targetRegions, max_niches: maxNiches, items_per_niche: itemsPerNiche, is_scheduled: isScheduled, api_url: apiUrl, run_timestamp: new Date().toISOString() } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.api_url }}/api/research/trending-keywords",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "regions",
+              "value": "={{ $json.target_regions.join(',') }}"
+            },
+            {
+              "name": "limit",
+              "value": "50"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "fetch-trends",
+      "name": "📈 トレンドデータ取得",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $node['🔐 初期化'].json.api_url }}/api/ebay/popular-categories",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "marketplace",
+              "value": "EBAY_US"
+            },
+            {
+              "name": "limit",
+              "value": "20"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 45000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "fetch-ebay-popular",
+      "name": "🏷️ eBay人気カテゴリ",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const trends = $node['📈 トレンドデータ取得'].json;\nconst ebayPopular = $node['🏷️ eBay人気カテゴリ'].json;\nconst config = $node['🔐 初期化'].json;\nconst trendKeywords = trends.keywords || trends.data || [];\nconst popularCategories = ebayPopular.categories || ebayPopular.data || [];\nconst combinedData = {\n  trend_keywords: Array.isArray(trendKeywords) ? trendKeywords.slice(0, 30) : [],\n  popular_categories: Array.isArray(popularCategories) ? popularCategories.slice(0, 15) : [],\n  regions: config.target_regions\n};\nreturn [{ json: { ...config, market_data: combinedData } }];"
+      },
+      "id": "combine-data",
+      "name": "📋 データ統合",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.api_url }}/api/ai/analyze",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'gemini-1.5-pro', prompt: `あなたは越境ECの天才リサーチコンサルタントです。以下のマーケットデータを分析し、利益が出る可能性の高い「ニッチジャンル」を${$json.max_niches}つ選定してください。\\n\\n【トレンドキーワード】\\n${JSON.stringify($json.market_data.trend_keywords)}\\n\\n【eBay人気カテゴリ】\\n${JSON.stringify($json.market_data.popular_categories)}\\n\\n【対象地域】\\n${$json.market_data.regions.join(', ')}\\n\\n【分析条件】\\n1. 競合が少なく参入余地があるニッチを優先\\n2. 日本からの仕入れが可能な商材\\n3. 送料負担が少ない軽量・小型商品を優先\\n4. 季節性があっても今後3ヶ月で需要がある\\n\\n以下のJSON形式で回答してください：\\n{\\n  \"niches\": [\\n    {\\n      \"niche_name\": \"ニッチ名\",\\n      \"description\": \"なぜ有望か\",\\n      \"suggested_keywords\": [\"キーワード1\", \"キーワード2\"],\\n      \"estimated_margin\": \"予想利益率(例: 25-35%)\",\\n      \"competition_level\": \"low/medium/high\",\\n      \"confidence_score\": 0.0-1.0\\n    }\\n  ],\\n  \"market_insight\": \"全体的な市場分析コメント\"\\n}`, max_tokens: 3000 }) }}",
+        "options": {
+          "timeout": 120000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "ai-analysis",
+      "name": "🤖 AI トレンド分析",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst config = $node['📋 データ統合'].json;\nlet aiResult = { niches: [], market_insight: '' };\ntry {\n  let content = response.result || response.content || response.text || JSON.stringify(response);\n  content = content.replace(/```json\\n?|```/g, '').trim();\n  const parsed = JSON.parse(content);\n  aiResult = { ...aiResult, ...parsed };\n} catch (e) {\n  aiResult.market_insight = 'AI解析エラー: ' + e.message;\n}\nreturn [{ json: { ...config, ai_result: aiResult } }];"
+      },
+      "id": "parse-ai",
+      "name": "📋 AI結果解析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-niches",
+              "leftValue": "={{ $json.ai_result.niches.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "larger"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-niches",
+      "name": "ニッチ発見？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { success: false, message: 'ニッチ発見なし' } }];"
+      },
+      "id": "no-niches",
+      "name": "ニッチなし",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst niches = data.ai_result.niches || [];\nreturn niches.map(niche => ({ json: { ...niche, config: data } }));"
+      },
+      "id": "expand-niches",
+      "name": "📦 ニッチ展開",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_WEBHOOK_URL || 'http://{{$env.N8N_BASE_URL}}/webhook' }}/research-agent",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ keyword: $json.suggested_keywords[0], max_results: $json.config.items_per_niche, min_profit_margin: 0.15 }) }}",
+        "options": {
+          "timeout": 180000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "trigger-research",
+      "name": "🔍 リサーチ実行",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const researchResult = $input.first().json;\nconst niche = $node['📦 ニッチ展開'].json;\nreturn [{ json: { niche_name: niche.niche_name, confidence_score: niche.confidence_score, research_result: { found_count: researchResult.found_count || 0, profitable_count: researchResult.profitable_count || 0, saved_count: researchResult.saved_count || 0 } } }];"
+      },
+      "id": "collect-result",
+      "name": "📋 結果収集",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all().map(i => i.json);\nconst totalFound = results.reduce((sum, r) => sum + (r.research_result?.found_count || 0), 0);\nconst totalProfitable = results.reduce((sum, r) => sum + (r.research_result?.profitable_count || 0), 0);\nconst totalSaved = results.reduce((sum, r) => sum + (r.research_result?.saved_count || 0), 0);\nconst nichesSummary = results.map(r => ({ name: r.niche_name, confidence: r.confidence_score, profitable: r.research_result?.profitable_count || 0 }));\nreturn [{ json: { success: true, niches_analyzed: results.length, total_found: totalFound, total_profitable: totalProfitable, total_saved: totalSaved, niches_summary: nichesSummary, analyzed_at: new Date().toISOString() } }];"
+      },
+      "id": "aggregate",
+      "name": "📊 最終集計",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=[info][title]🤖 AIトレンドエージェント完了[/title]分析ニッチ数: {{ $json.niches_analyzed }}\\n発見商品: {{ $json.total_found }}件\\n利益商品: {{ $json.total_profitable }}件\\n保存数: {{ $json.total_saved }}件\\n\\n【発見ニッチ】\\n{{ $json.niches_summary.map(n => '・' + n.name + ' (利益商品: ' + n.profitable + '件)').join('\\n') }}[/info]"
+            }
+          ]
+        },
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "notify",
+      "name": "📢 完了通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    },
+    {
+      "id": "n3_core_14c1767e",
+      "name": "[V8.3] CORE-Dispatcher",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        450,
+        300
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": "={{ $vars.CORE_DISPATCHER_ID }}",
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "notes": "V8.3: Auth/Circuit-Breaker/Burn-Limit/Queue"
+    }
+  ],
+  "connections": {
+    "Webhook: trend-agent": {
+      "main": [
+        [
+          {
+            "node": "[V8.3] CORE-Dispatcher",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "毎日AM3時実行": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "📈 トレンドデータ取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📈 トレンドデータ取得": {
+      "main": [
+        [
+          {
+            "node": "🏷️ eBay人気カテゴリ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🏷️ eBay人気カテゴリ": {
+      "main": [
+        [
+          {
+            "node": "📋 データ統合",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 データ統合": {
+      "main": [
+        [
+          {
+            "node": "🤖 AI トレンド分析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 AI トレンド分析": {
+      "main": [
+        [
+          {
+            "node": "📋 AI結果解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 AI結果解析": {
+      "main": [
+        [
+          {
+            "node": "ニッチ発見？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ニッチ発見？": {
+      "main": [
+        [
+          {
+            "node": "ニッチなし",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📦 ニッチ展開",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ニッチなし": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 ニッチ展開": {
+      "main": [
+        [
+          {
+            "node": "🔍 リサーチ実行",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 リサーチ実行": {
+      "main": [
+        [
+          {
+            "node": "📋 結果収集",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 結果収集": {
+      "main": [
+        [
+          {
+            "node": "📊 最終集計",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 最終集計": {
+      "main": [
+        [
+          {
+            "node": "📢 完了通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📢 完了通知": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[V8.3] CORE-Dispatcher": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 1200,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Intel",
+      "color": "#9400d3"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "AI-Agent",
+      "color": "#ff6347"
+    },
+    {
+      "name": "Autonomous",
+      "color": "#ffd700"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false,
+  "meta": {
+    "n3_version": "V8.3",
+    "transformed_at": "2026-01-25T13:02:58.739096"
+  }
+}

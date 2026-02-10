@@ -1,0 +1,651 @@
+{
+  "name": "【帝国】04_152-帝国-Airwallex自動送金_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0 25 * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "⏰ 毎月25日実行",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "empire-payout-execute",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: empire-payout-execute",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "empire-payout-execute"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 鉄の掟準拠：環境変数必須チェック\nconst airwallexApiUrl = $env.AIRWALLEX_API_URL || 'https://api.airwallex.com';\nconst airwallexApiKey = $env.AIRWALLEX_API_KEY;\nconst wiseApiUrl = $env.WISE_API_URL || 'https://api.transferwise.com';\nconst wiseApiKey = $env.WISE_API_KEY;\n\nif (!airwallexApiKey && !wiseApiKey) {\n  return [{ json: { error: true, message: 'AIRWALLEX_API_KEY または WISE_API_KEY が未設定', code: 'CONFIG_ERROR' } }];\n}\n\nconst body = $input.first().json.body || $input.first().json || {};\nconst payoutId = body.payout_id || null;\nconst dryRun = body.dry_run || false;\n\nreturn [{\n  json: {\n    payout_id: payoutId,\n    dry_run: dryRun,\n    airwallex_api_url: airwallexApiUrl,\n    airwallex_api_key: airwallexApiKey ? '***' : null,\n    wise_api_url: wiseApiUrl,\n    wise_api_key: wiseApiKey ? '***' : null,\n    has_airwallex: !!airwallexApiKey,\n    has_wise: !!wiseApiKey\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔐 初期化（鉄の掟準拠）",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT ep.payout_id, ep.entity_id, ep.manager_id, ep.manager_total_payout, ep.payout_method, ep.payout_currency, em.name as manager_name, em.payout_account_id, ee.entity_name, ee.bank_api_provider, ee.bank_api_id FROM empire_payouts ep LEFT JOIN empire_managers em ON ep.manager_id = em.manager_id LEFT JOIN empire_entities ee ON ep.entity_id = ee.entity_id WHERE ep.payout_status = 'pending' AND ep.manager_total_payout > 0 AND ($1 IS NULL OR ep.payout_id = $1) ORDER BY ep.created_at ASC LIMIT 100",
+        "options": {
+          "queryParams": "={{ [$json.payout_id] }}"
+        }
+      },
+      "id": "get-pending-payouts",
+      "name": "📋 未払い取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const initData = $node['🔐 初期化（鉄の掟準拠）'].json;\nconst payoutsRaw = $input.all().map(item => item.json).filter(p => p && p.payout_id);\n\nif (payoutsRaw.length === 0) {\n  return [{ json: { skip: true, message: '未払いの支払いがありません' } }];\n}\n\nreturn payoutsRaw.map(payout => ({\n  json: {\n    ...payout,\n    dry_run: initData.dry_run,\n    has_airwallex: initData.has_airwallex,\n    has_wise: initData.has_wise\n  }\n}));"
+      },
+      "id": "prepare-payouts",
+      "name": "🔧 支払いデータ準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "skip-check",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-skip",
+      "name": "スキップ？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "loop-payouts",
+      "name": "🔄 支払いループ",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "notes": "\n[PATCHER] WARNING: SplitInBatches直後にWaitノードがありません。API制限に注意してください。"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-airwallex",
+              "leftValue": "={{ $json.payout_method }}",
+              "rightValue": "airwallex",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "route-provider",
+      "name": "送金プロバイダー分岐",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Airwallex送金リクエスト生成（Dry Run対応）\nconst payout = $input.first().json;\n\nif (payout.dry_run) {\n  return [{\n    json: {\n      payout_id: payout.payout_id,\n      provider: 'airwallex',\n      dry_run: true,\n      simulated_transfer_id: `DRY-AWX-${Date.now()}`,\n      amount: payout.manager_total_payout,\n      currency: payout.payout_currency,\n      status: 'simulated'\n    }\n  }];\n}\n\n// 実際のAPI呼び出し用データ\nreturn [{\n  json: {\n    payout_id: payout.payout_id,\n    provider: 'airwallex',\n    api_request: {\n      source_currency: 'USD',\n      destination_currency: payout.payout_currency,\n      amount: payout.manager_total_payout,\n      beneficiary_id: payout.payout_account_id,\n      reference: `N3-PAYOUT-${payout.payout_id}`,\n      reason: 'Contractor payment'\n    }\n  }\n}];"
+      },
+      "id": "prepare-airwallex",
+      "name": "💳 Airwallex準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Wise送金リクエスト生成（Dry Run対応）\nconst payout = $input.first().json;\n\nif (payout.dry_run) {\n  return [{\n    json: {\n      payout_id: payout.payout_id,\n      provider: 'wise',\n      dry_run: true,\n      simulated_transfer_id: `DRY-WISE-${Date.now()}`,\n      amount: payout.manager_total_payout,\n      currency: payout.payout_currency,\n      status: 'simulated'\n    }\n  }];\n}\n\n// 実際のAPI呼び出し用データ\nreturn [{\n  json: {\n    payout_id: payout.payout_id,\n    provider: 'wise',\n    api_request: {\n      sourceCurrency: 'USD',\n      targetCurrency: payout.payout_currency,\n      sourceAmount: payout.manager_total_payout,\n      targetAccount: payout.payout_account_id,\n      reference: `N3-PAYOUT-${payout.payout_id}`\n    }\n  }\n}];"
+      },
+      "id": "prepare-wise",
+      "name": "💳 Wise準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-dry-run",
+              "leftValue": "={{ $json.dry_run }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-dry-run",
+      "name": "Dry Run？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.AIRWALLEX_API_URL || 'https://api.airwallex.com' }}/api/v1/transfers/create",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.AIRWALLEX_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "=",
+              "value": "={{ JSON.stringify($json.api_request) }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "call-airwallex",
+      "name": "🌐 Airwallex API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dry Runの場合はシミュレーション結果をそのまま返す\nreturn $input.all();"
+      },
+      "id": "skip-api",
+      "name": "API スキップ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE empire_payouts SET payout_status = CASE WHEN $2 = TRUE THEN 'simulated' ELSE 'processing' END, airwallex_transfer_id = CASE WHEN $3 LIKE 'AWX%' THEN $3 ELSE NULL END, wise_transfer_id = CASE WHEN $3 LIKE 'WISE%' OR $3 LIKE 'DRY-WISE%' THEN $3 ELSE NULL END, updated_at = NOW() WHERE payout_id = $1 RETURNING payout_id",
+        "options": {
+          "queryParams": "={{ [$json.payout_id, $json.dry_run, $json.simulated_transfer_id || $json.transfer_id || ''] }}"
+        }
+      },
+      "id": "update-payout-status",
+      "name": "💾 支払いステータス更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ループ継続\nreturn $input.all();"
+      },
+      "id": "continue-loop",
+      "name": "➡️ 継続",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const allItems = $input.all();\nconst results = allItems.map(item => item.json).filter(r => r && r.payout_id);\n\nreturn [{\n  json: {\n    success: true,\n    action: 'empire_payout_execute',\n    processed_count: results.length,\n    dry_run: results[0]?.dry_run || false,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "⏰ 毎月25日実行": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化（鉄の掟準拠）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook: empire-payout-execute": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化（鉄の掟準拠）": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 未払い取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 未払い取得": {
+      "main": [
+        [
+          {
+            "node": "🔧 支払いデータ準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 支払いデータ準備": {
+      "main": [
+        [
+          {
+            "node": "スキップ？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "スキップ？": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🔄 支払いループ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 支払いループ": {
+      "main": [
+        [
+          {
+            "node": "送金プロバイダー分岐",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "送金プロバイダー分岐": {
+      "main": [
+        [
+          {
+            "node": "💳 Airwallex準備",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💳 Wise準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💳 Airwallex準備": {
+      "main": [
+        [
+          {
+            "node": "Dry Run？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💳 Wise準備": {
+      "main": [
+        [
+          {
+            "node": "Dry Run？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dry Run？": {
+      "main": [
+        [
+          {
+            "node": "API スキップ",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🌐 Airwallex API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🌐 Airwallex API": {
+      "main": [
+        [
+          {
+            "node": "💾 支払いステータス更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API スキップ": {
+      "main": [
+        [
+          {
+            "node": "💾 支払いステータス更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 支払いステータス更新": {
+      "main": [
+        [
+          {
+            "node": "➡️ 継続",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "➡️ 継続": {
+      "main": [
+        [
+          {
+            "node": "🔄 支払いループ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化（鉄の掟準拠）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 600,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Empire",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Financial",
+      "color": "#f1c40f"
+    },
+    {
+      "name": "Airwallex",
+      "color": "#3498db"
+    },
+    {
+      "name": "IronRule",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false,
+  "meta": {
+    "description": "N3-152 Airwallex/Wise自動送金 V5-PRODUCTION - 毎月25日自動実行、Dry Run対応",
+    "version": "5.0",
+    "changelog": "2026-01-20: 鉄の掟準拠 - 環境変数必須化、Dry Runモード、Airwallex/Wise両対応",
+    "iron_rules_compliant": [
+      "no_hardcoded_urls",
+      "query_params_only",
+      "no_crypto_require",
+      "env_vars_required"
+    ]
+  }
+}

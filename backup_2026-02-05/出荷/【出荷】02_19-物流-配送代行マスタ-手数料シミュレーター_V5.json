@@ -1,0 +1,282 @@
+{
+  "name": "【出荷】02_19-物流-配送代行マスタ-手数料シミュレーター_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "logistics-calc",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: logistics-calc",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "logistics-calc"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst secret = $env.N8N_INTERNAL_SECRET;\nif (!secret) return [{ json: { error: true, message: 'N8N_INTERNAL_SECRET未設定', code: 'CONFIG_ERROR' } }];\nconst sourceCountry = body.source_country || 'US';\nconst destCountry = body.dest_country || 'JP';\nconst productCost = parseFloat(body.product_cost) || 0;\nconst sourceCurrency = body.source_currency || 'USD';\nconst weightKg = parseFloat(body.weight_kg) || 0.5;\nconst needsInspection = body.needs_inspection || false;\nconst needsPhoto = body.needs_photo || false;\nconst htsCode = body.hts_code || '';\nif (productCost <= 0) return [{ json: { error: true, message: 'product_cost は必須', code: 'MISSING_PARAM' } }];\nreturn [{ json: { source_country: sourceCountry, dest_country: destCountry, product_cost: productCost, source_currency: sourceCurrency, weight_kg: weightKg, needs_inspection: needsInspection, needs_photo: needsPhoto, hts_code: htsCode } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT setting_key, setting_value FROM global_settings WHERE setting_key LIKE 'exchange_rate_%' OR setting_key LIKE 'vat_rate_%' OR setting_key LIKE '%_fee_%'",
+        "options": {}
+      },
+      "id": "get-settings",
+      "name": "📊 グローバル設定取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM logistics_providers WHERE source_country = $1 AND dest_country = $2 AND is_active = true ORDER BY priority ASC",
+        "options": {
+          "queryParams": "={{ [$node['🔐 初期化'].json.source_country, $node['🔐 初期化'].json.dest_country] }}"
+        }
+      },
+      "id": "get-providers",
+      "name": "🚚 配送代行取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $node['🔐 初期化'].json;\nconst settingsRaw = $node['📊 グローバル設定取得'].json;\nconst providersRaw = $node['🚚 配送代行取得'].json;\n\n// 設定をオブジェクトに変換\nconst settings = {};\nconst settingsArray = Array.isArray(settingsRaw) ? settingsRaw : [settingsRaw];\nsettingsArray.forEach(s => { if (s && s.setting_key) settings[s.setting_key] = parseFloat(s.setting_value) || s.setting_value; });\n\n// 為替レート取得\nconst getExchangeRate = (from, to) => {\n  if (from === to) return 1;\n  const key = `exchange_rate_${from.toLowerCase()}_${to.toLowerCase()}`;\n  if (settings[key]) return settings[key];\n  // 逆レート\n  const reverseKey = `exchange_rate_${to.toLowerCase()}_${from.toLowerCase()}`;\n  if (settings[reverseKey]) return 1 / settings[reverseKey];\n  // JPY経由\n  const toJpy = settings[`exchange_rate_${from.toLowerCase()}_jpy`] || 1;\n  const fromJpy = settings[`exchange_rate_${to.toLowerCase()}_jpy`] || 1;\n  return toJpy / fromJpy;\n};\n\n// VAT率取得\nconst getVatRate = (country) => {\n  const vatMap = { 'DE': 0.19, 'FR': 0.20, 'UK': 0.20, 'GB': 0.20, 'IT': 0.22, 'ES': 0.21, 'EU': 0.21 };\n  const key = `vat_rate_${country.toLowerCase()}`;\n  return settings[key] || vatMap[country] || 0;\n};\n\n// 配送代行業者（フォールバック）\nconst providers = Array.isArray(providersRaw) ? providersRaw : (providersRaw ? [providersRaw] : []);\nconst defaultProviders = [\n  { name: 'Standard Forwarding', handling_fee: 5, inspection_fee: 2, photo_fee: 1, base_shipping: 15, per_kg: 8 },\n  { name: 'Express Forwarding', handling_fee: 8, inspection_fee: 3, photo_fee: 2, base_shipping: 25, per_kg: 12 }\n];\nconst activeProviders = providers.length > 0 ? providers : defaultProviders;\n\n// 計算\nconst exchangeRate = getExchangeRate(config.source_currency, 'JPY');\nconst productCostJpy = config.product_cost * exchangeRate;\nconst vatRate = getVatRate(config.dest_country);\n\nconst calculations = activeProviders.map(provider => {\n  const handlingFee = parseFloat(provider.handling_fee) || 5;\n  const inspectionFee = config.needs_inspection ? (parseFloat(provider.inspection_fee) || 2) : 0;\n  const photoFee = config.needs_photo ? (parseFloat(provider.photo_fee) || 1) : 0;\n  const baseShipping = parseFloat(provider.base_shipping) || 15;\n  const perKg = parseFloat(provider.per_kg) || 8;\n  const shippingCost = baseShipping + (config.weight_kg * perKg);\n  const forwardingTotal = handlingFee + inspectionFee + photoFee + shippingCost;\n  const dutyRate = 0.05; // 簡易関税率\n  const dutyAmount = productCostJpy * dutyRate;\n  const subtotal = productCostJpy + (forwardingTotal * exchangeRate) + dutyAmount;\n  const vatAmount = subtotal * vatRate;\n  const totalCostJpy = subtotal + vatAmount;\n  return {\n    provider_name: provider.name,\n    handling_fee: handlingFee,\n    inspection_fee: inspectionFee,\n    photo_fee: photoFee,\n    shipping_cost: Math.round(shippingCost * 100) / 100,\n    forwarding_total_usd: Math.round(forwardingTotal * 100) / 100,\n    duty_amount_jpy: Math.round(dutyAmount),\n    vat_amount_jpy: Math.round(vatAmount),\n    total_cost_jpy: Math.round(totalCostJpy),\n    total_cost_usd: Math.round(totalCostJpy / exchangeRate * 100) / 100\n  };\n});\n\n// 最安値を特定\nconst cheapest = calculations.reduce((min, c) => c.total_cost_jpy < min.total_cost_jpy ? c : min, calculations[0]);\n\nreturn [{ json: { success: true, input: config, exchange_rate: exchangeRate, vat_rate: vatRate, product_cost_jpy: Math.round(productCostJpy), calculations: calculations, recommended: cheapest } }];"
+      },
+      "id": "calc-logistics",
+      "name": "💰 物流費計算",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: logistics-calc": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📊 グローバル設定取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 グローバル設定取得": {
+      "main": [
+        [
+          {
+            "node": "🚚 配送代行取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚚 配送代行取得": {
+      "main": [
+        [
+          {
+            "node": "💰 物流費計算",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💰 物流費計算": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 120,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Logistics",
+      "color": "#ff8c00"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "SQL-Safe",
+      "color": "#32cd32"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

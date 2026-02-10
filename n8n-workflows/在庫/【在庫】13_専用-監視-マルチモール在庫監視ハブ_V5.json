@@ -1,0 +1,831 @@
+{
+  "name": "【在庫】13_専用-監視-マルチモール在庫監視ハブ_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "hub-trigger",
+      "name": "30分ごと自動実行",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT pm.id, pm.sku, pm.asin, pm.supplier_url, pm.detected_platform, pm.ebay_price_usd, pm.user_id, pm.updated_at, gs.value::numeric as exchange_rate FROM products_master pm LEFT JOIN global_settings gs ON gs.key = 'exchange_rate_usd_jpy' AND gs.user_id = pm.user_id WHERE pm.workflow_status IN ('approved', 'listed') AND pm.user_id IS NOT NULL AND pm.detected_platform IS NOT NULL AND (pm.last_check_at IS NULL OR pm.last_check_at < NOW() - INTERVAL '2 hours') ORDER BY pm.last_check_at ASC NULLS FIRST LIMIT 50",
+        "options": {}
+      },
+      "id": "get-all",
+      "name": "全モール監視対象取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ Array.isArray($json) ? $json.length : ($json.id ? 1 : 0) }}",
+              "operation": "equal",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "check-empty",
+      "name": "対象有無",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { message: '監視対象なし' } }];"
+      },
+      "id": "no-targets",
+      "name": "対象なし",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const products = Array.isArray($input.first().json) ? $input.first().json : [$input.first().json];\nreturn products.map(p => ({ json: p }));"
+      },
+      "id": "expand",
+      "name": "商品展開",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.detected_platform }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "amazon",
+              "output": 0
+            },
+            {
+              "value2": "yahoo",
+              "output": 1
+            },
+            {
+              "value2": "yahoo_auction",
+              "output": 1
+            },
+            {
+              "value2": "mercari",
+              "output": 1
+            },
+            {
+              "value2": "rakuten",
+              "output": 2
+            }
+          ]
+        },
+        "fallbackOutput": 3
+      },
+      "id": "switch-platform",
+      "name": "モール分岐",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.N3_API_URL || '{{$env.GATEWAY_URL}}' }}/api/amazon/product",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "asin",
+              "value": "={{ $json.asin }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "fetch-amazon",
+      "name": "Amazon価格取得",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.supplier_url }}",
+        "options": {
+          "redirect": {
+            "redirect": true
+          },
+          "timeout": 15000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "fetch-yahoo",
+      "name": "Yahoo/メルカリ取得",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.supplier_url }}",
+        "options": {
+          "redirect": {
+            "redirect": true
+          },
+          "timeout": 15000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "fetch-rakuten",
+      "name": "楽天取得",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// 未対応モール→スキップ\nconst p = $node['モール分岐'].json;\nreturn [{ json: { product_id: p.id, user_id: p.user_id, updated_at: p.updated_at, sku: p.sku, decision: 'SKIP', reason: 'UNKNOWN_PLATFORM', platform: p.detected_platform } }];"
+      },
+      "id": "skip-unknown",
+      "name": "未対応スキップ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Amazon結果解析\nconst amazon = $input.first().json || {};\nconst product = $node['モール分岐'].json;\nconst price = amazon.price || 0;\nconst inStock = amazon.availability === 'InStock' || amazon.in_stock === true;\nreturn [{ json: { ...product, current_price: price, is_available: inStock && price > 0, platform: 'amazon' } }];"
+      },
+      "id": "parse-amazon",
+      "name": "Amazon解析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N3_API_URL || '{{$env.GATEWAY_URL}}' }}/api/ai/analyze",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'gemini-1.5-flash', prompt: 'このページから「価格」と「在庫の有無」をJSONで返して。形式: {\"price\": 5000, \"is_available\": true}\\n\\nページ内容（先頭6000文字）:\\n' + ($json.data || '').substring(0, 6000) }) }}",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "ai-yahoo",
+      "name": "AI: Yahoo/メルカリ解析",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N3_API_URL || '{{$env.GATEWAY_URL}}' }}/api/ai/analyze",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'gemini-1.5-flash', prompt: '楽天ページから「価格」と「在庫の有無」をJSONで返して。形式: {\"price\": 5000, \"is_available\": true}\\n\\nページ内容（先頭6000文字）:\\n' + ($json.data || '').substring(0, 6000) }) }}",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "ai-rakuten",
+      "name": "AI: 楽天解析",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// AI結果解析（Yahoo/メルカリ）\nlet ai = {};\ntry {\n  const text = $input.first().json.text || $input.first().json.response || '{}';\n  ai = JSON.parse(text.replace(/```json\\n?|```/g, ''));\n} catch (e) { ai = { price: 0, is_available: false }; }\nconst product = $node['モール分岐'].json;\nreturn [{ json: { ...product, current_price: ai.price || 0, is_available: ai.is_available !== false && ai.price > 0, platform: product.detected_platform } }];"
+      },
+      "id": "parse-yahoo",
+      "name": "Yahoo/メルカリ解析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// AI結果解析（楽天）\nlet ai = {};\ntry {\n  const text = $input.first().json.text || $input.first().json.response || '{}';\n  ai = JSON.parse(text.replace(/```json\\n?|```/g, ''));\n} catch (e) { ai = { price: 0, is_available: false }; }\nconst product = $node['モール分岐'].json;\nreturn [{ json: { ...product, current_price: ai.price || 0, is_available: ai.is_available !== false && ai.price > 0, platform: 'rakuten' } }];"
+      },
+      "id": "parse-rakuten",
+      "name": "楽天解析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "id": "merge-all",
+      "name": "結果統合",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================\n// V4-PRODUCTION: 統合利益・在庫判定エンジン\n// ========================================\nconst data = $input.first().json;\nif (data.decision === 'SKIP') return [{ json: data }];\n\nconst exchangeRate = data.exchange_rate || 148.5;\nconst ebayPriceUsd = data.ebay_price_usd || 0;\nconst currentPrice = data.current_price || 0;\nconst isAvailable = data.is_available;\n\nconst shippingFeeJpy = 3000;\nconst ebayFeeRate = 0.15;\nconst revenueJpy = ebayPriceUsd * exchangeRate;\nconst totalCostJpy = (currentPrice + shippingFeeJpy) / (1 - ebayFeeRate);\nconst profit = revenueJpy - totalCostJpy;\nconst profitRate = revenueJpy > 0 ? (profit / revenueJpy) * 100 : 0;\n\nlet decision = 'KEEP';\nlet reason = '';\n\nif (!isAvailable) {\n  decision = 'STOP';\n  reason = 'OUT_OF_STOCK';\n} else if (profit < 500) {\n  decision = 'STOP';\n  reason = 'LOW_PROFIT';\n} else if (profitRate < 5) {\n  decision = 'WARNING';\n  reason = 'MARGIN_LOW';\n}\n\nreturn [{ json: {\n  product_id: data.id,\n  user_id: data.user_id,\n  updated_at: data.updated_at,\n  sku: data.sku,\n  platform: data.platform,\n  decision: decision,\n  reason: reason,\n  current_price: currentPrice,\n  profit: Math.round(profit),\n  profit_rate: Math.round(profitRate * 10) / 10\n} }];"
+      },
+      "id": "calc-profit",
+      "name": "利益・在庫判定",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.decision }}",
+              "value2": "STOP"
+            }
+          ]
+        }
+      },
+      "id": "check-stop",
+      "name": "停止が必要？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_WEBHOOK_URL || '={{ $vars.API_BASE_URL || $env.N8N_WEBHOOK_URL }}/webhook' }}/ebay-revise-quantity",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N3-Signature",
+              "value": "={{ $env.N8N_INTERNAL_TOKEN || \"\" }}"
+            },
+            {
+              "name": "X-N3-Token-Timestamp",
+              "value": "={{ Date.now() }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ user_id: $json.user_id, sku: $json.sku, quantity: 0, action: 'end_item', reason: $json.reason }) }}",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "stop-listing",
+      "name": "eBay出品停止（内部認証）",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE products_master SET last_check_at = NOW(), last_sync_log = '{{ JSON.stringify({ d: $json.decision, r: $json.reason, p: $json.current_price, pf: $json.profit, pl: $json.platform, t: new Date().toISOString().substring(0,19) }).replace(/'/g, \"''\") }}'::jsonb, updated_at = NOW() WHERE id = $1 AND user_id = $2 AND updated_at = $3",
+        "options": {
+          "queryParams": "={{ [{{ $json.product_id }}, {{ $json.user_id }}, {{ $json.updated_at }}] }}"
+        }
+      },
+      "id": "update-log",
+      "name": "チェック結果記録（楽観的ロック）",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all().map(i => i.json);\nconst stopped = results.filter(r => r.decision === 'STOP').length;\nconst warned = results.filter(r => r.decision === 'WARNING').length;\nconst kept = results.filter(r => r.decision === 'KEEP').length;\nconst skipped = results.filter(r => r.decision === 'SKIP').length;\nreturn [{ json: { total: results.length, stopped, warned, kept, skipped, ts: new Date().toISOString() } }];"
+      },
+      "id": "aggregate",
+      "name": "結果集約",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM stock_sync_logs WHERE created_at < NOW() - INTERVAL '7 days'; DELETE FROM listing_history WHERE created_at < NOW() - INTERVAL '7 days';",
+        "options": {}
+      },
+      "id": "purge",
+      "name": "🗑️ 履歴パージ",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $node['結果集約'].json.stopped }}",
+              "operation": "larger",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "check-alert",
+      "name": "アラートあり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=[info][title]📊 マルチモール在庫監視ハブ[/title]チェック: {{ $node['結果集約'].json.total }}件\\n✅継続: {{ $node['結果集約'].json.kept }}件\\n⚠️警告: {{ $node['結果集約'].json.warned }}件\\n🛑停止: {{ $node['結果集約'].json.stopped }}件\\n⏭️スキップ: {{ $node['結果集約'].json.skipped }}件[/info]"
+            }
+          ]
+        },
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "notify",
+      "name": "ChatWork通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "30分ごと自動実行": {
+      "main": [
+        [
+          {
+            "node": "全モール監視対象取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "全モール監視対象取得": {
+      "main": [
+        [
+          {
+            "node": "対象有無",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "対象有無": {
+      "main": [
+        [
+          {
+            "node": "対象なし",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "商品展開",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "商品展開": {
+      "main": [
+        [
+          {
+            "node": "モール分岐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "モール分岐": {
+      "main": [
+        [
+          {
+            "node": "Amazon価格取得",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Yahoo/メルカリ取得",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "楽天取得",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "未対応スキップ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Amazon価格取得": {
+      "main": [
+        [
+          {
+            "node": "Amazon解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Yahoo/メルカリ取得": {
+      "main": [
+        [
+          {
+            "node": "AI: Yahoo/メルカリ解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "楽天取得": {
+      "main": [
+        [
+          {
+            "node": "AI: 楽天解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Amazon解析": {
+      "main": [
+        [
+          {
+            "node": "結果統合",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Yahoo/メルカリ解析": {
+      "main": [
+        [
+          {
+            "node": "Yahoo/メルカリ解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: 楽天解析": {
+      "main": [
+        [
+          {
+            "node": "楽天解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Yahoo/メルカリ解析": {
+      "main": [
+        [
+          {
+            "node": "結果統合",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "楽天解析": {
+      "main": [
+        [
+          {
+            "node": "結果統合",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "未対応スキップ": {
+      "main": [
+        [
+          {
+            "node": "結果統合",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "結果統合": {
+      "main": [
+        [
+          {
+            "node": "利益・在庫判定",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "利益・在庫判定": {
+      "main": [
+        [
+          {
+            "node": "停止が必要？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "停止が必要？": {
+      "main": [
+        [
+          {
+            "node": "eBay出品停止（内部認証）",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "チェック結果記録（楽観的ロック）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "eBay出品停止（内部認証）": {
+      "main": [
+        [
+          {
+            "node": "チェック結果記録（楽観的ロック）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "チェック結果記録（楽観的ロック）": {
+      "main": [
+        [
+          {
+            "node": "結果集約",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "結果集約": {
+      "main": [
+        [
+          {
+            "node": "🗑️ 履歴パージ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🗑️ 履歴パージ": {
+      "main": [
+        [
+          {
+            "node": "アラートあり？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "アラートあり？": {
+      "main": [
+        [
+          {
+            "node": "ChatWork通知",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "ChatWork通知": {
+      "main": [
+        [
+          {
+            "node": "📊 実行ログ送信 (成功)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "対象なし": {
+      "main": [
+        [
+          {
+            "node": "📊 実行ログ送信 (成功)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 900,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none"
+  },
+  "tags": [
+    {
+      "name": "N3-MultiMall",
+      "color": "#ff6600"
+    },
+    {
+      "name": "V4-PRODUCTION",
+      "color": "#ff0000"
+    },
+    {
+      "name": "AI-Powered",
+      "color": "#9932cc"
+    },
+    {
+      "name": "Multi-Tenant",
+      "color": "#00bfff"
+    },
+    {
+      "name": "500MB-Safe",
+      "color": "#32cd32"
+    },
+    {
+      "name": "Internal-Auth",
+      "color": "#dc143c"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

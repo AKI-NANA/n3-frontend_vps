@@ -1,0 +1,173 @@
+{
+  "name": "N3 Master Configuration",
+  "description": "N3システム完全自動設定",
+  "version": "1.0.0",
+  "credentials": {
+    "supabase": {
+      "type": "supabaseApi",
+      "data": {
+        "host": "${SUPABASE_URL}",
+        "serviceRoleKey": "${SUPABASE_SERVICE_KEY}"
+      }
+    },
+    "ebay": {
+      "type": "ebayApi",
+      "data": {
+        "appId": "${EBAY_APP_ID}",
+        "certId": "${EBAY_CERT_ID}",
+        "devId": "${EBAY_DEV_ID}",
+        "authToken": "${EBAY_AUTH_TOKEN}",
+        "sandbox": false
+      }
+    },
+    "amazon": {
+      "type": "amazonSellingPartner",
+      "data": {
+        "region": "na",
+        "sellerId": "${AMAZON_SELLER_ID}",
+        "accessKeyId": "${AWS_ACCESS_KEY_ID}",
+        "secretAccessKey": "${AWS_SECRET_ACCESS_KEY}",
+        "roleArn": "${AWS_ROLE_ARN}",
+        "refreshToken": "${AMAZON_REFRESH_TOKEN}"
+      }
+    },
+    "keepa": {
+      "type": "httpHeaderAuth",
+      "data": {
+        "name": "key",
+        "value": "${KEEPA_API_KEY}"
+      }
+    },
+    "slack": {
+      "type": "slackApi",
+      "data": {
+        "webhookUrl": "${SLACK_WEBHOOK_URL}"
+      }
+    }
+  },
+  "workflows": [
+    {
+      "name": "N3 - Master Controller",
+      "description": "すべてのワークフローを管理するマスターコントローラー",
+      "trigger": {
+        "type": "webhook",
+        "path": "n3-master",
+        "method": "POST"
+      },
+      "nodes": [
+        {
+          "id": "router",
+          "type": "switch",
+          "description": "アクション別にワークフローを振り分け",
+          "rules": [
+            {
+              "condition": "{{$json.action === 'listing'}}",
+              "output": "listing-workflow"
+            },
+            {
+              "condition": "{{$json.action === 'inventory'}}",
+              "output": "inventory-workflow"
+            },
+            {
+              "condition": "{{$json.action === 'research'}}",
+              "output": "research-workflow"
+            },
+            {
+              "condition": "{{$json.action === 'automation'}}",
+              "output": "automation-workflow"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "N3 - Listing Workflow",
+      "description": "出品関連のすべての処理",
+      "includes": [
+        "ebay-listing",
+        "amazon-listing",
+        "batch-listing",
+        "listing-scheduler"
+      ]
+    },
+    {
+      "name": "N3 - Inventory Workflow",
+      "description": "在庫管理のすべての処理",
+      "includes": [
+        "inventory-sync",
+        "stock-update",
+        "fba-sync",
+        "inventory-alerts"
+      ]
+    },
+    {
+      "name": "N3 - Research Workflow",
+      "description": "リサーチ関連のすべての処理",
+      "includes": [
+        "amazon-research",
+        "keepa-analysis",
+        "ebay-research",
+        "profit-calculator"
+      ]
+    },
+    {
+      "name": "N3 - Automation Workflow",
+      "description": "自動化関連のすべての処理",
+      "schedule": [
+        {
+          "name": "Morning Batch",
+          "cron": "0 9 * * *",
+          "actions": ["listing", "inventory"]
+        },
+        {
+          "name": "Afternoon Batch",
+          "cron": "0 15 * * *",
+          "actions": ["listing", "pricing"]
+        },
+        {
+          "name": "Evening Batch",
+          "cron": "0 21 * * *",
+          "actions": ["listing", "reporting"]
+        },
+        {
+          "name": "Hourly Sync",
+          "cron": "0 * * * *",
+          "actions": ["inventory"]
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "global": {
+      "BASE_URL": "http://localhost:3002",
+      "API_TIMEOUT": 30000,
+      "RETRY_ATTEMPTS": 3,
+      "BATCH_SIZE": 10,
+      "RATE_LIMIT_DELAY": 1000
+    },
+    "ebay": {
+      "SITE_ID": "0",
+      "COMPATIBILITY_LEVEL": "1157",
+      "MAX_IMAGES": 12,
+      "FREE_SHIPPING_THRESHOLD": 0
+    },
+    "amazon": {
+      "MARKETPLACE_ID": "ATVPDKIKX0DER",
+      "FBA_FEE_PERCENTAGE": 0.15,
+      "MAX_VARIATIONS": 100
+    }
+  },
+  "errorHandling": {
+    "defaultStrategy": "retry-with-backoff",
+    "maxRetries": 3,
+    "notifyOnError": true,
+    "notificationChannel": "slack",
+    "errorLogTable": "n8n_errors"
+  },
+  "monitoring": {
+    "enableMetrics": true,
+    "metricsInterval": 60,
+    "healthCheckEndpoint": "/health",
+    "dashboardEnabled": true
+  }
+}

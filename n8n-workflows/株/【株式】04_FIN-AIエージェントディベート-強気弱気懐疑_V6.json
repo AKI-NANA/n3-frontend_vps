@@ -1,0 +1,475 @@
+{
+  "name": "【株式】04_FIN-AIエージェントディベート-強気弱気懐疑_V6",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "fin-agent-debate",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: fin-agent-debate",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        250,
+        300
+      ],
+      "webhookId": "fin-agent-debate"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// N3-FIN-04 V6: AI Agent Debate（3エージェント論理的対立）\n// 役割: 強気・弱気・懐疑の3AIに議論させ、合意に達した時のみアラート\n// ============================================================================\n\nconst body = $input.first().json.body || $input.first().json || {};\n\nconst stockCode = body.stock_code;\nconst stockName = body.stock_name || '';\nconst currentPrice = body.current_price;\nconst strategyData = body.strategy_data || {};\nconst macroContext = body.macro_context || {};\n\nif (!stockCode) {\n  return [{ json: { error: true, message: 'stock_code は必須', code: 'MISSING_PARAM' } }];\n}\n\nreturn [{\n  json: {\n    stock_code: stockCode,\n    stock_name: stockName,\n    current_price: currentPrice,\n    strategy_data: strategyData,\n    macro_context: macroContext,\n    debate_id: `debate_${Date.now()}`,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        650,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        850,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.GEMINI_API_URL || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent' }}?key={{ $env.GEMINI_API_KEY }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: `あなたは「強気派の投資アナリスト」です。以下の銘柄について、なぜ今買うべきかを論理的に主張してください。\n\n銘柄: ${$json.stock_code} ${$json.stock_name}\n現在株価: ${$json.current_price}円\n戦略スコア: ${JSON.stringify($json.strategy_data)}\n市場環境: ${JSON.stringify($json.macro_context)}\n\n【指示】\n1. この銘柄の強みを3つ挙げてください\n2. 今が買い時である理由を述べてください\n3. 想定リターンと根拠を示してください\n4. 自信度を0-100で示してください\n\nJSON形式で回答: { \"argument\": \"...\", \"strengths\": [...], \"expected_return\": \"...\", \"confidence\": 0-100 }` }] }], generationConfig: { temperature: 0.7, maxOutputTokens: 1024 } }) }}",
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "bullish-agent",
+      "name": "🟢 強気派エージェント（Gemini）",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        300
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.GEMINI_API_URL || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent' }}?key={{ $env.GEMINI_API_KEY }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: `あなたは「弱気派の投資アナリスト」です。以下の銘柄について、なぜ今買うべきでないかを論理的に主張してください。\n\n銘柄: ${$node['🔐 初期化'].json.stock_code} ${$node['🔐 初期化'].json.stock_name}\n現在株価: ${$node['🔐 初期化'].json.current_price}円\n戦略スコア: ${JSON.stringify($node['🔐 初期化'].json.strategy_data)}\n市場環境: ${JSON.stringify($node['🔐 初期化'].json.macro_context)}\n\n【指示】\n1. この銘柄のリスクを3つ挙げてください\n2. 今買うべきでない理由を述べてください\n3. 想定される下落シナリオを示してください\n4. 警戒度を0-100で示してください\n\nJSON形式で回答: { \"argument\": \"...\", \"risks\": [...], \"downside_scenario\": \"...\", \"caution_level\": 0-100 }` }] }], generationConfig: { temperature: 0.7, maxOutputTokens: 1024 } }) }}",
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "bearish-agent",
+      "name": "🔴 弱気派エージェント（Gemini）",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        450
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.GEMINI_API_URL || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent' }}?key={{ $env.GEMINI_API_KEY }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: `あなたは「懐疑派の投資アナリスト」です。以下の銘柄について、データの信頼性と隠れたリスクを検証してください。\n\n銘柄: ${$node['🔐 初期化'].json.stock_code} ${$node['🔐 初期化'].json.stock_name}\n現在株価: ${$node['🔐 初期化'].json.current_price}円\n戦略スコア: ${JSON.stringify($node['🔐 初期化'].json.strategy_data)}\n市場環境: ${JSON.stringify($node['🔐 初期化'].json.macro_context)}\n\n【指示】\n1. 提示されたデータの矛盾点や疑問点を指摘してください\n2. 見落とされている可能性のあるリスク要因を挙げてください\n3. 強気派・弱気派のどちらの主張がより論理的か評価してください\n4. 投資判断の確実性を0-100で示してください\n\nJSON形式で回答: { \"argument\": \"...\", \"data_concerns\": [...], \"hidden_risks\": [...], \"evaluation\": \"bullish/bearish/neutral\", \"certainty\": 0-100 }` }] }], generationConfig: { temperature: 0.7, maxOutputTokens: 1024 } }) }}",
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "skeptical-agent",
+      "name": "🟡 懐疑派エージェント（Gemini）",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        600
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// ディベート結果統合＆合意判定\n// ============================================================================\n\nconst initData = $node['🔐 初期化'].json;\nconst bullishRaw = $node['🟢 強気派エージェント（Gemini）'].json;\nconst bearishRaw = $node['🔴 弱気派エージェント（Gemini）'].json;\nconst skepticalRaw = $node['🟡 懐疑派エージェント（Gemini）'].json;\n\n// Geminiレスポンスからテキスト抽出\nfunction extractGeminiResponse(raw) {\n  try {\n    const text = raw?.candidates?.[0]?.content?.parts?.[0]?.text || '';\n    // JSON部分を抽出\n    const jsonMatch = text.match(/\\{[\\s\\S]*\\}/);\n    if (jsonMatch) {\n      return JSON.parse(jsonMatch[0]);\n    }\n    return { argument: text, confidence: 50 };\n  } catch (e) {\n    return { argument: 'Parse error', confidence: 0, error: e.message };\n  }\n}\n\nconst bullish = extractGeminiResponse(bullishRaw);\nconst bearish = extractGeminiResponse(bearishRaw);\nconst skeptical = extractGeminiResponse(skepticalRaw);\n\n// 合意判定ロジック\nconst bullishConf = bullish.confidence || 0;\nconst bearishCaution = bearish.caution_level || 0;\nconst skepticalCertainty = skeptical.certainty || 0;\nconst skepticalEval = skeptical.evaluation || 'neutral';\n\nlet consensus = 'DEBATE'; // デフォルト: 議論継続\nlet consensusScore = 0;\nlet recommendation = '';\n\n// 全員が強気（または懐疑派が強気寄り）の場合のみBUY\nif (bullishConf >= 70 && bearishCaution < 50 && (skepticalEval === 'bullish' || skepticalCertainty >= 60)) {\n  consensus = 'BUY';\n  consensusScore = Math.round((bullishConf + (100 - bearishCaution) + skepticalCertainty) / 3);\n  recommendation = '全エージェントが買いで合意。Entry推奨。';\n}\n// 全員が弱気の場合はSELL\nelse if (bearishCaution >= 70 && bullishConf < 50 && skepticalEval === 'bearish') {\n  consensus = 'SELL';\n  consensusScore = Math.round((bearishCaution + (100 - bullishConf) + (100 - skepticalCertainty)) / 3);\n  recommendation = '全エージェントが売りで合意。保有中なら売却検討。';\n}\n// 懐疑派が中立で両者の差が大きい場合は様子見\nelse if (skepticalEval === 'neutral' || Math.abs(bullishConf - bearishCaution) < 20) {\n  consensus = 'HOLD';\n  consensusScore = 50;\n  recommendation = '意見が分かれています。追加情報を待つことを推奨。';\n}\nelse {\n  consensus = 'DEBATE';\n  consensusScore = 0;\n  recommendation = '合意に達していません。議論継続中。';\n}\n\nreturn [{\n  json: {\n    debate_id: initData.debate_id,\n    stock_code: initData.stock_code,\n    stock_name: initData.stock_name,\n    \n    // 各エージェントの見解\n    agents: {\n      bullish: {\n        name: '強気派',\n        argument: bullish.argument,\n        strengths: bullish.strengths || [],\n        expected_return: bullish.expected_return,\n        confidence: bullishConf\n      },\n      bearish: {\n        name: '弱気派',\n        argument: bearish.argument,\n        risks: bearish.risks || [],\n        downside_scenario: bearish.downside_scenario,\n        caution_level: bearishCaution\n      },\n      skeptical: {\n        name: '懐疑派',\n        argument: skeptical.argument,\n        data_concerns: skeptical.data_concerns || [],\n        hidden_risks: skeptical.hidden_risks || [],\n        evaluation: skepticalEval,\n        certainty: skepticalCertainty\n      }\n    },\n    \n    // 合意結果\n    consensus: consensus,\n    consensus_score: consensusScore,\n    recommendation: recommendation,\n    \n    // アラート発火条件\n    should_alert: consensus === 'BUY' && consensusScore >= 70,\n    \n    debated_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "debate-synthesis",
+      "name": "⚖️ ディベート統合・合意判定",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        450
+      ],
+      "notes": "[CRITICAL] AI合意ロジック"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "should-alert",
+              "leftValue": "={{ $json.should_alert }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-alert",
+      "name": "アラート発火？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1450,
+        450
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CHATWORK_WEBHOOK_URL || 'https://api.chatwork.com/v2/rooms/' + $env.CHATWORK_ROOM_ID + '/messages' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=🎯【N3 Finance Alert】全エージェント合意！\n\n銘柄: {{ $json.stock_code }} {{ $json.stock_name }}\n判定: {{ $json.consensus }}\nスコア: {{ $json.consensus_score }}/100\n\n📈 強気派: 「{{ $json.agents.bullish.argument?.substring(0, 100) }}...」\n📉 弱気派: 「{{ $json.agents.bearish.argument?.substring(0, 100) }}...」\n🤔 懐疑派: 「{{ $json.agents.skeptical.argument?.substring(0, 100) }}...」\n\n💡 推奨: {{ $json.recommendation }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "send-alert",
+      "name": "📢 ChatWork通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1700,
+        350
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO agent_debates (debate_id, stock_code, stock_name, bullish_confidence, bearish_caution, skeptical_certainty, skeptical_evaluation, consensus, consensus_score, recommendation, should_alert, debated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
+        "options": {
+          "queryParams": "={{ [$json.debate_id, $json.stock_code, $json.stock_name, $json.agents.bullish.confidence, $json.agents.bearish.caution_level, $json.agents.skeptical.certainty, $json.agents.skeptical.evaluation, $json.consensus, $json.consensus_score, $json.recommendation, $json.should_alert, $json.debated_at] }}"
+        }
+      },
+      "id": "save-debate",
+      "name": "💾 ディベート結果保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1700,
+        550
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, debate_id: $json.debate_id, stock_code: $json.stock_code, consensus: $json.consensus, consensus_score: $json.consensus_score, recommendation: $json.recommendation, agents: $json.agents, should_alert: $json.should_alert }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1950,
+        450
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook: fin-agent-debate": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🟢 強気派エージェント（Gemini）",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "🔴 弱気派エージェント（Gemini）",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "🟡 懐疑派エージェント（Gemini）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🟢 強気派エージェント（Gemini）": {
+      "main": [
+        [
+          {
+            "node": "⚖️ ディベート統合・合意判定",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔴 弱気派エージェント（Gemini）": {
+      "main": [
+        [
+          {
+            "node": "⚖️ ディベート統合・合意判定",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🟡 懐疑派エージェント（Gemini）": {
+      "main": [
+        [
+          {
+            "node": "⚖️ ディベート統合・合意判定",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚖️ ディベート統合・合意判定": {
+      "main": [
+        [
+          {
+            "node": "アラート発火？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "アラート発火？": {
+      "main": [
+        [
+          {
+            "node": "📢 ChatWork通知",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💾 ディベート結果保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📢 ChatWork通知": {
+      "main": [
+        [
+          {
+            "node": "💾 ディベート結果保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 ディベート結果保存": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "n3-empire-os"
+  },
+  "pinData": {},
+  "versionId": "v6-fin-04",
+  "tags": [
+    {
+      "name": "株式",
+      "id": "fin"
+    },
+    {
+      "name": "V6",
+      "id": "v6"
+    },
+    {
+      "name": "AIエージェント",
+      "id": "ai-agent"
+    }
+  ]
+}

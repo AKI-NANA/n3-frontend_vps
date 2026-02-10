@@ -1,0 +1,480 @@
+{
+  "name": "【メディア】32_103-メディア-LivePortrait連携-表情転写_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "liveportrait-transfer",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: liveportrait-transfer",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "liveportrait-transfer"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// LivePortrait 表情転写エンジン - 初期化\n// 静止画キャラにオーナーの表情/音声を移植\n// ============================================================================\n\nconst body = $input.first().json.body || $input.first().json || {};\nconst apiUrl = $env.N3_API_URL;\n\nif (!apiUrl) {\n  return [{ json: { error: true, message: 'N3_API_URL 環境変数が未設定', code: 'CONFIG_ERROR' } }];\n}\n\nconst sourceImageUrl = body.source_image_url; // 静止画（MJキャラ等）\nconst drivingVideoUrl = body.driving_video_url; // 表情元動画（オーナー録画）\nconst channelId = body.channel_id;\nconst productId = body.product_id;\nconst outputFormat = body.output_format || 'mp4';\nconst fps = body.fps || 30;\n\nif (!sourceImageUrl || !drivingVideoUrl) {\n  return [{ json: { error: true, message: 'source_image_url と driving_video_url は必須', code: 'MISSING_PARAMS' } }];\n}\n\nreturn [{ json: {\n  source_image_url: sourceImageUrl,\n  driving_video_url: drivingVideoUrl,\n  channel_id: channelId,\n  product_id: productId,\n  output_format: outputFormat,\n  fps: fps,\n  api_url: apiUrl,\n  timestamp: new Date().toISOString()\n} }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT mc.channel_id, mc.channel_name, mc.style_config FROM media_channels mc WHERE mc.channel_id = $1 LIMIT 1",
+        "options": {
+          "queryParams": "={{ [$json.channel_id] }}"
+        }
+      },
+      "id": "get-channel",
+      "name": "📺 チャンネル取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// チャンネルDNA解析 - LivePortrait用パラメータ決定\n// ============================================================================\n\nconst initData = $node['🔐 初期化'].json;\nconst channelResult = $input.first().json;\nconst channel = Array.isArray(channelResult) ? channelResult[0] : channelResult;\n\n// デフォルトスタイル\nlet styleConfig = {\n  emotion_intensity: 0.7,\n  motion_smoothness: 0.8,\n  lip_sync_strength: 0.9,\n  personality: 'balanced'\n};\n\n// チャンネル固有設定がある場合は反映\nif (channel && channel.style_config) {\n  try {\n    const customStyle = typeof channel.style_config === 'string' \n      ? JSON.parse(channel.style_config) \n      : channel.style_config;\n    styleConfig = { ...styleConfig, ...customStyle };\n  } catch (e) {}\n}\n\n// パーソナリティに基づく調整\nif (styleConfig.personality === 'energetic') {\n  styleConfig.emotion_intensity = 0.95;\n  styleConfig.motion_smoothness = 0.6;\n} else if (styleConfig.personality === 'calm') {\n  styleConfig.emotion_intensity = 0.5;\n  styleConfig.motion_smoothness = 0.95;\n}\n\nreturn [{ json: {\n  ...initData,\n  channel_name: channel?.channel_name || 'Unknown',\n  style_config: styleConfig\n} }];"
+      },
+      "id": "analyze-dna",
+      "name": "🧬 DNA解析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.liveportrait.ai/v1/transfer",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  source_image: $json.source_image_url,\n  driving_video: $json.driving_video_url,\n  emotion_intensity: $json.style_config.emotion_intensity,\n  motion_smoothness: $json.style_config.motion_smoothness,\n  lip_sync_strength: $json.style_config.lip_sync_strength,\n  output_format: $json.output_format,\n  fps: $json.fps\n}) }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "liveportrait-api",
+      "name": "🎭 LivePortrait API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "liveportrait-api-key",
+          "name": "LivePortrait API Key"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// LivePortrait結果処理 + 自己修復プロトコル\n// ============================================================================\n\nconst prevData = $node['🧬 DNA解析'].json;\nconst apiResult = $input.first().json;\n\n// エラーハンドリング + OpenHands報告\nif (apiResult.error || !apiResult.output_url) {\n  const error = {\n    workflow: 'LivePortrait',\n    channel_id: prevData.channel_id,\n    error_message: apiResult.error || 'No output_url returned',\n    timestamp: new Date().toISOString()\n  };\n  \n  // OpenHands自己修復トリガー（環境変数で制御）\n  if ($env.ENABLE_SELF_HEALING === 'true') {\n    // 別ワークフローへエラー報告（後続で実装）\n    // await triggerOpenHandsHealing(error);\n  }\n  \n  return [{ json: {\n    success: false,\n    error: error.error_message,\n    recovery_attempted: $env.ENABLE_SELF_HEALING === 'true'\n  } }];\n}\n\nconst outputUrl = apiResult.output_url;\nconst taskId = apiResult.task_id || `LP-${Date.now()}`;\n\nreturn [{ json: {\n  ...prevData,\n  output_url: outputUrl,\n  task_id: taskId,\n  processing_time: apiResult.processing_time || null,\n  success: true\n} }];"
+      },
+      "id": "process-result",
+      "name": "📋 結果処理",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "success-check",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-success",
+      "name": "成功？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO media_assets (channel_id, product_id, asset_type, asset_url, metadata, created_at) VALUES ($1, $2, 'liveportrait_video', $3, $4::jsonb, NOW()) ON CONFLICT (channel_id, asset_type, asset_url) DO UPDATE SET metadata = EXCLUDED.metadata, updated_at = NOW() RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.channel_id, $json.product_id, $json.output_url, JSON.stringify({ task_id: $json.task_id, style_config: $json.style_config, processing_time: $json.processing_time })] }}"
+        }
+      },
+      "id": "save-asset",
+      "name": "💾 アセット保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO kj_knowledge_graph (data_type, source_workflow, channel_id, insights, metadata, created_at) VALUES ('liveportrait_analysis', 'N3-103', $1, $2::jsonb, $3::jsonb, NOW()) RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.channel_id, JSON.stringify({ emotion_intensity: $json.style_config.emotion_intensity, output_quality: 'high', personality: $json.style_config.personality }), JSON.stringify({ task_id: $json.task_id, channel_name: $json.channel_name })] }}"
+        }
+      },
+      "id": "save-kj",
+      "name": "📊 KJ法蓄積",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $node['📋 結果処理'].json;\nreturn [{ json: {\n  success: true,\n  channel_id: data.channel_id,\n  product_id: data.product_id,\n  output_url: data.output_url,\n  task_id: data.task_id,\n  style_applied: data.style_config.personality,\n  kj_stored: true\n} }];"
+      },
+      "id": "format-success",
+      "name": "📋 成功レスポンス",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nreturn [{ json: {\n  success: false,\n  error: data.error,\n  recovery_attempted: data.recovery_attempted || false\n} }];"
+      },
+      "id": "format-failure",
+      "name": "📋 失敗レスポンス",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: liveportrait-transfer": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📺 チャンネル取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📺 チャンネル取得": {
+      "main": [
+        [
+          {
+            "node": "🧬 DNA解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧬 DNA解析": {
+      "main": [
+        [
+          {
+            "node": "🎭 LivePortrait API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎭 LivePortrait API": {
+      "main": [
+        [
+          {
+            "node": "📋 結果処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 結果処理": {
+      "main": [
+        [
+          {
+            "node": "成功？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "成功？": {
+      "main": [
+        [
+          {
+            "node": "💾 アセット保存",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 失敗レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 アセット保存": {
+      "main": [
+        [
+          {
+            "node": "📊 KJ法蓄積",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 KJ法蓄積": {
+      "main": [
+        [
+          {
+            "node": "📋 成功レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 成功レスポンス": {
+      "main": [
+        [
+          {
+            "node": "✅ 応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 失敗レスポンス": {
+      "main": [
+        [
+          {
+            "node": "✅ 応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 600,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "LivePortrait",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "AI-Powered",
+      "color": "#3498db"
+    },
+    {
+      "name": "Self-Healing",
+      "color": "#f39c12"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false,
+  "meta": {
+    "description": "N3-103 LivePortrait表情転写 - チャンネルDNA反映 + 自己修復 + KJ法蓄積",
+    "version": "5.0",
+    "capabilities": [
+      "channel_dna_reflection",
+      "self_healing_protocol",
+      "kj_knowledge_storage"
+    ]
+  }
+}

@@ -1,0 +1,162 @@
+{
+  "name": "N3-V8-IDENTITY-MANAGER: ブラウザ指紋・プロキシ管理",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "notes": "他のワークフローから呼び出される"
+    },
+    {
+      "parameters": {
+        "functionCode": "// ========================================\n// N3 V8 Identity-Manager: 入力検証\n// ========================================\n\nconst input = $input.first().json;\n\n// 必須パラメータ\nif (!input.tenant_id || !input.platform) {\n  return [{\n    json: {\n      success: false,\n      error: 'MISSING_REQUIRED_FIELDS',\n      required: ['tenant_id', 'platform'],\n      timestamp: new Date().toISOString()\n    }\n  }];\n}\n\n// 次のノードへ\nreturn [{\n  json: {\n    tenant_id: input.tenant_id,\n    platform: input.platform,\n    account_binding: input.account_binding || null,\n    force_refresh: input.force_refresh || false,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "validate-input",
+      "name": "1. 入力検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/rpc/get_browser_profile",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Authorization", "value": "Bearer {{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"p_tenant_id\": \"{{$json.tenant_id}}\",\n  \"p_platform\": \"{{$json.platform}}\",\n  \"p_account_binding\": {{$json.account_binding ? '\"' + $json.account_binding + '\"' : 'null'}}\n}",
+        "options": { "timeout": 10000 }
+      },
+      "id": "get-profile",
+      "name": "2. プロファイル取得",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {},
+          "conditions": [
+            {
+              "id": "profile-check",
+              "leftValue": "={{$json.success}}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-profile-found",
+      "name": "プロファイル取得成功?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// ========================================\n// N3 V8 Identity-Manager: プロキシURL生成\n// ========================================\n\nconst profile = $input.first().json;\nconst proxy = profile.proxy;\n\nlet proxyUrl = null;\nlet proxyConfig = null;\n\nif (proxy && proxy.type !== 'none' && proxy.host) {\n  // プロキシURL生成\n  const auth = proxy.username ? `${proxy.username}:PASSWORD@` : '';\n  proxyUrl = `http://${auth}${proxy.host}:${proxy.port}`;\n  \n  // Puppeteer/Playwright用設定\n  proxyConfig = {\n    server: `http://${proxy.host}:${proxy.port}`,\n    username: proxy.username || null,\n    bypass: ['localhost', '127.0.0.1']\n  };\n  \n  // スティッキーセッション対応\n  if (proxy.sticky_session_id) {\n    proxyConfig.sessionId = proxy.sticky_session_id;\n  }\n}\n\n// ブラウザ設定生成\nconst fingerprint = profile.fingerprint || {};\nconst browserConfig = {\n  userAgent: fingerprint.user_agent || 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',\n  viewport: {\n    width: parseInt((fingerprint.screen_resolution || '1920x1080').split('x')[0]),\n    height: parseInt((fingerprint.screen_resolution || '1920x1080').split('x')[1])\n  },\n  locale: fingerprint.language || 'ja-JP',\n  timezoneId: fingerprint.timezone || 'Asia/Tokyo',\n  deviceScaleFactor: 2,\n  isMobile: false,\n  hasTouch: false,\n  \n  // 指紋偽装用\n  webgl: {\n    vendor: fingerprint.webgl_vendor || 'Intel Inc.',\n    renderer: fingerprint.webgl_renderer || 'Intel Iris Pro OpenGL Engine'\n  },\n  canvas: {\n    noise: true,  // Canvas指紋にノイズを追加\n    hash: fingerprint.canvas_hash\n  },\n  \n  // ハードウェア情報\n  hardwareConcurrency: fingerprint.hardware_concurrency || 8,\n  deviceMemory: fingerprint.device_memory || 8,\n  platform: fingerprint.platform || 'MacIntel'\n};\n\n// 監査用の安全なログ（パスワード除去）\nconst safeLog = {\n  profile_id: profile.profile_id,\n  profile_name: profile.profile_name,\n  proxy_type: proxy?.type,\n  proxy_country: proxy?.country,\n  health_status: profile.health_status,\n  fingerprint_keys: Object.keys(fingerprint)\n};\n\nreturn [{\n  json: {\n    success: true,\n    profile_id: profile.profile_id,\n    profile_name: profile.profile_name,\n    \n    // プロキシ設定\n    proxy: proxyConfig,\n    proxy_url: proxyUrl,\n    proxy_country: proxy?.country,\n    \n    // ブラウザ設定\n    browser_config: browserConfig,\n    \n    // セッション情報\n    session_valid_until: profile.session_valid_until,\n    \n    // 監査用\n    audit_log: safeLog,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "build-config",
+      "name": "3. 設定ビルド",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/core.audit_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Authorization", "value": "Bearer {{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"tenant_id\": \"{{$node['1. 入力検証'].json.tenant_id}}\",\n  \"event_type\": \"identity.profile_issued\",\n  \"event_category\": \"system\",\n  \"severity\": \"info\",\n  \"resource_type\": \"browser_profile\",\n  \"resource_id\": \"{{$json.profile_id}}\",\n  \"metadata\": {{JSON.stringify($json.audit_log)}}\n}",
+        "options": {}
+      },
+      "id": "log-audit",
+      "name": "4. 監査ログ記録",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1250, 200]
+    },
+    {
+      "parameters": {
+        "functionCode": "// ========================================\n// N3 V8 Identity-Manager: 最終出力\n// ========================================\n\nconst config = $node['3. 設定ビルド'].json;\n\nreturn [{\n  json: {\n    success: true,\n    profile_id: config.profile_id,\n    profile_name: config.profile_name,\n    \n    // 呼び出し元で使用する設定\n    proxy: config.proxy,\n    proxy_url: config.proxy_url,\n    browser_config: config.browser_config,\n    \n    // メタ情報\n    session_valid_until: config.session_valid_until,\n    issued_at: config.timestamp,\n    \n    // トレース用\n    identity_trace_id: `id-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`\n  }\n}];"
+      },
+      "id": "output-success",
+      "name": "✅ 出力",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1450, 200]
+    },
+    {
+      "parameters": {
+        "functionCode": "// ========================================\n// N3 V8 Identity-Manager: エラー出力\n// ========================================\n\nconst error = $node['2. プロファイル取得'].json;\n\nreturn [{\n  json: {\n    success: false,\n    error_code: error.error || 'PROFILE_NOT_FOUND',\n    message: error.message || 'No available browser profile',\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "output-error",
+      "name": "❌ エラー",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 400]
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [[{ "node": "1. 入力検証", "type": "main", "index": 0 }]]
+    },
+    "1. 入力検証": {
+      "main": [[{ "node": "2. プロファイル取得", "type": "main", "index": 0 }]]
+    },
+    "2. プロファイル取得": {
+      "main": [[{ "node": "プロファイル取得成功?", "type": "main", "index": 0 }]]
+    },
+    "プロファイル取得成功?": {
+      "main": [
+        [{ "node": "3. 設定ビルド", "type": "main", "index": 0 }],
+        [{ "node": "❌ エラー", "type": "main", "index": 0 }]
+      ]
+    },
+    "3. 設定ビルド": {
+      "main": [[{ "node": "4. 監査ログ記録", "type": "main", "index": 0 }]]
+    },
+    "4. 監査ログ記録": {
+      "main": [[{ "node": "✅ 出力", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "staticData": null,
+  "tags": ["v8-fortress", "identity-manager", "shared-workflow"],
+  "meta": {
+    "description": "ブラウザ指紋とプロキシ設定を管理・発行する共有ワークフロー",
+    "input": {
+      "tenant_id": "UUID - テナントID（必須）",
+      "platform": "string - プラットフォーム名（必須）",
+      "account_binding": "string - アカウントバインディング（オプション）"
+    },
+    "output": {
+      "proxy": "object - プロキシ設定",
+      "browser_config": "object - ブラウザ設定（UA, Viewport, 指紋等）",
+      "profile_id": "UUID - プロファイルID"
+    }
+  }
+}

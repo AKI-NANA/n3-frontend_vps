@@ -1,0 +1,80 @@
+{
+  "name": "N3-102: KJ法分析エンジン（相関図自動生成）",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "hours", "hoursInterval": 6 }]
+        }
+      },
+      "id": "cron-6hour",
+      "name": "6時間ごとトリガー",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://zdzfpucdyxdlavkgrvil.supabase.co/rest/v1/stock_analysis_history?select=*&order=timestamp.desc&limit=200",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{$env.SUPABASE_ANON_KEY}}" },
+            { "name": "Authorization", "value": "Bearer {{$env.SUPABASE_ANON_KEY}}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-history",
+      "name": "分析履歴取得（200件）",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// 【帝国仕様】KJ法分析エンジン - 相関図自動生成\n// 株分析深層統合 + Sentinel自己修復\n\nconst items = $input.all();\nconst SENTINEL_ENDPOINT = 'http://localhost:8000/api/sentinel/report';\nconst MIN_DATA_POINTS = 50;\n\ntry {\n  if (items.length < MIN_DATA_POINTS) {\n    throw new Error(`データ不足: ${items.length}件（最低${MIN_DATA_POINTS}件必要）`);\n  }\n  \n  // Phase 1: データ構造化\n  const cards = items.map(item => ({\n    symbol: item.json.symbol,\n    sector: item.json.sector,\n    metrics: item.json.metrics,\n    composite_score: parseFloat(item.json.composite_score),\n    timestamp: new Date(item.json.timestamp),\n    features: {\n      momentum: parseFloat(item.json.metrics.price_momentum),\n      volatility: parseFloat(item.json.metrics.volatility_index),\n      valuation: parseFloat(item.json.metrics.pe_ratio),\n      sentiment: parseFloat(item.json.metrics.sentiment_composite || 0),\n      institutional: parseFloat(item.json.metrics.institutional_flow || 0)\n    }\n  }));\n  \n  // Phase 2: 相関分析\n  const correlationMatrix = {};\n  for (let i = 0; i < cards.length; i++) {\n    for (let j = i + 1; j < cards.length; j++) {\n      const x = Object.values(cards[i].features);\n      const y = Object.values(cards[j].features);\n      const corr = calculatePearsonCorr(x, y);\n      correlationMatrix[`${cards[i].symbol}-${cards[j].symbol}`] = corr;\n    }\n  }\n  \n  // Phase 3: クラスタリング\n  const clusters = [];\n  const used = new Set();\n  cards.forEach(card => {\n    if (used.has(card.symbol)) return;\n    const cluster = [card];\n    used.add(card.symbol);\n    cards.forEach(other => {\n      if (used.has(other.symbol)) return;\n      const key = `${card.symbol}-${other.symbol}`;\n      const corr = correlationMatrix[key] || 0;\n      if (Math.abs(corr) > 0.6) {\n        cluster.push(other);\n        used.add(other.symbol);\n      }\n    });\n    if (cluster.length > 1) clusters.push(cluster);\n  });\n  \n  // Phase 4: ナラティブ抽出\n  const narratives = clusters.map((cluster, idx) => {\n    const avgScore = cluster.reduce((s, c) => s + c.composite_score, 0) / cluster.length;\n    const sectors = cluster.map(c => c.sector);\n    const mostCommonSector = mode(sectors);\n    const theme = avgScore > 70 ? `${mostCommonSector}・強気` : `${mostCommonSector}・調整`;\n    \n    return {\n      cluster_id: `Cluster-${String.fromCharCode(65 + idx)}`,\n      theme,\n      strength: (avgScore / 100).toFixed(3),\n      size: cluster.length,\n      representative_symbol: cluster[0].symbol,\n      members: cluster.map(c => c.symbol),\n      narrative: `${theme}を牽引する${cluster.length}銘柄群`,\n      confidence: (Math.min(cluster.length / 10, 1)).toFixed(2)\n    };\n  });\n  \n  return [{\n    json: {\n      analysis_timestamp: new Date().toISOString(),\n      data_points_analyzed: items.length,\n      clusters_identified: clusters.length,\n      narratives,\n      correlation_diagram: generateMermaid(narratives),\n      overall_market_sentiment: cards.reduce((s,c) => s+c.composite_score,0)/cards.length > 60 ? 'BULLISH' : 'NEUTRAL',\n      next_rotation_prediction: narratives[0]?.theme || 'データ不足',\n      style_id: `KJ-${Date.now()}-${Math.random().toString(36).substr(2,9)}`,\n      binary_noise: Buffer.from(Math.random().toString()).toString('base64').substr(0,16)\n    }\n  }];\n  \n} catch (error) {\n  await fetch(SENTINEL_ENDPOINT, {\n    method: 'POST',\n    headers: { 'Content-Type': 'application/json' },\n    body: JSON.stringify({\n      module: 'N3-102-KJ-Engine',\n      blueprint: { function: 'KJ法相関図生成', algorithm: 'Hierarchical Clustering' },\n      error_context: { data_count: items.length, error_message: error.message },\n      recovery_suggestions: ['データ収集期間延長', '閾値動的調整']\n    })\n  });\n  \n  return [{ json: { error: true, error_message: error.message, sentinel_reported: true } }];\n}\n\nfunction calculatePearsonCorr(x, y) {\n  const n = x.length;\n  const sum_x = x.reduce((a,b)=>a+b,0);\n  const sum_y = y.reduce((a,b)=>a+b,0);\n  const sum_xy = x.reduce((s,xi,i)=>s+xi*y[i],0);\n  const sum_x2 = x.reduce((s,xi)=>s+xi*xi,0);\n  const sum_y2 = y.reduce((s,yi)=>s+yi*yi,0);\n  const num = n*sum_xy - sum_x*sum_y;\n  const den = Math.sqrt((n*sum_x2-sum_x*sum_x)*(n*sum_y2-sum_y*sum_y));\n  return den===0 ? 0 : num/den;\n}\n\nfunction mode(arr) {\n  const freq = {};\n  arr.forEach(i => freq[i]=(freq[i]||0)+1);\n  return Object.keys(freq).reduce((a,b)=>freq[a]>freq[b]?a:b);\n}\n\nfunction generateMermaid(narratives) {\n  let d = 'graph TD\\n';\n  narratives.forEach((n,i)=> {\n    d += `  C${i}[\"${n.cluster_id}: ${n.theme}\"]\\n`;\n    n.members.forEach(m => d += `  C${i} --> ${m}\\n`);\n  });\n  return d;\n}"
+      },
+      "id": "kj-analysis",
+      "name": "KJ法分析エンジン",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://zdzfpucdyxdlavkgrvil.supabase.co/rest/v1/kj_analysis_results",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Authorization", "value": "Bearer {{$env.SUPABASE_SERVICE_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{JSON.stringify($json)}}",
+        "options": {}
+      },
+      "id": "save-kj",
+      "name": "KJ結果保存",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [850, 300]
+    }
+  ],
+  "connections": {
+    "6時間ごとトリガー": { "main": [[{ "node": "分析履歴取得（200件）", "type": "main", "index": 0 }]] },
+    "分析履歴取得（200件）": { "main": [[{ "node": "KJ法分析エンジン", "type": "main", "index": 0 }]] },
+    "KJ法分析エンジン": { "main": [[{ "node": "KJ結果保存", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "staticData": null,
+  "tags": ["analytics", "kj-method"],
+  "triggerCount": 1,
+  "updatedAt": "2025-01-21T00:00:00.000Z",
+  "versionId": "1"
+}

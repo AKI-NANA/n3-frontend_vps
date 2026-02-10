@@ -1,0 +1,744 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Header
+   ============================================================ */
+
+/* ===========================================
+   Global Header (N3GlobalHeader)
+   ホバーでパネルが切り替わるグローバルナビ
+   =========================================== */
+
+.n3-global-header {
+  position: relative;
+  z-index: 50;
+}
+
+.n3-global-header__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--header-md-height);
+  padding: 0 16px;
+  background: var(--glass);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+/* Size Variants */
+.n3-global-header--xs .n3-global-header__nav { height: var(--header-xs-height); }
+.n3-global-header--sm .n3-global-header__nav { height: var(--header-sm-height); }
+.n3-global-header--md .n3-global-header__nav { height: var(--header-md-height); }
+.n3-global-header--lg .n3-global-header__nav { height: var(--header-lg-height); }
+.n3-global-header--xl .n3-global-header__nav { height: var(--header-xl-height); }
+
+.n3-global-header__left {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex: 1;
+  height: 100%;
+}
+
+.n3-global-header__page-nav {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  border-right: 1px solid var(--panel-border);
+  margin-right: 8px;
+  padding-right: 8px;
+}
+
+.n3-global-header__tabs {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  gap: 0;
+}
+
+.n3-global-header__right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Panel (Overlay) */
+.n3-global-header__panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  padding: 8px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--panel-border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* ===========================================
+   Header Tab (N3HeaderTab)
+   ホバー切り替え式タブ
+   =========================================== */
+
+.n3-header-tools-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 var(--header-md-padding);
+  height: 100%;
+  font-size: var(--header-md-font);
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-left: 1px solid transparent;
+  border-right: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.12s;
+}
+
+.n3-header-tools-tab:hover {
+  color: var(--text);
+  background: var(--highlight);
+  border-left-color: var(--panel-border);
+  border-right-color: var(--panel-border);
+}
+
+.n3-header-tools-tab.active {
+  color: white;
+  background: var(--accent);
+}
+
+.n3-header-tools-tab svg {
+  flex-shrink: 0;
+}
+
+/* Size Variants for Tabs */
+.n3-global-header--xs .n3-header-tools-tab {
+  padding: 0 var(--header-xs-padding);
+  font-size: var(--header-xs-font);
+}
+.n3-global-header--xs .n3-header-tools-tab svg {
+  width: var(--header-xs-icon);
+  height: var(--header-xs-icon);
+}
+
+.n3-global-header--sm .n3-header-tools-tab {
+  padding: 0 var(--header-sm-padding);
+  font-size: var(--header-sm-font);
+}
+.n3-global-header--sm .n3-header-tools-tab svg {
+  width: var(--header-sm-icon);
+  height: var(--header-sm-icon);
+}
+
+.n3-global-header--lg .n3-header-tools-tab {
+  padding: 0 var(--header-lg-padding);
+  font-size: var(--header-lg-font);
+}
+.n3-global-header--lg .n3-header-tools-tab svg {
+  width: var(--header-lg-icon);
+  height: var(--header-lg-icon);
+}
+
+.n3-global-header--xl .n3-header-tools-tab {
+  padding: 0 var(--header-xl-padding);
+  font-size: var(--header-xl-font);
+}
+.n3-global-header--xl .n3-header-tools-tab svg {
+  width: var(--header-xl-icon);
+  height: var(--header-xl-icon);
+}
+
+/* ===========================================
+   L2 Tab Navigation
+   ページ専用タブ（下線スタイル）
+   =========================================== */
+
+.n3-l2-tab-nav {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  gap: 2px;
+}
+
+.n3-l2-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  margin-bottom: -2px;
+  transition: all 0.12s;
+}
+
+.n3-l2-tab:hover {
+  color: var(--text);
+}
+
+.n3-l2-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.n3-l2-tab__badge {
+  padding: 0 6px;
+  height: 16px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+  border-radius: 8px;
+  background: var(--highlight);
+  color: var(--text-muted);
+}
+
+.n3-l2-tab.active .n3-l2-tab__badge {
+  background: var(--accent);
+  color: white;
+}
+
+/* Size Variants for L2 Tabs */
+.n3-global-header--xs .n3-l2-tab {
+  padding: 4px 10px;
+  font-size: 10px;
+}
+.n3-global-header--sm .n3-l2-tab {
+  padding: 5px 12px;
+  font-size: 11px;
+}
+.n3-global-header--lg .n3-l2-tab {
+  padding: 8px 16px;
+  font-size: 14px;
+}
+.n3-global-header--xl .n3-l2-tab {
+  padding: 10px 18px;
+  font-size: 15px;
+}
+
+/* ===========================================
+   Header Search
+   =========================================== */
+
+.n3-header-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--header-md-search-height);
+  padding: 0 12px;
+  background: var(--highlight);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  cursor: text;
+  transition: all 0.15s;
+}
+
+.n3-header-search:focus-within {
+  background: var(--panel);
+  border-color: var(--accent);
+}
+
+.n3-header-search__icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.n3-header-search__input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 12px;
+  color: var(--text);
+  min-width: 0;
+}
+
+.n3-header-search__input::placeholder {
+  color: var(--text-muted);
+}
+
+.n3-header-search__kbd {
+  padding: 2px 6px;
+  font-size: 10px;
+  font-family: monospace;
+  color: var(--text-subtle);
+  background: var(--panel);
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+/* Size Variants for Search */
+.n3-global-header--xs .n3-header-search {
+  height: var(--header-xs-search-height);
+  padding: 0 8px;
+}
+.n3-global-header--xs .n3-header-search__input { font-size: 10px; }
+.n3-global-header--xs .n3-header-search__kbd { font-size: 8px; }
+
+.n3-global-header--sm .n3-header-search {
+  height: var(--header-sm-search-height);
+  padding: 0 10px;
+}
+.n3-global-header--sm .n3-header-search__input { font-size: 11px; }
+.n3-global-header--sm .n3-header-search__kbd { font-size: 9px; }
+
+.n3-global-header--lg .n3-header-search {
+  height: var(--header-lg-search-height);
+  padding: 0 14px;
+}
+.n3-global-header--lg .n3-header-search__input { font-size: 13px; }
+.n3-global-header--lg .n3-header-search__kbd { font-size: 10px; }
+
+.n3-global-header--xl .n3-header-search {
+  height: var(--header-xl-search-height);
+  padding: 0 16px;
+}
+.n3-global-header--xl .n3-header-search__input { font-size: 14px; }
+.n3-global-header--xl .n3-header-search__kbd { font-size: 11px; }
+
+/* ===========================================
+   Legacy Styles (editing page compatibility)
+   =========================================== */
+.n3-header {
+  position: fixed;
+  top: 0;
+  left: var(--sidebar-width);
+  right: 0;
+  height: var(--header-height);
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 16px 0 0;
+  background: var(--glass);
+  border-bottom: 1px solid var(--glass-border);
+  z-index: 40;
+}
+
+.n3-header-left {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+}
+
+.n3-header-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.n3-header-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--panel-border);
+  flex-shrink: 0;
+}
+
+.n3-header-divider-v {
+  width: 1px;
+  height: 20px;
+  background: var(--panel-border);
+}
+
+/* ページ専用タブ（L1） - Header内タブグループ */
+.n3-header-tabs-group {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+}
+
+.n3-header-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* ★ 修正版: n3-header-tab スタイル */
+.n3-header-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 16px;
+  height: 100%;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.n3-header-tab:hover {
+  color: var(--text);
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.n3-header-tab.active {
+  color: var(--accent);
+  background: rgba(99, 102, 241, 0.12);
+  border-bottom-color: var(--accent);
+}
+
+/* ★ ピン留め状態 */
+.n3-header-tab.pinned {
+  color: var(--accent);
+  background: rgba(99, 102, 241, 0.15);
+  border-bottom-color: var(--accent);
+}
+
+.n3-header-tab svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.n3-header-center {
+  flex: 1;
+  max-width: 400px;
+  display: flex;
+  align-items: center;
+}
+
+.n3-header-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--highlight);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  width: 100%;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: none;
+}
+
+.n3-header-search:hover {
+  border-color: var(--accent);
+}
+
+.n3-header-kbd {
+  margin-left: auto;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-subtle);
+  background: var(--panel);
+  border-radius: 3px;
+}
+
+.n3-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+/* アイコンボタン */
+.n3-header-icon-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: none;
+}
+
+.n3-header-icon-btn:hover {
+  background: var(--highlight);
+  color: var(--text);
+}
+
+.n3-header-icon-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  background: var(--error);
+  border-radius: 50%;
+}
+
+/* ユーザーボタン */
+.n3-header-user-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: none;
+}
+
+.n3-header-user-btn:hover {
+  background: var(--highlight);
+}
+
+.n3-header-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: white;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+}
+
+/* Header L2 Tabs */
+.n3-header-l2-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.n3-header-l2-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px !important;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.12s;
+  white-space: nowrap;
+  margin-bottom: -2px;
+}
+
+.n3-header-l2-tab:hover {
+  color: var(--text);
+}
+
+.n3-header-l2-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.n3-header-l2-tab svg {
+  flex-shrink: 0;
+}
+
+/* Header言語切替えボタン */
+.n3-header-lang-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.n3-header-lang-btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+/* Header Tools Nav - タブスタイル */
+.n3-header-tools-nav {
+  display: flex !important;
+  align-items: stretch !important;
+  gap: 0 !important;
+  height: 100% !important;
+  margin: 0 !important;
+}
+
+.n3-header-tools-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 100%;
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--panel-border);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.n3-header-tools-pin:hover {
+  background: var(--highlight);
+  color: var(--text);
+}
+
+.n3-header-tools-pin.active {
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--accent);
+}
+
+.n3-header-tools-tab {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  padding: 0 12px !important;
+  height: 100% !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  color: var(--text-muted) !important;
+  background: transparent !important;
+  border: none !important;
+  border-left: 1px solid transparent !important;
+  border-right: 1px solid transparent !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+  transition: all 0.12s !important;
+}
+
+.n3-header-tools-tab:hover {
+  color: var(--text) !important;
+  background: var(--highlight) !important;
+  border-left-color: var(--panel-border) !important;
+  border-right-color: var(--panel-border) !important;
+}
+
+.n3-header-tools-tab.active {
+  color: white !important;
+  background: var(--accent) !important;
+}
+
+.n3-header-tools-tab.pinned {
+  color: var(--accent);
+  background: rgba(99, 102, 241, 0.15);
+}
+
+/* ===========================================
+   Header Panels
+   =========================================== */
+
+.n3-pinned-panel-wrapper {
+  position: relative;
+  z-index: 35;
+}
+
+.n3-header-panel {
+  padding: 6px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.n3-header-panel.pinned {
+  background: transparent;
+  border-bottom: none;
+}
+
+.n3-header-panel.pinned:hover {
+  background: rgba(255, 255, 255, 0.98);
+}
+
+/* ホバー時パネル */
+.n3-header-panel-overlay {
+  position: fixed;
+  top: calc(var(--header-height) - 4px);
+  left: var(--sidebar-width);
+  right: 0;
+  padding: 6px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--panel-border);
+  box-shadow: var(--shadow-lg);
+  z-index: 100;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* ★ ピン留め時パネル（常に表示） */
+.n3-header-panel-pinned {
+  position: fixed;
+  top: var(--header-height);
+  left: var(--sidebar-width);
+  right: 0;
+  padding: 6px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--panel-border);
+  box-shadow: var(--shadow-md);
+  z-index: 39;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* ===========================================
+   GRADIENT THEME - ヘッダータブ透明化
+   グラデーションテーマ時のホバー/固定状態
+   =========================================== */
+
+/* グラデーションテーマ検出: data-theme="cyber" または背景にグラデーションがある場合 */
+[data-theme="cyber"] .n3-header-tab:hover,
+[data-style="gradient"] .n3-header-tab:hover,
+.n3-header--gradient .n3-header-tab:hover {
+  background: transparent !important;
+  color: var(--text) !important;
+}
+
+[data-theme="cyber"] .n3-header-tab.active,
+[data-style="gradient"] .n3-header-tab.active,
+.n3-header--gradient .n3-header-tab.active {
+  background: transparent !important;
+  color: var(--accent) !important;
+  border-bottom-color: var(--accent) !important;
+}
+
+[data-theme="cyber"] .n3-header-tab.pinned,
+[data-style="gradient"] .n3-header-tab.pinned,
+.n3-header--gradient .n3-header-tab.pinned {
+  background: transparent !important;
+  color: var(--accent) !important;
+  border-bottom-color: var(--accent) !important;
+}
+
+/* ピン留め時 + ホバー時も透明のまま */
+[data-theme="cyber"] .n3-header-tab.pinned:hover,
+[data-style="gradient"] .n3-header-tab.pinned:hover,
+.n3-header--gradient .n3-header-tab.pinned:hover {
+  background: transparent !important;
+}
+
+/* パネルもグラデーション時は調整 */
+[data-theme="cyber"] .n3-header-panel-pinned,
+[data-style="gradient"] .n3-header-panel-pinned {
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(12px);
+}
+
+[data-theme="cyber"] .n3-header-panel-overlay,
+[data-style="gradient"] .n3-header-panel-overlay {
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(12px);
+}

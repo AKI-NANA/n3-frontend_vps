@@ -1,0 +1,616 @@
+{
+  "name": "【在庫】04_205-防衛-IMAP監視-著作権警告自動防衛_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "⏰ 15分ごと監視",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "imap-defense",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: 手動トリガー",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "imap-defense"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// フェーズ5: IMAP自動監視 → 著作権警告自動防衛\n// ============================================================================\n\nconst body = $input.first().json.body || $input.first().json || {};\nconst manualEmailUid = body.email_uid;\nconst manualVideoId = body.video_id;\n\nreturn [{\n  json: {\n    manual_mode: !!manualVideoId,\n    email_uid: manualEmailUid,\n    video_id: manualVideoId,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM auto_defense_rules WHERE is_active = TRUE ORDER BY priority ASC",
+        "options": {}
+      },
+      "id": "get-rules",
+      "name": "📋 防衛ルール取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mailbox": "INBOX",
+        "postProcessAction": "nothing",
+        "options": {
+          "customEmailConfig": "={{ JSON.stringify({ host: $env.IMAP_HOST || 'imap.gmail.com', port: 993, user: $env.IMAP_USER, password: $env.IMAP_PASSWORD, tls: true }) }}"
+        }
+      },
+      "id": "imap-read",
+      "name": "📧 IMAP読み取り",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// メール解析 & 警告検知\n// ============================================================================\n\nconst initData = $node['🔧 初期化'].json;\nconst rulesData = $node['📋 防衛ルール取得'].json;\nconst rules = Array.isArray(rulesData) ? rulesData : [rulesData].filter(r => r);\nconst emailsData = $input.first().json;\nconst emails = Array.isArray(emailsData) ? emailsData : [emailsData].filter(e => e && (e.subject || e.text));\n\nif (initData.manual_mode && initData.video_id) {\n  // 手動モード：特定動画を直接処理\n  return [{\n    json: {\n      alert_detected: true,\n      alert_type: 'manual_trigger',\n      video_id: initData.video_id,\n      email_uid: 'manual',\n      email_subject: 'Manual Trigger',\n      action_required: true,\n      matched_rule: rules[0] || { auto_privatize: true, auto_generate_appeal: true }\n    }\n  }];\n}\n\nif (!emails.length) {\n  return [{ json: { alert_detected: false, message: '新着メールなし' } }];\n}\n\nconst alerts = [];\n\nfor (const email of emails) {\n  const subject = email.subject || '';\n  const body = email.text || email.html || '';\n  const from = email.from?.value?.[0]?.address || email.from || '';\n\n  for (const rule of rules) {\n    const keywords = rule.trigger_keywords || [];\n    const matchedKeywords = keywords.filter(kw => \n      subject.toLowerCase().includes(kw.toLowerCase()) || \n      body.toLowerCase().includes(kw.toLowerCase())\n    );\n\n    if (matchedKeywords.length > 0) {\n      // 動画ID抽出（YouTubeメールから）\n      const videoIdMatch = body.match(/watch\\?v=([a-zA-Z0-9_-]{11})/) || \n                          body.match(/youtu\\.be\\/([a-zA-Z0-9_-]{11})/) ||\n                          body.match(/video[\\s:]+([a-zA-Z0-9_-]{11})/);\n      const videoId = videoIdMatch ? videoIdMatch[1] : null;\n\n      alerts.push({\n        alert_detected: true,\n        alert_type: rule.rule_name,\n        video_id: videoId,\n        email_uid: email.uid || email.messageId || 'unknown',\n        email_from: from,\n        email_subject: subject,\n        detected_keywords: matchedKeywords,\n        action_required: true,\n        matched_rule: rule\n      });\n      break; // 1メール1ルールのみマッチ\n    }\n  }\n}\n\nif (alerts.length === 0) {\n  return [{ json: { alert_detected: false, message: '警告メールなし', emails_checked: emails.length } }];\n}\n\nreturn alerts.map(a => ({ json: a }));"
+      },
+      "id": "analyze-emails",
+      "name": "🔍 メール解析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.alert_detected }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-alert",
+      "name": "警告検知？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO imap_monitoring_logs (email_uid, email_from, email_subject, alert_type, detected_keywords, video_id, action_taken) VALUES ($1, $2, $3, $4, $5::text[], $6, 'processing') RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.email_uid, $json.email_from, $json.email_subject, $json.alert_type, '{' + ($json.detected_keywords || []).join(',') + '}', $json.video_id] }}"
+        }
+      },
+      "id": "save-log",
+      "name": "💾 警告ログ保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $node['🔍 メール解析'].json.matched_rule?.auto_privatize && $node['🔍 メール解析'].json.video_id }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-privatize",
+      "name": "自動非公開？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://www.googleapis.com/youtube/v3/videos?part=status",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.YOUTUBE_ACCESS_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ id: $node['🔍 メール解析'].json.video_id, status: { privacyStatus: 'private' } }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "privatize-video",
+      "name": "🔒 動画非公開化",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $node['🔍 メール解析'].json.matched_rule?.auto_generate_appeal }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-appeal",
+      "name": "反論書生成？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-goog-api-key",
+              "value": "={{ $env.GEMINI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: 'あなたは著作権法に詳しい法務担当者です。以下の著作権侵害申し立てに対する反論書を、フェアユース（公正利用）の観点から作成してください。\\n\\n【申し立て内容】\\nタイプ: ' + $node['🔍 メール解析'].json.alert_type + '\\nメール件名: ' + $node['🔍 メール解析'].json.email_subject + '\\n\\n【反論テンプレート】\\n' + ($node['🔍 メール解析'].json.matched_rule?.appeal_template || 'この動画は教育目的で制作されており、フェアユースの範囲内です。') + '\\n\\n【出力形式】\\n反論書の本文のみを出力（300文字以内、丁寧かつ論理的に）' }] }], generationConfig: { temperature: 0.3, maxOutputTokens: 500 } }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "generate-appeal",
+      "name": "📝 反論書生成",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const alertData = $node['🔍 メール解析'].json;\nconst geminiResult = $input.first().json;\n\nlet appealDraft = alertData.matched_rule?.appeal_template || '教育目的のコンテンツであり、フェアユースの範囲内です。';\ntry {\n  appealDraft = geminiResult?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || appealDraft;\n} catch (e) {}\n\nreturn [{ json: { ...alertData, appeal_draft: appealDraft } }];"
+      },
+      "id": "parse-appeal",
+      "name": "📋 反論書パース",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE imap_monitoring_logs SET action_taken = $2, appeal_draft = $3, appeal_status = 'draft', notified_at = NOW() WHERE id = (SELECT id FROM imap_monitoring_logs WHERE video_id = $1 ORDER BY created_at DESC LIMIT 1)",
+        "options": {
+          "queryParams": "={{ [$node['🔍 メール解析'].json.video_id, $node['🔍 メール解析'].json.matched_rule?.auto_privatize ? 'privatized' : 'logged', $json.appeal_draft] }}"
+        }
+      },
+      "id": "update-log",
+      "name": "💾 ログ更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.CHATWORK_WEBHOOK_URL || 'https://api.chatwork.com/v2/rooms/' + $env.CHATWORK_ROOM_ID + '/messages' }}",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "🚨 【著作権警告検知】\n\nタイプ: {{ $node['🔍 メール解析'].json.alert_type }}\n動画ID: {{ $node['🔍 メール解析'].json.video_id || '不明' }}\n\n{{ $node['🔍 メール解析'].json.matched_rule?.auto_privatize ? '🔒 動画を自動非公開にしました' : '⚠️ 手動対応が必要です' }}\n\n【反論書ドラフト】\n{{ $json.appeal_draft?.substring(0, 200) }}...\n\nダッシュボードで詳細を確認してください。"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "notify-chatwork",
+      "name": "📢 緊急通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const alertData = $node['🔍 メール解析'].json;\nconst appealData = $node['📋 反論書パース']?.json || {};\nreturn [{ json: { success: true, action: 'imap_defense', alert_type: alertData.alert_type, video_id: alertData.video_id, privatized: alertData.matched_rule?.auto_privatize || false, appeal_generated: !!appealData.appeal_draft, appeal_draft: appealData.appeal_draft?.substring(0, 100) + '...' } }];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, alert_detected: false, message: $json.message }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-no-alert",
+      "name": "✅ 警告なし応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "⏰ 15分ごと監視": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook: 手動トリガー": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "📋 防衛ルール取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 防衛ルール取得": {
+      "main": [
+        [
+          {
+            "node": "📧 IMAP読み取り",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📧 IMAP読み取り": {
+      "main": [
+        [
+          {
+            "node": "🔍 メール解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 メール解析": {
+      "main": [
+        [
+          {
+            "node": "警告検知？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "警告検知？": {
+      "main": [
+        [
+          {
+            "node": "💾 警告ログ保存",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "✅ 警告なし応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 警告ログ保存": {
+      "main": [
+        [
+          {
+            "node": "自動非公開？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "自動非公開？": {
+      "main": [
+        [
+          {
+            "node": "🔒 動画非公開化",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "反論書生成？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔒 動画非公開化": {
+      "main": [
+        [
+          {
+            "node": "反論書生成？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "反論書生成？": {
+      "main": [
+        [
+          {
+            "node": "📝 反論書生成",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💾 ログ更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 反論書生成": {
+      "main": [
+        [
+          {
+            "node": "📋 反論書パース",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 反論書パース": {
+      "main": [
+        [
+          {
+            "node": "💾 ログ更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 ログ更新": {
+      "main": [
+        [
+          {
+            "node": "📢 緊急通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📢 緊急通知": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 180,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Defense",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "Phase-5",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "IMAP",
+      "color": "#f39c12"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

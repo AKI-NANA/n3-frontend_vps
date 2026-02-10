@@ -1,0 +1,543 @@
+{
+  "name": "【外注】02_63-外注-QRコード作業完了API_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "worker-qr",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: worker-qr",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "worker-qr"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst action = body.action || 'scan'; // generate, scan, complete\nconst sessionToken = body.session_token;\nconst workerId = body.worker_id;\nconst taskType = body.task_type;\nconst productId = body.product_id;\nconst quantity = body.quantity || 1;\nconst photoCount = body.photo_count;\nreturn [{ json: { action, session_token: sessionToken, worker_id: workerId, task_type: taskType, product_id: productId, quantity, photo_count: photoCount } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "rules": [
+            {
+              "outputKey": "generate",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "generate",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "scan",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "scan",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "complete",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "complete",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "fallbackOutput": "scan"
+        }
+      },
+      "id": "switch-action",
+      "name": "🔀 アクション分岐",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $input.first().json;\nconst crypto = require('crypto');\nconst token = crypto.randomBytes(16).toString('hex');\nreturn [{ json: { ...config, session_token: token } }];"
+      },
+      "id": "generate-token",
+      "name": "🔑 トークン生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO worker_qr_sessions (worker_id, session_token, task_type, product_id) VALUES ($1::uuid, $2, $3, $4) RETURNING id, session_token",
+        "options": {
+          "queryParams": "={{ [$json.worker_id, $json.session_token, $json.task_type, $json.product_id] }}"
+        }
+      },
+      "id": "create-session",
+      "name": "💾 セッション作成",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const session = $input.first().json;\nconst baseUrl = $env.N8N_WEBHOOK_BASE_URL || 'http://{{$env.N8N_BASE_URL}}/webhook';\nconst qrUrl = `${baseUrl}/worker-qr?action=scan&session_token=${session.session_token}`;\nreturn [{ json: { success: true, session_id: session.id, session_token: session.session_token, qr_url: qrUrl, expires_in: '24 hours' } }];"
+      },
+      "id": "generate-qr-url",
+      "name": "📱 QR URL生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT qs.*, ow.worker_name, ow.worker_code, pm.title as product_title, pm.sku FROM worker_qr_sessions qs JOIN outsource_workers ow ON qs.worker_id = ow.id LEFT JOIN products_master pm ON qs.product_id = pm.id WHERE qs.session_token = $1 AND qs.session_status = 'active' AND qs.expires_at > NOW()",
+        "options": {
+          "queryParams": "={{ [$node['🔐 初期化'].json.session_token] }}"
+        }
+      },
+      "id": "validate-session",
+      "name": "🔍 セッション検証",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const session = $input.first().json;\nif (!session || !session.id) {\n  return [{ json: { error: true, message: 'セッションが無効または期限切れです' } }];\n}\nreturn [{ json: { success: true, session: session, message: 'セッション有効。作業完了ボタンを押してください。' } }];"
+      },
+      "id": "check-session",
+      "name": "✅ セッションチェック",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT qs.*, ow.id as worker_id, ow.rate_inspection, ow.rate_photography, ow.rate_packing, ow.rate_shipping, ow.rate_listing FROM worker_qr_sessions qs JOIN outsource_workers ow ON qs.worker_id = ow.id WHERE qs.session_token = $1 AND qs.session_status = 'active'",
+        "options": {
+          "queryParams": "={{ [$node['🔐 初期化'].json.session_token] }}"
+        }
+      },
+      "id": "get-session-for-complete",
+      "name": "📋 完了用セッション取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $node['🔐 初期化'].json;\nconst sessionRaw = $input.first().json;\nconst session = Array.isArray(sessionRaw) ? sessionRaw[0] : sessionRaw;\n\nif (!session || !session.id) {\n  return [{ json: { error: true, message: 'セッションが見つかりません' } }];\n}\n\nconst taskType = session.task_type || 'inspection';\nconst rateMap = {\n  'inspection': session.rate_inspection || 100,\n  'photography': session.rate_photography || 50,\n  'packing': session.rate_packing || 150,\n  'shipping': session.rate_shipping || 100,\n  'listing': session.rate_listing || 200\n};\n\nconst unitRate = rateMap[taskType] || 100;\nconst quantity = config.quantity || 1;\nconst photoCount = config.photo_count;\nconst totalAmount = taskType === 'photography' && photoCount ? unitRate * photoCount : unitRate * quantity;\n\nreturn [{ json: { session_id: session.id, worker_id: session.worker_id, task_type: taskType, quantity: quantity, photo_count: photoCount, unit_rate: unitRate, total_amount: totalAmount, product_id: session.product_id } }];"
+      },
+      "id": "calc-task-amount",
+      "name": "💰 作業金額計算",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラー？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO outsource_tasks (worker_id, task_type, quantity, unit_rate, total_amount, product_id, photo_count, task_status) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, 'completed') RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.worker_id, $json.task_type, $json.quantity, $json.unit_rate, $json.total_amount, $json.product_id, $json.photo_count] }}"
+        }
+      },
+      "id": "insert-task",
+      "name": "💾 作業記録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE worker_qr_sessions SET session_status = 'completed', completed_at = NOW() WHERE id = $1::uuid",
+        "options": {
+          "queryParams": "={{ [$node['💰 作業金額計算'].json.session_id] }}"
+        }
+      },
+      "id": "complete-session",
+      "name": "📝 セッション完了",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const action = $node['🔐 初期化'].json.action;\nlet result = { success: true, action };\n\nif (action === 'generate') {\n  result = $node['📱 QR URL生成'].json;\n} else if (action === 'scan') {\n  result = $node['✅ セッションチェック'].json;\n} else if (action === 'complete') {\n  const taskData = $node['💰 作業金額計算'].json;\n  const taskResult = $node['💾 作業記録'].json;\n  result = { success: true, action: 'complete', task_id: taskResult?.id, task_type: taskData.task_type, quantity: taskData.quantity, amount_earned: taskData.total_amount, message: `作業完了！¥${taskData.total_amount}が記録されました。` };\n}\n\nreturn [{ json: result }];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: worker-qr": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "🔀 アクション分岐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 アクション分岐": {
+      "main": [
+        [
+          {
+            "node": "🔑 トークン生成",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🔍 セッション検証",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 完了用セッション取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔑 トークン生成": {
+      "main": [
+        [
+          {
+            "node": "💾 セッション作成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 セッション作成": {
+      "main": [
+        [
+          {
+            "node": "📱 QR URL生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📱 QR URL生成": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 セッション検証": {
+      "main": [
+        [
+          {
+            "node": "✅ セッションチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ セッションチェック": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 完了用セッション取得": {
+      "main": [
+        [
+          {
+            "node": "💰 作業金額計算",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💰 作業金額計算": {
+      "main": [
+        [
+          {
+            "node": "エラー？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラー？": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💾 作業記録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 作業記録": {
+      "main": [
+        [
+          {
+            "node": "📝 セッション完了",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 セッション完了": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 60,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Outsource",
+      "color": "#16a085"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "QR",
+      "color": "#2c3e50"
+    },
+    {
+      "name": "Mobile",
+      "color": "#e67e22"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

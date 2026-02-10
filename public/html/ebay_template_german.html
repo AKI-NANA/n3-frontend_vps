@@ -1,0 +1,1280 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Produktdetails - eBay Listing Template</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.8;
+            color: #2C3E50;
+            background: #F6F1F1;
+        }
+
+        :root {
+            --bg-light: #F6F1F1;
+            --blue-primary: #19A7CE;
+            --blue-dark: #146C94;
+            --green-primary: #27AE60;
+            --green-dark: #1E8449;
+            --orange-primary: #E67E22;
+            --red-primary: #C62828;
+            --text: #2C3E50;
+            --text-light: #5A6C7D;
+            --border: #D4D9DF;
+        }
+
+        .container {
+            max-width: 960px;
+            margin: 0 auto;
+            background: white;
+        }
+
+        .sku { display: none; }
+
+        .back-to-top {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: linear-gradient(135deg, var(--blue-primary), var(--blue-dark));
+            color: white;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            font-size: 24px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+        }
+
+        .back-to-top:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--blue-primary), var(--blue-dark));
+            color: white;
+            padding: 32px 24px;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .usa-buyer-notice {
+            background: linear-gradient(135deg, #E8F5E9, #C8E6C9);
+            padding: 30px 24px;
+            border-left: 5px solid var(--green-primary);
+        }
+
+        .usa-notice-title {
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            color: var(--green-dark);
+        }
+
+        .usa-notice-content {
+            font-size: 16px;
+            color: #1B5E20;
+            line-height: 1.8;
+        }
+
+        .usa-notice-highlight {
+            background: white;
+            padding: 16px;
+            margin-top: 12px;
+            border-radius: 6px;
+            border-left: 4px solid var(--green-primary);
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--green-dark);
+        }
+
+        .non-usa-buyer-notice {
+            background: linear-gradient(135deg, #FFF3E0, #FFE0B2);
+            padding: 25px 24px;
+            border-left: 5px solid var(--orange-primary);
+        }
+
+        .non-usa-notice-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            color: #BF360C;
+        }
+
+        .non-usa-notice-content {
+            font-size: 15px;
+            color: #C65100;
+            line-height: 1.8;
+        }
+
+        .scroll-link {
+            display: inline-block;
+            margin-top: 12px;
+            padding: 12px 24px;
+            background: linear-gradient(135deg, var(--orange-primary), #D35400);
+            color: white;
+            text-decoration: none;
+            border-radius: 25px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .scroll-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .notice {
+            padding: 16px 24px;
+            border-left: 4px solid;
+            font-size: 14px;
+            line-height: 1.8;
+        }
+
+        .notice.danger {
+            background: #FFEBEE;
+            border-color: #E53935;
+            color: var(--red-primary);
+        }
+
+        .notice strong {
+            font-weight: 600;
+        }
+
+        .nav {
+            display: flex;
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            overflow-x: auto;
+        }
+
+        .nav a {
+            flex: 1;
+            padding: 14px 12px;
+            text-align: center;
+            text-decoration: none;
+            color: var(--text);
+            font-size: 13px;
+            font-weight: 500;
+            border-right: 1px solid var(--border);
+            min-width: 90px;
+        }
+
+        .nav a:last-child { border-right: none; }
+        .nav a:hover {
+            background: #AFD3E2;
+            color: var(--blue-dark);
+            transition: all 0.2s;
+        }
+
+        .content {
+            padding: 32px 24px;
+        }
+
+        .section {
+            margin-bottom: 40px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--blue-primary);
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 16px;
+        }
+
+        .card {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 20px;
+        }
+
+        .card:hover {
+            border-color: var(--blue-primary);
+            box-shadow: 0 2px 8px rgba(25, 167, 206, 0.15);
+            transition: all 0.2s;
+        }
+
+        .card-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 8px;
+        }
+
+        .card-text {
+            font-size: 13px;
+            color: var(--text-light);
+            line-height: 1.6;
+        }
+
+        .details {
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .detail-row {
+            display: grid;
+            grid-template-columns: 200px 1fr;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .detail-row:last-child { border-bottom: none; }
+
+        .detail-label {
+            padding: 14px 16px;
+            background: var(--bg-light);
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--text);
+            border-right: 1px solid var(--border);
+        }
+
+        .detail-value {
+            padding: 14px 16px;
+            font-size: 13px;
+            color: var(--text-light);
+        }
+
+        .policy-box {
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .policy-header {
+            background: linear-gradient(to right, var(--blue-primary), var(--blue-dark));
+            color: white;
+            padding: 14px 20px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .policy-header.red {
+            background: linear-gradient(to right, #E53935, var(--red-primary));
+        }
+
+        .policy-body {
+            padding: 20px;
+        }
+
+        .policy-item {
+            margin-bottom: 20px;
+        }
+
+        .policy-item:last-child { margin-bottom: 0; }
+
+        .policy-subtitle {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 8px;
+        }
+
+        .policy-text {
+            font-size: 13px;
+            color: var(--text-light);
+            line-height: 1.8;
+        }
+
+        .policy-text.warning {
+            color: #C65100;
+            font-weight: 500;
+        }
+
+        .policy-text.danger {
+            color: var(--red-primary);
+            font-weight: 500;
+        }
+
+        .policy-text strong {
+            color: var(--text);
+        }
+
+        .list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .list li {
+            padding-left: 16px;
+            position: relative;
+            margin-bottom: 6px;
+            font-size: 13px;
+            color: var(--text-light);
+            line-height: 1.6;
+        }
+
+        .list li::before {
+            content: '•';
+            position: absolute;
+            left: 0;
+            color: var(--blue-primary);
+        }
+
+        .customs-calculator {
+            background: linear-gradient(135deg, #F3E5F5, #E1BEE7);
+            padding: 40px 24px;
+            margin: 40px 0;
+            border-radius: 6px;
+            border: 3px solid #9C27B0;
+        }
+
+        .calc-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #4A148C;
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 3px solid #9C27B0;
+            padding-bottom: 12px;
+        }
+
+        .calc-disclaimer {
+            background: #FFEBEE;
+            padding: 20px;
+            border-radius: 6px;
+            margin-bottom: 25px;
+            border-left: 5px solid #D32F2F;
+            font-size: 14px;
+            line-height: 1.8;
+        }
+
+        .calc-disclaimer strong {
+            color: var(--red-primary);
+        }
+
+        .country-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 25px 0;
+        }
+
+        .country-card {
+            background: white;
+            border-radius: 6px;
+            padding: 20px;
+            border: 2px solid #E0E0E0;
+        }
+
+        .country-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            border-color: var(--blue-primary);
+            transition: all 0.3s ease;
+        }
+
+        .country-flag {
+            font-size: 40px;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .country-name {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text);
+            text-align: center;
+            margin-bottom: 16px;
+            border-bottom: 2px solid var(--blue-primary);
+            padding-bottom: 8px;
+        }
+
+        .calc-step {
+            background: #F8F9FA;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            border-left: 4px solid var(--blue-primary);
+        }
+
+        .calc-step-title {
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 6px;
+            font-size: 13px;
+        }
+
+        .calc-formula {
+            background: #FFFFFF;
+            padding: 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            margin: 6px 0;
+            border: 1px solid #E0E0E0;
+        }
+
+        .calc-example {
+            color: var(--text-light);
+            font-size: 12px;
+            font-style: italic;
+            margin-top: 4px;
+        }
+
+        .calc-note {
+            background: #E3F2FD;
+            padding: 10px;
+            border-radius: 4px;
+            color: #1565C0;
+            font-size: 12px;
+            margin-top: 8px;
+            border-left: 3px solid #2196F3;
+        }
+
+        .calc-warning {
+            background: #FFEBEE;
+            padding: 10px;
+            border-radius: 4px;
+            color: var(--red-primary);
+            font-size: 12px;
+            margin-top: 8px;
+            border-left: 3px solid #F44336;
+            font-weight: 500;
+        }
+
+        .footer {
+            background: var(--bg-light);
+            padding: 24px;
+            text-align: center;
+            border-top: 1px solid var(--border);
+            font-size: 12px;
+            color: var(--text-light);
+            line-height: 1.6;
+        }
+
+        @media (max-width: 768px) {
+            .header { padding: 24px 16px; }
+            .content { padding: 24px 16px; }
+            .notice { padding: 14px 16px; }
+            .nav a { font-size: 12px; padding: 12px 8px; }
+            .cards { grid-template-columns: 1fr; }
+            .detail-row { grid-template-columns: 1fr; }
+            .detail-label { border-right: none; border-bottom: 1px solid var(--border); }
+            .country-cards { grid-template-columns: 1fr; }
+            .back-to-top { width: 50px; height: 50px; font-size: 20px; bottom: 20px; right: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <p class="sku">{{SKU}}</p>
+
+        <a href="#top" class="back-to-top" title="Zurück nach oben">↑</a>
+
+        <div class="header" id="top">
+            <h1>{{TITLE}}</h1>
+            <p>Internationaler Versand • Authentische Produkte • Vertrauenswürdiger Verkäufer</p>
+        </div>
+
+        <div class="usa-buyer-notice">
+            <div class="usa-notice-title">
+                🇺🇸 Für US-Käufer - Keine Zollberechnung erforderlich
+            </div>
+            <div class="usa-notice-content">
+                <strong>eBay berechnet und zeigt automatisch alle Einfuhrzölle beim Checkout an.</strong><br>
+                Der beim Checkout angezeigte Preis ist Ihr endgültiger Gesamtbetrag.<br>
+                Bei Lieferung werden Ihnen KEINE zusätzlichen Gebühren berechnet.
+            </div>
+            <div class="usa-notice-highlight">
+                ✅ Angezeigter Preis = Endgültiger Zahlungsbetrag (einschließlich aller Zölle und Steuern)
+            </div>
+        </div>
+
+        <div class="non-usa-buyer-notice">
+            <div class="non-usa-notice-title">
+                ⚠️ Für Nicht-US-Käufer - Zollzahlung erforderlich
+            </div>
+            <div class="non-usa-notice-content">
+                <strong>Sie müssen Zölle/Steuern berechnen und zahlen, wenn Ihr Paket ankommt.</strong><br>
+                Einfuhrabgaben sind NICHT im Artikelpreis oder den Versandkosten enthalten.<br>
+                <strong style="font-size: 16px; color: #BF360C;">Die Zahlung der Einfuhrzölle liegt zu 100% in IHRER Verantwortung.</strong><br><br>
+                
+                <a href="#customs-calculator" class="scroll-link">
+                    📊 HIER KLICKEN - Zollberechnungsleitfaden (Nach unten scrollen)
+                </a>
+            </div>
+        </div>
+
+        <div class="notice danger">
+            <strong>【WICHTIG】Für Nicht-US-Käufer:</strong>
+            Zölle und Einfuhrsteuern sind NICHT im Artikelpreis oder den Versandkosten enthalten. Je nach Zielland müssen Sie möglicherweise bei Ankunft des Pakets Zölle und Einfuhrsteuern zahlen. Diese Kosten liegen in <strong>IHRER Verantwortung</strong>. <strong>Wenn Sie den Zoll nicht zahlen können oder wollen, bestellen Sie NICHT.</strong>
+        </div>
+
+        <nav class="nav">
+            <a href="#">Startseite</a>
+            <a href="#">Angebote</a>
+            <a href="#">Über uns</a>
+            <a href="#">Bewertungen</a>
+            <a href="#">Kontakt</a>
+        </nav>
+
+        <div class="content">
+            
+            <section class="section">
+                <h2 class="section-title">Shop-Informationen</h2>
+                <div class="cards">
+                    <div class="card">
+                        <div class="card-title">Regelmäßige Verkäufe</div>
+                        <div class="card-text">Folgen Sie unserem Shop für exklusive Angebote und Verkaufsbenachrichtigungen.</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">Produktanfragen</div>
+                        <div class="card-text">Kontaktieren Sie uns mit Produktname oder -nummer für schnelle Antwort.</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">Vorbestellartikel</div>
+                        <div class="card-text">Wir bemühen uns, wettbewerbsfähige Vorbestellpreise anzubieten.</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">Lager & Reservierungen</div>
+                        <div class="card-text">Nicht vorrätige Artikel können reserviert werden. Fragen Sie gerne nach.</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">Großeinkauf</div>
+                        <div class="card-text">Großeinkäufe von Sammelkarten bieten große Einsparungen. Kontaktieren Sie uns.</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">Preisgestaltung</div>
+                        <div class="card-text">Wettbewerbsfähige Preise. Bitte verzichten Sie auf übermäßiges Verhandeln.</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section">
+                <h2 class="section-title">Produktdetails</h2>
+                <div class="details">
+                    <div class="detail-row">
+                        <div class="detail-label">Produkttitel</div>
+                        <div class="detail-value">{{TITLE}}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Preis</div>
+                        <div class="detail-value">${{PRICE}}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Zustand</div>
+                        <div class="detail-value">{{CONDITION}}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Marke</div>
+                        <div class="detail-value">{{BRAND}}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Beschreibung</div>
+                        <div class="detail-value">{{DESCRIPTION}}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Hauptmerkmale</div>
+                        <div class="detail-value">{{FEATURES}}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Spezifikationen</div>
+                        <div class="detail-value">{{SPECIFICATIONS}}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Hinweise</div>
+                        <div class="detail-value">{{NOTES}}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Eindeutige Kennung/Seriennummer</div>
+                        <div class="detail-value">{{SERIAL_NUMBER}}</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section">
+                <div class="policy-box">
+                    <div class="policy-header red">🚫 Rückgaberichtlinie für geöffnete Artikel (Wichtig)</div>
+                    <div class="policy-body">
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Kaufbestätigung zur Minimierung von Rücksendungen</div>
+                            <p class="policy-text danger">
+                                <strong>Um Rücksendungen zu vermeiden, lesen Sie bitte vor dem Kauf die vollständige Produktbeschreibung.</strong><br><br>
+                                • Dies ist eine internationale Importtransaktion, kein inländischer Kauf<br>
+                                • Beurteilen Sie NICHT nur nach Titel oder Bildern - <strong>LESEN Sie die vollständige Produktbeschreibung</strong><br>
+                                • Set-Artikel, Blind-Box-Artikel, limitierte Editionen können zufällige Elemente enthalten<br>
+                                • <strong>Kontaktieren Sie uns vor dem Kauf, wenn Sie irgendwelche Fragen haben</strong><br><br>
+                                <strong>Mit dem Kauf bestätigen Sie, dass Sie die vollständige Produktbeschreibung gelesen haben.</strong>
+                            </p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Wiedereinlagerungsgebühr für Artikel nicht im Originalzustand</div>
+                            <p class="policy-text danger">
+                                <strong>Wenn zurückgegebene Artikel nicht im Originalzustand sind, kann eine Wiedereinlagerungsgebühr von bis zu 50% anfallen.</strong><br><br>
+                                
+                                <strong>【Fälle, in denen Wiedereinlagerungsgebühren anfallen】</strong><br>
+                                • Geöffnete/benutzte Elektronik und Spiele: <strong>Bis zu 20%</strong> Wiedereinlagerungsgebühr<br>
+                                • Sonderbestellungen/Maßanfertigungen: <strong>Bis zu 50%</strong> Wiedereinlagerungsgebühr<br>
+                                • Artikel ohne Originalverpackung/Zubehör oder mit beschädigter Verpackung: <strong>Bis zu 50%</strong> Wiedereinlagerungsgebühr<br>
+                                • Hygieneartikel (Unterwäsche, Kosmetik usw.): Nicht rückgabefähig (außer defekte Artikel)<br><br>
+                                
+                                <strong>【Fälle, in denen KEINE Wiedereinlagerungsgebühr anfällt】</strong><br>
+                                • <strong>Defekte Artikel oder Artikel, die erheblich von der detaillierten Beschreibung abweichen:</strong> Keine Gebühr (vollständige Rückerstattung des Artikelpreises + Rücksendekosten von uns bezahlt)<br>
+                                  <strong>※ Wenn der Artikel jedoch der detaillierten Produktbeschreibung entspricht, gilt er als "wie beschrieben". Beurteilen Sie NICHT nur nach dem Titel - LESEN Sie die vollständige Beschreibung.</strong><br>
+                                • Ungeöffnete Artikel im Originalzustand zurückgegeben: Keine Gebühr (Artikelpreis erstattet - <strong>Versand und Zoll sind Verantwortung des Käufers</strong>)<br><br>
+                                
+                                <strong>Um eine vollständige Rückerstattung zu erhalten, geben Sie den Artikel in Originalverpackung, ungeöffnet und unbenutzt zurück.</strong>
+                            </p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Kostenverantwortung für Rücksendungen (Wichtig)</div>
+                            <p class="policy-text danger">
+                                <strong>【Grundprinzip】Wenn kein Fehler unsererseits vorliegt, liegen alle Rücksendekosten in der Verantwortung des Käufers.</strong><br><br>
+                                
+                                <strong>◆ Defekte Artikel oder Artikel, die erheblich von der Beschreibung abweichen:</strong><br>
+                                • Artikelpreis: Vollständige Rückerstattung<br>
+                                • Rücksendekosten: Von uns bezahlt<br>
+                                • <strong>Zölle/Einfuhrsteuern: Verantwortung des Käufers</strong> (nicht Teil des Artikelpreises, nicht erstattungsfähig)<br>
+                                • Ausgehender Versand: Erstattet<br><br>
+                                
+                                <strong>◆ Rücksendungen aus Reue/Sinnesänderung des Käufers:</strong><br>
+                                • Artikelpreis: Erstattet (abzüglich Wiedereinlagerungsgebühr falls zutreffend)<br>
+                                • Rücksendekosten: <strong>Verantwortung des Käufers</strong><br>
+                                • Zölle/Einfuhrsteuern: <strong>Verantwortung des Käufers</strong><br>
+                                • Ausgehender Versand: <strong>Nicht erstattungsfähig</strong><br><br>
+                                
+                                <strong>◆ Wichtiger Hinweis für US-Käufer:</strong><br>
+                                Bei Sendungen in die USA sind Zölle in den Versandkosten enthalten. Daher ist bei Rücksendung <strong>ein Teil der Versandkosten in Höhe der Zölle nicht erstattungsfähig</strong>. Rücksendungen werden nur auf Basis des Artikelpreises berechnet.
+                            </p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Kommunikation vor dem Kauf (Zur Vermeidung von Rücksendungen)</div>
+                            <p class="policy-text">
+                                <strong>Aufgrund des internationalen Versands verursachen Rücksendungen hohe Kosten und Zeit.</strong><br><br>
+                                Um Rücksendungen zu vermeiden, <strong>überprüfen Sie bitte Folgendes vor dem Kauf:</strong><br>
+                                • Lesen Sie die vollständige Produktbeschreibung gründlich (beurteilen Sie NICHT nur nach dem Titel)<br>
+                                • Überprüfen Sie Set-Inhalte, Zubehör, Kompatibilität, Größe, Farbe usw.<br>
+                                • <strong>Kontaktieren Sie uns IMMER vor dem Kauf, wenn Sie irgendwelche Fragen haben</strong><br>
+                                • Inhalte von Blind-Box/Zufallsartikeln können nicht ausgewählt werden<br><br>
+                                Kommunikation vor dem Kauf kann die Notwendigkeit von Rücksendungen erheblich reduzieren.
+                            </p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Nicht rückgabefähige/Nicht erstattungsfähige Bedingungen</div>
+                            <ul class="list">
+                                <li>Artikel, die durch Fahrlässigkeit des Käufers beschädigt wurden</li>
+                                <li>Artikel mit entfernten Echtheitssiegeln oder Etiketten</li>
+                                <li>Maßgefertigte oder personalisierte Artikel (außer defekt)</li>
+                                <li>Artikel, die über die angemessene Prüfungsfrist hinaus verwendet wurden</li>
+                                <li>Artikel ohne Originalverpackung oder Zubehör</li>
+                                <li><strong>Artikel, die in anderem Zustand zurückgegeben werden, sind nicht erstattungsfähig</strong></li>
+                            </ul>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Foto-/Videodokumentation vor dem Versand</div>
+                            <p class="policy-text">
+                                Zum Produktschutz und zur Streitvermeidung <strong>können wir Artikel vor dem Versand fotografieren/filmen und eindeutige Kennungen aufzeichnen.</strong> Vielen Dank für Ihr Verständnis.
+                            </p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Sichere Verpackung</div>
+                            <p class="policy-text">
+                                Wir gewährleisten folgende Verpackungsstandards:<br>
+                                • Wasserfester Schutz implementiert<br>
+                                • Luftpolsterfolienschutz<br>
+                                • Wertvolle Artikel in Kartons: Eckenverstärkung mit Pappe zur Vermeidung von Quetschungen<br>
+                                • Durch sorgfältige und sichere Verpackung <strong>haben wir NULL Schadensmeldungen beim Versand.</strong>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="policy-box">
+                    <div class="policy-header">Zahlungs- und Rückgaberichtlinie</div>
+                    <div class="policy-body">
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Zölle & Einfuhrsteuern</div>
+                            <p class="policy-text warning">
+                                <strong>【WICHTIG】</strong>Zölle und Einfuhrsteuern sind NICHT im Artikelpreis enthalten. Zahlung an Zoll oder Spediteur ist bei Paketankunft erforderlich. Diese Kosten liegen in <strong>IHRER Verantwortung</strong>. Wenn Sie die Lieferung ablehnen, bleiben Sie für Zölle haftbar und verlieren den Käuferschutz.
+                            </p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Rückgaberichtlinie</div>
+                            <p class="policy-text">
+                                Rücksendungen werden innerhalb von 30 Tagen nach Lieferung akzeptiert. Artikel müssen im Originalzustand zurückgegeben werden.<br><br>
+                                <strong>【Verantwortung für Rücksendekosten】</strong><br>
+                                • Defekte Artikel oder Artikel, die erheblich von der detaillierten Beschreibung abweichen: Rücksendekosten von uns bezahlt<br>
+                                • Rücksendungen aus Reue: <strong>Rücksendekosten vom Käufer bezahlt</strong><br>
+                                • Rücksendungen ohne Fehler unsererseits: <strong>Alle Rücksendekosten vom Käufer bezahlt</strong><br><br>
+                                Alle Rücksendungen werden während der Inspektion per Video aufgezeichnet.
+                            </p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">【WICHTIG】Verbot direkter Zahlungsstreitigkeiten - Kontakt zunächst über eBay-Nachricht</div>
+                            <p class="policy-text danger">
+                                <strong>Wenn Sie direkt bei Ihrer Kreditkartenfirma oder PayPal einen Streitfall einreichen, schließt eBay automatisch jeden eBay-Fall und Sie riskieren den Verlust des Käuferschutzes.</strong><br><br>
+                                Die gleichzeitige Nutzung sowohl des eBay-Lösungsprozesses als auch externer Streitigkeiten (Rückbuchungen) ist durch die <strong>offizielle eBay-Richtlinie streng verboten.</strong><br><br>
+                                Kontaktieren Sie uns zunächst über eBay-Nachricht (typischerweise innerhalb von 30 Tagen gelöst vs. 90+ Tage bei Kartenstreitigkeiten).
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section">
+                <div class="policy-box">
+                    <div class="policy-header">Versandinformationen</div>
+                    <div class="policy-body">
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Versandmethode</div>
+                            <p class="policy-text">{{SHIPPING_INFO}}</p>
+                            <p class="policy-text">Alle Bestellungen beinhalten Sendungsverfolgung. Tracking-Nummer wird innerhalb von 1 Werktag nach Versand hochgeladen.</p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Unterschriftsbestätigung (Bestellungen ab $750)</div>
+                            <p class="policy-text danger">
+                                <strong>Bestellungen mit einem Gesamtwert von $750 oder mehr erfordern eine Unterschriftsbestätigung</strong> (eBay-Richtlinie).<br>
+                                <strong>Wenn Sie nicht verfügbar sind, müssen Sie den Spediteur selbst kontaktieren, um Nachlieferung oder Abholzeit zu vereinbaren.</strong><br><br>
+                                Dies schützt sowohl Verkäufer als auch Käufer. Es fällt keine zusätzliche Gebühr an.
+                            </p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Lieferverantwortung</div>
+                            <p class="policy-text warning">
+                                <strong>Die Verantwortung des Verkäufers endet, wenn der Spediteur "ZUGESTELLT" vermerkt.</strong>
+                            </p>
+                            <ul class="list">
+                                <li>Verfolgen Sie Ihr Paket mit der Tracking-Nummer</li>
+                                <li>Kontaktieren Sie den Spediteur, wenn Sie Lieferdatum/-zeit anpassen müssen</li>
+                                <li>Unterschrift kann erforderlich sein - seien Sie verfügbar (erforderlich für Bestellungen ab $750)</li>
+                                <li>Diebstahl nach Lieferung: Verantwortung des Käufers. Kontaktieren Sie Polizei und Versicherung</li>
+                                <li>Falsche Adresse: Nachsendegebühr vom Käufer bezahlt</li>
+                                <li>Nicht abgeholte Pakete: Nachsendegebühr fällt an</li>
+                            </ul>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Rücksendekosten</div>
+                            <p class="policy-text warning">
+                                <strong>Alle Rücksendekosten liegen in der Verantwortung des Käufers</strong> (außer defekte Artikel oder Artikel, die erheblich von der Beschreibung abweichen - in diesen Fällen übernehmen wir die Kosten). Rücksendungen aufgrund Zollablehnung verursachen ebenfalls vom Käufer zu zahlende Rücksendekosten.
+                            </p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Lieferablehnung & Stornierung nach Versand</div>
+                            <p class="policy-text danger">
+                                <strong>Bitte stellen Sie sicher, dass Sie Ihre bestellten Artikel empfangen können.</strong><br>
+                                Stornierungen vor Versand werden akzeptiert, aber <strong>Stornierungen nach Versand sind unabhängig vom Grund NICHT möglich.</strong><br><br>
+                                
+                                <strong>【Lieferablehnung aus IRGENDEINEM Grund einschließlich Zoll】</strong><br>
+                                Wenn Sie die Lieferung aus irgendeinem Grund ablehnen und das Paket zurückgeschickt wird, liegen die folgenden Kosten in IHRER Verantwortung und Rückerstattungen ziehen diese Beträge ab:<br>
+                                (1) Angefallene Zölle und Einfuhrsteuern (vom Spediteur/Zoll erhoben)<br>
+                                (2) Hin- und Rückversandkosten und Gebühren<br>
+                                (3) Ausgehender Versand (nicht erstattungsfähig)<br><br>
+                                <strong>Lieferablehnung führt zum Verlust des eBay-Käuferschutzes.</strong><br><br>
+                                <strong>【Bezüglich nachfolgender Zollrechnungen】</strong><br>
+                                Wenn Sie nachfolgende Zollzahlungsaufforderungen von Spediteuren ablehnen, können separate Rechnungen an Ihre Adresse gesendet oder schriftliche Mitteilungen bereitgestellt werden. Bitte beachten Sie dies.
+                            </p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Paketweiterleitungsdienste</div>
+                            <p class="policy-text danger">
+                                <strong>Die Verwendung von Weiterleitungsdiensten (MyUS, Shipito usw.) HEBT den eBay-Käuferschutz AUF.</strong> Nutzung auf eigenes Risiko.<br><br>
+                                <strong>【WICHTIG】Bezüglich Lieferung an andere Adresse:</strong><br>
+                                Gemäß eBay-Richtlinie können wir nicht an eine andere Adresse als die beim Checkout registrierte versenden. Wenn eine Adressänderung erforderlich ist, registrieren Sie bitte die korrekte Adresse vor der Bestellung.
+                            </p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Bearbeitungszeit</div>
+                            <p class="policy-text">Versand innerhalb von <strong>3-10 Werktagen</strong> nach Zahlungsbestätigung. Bei Dringlichkeit fragen Sie bitte vor dem Kauf nach dem voraussichtlichen Versanddatum. Wir antworten prompt.</p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Weiterleitung über lokales Postamt</div>
+                            <p class="policy-text">
+                                Internationale Sendungen können über den Postdienst Ihres Ziellandes weitergeleitet werden. <strong>Wenn das Paket nicht ankommt, empfehlen wir, zunächst Ihr lokales Postamt zu kontaktieren.</strong> Lokale Postämter können oft schneller reagieren als wir. Bitte kontaktieren Sie uns danach für Unterstützung.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section">
+                <div class="policy-box">
+                    <div class="policy-header red">🛡️ Verkäuferschutz & Anti-Betrugsmaßnahmen (Strenge Durchsetzung)</div>
+                    <div class="policy-body">
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Beweisdokumentation & Anti-Betrug</div>
+                            <ul class="list">
+                                <li>Alle Artikel werden vor dem Versand detailliert fotografiert</li>
+                                <li>Seriennummern/eindeutige Kennungen aufgezeichnet (falls zutreffend, alle Einheiten)</li>
+                                <li><strong>Rücksendungen werden während der Inspektion per Video aufgezeichnet</strong> (zur Vermeidung von Artikeltausch)</li>
+                                <li>Originalverpackung erforderlich für Zustandsstreitigkeiten</li>
+                            </ul>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Strenge Reaktion auf Artikeltausch & betrügerische Handlungen</div>
+                            <p class="policy-text danger">
+                                <strong>Zurückgegebene Artikel müssen perfekt mit den ursprünglich vor dem Versand aufgezeichneten Seriennummern/Kennungen übereinstimmen.</strong><br><br>
+                                • Wenn Artikeltausch oder falsche Behauptungen bestätigt werden, <strong>melden wir dies unverzüglich an eBay und lokale Polizeibehörden und verfolgen zivil- und strafrechtliche Haftung.</strong><br>
+                                • Artikel, die in anderem Zustand zurückgegeben werden, erhalten Teilrückerstattung oder Rückerstattungsverweigerung.
+                            </p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Käuferpflichten</div>
+                            <p class="policy-text warning">
+                                <strong>Paketannahme ist obligatorisch.</strong> Wenn Sie die Lieferung ablehnen: Verlust des Käuferschutzes, alle Rücksendekosten sind Ihre, Zollzahlungsverpflichtung bleibt, Rückerstattung abzüglich aller Kosten.
+                            </p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Tracking-Bestätigung & Lieferanforderungen</div>
+                            <ul class="list">
+                                <li>Alle Sendungen beinhalten Tracking zum Verkäuferschutz</li>
+                                <li>Bestellungen ab $750 erfordern Unterschriftsbestätigung (eBay-Richtlinie)</li>
+                                <li>Lieferadresse muss perfekt mit eBay-Checkout-Adresse übereinstimmen</li>
+                                <li>Verwendung von Paketweiterleitungsdiensten hebt Käuferschutz auf</li>
+                            </ul>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Kundenservice-Antwort</div>
+                            <p class="policy-text"><strong>Wir antworten innerhalb von 24 Stunden (Werktage).</strong> Alle Kommunikation nur über eBay-Nachrichten. Wir streben nach promptem und höflichem Service.</p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Richtlinieneinhaltung</div>
+                            <p class="policy-text">Dieses Angebot entspricht den eBay-Verkäuferstandards und internationalen Handelsvorschriften.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section" id="customs-calculator">
+                <div class="customs-calculator">
+                    <div class="calc-title">
+                        🧮 Zollberechnungsleitfaden (Nur für Nicht-US-Käufer)
+                    </div>
+
+                    <div class="calc-disclaimer">
+                        <strong>⚠️ KRITISCHER HAFTUNGSAUSSCHLUSS - VOR VERWENDUNG DIESER FORMELN LESEN:</strong><br><br>
+                        
+                        • Diese Formeln basieren auf Informationen von 2025 und dienen NUR als REFERENZ<br>
+                        • <strong>WIR ÜBERNEHMEN KEINE VERANTWORTUNG FÜR DIE GENAUIGKEIT</strong> - Zollsätze ändern sich häufig<br>
+                        • Tatsächliche Kosten variieren nach Produktklassifizierung, Herkunftsland und aktuellen Vorschriften<br>
+                        • <strong>SIE MÜSSEN DIE SÄTZE BEI IHREM ÖRTLICHEN ZOLLAMT ÜBERPRÜFEN</strong> vor dem Kauf<br>
+                        • Verwenden Sie KI-Tools (ChatGPT, Claude), offizielle Zollwebsites oder kontaktieren Sie den Zoll direkt<br>
+                        • <strong>Lieferablehnung = Verlust des Käuferschutzes + Zollzahlungsverpflichtung bleibt</strong><br>
+                        • Können Sie sich den Zoll nicht leisten? <strong>BESTELLEN SIE NICHT!</strong><br><br>
+                        
+                        <strong style="font-size: 15px;">Durch Verwendung dieser Formeln bestätigen Sie:</strong><br>
+                        1. Zollgebühren liegen zu 100% in IHRER Verantwortung<br>
+                        2. Verkäufer hat NULL Verantwortung für Zollgebühren oder Berechnungsgenauigkeit<br>
+                        3. Sie werden alle Zölle/Steuern bei Paketankunft zahlen<br>
+                        4. Sie werden die Lieferung NICHT ablehnen oder aufgrund von Zollgebühren beanstanden
+                    </div>
+
+                    <div class="country-cards">
+                        
+                        <div class="country-card">
+                            <div class="country-flag">🇨🇦</div>
+                            <div class="country-name">KANADA</div>
+                            
+                            <div class="calc-step">
+                                <div class="calc-step-title">SCHRITT 1: Gesamtwert berechnen</div>
+                                <div class="calc-formula">
+                                    Gesamtwert = Produktpreis + Versandkosten
+                                </div>
+                                <div class="calc-example">
+                                    Beispiel: $100 + $30 = $130 CAD
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">SCHRITT 2: Zoll berechnen (falls zutreffend)</div>
+                                <div class="calc-formula">
+                                    Zoll = Gesamtwert × 0% bis 18%
+                                </div>
+                                <div class="calc-example">
+                                    Durchschnitt 8%: $130 × 0,08 = $10,40 CAD
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">SCHRITT 3: GST/HST berechnen</div>
+                                <div class="calc-formula">
+                                    GST/HST = (Gesamtwert + Zoll) × Steuersatz<br>
+                                    GST 5% | HST 13-15% (nach Provinz)
+                                </div>
+                                <div class="calc-example">
+                                    HST 13%: ($130 + $10,40) × 0,13 = $18,25 CAD
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">SCHRITT 4: Ihre Gesamtkosten</div>
+                                <div class="calc-formula">
+                                    GESAMT = Produkt + Versand + Zoll + GST/HST
+                                </div>
+                                <div class="calc-example">
+                                    Beispiel: $100 + $30 + $10,40 + $18,25 = <strong>$158,65 CAD</strong>
+                                </div>
+                            </div>
+
+                            <div class="calc-note">
+                                ℹ️ Artikel unter CAD $20 können von Zöllen/Steuern befreit sein<br>
+                                <strong style="color: #C62828;">⚠️ ÜBERPRÜFEN Sie aktuelle Schwellenwerte - Sätze ändern sich häufig!</strong>
+                            </div>
+                            
+                            <div class="calc-warning">
+                                ⚠️ <strong>NUR REFERENZ 2025 - NICHT GARANTIERT</strong><br>
+                                Diese Berechnungen sind Schätzungen. Tatsächliche Gebühren können abweichen.<br>
+                                <strong>SIE müssen beim kanadischen Zoll vor dem Kauf überprüfen!</strong>
+                            </div>
+                        </div>
+
+                        <div class="country-card">
+                            <div class="country-flag">🇬🇧</div>
+                            <div class="country-name">VEREINIGTES KÖNIGREICH</div>
+                            
+                            <div class="calc-step">
+                                <div class="calc-step-title">SCHRITT 1: Gesamtwert berechnen</div>
+                                <div class="calc-formula">
+                                    Gesamtwert = Produktpreis + Versandkosten
+                                </div>
+                                <div class="calc-example">
+                                    Beispiel: £80 + £25 = £105 GBP
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">SCHRITT 2: Einfuhrzoll berechnen (falls über £135)</div>
+                                <div class="calc-formula">
+                                    Zoll = Gesamtwert × 0% bis 12%
+                                </div>
+                                <div class="calc-example">
+                                    Durchschnitt 6%: £105 × 0,06 = £6,30 GBP
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">SCHRITT 3: MwSt. (20%) berechnen</div>
+                                <div class="calc-formula">
+                                    MwSt. = (Gesamtwert + Zoll) × 0,20
+                                </div>
+                                <div class="calc-example">
+                                    (£105 + £6,30) × 0,20 = £22,26 GBP
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">SCHRITT 4: Ihre Gesamtkosten</div>
+                                <div class="calc-formula">
+                                    GESAMT = Produkt + Versand + Zoll + MwSt.
+                                </div>
+                                <div class="calc-example">
+                                    Beispiel: £80 + £25 + £6,30 + £22,26 = <strong>£133,56 GBP</strong>
+                                </div>
+                            </div>
+
+                            <div class="calc-warning">
+                                ⚠️ MwSt. (20%) gilt für ALLE Importe unabhängig vom Wert
+                            </div>
+                            
+                            <div class="calc-warning">
+                                ⚠️ <strong>NUR REFERENZ 2025 - NICHT GARANTIERT</strong><br>
+                                Diese Berechnungen sind Schätzungen. Tatsächliche Gebühren können abweichen.<br>
+                                <strong>SIE müssen beim UK-Zoll (HMRC) vor dem Kauf überprüfen!</strong>
+                            </div>
+                        </div>
+
+                        <div class="country-card">
+                            <div class="country-flag">🇩🇪</div>
+                            <div class="country-name">DEUTSCHLAND</div>
+                            
+                            <div class="calc-step">
+                                <div class="calc-step-title">SCHRITT 1: Gesamtwert berechnen</div>
+                                <div class="calc-formula">
+                                    Gesamtwert = Produktpreis + Versandkosten
+                                </div>
+                                <div class="calc-example">
+                                    Beispiel: €90 + €30 = €120 EUR
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">SCHRITT 2: Einfuhrzoll berechnen (falls über €150)</div>
+                                <div class="calc-formula">
+                                    Zoll = Gesamtwert × 0% bis 17%
+                                </div>
+                                <div class="calc-example">
+                                    Durchschnitt 8%: €120 × 0,08 = €9,60 EUR
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">SCHRITT 3: MwSt. (19%) berechnen</div>
+                                <div class="calc-formula">
+                                    MwSt. = (Gesamtwert + Zoll) × 0,19
+                                </div>
+                                <div class="calc-example">
+                                    (€120 + €9,60) × 0,19 = €24,62 EUR
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">SCHRITT 4: Ihre Gesamtkosten</div>
+                                <div class="calc-formula">
+                                    GESAMT = Produkt + Versand + Zoll + MwSt.
+                                </div>
+                                <div class="calc-example">
+                                    Beispiel: €90 + €30 + €9,60 + €24,62 = <strong>€154,22 EUR</strong>
+                                </div>
+                            </div>
+
+                            <div class="calc-warning">
+                                ⚠️ MwSt. (19%) gilt für ALLE Importe + Zollabfertigungsgebühr kann anfallen
+                            </div>
+                            
+                            <div class="calc-warning">
+                                ⚠️ <strong>NUR REFERENZ 2025 - NICHT GARANTIERT</strong><br>
+                                Diese Berechnungen sind Schätzungen. Tatsächliche Gebühren können abweichen.<br>
+                                <strong>SIE müssen beim deutschen Zoll vor dem Kauf überprüfen!</strong>
+                            </div>
+                        </div>
+
+                        <div class="country-card">
+                            <div class="country-flag">🇫🇷</div>
+                            <div class="country-name">FRANKREICH</div>
+                            
+                            <div class="calc-step">
+                                <div class="calc-step-title">SCHRITT 1: Gesamtwert berechnen</div>
+                                <div class="calc-formula">
+                                    Gesamtwert = Produktpreis + Versandkosten
+                                </div>
+                                <div class="calc-example">
+                                    Beispiel: €85 + €28 = €113 EUR
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">SCHRITT 2: Einfuhrzoll berechnen (falls über €150)</div>
+                                <div class="calc-formula">
+                                    Zoll = Gesamtwert × 0% bis 17%
+                                </div>
+                                <div class="calc-example">
+                                    Durchschnitt 8%: €113 × 0,08 = €9,04 EUR
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">SCHRITT 3: MwSt. (20%) berechnen</div>
+                                <div class="calc-formula">
+                                    MwSt. = (Gesamtwert + Zoll) × 0,20
+                                </div>
+                                <div class="calc-example">
+                                    (€113 + €9,04) × 0,20 = €24,41 EUR
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">SCHRITT 4: Ihre Gesamtkosten</div>
+                                <div class="calc-formula">
+                                    GESAMT = Produkt + Versand + Zoll + MwSt.
+                                </div>
+                                <div class="calc-example">
+                                    Beispiel: €85 + €28 + €9,04 + €24,41 = <strong>€146,45 EUR</strong>
+                                </div>
+                            </div>
+
+                            <div class="calc-warning">
+                                ⚠️ MwSt. (20%) gilt für ALLE Importe + Postbearbeitungsgebühren können anfallen
+                            </div>
+                            
+                            <div class="calc-warning">
+                                ⚠️ <strong>NUR REFERENZ 2025 - NICHT GARANTIERT</strong><br>
+                                Diese Berechnungen sind Schätzungen. Tatsächliche Gebühren können abweichen.<br>
+                                <strong>SIE müssen beim französischen Zoll (Douane) vor dem Kauf überprüfen!</strong>
+                            </div>
+                        </div>
+
+                        <div class="country-card">
+                            <div class="country-flag">🇦🇺</div>
+                            <div class="country-name">AUSTRALIEN</div>
+                            
+                            <div class="calc-step">
+                                <div class="calc-step-title">SCHRITT 1: Gesamtwert berechnen</div>
+                                <div class="calc-formula">
+                                    Gesamtwert = Produktpreis + Versandkosten
+                                </div>
+                                <div class="calc-example">
+                                    Beispiel: AUD $150 + $40 = AUD $190
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">SCHRITT 2: Einfuhrzoll berechnen (falls über AUD $1000)</div>
+                                <div class="calc-formula">
+                                    Zoll = Gesamtwert × 5% bis 10%
+                                </div>
+                                <div class="calc-example">
+                                    Falls über $1000: AUD $1200 × 0,05 = $60 AUD
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">SCHRITT 3: GST (10%) berechnen</div>
+                                <div class="calc-formula">
+                                    GST = (Gesamtwert + Zoll) × 0,10
+                                </div>
+                                <div class="calc-example">
+                                    (AUD $190 + $0) × 0,10 = $19 AUD
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">SCHRITT 4: Ihre Gesamtkosten</div>
+                                <div class="calc-formula">
+                                    GESAMT = Produkt + Versand + Zoll + GST
+                                </div>
+                                <div class="calc-example">
+                                    Beispiel: AUD $150 + $40 + $0 + $19 = <strong>AUD $209</strong>
+                                </div>
+                            </div>
+
+                            <div class="calc-note">
+                                ℹ️ Zoll gilt nur bei über AUD $1000, aber 10% GST gilt für ALLE Importe
+                            </div>
+                            
+                            <div class="calc-warning">
+                                ⚠️ <strong>NUR REFERENZ 2025 - NICHT GARANTIERT</strong><br>
+                                Diese Berechnungen sind Schätzungen. Tatsächliche Gebühren können abweichen.<br>
+                                <strong>SIE müssen bei der Australian Border Force vor dem Kauf überprüfen!</strong>
+                            </div>
+                        </div>
+
+                        <div class="country-card">
+                            <div class="country-flag">🇮🇱</div>
+                            <div class="country-name">ISRAEL</div>
+                            
+                            <div class="calc-step">
+                                <div class="calc-step-title">SCHRITT 1: Gesamtwert berechnen</div>
+                                <div class="calc-formula">
+                                    Gesamtwert = Produktpreis + Versandkosten
+                                </div>
+                                <div class="calc-example">
+                                    Beispiel: $95 + $35 = $130 USD
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">SCHRITT 2: Einfuhrzoll berechnen (falls über $75)</div>
+                                <div class="calc-formula">
+                                    Zoll = Gesamtwert × 0% bis 12%
+                                </div>
+                                <div class="calc-example">
+                                    Durchschnitt 10%: $130 × 0,10 = $13 USD
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">SCHRITT 3: MwSt. (17%) berechnen</div>
+                                <div class="calc-formula">
+                                    MwSt. = (Gesamtwert + Zoll) × 0,17
+                                </div>
+                                <div class="calc-example">
+                                    ($130 + $13) × 0,17 = $24,31 USD
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">SCHRITT 4: Ihre Gesamtkosten</div>
+                                <div class="calc-formula">
+                                    GESAMT = Produkt + Versand + Zoll + MwSt. + Abfertigungsgebühr
+                                </div>
+                                <div class="calc-example">
+                                    Beispiel: $95 + $35 + $13 + $24,31 + $15 = <strong>$182,31 USD</strong>
+                                </div>
+                            </div>
+
+                            <div class="calc-warning">
+                                ⚠️ Zollabfertigungsgebühren (~$15-$30) fallen zusätzlich zu Zoll und MwSt. an
+                            </div>
+                            
+                            <div class="calc-warning">
+                                ⚠️ <strong>NUR REFERENZ 2025 - NICHT GARANTIERT</strong><br>
+                                Diese Berechnungen sind Schätzungen. Tatsächliche Gebühren können abweichen.<br>
+                                <strong>SIE müssen beim israelischen Zoll vor dem Kauf überprüfen!</strong>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <div class="calc-disclaimer" style="margin-top: 30px;">
+                        <strong style="font-size: 18px; color: #B71C1C;">🚫 LETZTE WARNUNG - BESTELLEN SIE NICHT, WENN SIE DEN ZOLL NICHT ZAHLEN KÖNNEN</strong><br><br>
+                        
+                        <strong>WENN SIE DIE ZOLLGEBÜHREN ABLEHNEN:</strong><br>
+                        • Paket kehrt nach Japan zurück - Rücksendekosten von Ihnen bezahlt<br>
+                        • Staatliche Zollzahlungsverpflichtung bleibt bestehen<br>
+                        • Sie verlieren den eBay-Käuferschutz<br>
+                        • Paket kann beim Zoll vernichtet/aufgegeben werden (Totalverlust)<br>
+                        • Verursacht Streitigkeiten, negative Bewertungen und Kontobeschränkungen<br><br>
+                        
+                        <strong style="font-size: 16px;">✅ KLUGE KÄUFER TUN DIES VOR DER BESTELLUNG:</strong><br>
+                        1. Berechnen: Produkt + Versand + Geschätzter Zoll<br>
+                        2. Überprüfen: Zollwebsite prüfen oder Zollamt kontaktieren<br>
+                        3. Bestätigen: Kann ich mir die GESAMTKOSTEN leisten?<br>
+                        4. Entscheiden: Wenn JA → Vertrauensvoll bestellen | Wenn NEIN → Nicht bestellen<br>
+                        5. Zahlen: Wenn Paket ankommt, Zoll ohne Beschwerde zahlen
+                    </div>
+                </div>
+            </section>
+
+        </div>
+
+        <div class="footer">
+            Vielen Dank für Ihren Kauf. Bei Fragen kontaktieren Sie uns bitte über eBay-Nachrichten.<br>
+            Wir sind bestrebt, den besten Service und authentische Produkte zu bieten.
+        </div>
+    </div>
+</body>
+</html>

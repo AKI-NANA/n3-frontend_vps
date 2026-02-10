@@ -1,0 +1,329 @@
+{
+  "name": "【V8.2.1-AUTONOMOUS】SM AIエージェント・リファレンス判定",
+  "description": "N3 Empire OS V8.2.1-Autonomous: n8n AI Agentによるタイトル・画像・Specs照合、確信度低い場合はHitL",
+  "_version": "8.2.1-autonomous",
+  "_27d_compliance": ["dim3_auth_gate", "dim13_decision_trace", "dim5_hitl", "dim21_data_trust"],
+
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sm-agent-judge",
+        "options": { "responseMode": "responseNode" }
+      },
+      "name": "Webhook: SM AIエージェント",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "sm-agent-judge"
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 🔐 27次元-3: HMAC認証 + 初期化\n// ============================================================================\nconst crypto = require('crypto');\nconst body = $input.first().json.body || $input.first().json;\nconst headers = $input.first().json.headers || {};\n\nconst signature = headers['x-n3-signature'] || headers['X-N3-Signature'];\nconst timestamp = headers['x-n3-timestamp'] || headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) return [{ json: { error: true, code: 'CONFIG_ERROR', message: 'N8N_HMAC_SECRET未設定' }}];\nif (!signature || !timestamp) return [{ json: { error: true, code: 'AUTH_REQUIRED', message: '認証ヘッダー欠落' }}];\nif (Math.abs(Date.now() - parseInt(timestamp)) > 300000) return [{ json: { error: true, code: 'TIMESTAMP_EXPIRED', message: 'タイムスタンプ期限切れ' }}];\n\nconst computedHmac = crypto.createHmac('sha256', secret).update(timestamp + '.' + JSON.stringify(body)).digest('hex');\nif (signature !== computedHmac) return [{ json: { error: true, code: 'HMAC_INVALID', message: 'HMAC検証失敗' }}];\n\n// 入力検証\nconst productId = body.product_id;\nconst searchQuery = body.search_query || body.title;\nconst candidateItems = body.candidate_items || [];\nconst productImage = body.product_image_url;\nconst productSpecs = body.item_specifics || {};\nconst tenantId = body.user_id || 'default';\n\nif (!productId) return [{ json: { error: true, code: 'MISSING_PARAM', message: 'product_id必須' }}];\nif (!searchQuery && candidateItems.length === 0) return [{ json: { error: true, code: 'MISSING_PARAM', message: 'search_query または candidate_items必須' }}];\n\nreturn [{ json: {\n  product_id: productId,\n  search_query: searchQuery,\n  candidate_items: candidateItems,\n  product_image_url: productImage,\n  product_specs: productSpecs,\n  tenant_id: tenantId,\n  confidence_threshold: body.confidence_threshold || 75,\n  _auth_verified: true\n}}];"
+      },
+      "name": "🔐 認証 + 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [{ "id": "error", "leftValue": "={{ $json.error }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" }}]
+        }
+      },
+      "name": "エラー？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": { "responseCode": "={{ $json.code === 'AUTH_REQUIRED' || $json.code === 'HMAC_INVALID' ? 403 : 400 }}" }
+      },
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [{ "id": "has-candidates", "leftValue": "={{ $json.candidate_items?.length || 0 }}", "rightValue": 0, "operator": { "type": "number", "operation": "larger" }}]
+        }
+      },
+      "name": "候補あり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.N3_API_URL }}/api/ebay/browse-search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "q", "value": "={{ $json.search_query }}" },
+            { "name": "limit", "value": "20" },
+            { "name": "filter", "value": "conditionIds:{1000|1500|2000|2500}" }
+          ]
+        },
+        "options": { "timeout": 30000 }
+      },
+      "name": "🔍 eBay Browse API検索",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// 検索結果を候補リストにマージ\nconst prevData = $node['🔐 認証 + 初期化'].json;\nconst searchResult = $input.first().json;\n\nconst items = searchResult.itemSummaries || searchResult.items || [];\nconst candidates = items.slice(0, 20).map(item => ({\n  item_id: item.itemId || item.id,\n  title: item.title,\n  price: parseFloat(item.price?.value || item.currentBidPrice?.value || 0),\n  currency: item.price?.currency || 'USD',\n  image_url: item.image?.imageUrl || item.thumbnailImages?.[0]?.imageUrl,\n  condition: item.condition,\n  seller_id: item.seller?.username,\n  item_specifics: item.localizedAspects?.reduce((acc, asp) => { acc[asp.name] = asp.value; return acc; }, {}) || {},\n  item_web_url: item.itemWebUrl\n}));\n\nreturn [{ json: { ...prevData, candidate_items: [...(prevData.candidate_items || []), ...candidates].slice(0, 30) }}];"
+      },
+      "name": "📋 候補リスト準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nreturn [{ json: data }];"
+      },
+      "name": "既存候補使用",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "x-goog-api-key", "value": "={{ $env.GEMINI_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: '## SM(Selsimileer) リファレンス判定タスク\\n\\nあなたは越境ECの商品照合エキスパートです。出品者の商品情報と、eBay検索結果の候補リストを照合し、「正しいリファレンス商品」を特定してください。\\n\\n### 出品商品情報\\n- 検索クエリ: ' + $json.search_query + '\\n- Item Specifics: ' + JSON.stringify($json.product_specs || {}) + '\\n\\n### 候補リスト（最大30件）\\n' + JSON.stringify($json.candidate_items?.slice(0, 15) || [], null, 2) + '\\n\\n### 判定基準\\n1. タイトル一致度: 型番、ブランド名、モデル名の一致\\n2. Item Specifics一致度: Brand, MPN, Model, Color等の属性照合\\n3. 価格帯の妥当性: 極端な価格差は誤マッチの可能性\\n4. コンディション適合性: New/Used等の状態\\n\\n### 出力形式（JSON）\\n```json\\n{\\n  \"selected_item_id\": \"候補のitem_id（一致なしならnull）\",\\n  \"selected_title\": \"選択した商品タイトル\",\\n  \"title_match_score\": 0-100,\\n  \"specs_match_score\": 0-100,\\n  \"overall_confidence\": 0-100,\\n  \"matching_points\": [\"一致した属性リスト\"],\\n  \"diverging_points\": [\"不一致・懸念点リスト\"],\\n  \"reasoning\": \"判定理由の詳細説明\"\\n}\\n```\\n\\n確信度75点未満の場合は、人間による確認を推奨する旨をreasoningに含めてください。' }] }], generationConfig: { temperature: 0.2, maxOutputTokens: 2048 } }) }}",
+        "options": { "timeout": 60000 }
+      },
+      "name": "🧠 Gemini Pro: タイトル・Specs照合",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 📊 AI判定結果パース + スコア計算\n// ============================================================================\nconst prevData = $node['候補あり？'].json.candidate_items ? $node['既存候補使用'].json : $node['📋 候補リスト準備'].json;\nconst aiResponse = $input.first().json;\n\nlet judgment = {\n  selected_item_id: null,\n  selected_title: null,\n  title_match_score: 0,\n  specs_match_score: 0,\n  overall_confidence: 0,\n  matching_points: [],\n  diverging_points: [],\n  reasoning: 'AI解析失敗'\n};\n\ntry {\n  const text = aiResponse.candidates?.[0]?.content?.parts?.[0]?.text || '{}';\n  const match = text.match(/```json\\n?([\\s\\S]*?)\\n?```/) || text.match(/\\{[\\s\\S]*\\}/);\n  if (match) {\n    const parsed = JSON.parse(match[1] || match[0]);\n    judgment = { ...judgment, ...parsed };\n  }\n} catch (e) {\n  judgment.reasoning = 'JSONパースエラー: ' + e.message;\n}\n\n// 選択された候補の詳細を取得\nlet selectedCandidate = null;\nif (judgment.selected_item_id) {\n  selectedCandidate = prevData.candidate_items?.find(c => c.item_id === judgment.selected_item_id);\n}\n\n// HitL判定\nconst requiresHitL = judgment.overall_confidence < prevData.confidence_threshold;\n\nreturn [{ json: {\n  ...prevData,\n  judgment: judgment,\n  selected_candidate: selectedCandidate,\n  requires_hitl: requiresHitL,\n  hitl_reason: requiresHitL ? `確信度 ${judgment.overall_confidence}点 < 閾値 ${prevData.confidence_threshold}点` : null\n}}];"
+      },
+      "name": "📊 AI判定結果パース",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [{ "id": "has-image", "leftValue": "={{ $json.product_image_url }}", "rightValue": "", "operator": { "type": "string", "operation": "notEquals" }}]
+        }
+      },
+      "name": "画像あり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-vision:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "x-goog-api-key", "value": "={{ $env.GEMINI_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: '2つの商品画像を比較し、同一商品かどうかを判定してください。\\n\\n判定基準:\\n- 形状・デザインの一致\\n- ブランドロゴ・型番表示\\n- 色・素材の一致\\n- パッケージ・付属品\\n\\n出力形式（JSON）:\\n{\\n  \"image_match_score\": 0-100,\\n  \"is_same_product\": true/false,\\n  \"visual_matching_points\": [],\\n  \"visual_diverging_points\": [],\\n  \"reasoning\": \"判定理由\"\\n}' }, { inline_data: { mime_type: 'image/jpeg', data: '' } }] }], generationConfig: { temperature: 0.1, maxOutputTokens: 1024 } }) }}",
+        "options": { "timeout": 60000 }
+      },
+      "name": "🖼️ Gemini Vision: 画像比較",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[TODO] 実際の画像データ注入が必要。現在はスキップ"
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// 画像比較結果をマージ（スキップの場合はデフォルト値）\nconst prevData = $node['📊 AI判定結果パース'].json;\nconst visionResult = $input.first().json;\n\nlet imageScore = 50;  // デフォルト中立値\ntry {\n  const text = visionResult.candidates?.[0]?.content?.parts?.[0]?.text || '{}';\n  const match = text.match(/\\{[\\s\\S]*\\}/);\n  if (match) {\n    const parsed = JSON.parse(match[0]);\n    imageScore = parsed.image_match_score || 50;\n  }\n} catch (e) {\n  // Vision APIエラーは警告のみ\n}\n\n// 総合スコア再計算（重み付け）\nconst titleWeight = 0.4;\nconst specsWeight = 0.35;\nconst imageWeight = 0.25;\n\nconst finalConfidence = Math.round(\n  prevData.judgment.title_match_score * titleWeight +\n  prevData.judgment.specs_match_score * specsWeight +\n  imageScore * imageWeight\n);\n\nreturn [{ json: {\n  ...prevData,\n  judgment: {\n    ...prevData.judgment,\n    image_match_score: imageScore,\n    overall_confidence: finalConfidence\n  },\n  requires_hitl: finalConfidence < prevData.confidence_threshold,\n  hitl_reason: finalConfidence < prevData.confidence_threshold ? \n    `総合確信度 ${finalConfidence}点 < 閾値 ${prevData.confidence_threshold}点` : null\n}}];"
+      },
+      "name": "📊 スコア統合（画像込み）",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// 画像なしの場合はそのまま\nconst data = $input.first().json;\nreturn [{ json: data }];"
+      },
+      "name": "画像スキップ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO ai_decision_traces (tenant_id, workflow_id, workflow_name, decision_point, input_data, ai_model, ai_prompt_hash, ai_response, reasoning, confidence_score, decision_outcome, escalation_reason) VALUES ($1, $2, $3, 'sm_reference_selection', $4::jsonb, 'gemini-1.5-pro', $5, $6::jsonb, $7, $8, $9, $10) RETURNING trace_id",
+        "options": { "queryParams": "={{ [$json.tenant_id, $workflow.id, $workflow.name, JSON.stringify({ product_id: $json.product_id, search_query: $json.search_query, candidates_count: $json.candidate_items?.length || 0 }), require('crypto').createHash('sha256').update('sm_reference_v1').digest('hex').substring(0, 16), JSON.stringify($json.judgment), $json.judgment.reasoning, $json.judgment.overall_confidence, $json.requires_hitl ? 'escalated' : 'approved', $json.hitl_reason] }}" }
+      },
+      "name": "📝 Decision Trace記録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" }},
+      "continueOnFail": true
+    },
+
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO sm_reference_judgments (tenant_id, product_id, search_query, candidate_items, selected_reference_id, selected_reference_title, selected_reference_price, title_match_score, image_match_score, specs_match_score, overall_confidence, matching_points, diverging_points, ai_reasoning, requires_human_review, ai_trace_id) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13::jsonb, $14, $15, $16) RETURNING id",
+        "options": { "queryParams": "={{ [$json.tenant_id, $json.product_id, $json.search_query, JSON.stringify($json.candidate_items?.slice(0, 10) || []), $json.judgment.selected_item_id, $json.judgment.selected_title || $json.selected_candidate?.title, $json.selected_candidate?.price, $json.judgment.title_match_score, $json.judgment.image_match_score || 50, $json.judgment.specs_match_score, $json.judgment.overall_confidence, JSON.stringify($json.judgment.matching_points || []), JSON.stringify($json.judgment.diverging_points || []), $json.judgment.reasoning, $json.requires_hitl, $node['📝 Decision Trace記録'].json?.trace_id] }}" }
+      },
+      "name": "💾 SM判定結果保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" }},
+      "continueOnFail": true
+    },
+
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [{ "id": "requires-hitl", "leftValue": "={{ $json.requires_hitl }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" }}]
+        }
+      },
+      "name": "HitL必要？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO hitl_approval_queue (tenant_id, entity_type, entity_id, entity_data, risk_level, risk_factors, ai_recommendation, ai_confidence, ai_reasoning, auto_approve_if_confidence_above) VALUES ($1, 'sm_reference', $2, $3::jsonb, $4, $5::jsonb, 'review', $6, $7, 90) RETURNING queue_id",
+        "options": { "queryParams": "={{ [$json.tenant_id, $json.product_id, JSON.stringify({ judgment: $json.judgment, selected_candidate: $json.selected_candidate, top_candidates: $json.candidate_items?.slice(0, 5) }), $json.judgment.overall_confidence < 50 ? 'high' : 'medium', JSON.stringify([$json.hitl_reason, ...($json.judgment.diverging_points || [])]), $json.judgment.overall_confidence, $json.judgment.reasoning] }}" }
+      },
+      "name": "📋 HitLキュー登録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" }}
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "X-ChatWorkToken", "value": "={{ $env.CHATWORK_API_KEY }}" }]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [{ "name": "body", "value": "[info][title]🔍 SM判定: 人間確認が必要です[/title]商品ID: {{ $json.product_id }}\n検索: {{ $json.search_query }}\n確信度: {{ $json.judgment.overall_confidence }}点\n\n選択候補: {{ $json.judgment.selected_title || '判定不能' }}\n理由: {{ $json.hitl_reason }}\n\n承認URL: {{ $env.N3_ADMIN_URL }}/hitl/sm-reference/{{ $json.product_id }}[/info]" }]
+        },
+        "options": {}
+      },
+      "name": "📨 ChatWork通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, status: 'pending_human_review', product_id: $json.product_id, confidence: $json.judgment.overall_confidence, queue_id: $node['📋 HitLキュー登録'].json?.queue_id, message: '確信度が閾値未満のため、人間による確認が必要です' }) }}",
+        "options": { "responseCode": 202 }
+      },
+      "name": "HitL待ち応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE products_master SET sm_reference_id = $1, sm_reference_title = $2, sm_reference_price_usd = $3, sm_confidence_score = $4, sm_strategy = 'auto_approved', sm_strategy_reason = $5, updated_at = NOW() WHERE id = $6",
+        "options": { "queryParams": "={{ [$json.judgment.selected_item_id, $json.judgment.selected_title || $json.selected_candidate?.title, $json.selected_candidate?.price, $json.judgment.overall_confidence, 'AI判定確信度' + $json.judgment.overall_confidence + '点で自動承認', $json.product_id] }}" }
+      },
+      "name": "✅ products_master更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" }},
+      "continueOnFail": true
+    },
+
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, status: 'auto_approved', product_id: $json.product_id, selected_reference: { item_id: $json.judgment.selected_item_id, title: $json.judgment.selected_title || $json.selected_candidate?.title, price: $json.selected_candidate?.price }, confidence: $json.judgment.overall_confidence, matching_points: $json.judgment.matching_points, reasoning: $json.judgment.reasoning }) }}",
+        "options": { "responseCode": 200 }
+      },
+      "name": "✅ 自動承認応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    }
+  ],
+
+  "connections": {
+    "Webhook: SM AIエージェント": { "main": [[{ "node": "🔐 認証 + 初期化", "type": "main", "index": 0 }]] },
+    "🔐 認証 + 初期化": { "main": [[{ "node": "エラー？", "type": "main", "index": 0 }]] },
+    "エラー？": { "main": [[{ "node": "エラー応答", "type": "main", "index": 0 }], [{ "node": "候補あり？", "type": "main", "index": 0 }]] },
+    "候補あり？": { "main": [[{ "node": "既存候補使用", "type": "main", "index": 0 }], [{ "node": "🔍 eBay Browse API検索", "type": "main", "index": 0 }]] },
+    "🔍 eBay Browse API検索": { "main": [[{ "node": "📋 候補リスト準備", "type": "main", "index": 0 }]] },
+    "📋 候補リスト準備": { "main": [[{ "node": "🧠 Gemini Pro: タイトル・Specs照合", "type": "main", "index": 0 }]] },
+    "既存候補使用": { "main": [[{ "node": "🧠 Gemini Pro: タイトル・Specs照合", "type": "main", "index": 0 }]] },
+    "🧠 Gemini Pro: タイトル・Specs照合": { "main": [[{ "node": "📊 AI判定結果パース", "type": "main", "index": 0 }]] },
+    "📊 AI判定結果パース": { "main": [[{ "node": "画像あり？", "type": "main", "index": 0 }]] },
+    "画像あり？": { "main": [[{ "node": "🖼️ Gemini Vision: 画像比較", "type": "main", "index": 0 }], [{ "node": "画像スキップ", "type": "main", "index": 0 }]] },
+    "🖼️ Gemini Vision: 画像比較": { "main": [[{ "node": "📊 スコア統合（画像込み）", "type": "main", "index": 0 }]] },
+    "📊 スコア統合（画像込み）": { "main": [[{ "node": "📝 Decision Trace記録", "type": "main", "index": 0 }]] },
+    "画像スキップ": { "main": [[{ "node": "📝 Decision Trace記録", "type": "main", "index": 0 }]] },
+    "📝 Decision Trace記録": { "main": [[{ "node": "💾 SM判定結果保存", "type": "main", "index": 0 }]] },
+    "💾 SM判定結果保存": { "main": [[{ "node": "HitL必要？", "type": "main", "index": 0 }]] },
+    "HitL必要？": { "main": [[{ "node": "📋 HitLキュー登録", "type": "main", "index": 0 }], [{ "node": "✅ products_master更新", "type": "main", "index": 0 }]] },
+    "📋 HitLキュー登録": { "main": [[{ "node": "📨 ChatWork通知", "type": "main", "index": 0 }]] },
+    "📨 ChatWork通知": { "main": [[{ "node": "HitL待ち応答", "type": "main", "index": 0 }]] },
+    "✅ products_master更新": { "main": [[{ "node": "✅ 自動承認応答", "type": "main", "index": 0 }]] }
+  },
+
+  "settings": {
+    "executionTimeout": 300,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+
+  "tags": [
+    { "name": "V8.2.1-Autonomous", "color": "#dc143c" },
+    { "name": "SM-Agent", "color": "#9b59b6" },
+    { "name": "AI-Vision", "color": "#3498db" },
+    { "name": "HitL-Enabled", "color": "#f39c12" }
+  ],
+
+  "active": false
+}

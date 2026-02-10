@@ -1,0 +1,267 @@
+{
+  "name": "【メディア】29_98-メディア-視覚的注釈自動生成-桜井スタイル_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "visual-annotation",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: visual-annotation",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "visual-annotation"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nreturn [{ json: { content_id: body.content_id, script: body.script, diagrams: body.diagrams || [], channel_id: body.channel_id, timestamp: new Date().toISOString() } }];"
+      },
+      "id": "init",
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-goog-api-key",
+              "value": "={{ $env.GEMINI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: `あなたは桜井政博氏のような解説動画の演出家です。以下の脚本から「今ここを見て」という視覚的注釈（矢印、ハイライト、ズーム）を自動生成してください。\n\n【脚本】\n${$json.script || '脚本なし'}\n\n【使用可能な図解】\n${JSON.stringify($json.diagrams)}\n\n【出力形式】JSONのみ\n{\n  \"annotations\": [\n    {\n      \"id\": \"ann_001\",\n      \"type\": \"arrow\",\n      \"target_element\": \"diagram_1\",\n      \"coordinates\": {\"x\": 150, \"y\": 200},\n      \"start_time_ms\": 5000,\n      \"duration_ms\": 2000,\n      \"animation\": \"spring_bounce\",\n      \"script_reference\": \"この部分が重要です\",\n      \"emphasis_level\": \"high\"\n    },\n    {\n      \"id\": \"ann_002\",\n      \"type\": \"highlight\",\n      \"target_element\": \"text_block\",\n      \"coordinates\": {\"x\": 100, \"y\": 300, \"width\": 200, \"height\": 50},\n      \"start_time_ms\": 8000,\n      \"duration_ms\": 1500,\n      \"animation\": \"pulse_glow\",\n      \"script_reference\": \"ここに注目\"\n    }\n  ],\n  \"total_annotations\": 2,\n  \"sakurai_tips\": \"桜井スタイルのポイント説明\"\n}` }] }], generationConfig: { temperature: 0.6, maxOutputTokens: 2048 } }) }}",
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "generate-annotations",
+      "name": "🎯 注釈生成",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const initData = $node['🔧 初期化'].json;\nconst geminiResult = $input.first().json;\n\nlet annotationData = { annotations: [], total_annotations: 0 };\n\ntry {\n  const content = geminiResult?.candidates?.[0]?.content?.parts?.[0]?.text || '';\n  const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) annotationData = JSON.parse(jsonMatch[0]);\n} catch (e) {}\n\nreturn [{ json: { content_id: initData.content_id, channel_id: initData.channel_id, ...annotationData } }];"
+      },
+      "id": "parse-annotations",
+      "name": "📋 注釈パース",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO visual_annotations (content_id, annotations, diagrams, ai_annotation_model, annotation_count, confidence_score) VALUES ($1, $2::jsonb, $3::jsonb, 'gemini-1.5-pro', $4, 0.85) ON CONFLICT (content_id) DO UPDATE SET annotations = $2::jsonb, diagrams = $3::jsonb, annotation_count = $4, updated_at = NOW() RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.content_id || 'temp_' + Date.now(), JSON.stringify($json.annotations), JSON.stringify($node['🔧 初期化'].json.diagrams), $json.total_annotations] }}"
+        }
+      },
+      "id": "save-annotations",
+      "name": "💾 注釈保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $node['📋 注釈パース'].json;\nreturn [{ json: { success: true, action: 'visual_annotation', content_id: data.content_id, annotation_count: data.total_annotations, sakurai_tips: data.sakurai_tips, remotion_props: { annotations: data.annotations, enable_spring_animation: true, arrow_style: 'sakurai' } } }];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: visual-annotation": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "🎯 注釈生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎯 注釈生成": {
+      "main": [
+        [
+          {
+            "node": "📋 注釈パース",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 注釈パース": {
+      "main": [
+        [
+          {
+            "node": "💾 注釈保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 注釈保存": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 120
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Annotation",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

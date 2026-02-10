@@ -1,0 +1,275 @@
+#!/usr/bin/env node
+/**
+ * N3 n8n 自動設定スクリプト
+ * すべてのワークフローと認証情報を自動的に設定
+ */
+
+const fs = require('fs');
+const path = require('path');
+const axios = require('axios');
+const dotenv = require('dotenv');
+
+// 環境変数読み込み
+dotenv.config({ path: '.env.local' });
+dotenv.config({ path: '.env.n8n' });
+
+class N8nAutoConfigurator {
+  constructor(config = {}) {
+    this.baseUrl = config.baseUrl || 'http://localhost:5678';
+    this.username = config.username || 'admin';
+    this.password = config.password || process.env.N8N_PASSWORD || 'n3admin2024';
+    this.apiToken = null;
+    this.credentials = {};
+    this.workflows = {};
+  }
+
+  /**
+   * n8nにログインしてトークンを取得
+   */
+  async authenticate() {
+    try {
+      console.log('🔐 n8nに認証中...');
+      
+      const response = await axios.post(`${this.baseUrl}/api/v1/auth/login`, {
+        email: this.username,
+        password: this.password
+      });
+      
+      this.apiToken = response.data.data.token;
+      console.log('✅ 認証成功');
+      
+      // デフォルトヘッダーを設定
+      axios.defaults.headers.common['X-N8N-API-KEY'] = this.apiToken;
+      
+      return true;
+    } catch (error) {
+      console.error('❌ 認証失敗:', error.message);
+      return false;
+    }
+  }
+
+  /**
+   * 認証情報を作成
+   */
+  async createCredentials() {
+    const credentialsConfig = {
+      supabase: {
+        name: 'Supabase N3',
+        type: 'supabaseApi',
+        data: {
+          host: process.env.NEXT_PUBLIC_SUPABASE_URL,
+          serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY
+        }
+      },
+      ebay: {
+        name: 'eBay API',
+        type: 'httpBasicAuth',
+        data: {
+          user: process.env.EBAY_APP_ID,
+          password: process.env.EBAY_CERT_ID
+        }
+      },
+      amazon: {
+        name: 'Amazon SP-API',
+        type: 'httpHeaderAuth',
+        data: {
+          name: 'x-amz-access-token',
+          value: process.env.AMAZON_ACCESS_TOKEN || 'placeholder'
+        }
+      },
+      keepa: {
+        name: 'Keepa API',
+        type: 'httpHeaderAuth',
+        data: {
+          name: 'key',
+          value: process.env.KEEPA_API_KEY || 'placeholder'
+        }
+      },
+      slack: {
+        name: 'Slack N3',
+        type: 'slackApi',
+        data: {
+          accessToken: process.env.SLACK_TOKEN,
+          webhookUrl: process.env.SLACK_WEBHOOK_URL
+        }
+      }
+    };
+
+    console.log('🔑 認証情報を作成中...');
+    
+    for (const [key, config] of Object.entries(credentialsConfig)) {
+      try {
+        const response = await axios.post(`${this.baseUrl}/api/v1/credentials`, config);
+        this.credentials[key] = response.data.data.id;
+        console.log(`  ✅ ${key} 認証情報作成`);
+      } catch (error) {
+        console.error(`  ❌ ${key} 認証情報作成失敗:`, error.message);
+      }
+    }
+  }
+
+  /**
+   * ワークフローをインポート
+   */
+  async importWorkflows() {
+    const workflowDir = path.join(__dirname, '../n8n-workflows');
+    const files = fs.readdirSync(workflowDir).filter(f => f.endsWith('.json'));
+    
+    console.log('📦 ワークフローをインポート中...');
+    
+    for (const file of files) {
+      try {
+        const workflowPath = path.join(workflowDir, file);
+        const workflowData = JSON.parse(fs.readFileSync(workflowPath, 'utf8'));
+        
+        // 認証情報IDを更新
+        this.updateCredentialIds(workflowData);
+        
+        const response = await axios.post(`${this.baseUrl}/api/v1/workflows`, workflowData);
+        this.workflows[workflowData.name] = response.data.data.id;
+        
+        console.log(`  ✅ ${file} インポート完了`);
+      } catch (error) {
+        console.error(`  ❌ ${file} インポート失敗:`, error.message);
+      }
+    }
+  }
+
+  /**
+   * ワークフロー内の認証情報IDを更新
+   */
+  updateCredentialIds(workflow) {
+    if (!workflow.nodes) return;
+    
+    workflow.nodes.forEach(node => {
+      if (node.credentials) {
+        Object.keys(node.credentials).forEach(credType => {
+          const credName = node.credentials[credType].name;
+          
+          // 作成した認証情報IDに置き換え
+          if (credName === 'Supabase N3' && this.credentials.supabase) {
+            node.credentials[credType].id = this.credentials.supabase;
+          } else if (credName === 'eBay API' && this.credentials.ebay) {
+            node.credentials[credType].id = this.credentials.ebay;
+          } else if (credName === 'Slack N3' && this.credentials.slack) {
+            node.credentials[credType].id = this.credentials.slack;
+          }
+        });
+      }
+    });
+  }
+
+  /**
+   * ワークフローを有効化
+   */
+  async activateWorkflows() {
+    console.log('🚀 ワークフローを有効化中...');
+    
+    for (const [name, id] of Object.entries(this.workflows)) {
+      try {
+        await axios.patch(`${this.baseUrl}/api/v1/workflows/${id}`, {
+          active: true
+        });
+        console.log(`  ✅ ${name} 有効化`);
+      } catch (error) {
+        console.error(`  ❌ ${name} 有効化失敗:`, error.message);
+      }
+    }
+  }
+
+  /**
+   * 環境変数を設定
+   */
+  async setEnvironmentVariables() {
+    const variables = {
+      N3_BASE_URL: 'http://localhost:3002',
+      N3_API_TIMEOUT: '30000',
+      N3_BATCH_SIZE: '10',
+      N3_RETRY_ATTEMPTS: '3',
+      EBAY_SANDBOX: 'false',
+      AMAZON_MARKETPLACE: 'ATVPDKIKX0DER'
+    };
+
+    console.log('⚙️ 環境変数を設定中...');
+    
+    try {
+      await axios.post(`${this.baseUrl}/api/v1/variables`, {
+        variables
+      });
+      console.log('  ✅ 環境変数設定完了');
+    } catch (error) {
+      console.error('  ❌ 環境変数設定失敗:', error.message);
+    }
+  }
+
+  /**
+   * テスト実行
+   */
+  async testWorkflows() {
+    console.log('🧪 ワークフローをテスト中...');
+    
+    // テスト用のWebhookを実行
+    const testData = {
+      test: true,
+      timestamp: new Date().toISOString()
+    };
+    
+    try {
+      // マスターWebhookをテスト
+      const response = await axios.post(`${this.baseUrl}/webhook/n3-master`, testData);
+      console.log('  ✅ マスターWebhookテスト成功');
+    } catch (error) {
+      console.error('  ❌ テスト失敗:', error.message);
+    }
+  }
+
+  /**
+   * メイン実行関数
+   */
+  async run() {
+    console.log('');
+    console.log('================================');
+    console.log('N3 n8n 自動設定開始');
+    console.log('================================');
+    console.log('');
+    
+    // 認証
+    const authenticated = await this.authenticate();
+    if (!authenticated) {
+      console.error('認証に失敗しました。n8nが起動していることを確認してください。');
+      process.exit(1);
+    }
+    
+    // 認証情報作成
+    await this.createCredentials();
+    
+    // ワークフローインポート
+    await this.importWorkflows();
+    
+    // ワークフロー有効化
+    await this.activateWorkflows();
+    
+    // 環境変数設定
+    await this.setEnvironmentVariables();
+    
+    // テスト実行
+    await this.testWorkflows();
+    
+    console.log('');
+    console.log('================================');
+    console.log('✅ 設定完了！');
+    console.log('================================');
+    console.log('');
+    console.log('📌 n8nダッシュボード: http://localhost:5678');
+    console.log('📌 N3アプリ: http://localhost:3002/tools/workspace');
+    console.log('');
+  }
+}
+
+// 実行
+if (require.main === module) {
+  const configurator = new N8nAutoConfigurator();
+  configurator.run().catch(console.error);
+}
+
+module.exports = N8nAutoConfigurator;

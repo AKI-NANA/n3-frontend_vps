@@ -1,0 +1,505 @@
+{
+  "name": "【メディア】11_110-LMS-パラメトリック問題生成-無限類題エンジン_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "parametric-generate",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: parametric-generate",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "parametric-generate"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// パラメトリック問題生成 初期化\n// 過去問から無限の類題を自動生成\n// ============================================================================\n\nconst body = $input.first().json.body || $input.first().json || {};\n\nconst originalQuestionId = body.original_question_id;\nconst domain = body.domain || '宅建'; // '宅建', '簿記', 'ITパスポート'\nconst category = body.category; // '民法', '権利関係' など\nconst variantCount = body.variant_count || 5; // 生成する類題数\nconst difficultyLevel = body.difficulty_level || 'same'; // 'easier', 'same', 'harder'\nconst transformTypes = body.transform_types || ['numeric', 'date', 'name']; // 変換タイプ\nconst preserveStructure = body.preserve_structure !== false; // 文章構造を維持\n\nif (!originalQuestionId) {\n  return [{ json: { error: true, message: 'original_question_id は必須です', code: 'MISSING_PARAM' } }];\n}\n\nconst batchId = 'param_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);\n\nreturn [{\n  json: {\n    batch_id: batchId,\n    original_question_id: originalQuestionId,\n    domain: domain,\n    category: category,\n    variant_count: Math.min(variantCount, 20), // 最大20問\n    difficulty_level: difficultyLevel,\n    transform_types: transformTypes,\n    preserve_structure: preserveStructure,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT q.*, COALESCE(json_agg(o.*) FILTER (WHERE o.id IS NOT NULL), '[]') as options FROM atomic_questions q LEFT JOIN parametric_question_options o ON q.id = o.original_question_id WHERE q.id = $1 GROUP BY q.id",
+        "options": {
+          "queryParams": "={{ [$json.original_question_id] }}"
+        }
+      },
+      "id": "fetch-question",
+      "name": "📥 元問題取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 元問題の解析と変数抽出\n// ============================================================================\n\nconst config = $node['🔧 初期化'].json;\nconst questionData = $input.first().json[0];\n\nif (!questionData) {\n  return [{ json: { error: true, message: '元問題が見つかりません', code: 'NOT_FOUND' } }];\n}\n\n// 数値・日付・名前などを自動検出\nconst extractVariables = (text) => {\n  const variables = [];\n  \n  // 数値（金額、パーセント、個数など）\n  const numericMatches = text.match(/[0-9,]+(?:万円|円|%|年|ヶ月|日|個|人|回|件)/g) || [];\n  numericMatches.forEach((m, i) => {\n    variables.push({ type: 'numeric', original: m, position: text.indexOf(m) });\n  });\n  \n  // 日付\n  const dateMatches = text.match(/(?:令和|平成|昭和)?[0-9]+年[0-9]*月?[0-9]*日?/g) || [];\n  dateMatches.forEach((m, i) => {\n    variables.push({ type: 'date', original: m, position: text.indexOf(m) });\n  });\n  \n  // 人名（カタカナ）\n  const nameMatches = text.match(/[ア-ン]{2,5}(?:さん|氏|君)?/g) || [];\n  nameMatches.forEach((m, i) => {\n    variables.push({ type: 'name', original: m, position: text.indexOf(m) });\n  });\n  \n  return variables;\n};\n\nconst questionText = questionData.question_text || '';\nconst variables = extractVariables(questionText);\n\n// 選択肢の変数も抽出\nconst options = typeof questionData.options === 'string' \n  ? JSON.parse(questionData.options) \n  : questionData.options || [];\n\nconst optionVariables = options.map((opt, idx) => ({\n  index: idx,\n  text: opt.option_text || opt.text,\n  is_correct: opt.is_correct,\n  variables: extractVariables(opt.option_text || opt.text || '')\n}));\n\nreturn [{\n  json: {\n    ...config,\n    original_question: {\n      id: questionData.id,\n      question_text: questionText,\n      explanation: questionData.explanation,\n      domain: questionData.domain,\n      category: questionData.category,\n      difficulty: questionData.difficulty\n    },\n    extracted_variables: variables,\n    options: optionVariables,\n    correct_answer_index: options.findIndex(o => o.is_correct)\n  }\n}];"
+      },
+      "id": "analyze-question",
+      "name": "🔍 変数抽出",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// Gemini用プロンプト生成\n// ============================================================================\n\nconst data = $input.first().json;\n\nif (data.error) {\n  return [{ json: data }];\n}\n\nconst difficultyInstructions = {\n  'easier': '元の問題より少し簡単な内容にしてください。数値は小さく、選択肢の差は明確に。',\n  'same': '元の問題と同程度の難易度を維持してください。',\n  'harder': '元の問題より少し難しくしてください。数値は複雑に、選択肢は紛らわしく。'\n};\n\nconst prompt = `\nあなたは${data.domain}の試験問題作成の専門家です。\n以下の元問題を基に、${data.variant_count}個の類題を生成してください。\n\n【元問題】\n${data.original_question.question_text}\n\n【選択肢】\n${data.options.map((o, i) => `${i + 1}. ${o.text}${o.is_correct ? ' (正解)' : ''}`).join('\\n')}\n\n【解説】\n${data.original_question.explanation || 'なし'}\n\n【変換ルール】\n- 問題の構造と論理は維持する\n- 以下の要素を変換可能: ${data.transform_types.join(', ')}\n- ${difficultyInstructions[data.difficulty_level]}\n- 正解の位置はランダムに変更する\n- 各類題は異なる数値・名前を使用する\n\n【出力形式】\n以下のJSON配列で出力してください:\n[\n  {\n    \"variant_number\": 1,\n    \"question_text\": \"変換後の問題文\",\n    \"options\": [\n      {\"text\": \"選択肢1\", \"is_correct\": false},\n      {\"text\": \"選択肢2\", \"is_correct\": true},\n      {\"text\": \"選択肢3\", \"is_correct\": false},\n      {\"text\": \"選択肢4\", \"is_correct\": false}\n    ],\n    \"explanation\": \"この問題の解説\",\n    \"transformation_log\": {\n      \"changes\": [\n        {\"type\": \"numeric\", \"original\": \"100万円\", \"generated\": \"150万円\"}\n      ]\n    }\n  },\n  ...\n]\n\nJSONのみを出力し、説明文は不要です。\n`;\n\nreturn [{\n  json: {\n    ...data,\n    gemini_prompt: prompt\n  }\n}];"
+      },
+      "id": "build-prompt",
+      "name": "📝 プロンプト生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: $json.gemini_prompt }] }], generationConfig: { temperature: 0.8, maxOutputTokens: 8192 } }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "call-gemini",
+      "name": "🤖 Gemini 類題生成",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "gemini-api",
+          "name": "Gemini API"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// Gemini結果解析\n// ============================================================================\n\nconst prevData = $node['📝 プロンプト生成'].json;\nconst geminiResult = $input.first().json;\n\nlet variants = [];\nlet errorMessage = null;\n\ntry {\n  if (geminiResult.candidates && geminiResult.candidates[0]) {\n    const text = geminiResult.candidates[0].content.parts[0].text;\n    \n    // JSON部分を抽出\n    const jsonMatch = text.match(/\\[\\s*\\{[\\s\\S]*\\}\\s*\\]/g);\n    if (jsonMatch) {\n      variants = JSON.parse(jsonMatch[0]);\n    } else {\n      // マークダウンのコードブロックから抽出\n      const codeBlockMatch = text.match(/```json?\\s*([\\s\\S]*?)```/i);\n      if (codeBlockMatch) {\n        variants = JSON.parse(codeBlockMatch[1]);\n      }\n    }\n  }\n} catch (e) {\n  errorMessage = 'JSON解析エラー: ' + e.message;\n}\n\nif (variants.length === 0 && !errorMessage) {\n  errorMessage = 'Geminiからの応答を解析できませんでした';\n}\n\nreturn [{\n  json: {\n    batch_id: prevData.batch_id,\n    original_question_id: prevData.original_question.id,\n    domain: prevData.domain,\n    category: prevData.category,\n    variants: variants,\n    variant_count: variants.length,\n    error_message: errorMessage,\n    success: variants.length > 0\n  }\n}];"
+      },
+      "id": "parse-gemini",
+      "name": "📋 結果解析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "success",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-success",
+      "name": "生成成功？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// DB保存用データ準備\n// ============================================================================\n\nconst data = $input.first().json;\n\nconst insertData = data.variants.map((v, idx) => ({\n  original_question_id: data.original_question_id,\n  variant_number: v.variant_number || idx + 1,\n  question_text: v.question_text,\n  options: JSON.stringify(v.options),\n  explanation: v.explanation,\n  transformation_log: JSON.stringify(v.transformation_log || {}),\n  quality_score: 0.85, // 初期スコア\n  domain: data.domain,\n  category: data.category,\n  batch_id: data.batch_id\n}));\n\nreturn insertData.map(d => ({ json: d }));"
+      },
+      "id": "prepare-insert",
+      "name": "📦 保存準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO generated_variants (id, original_question_id, variant_number, question_text, options, explanation, transformation_log, quality_score) VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7) RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.original_question_id, $json.variant_number, $json.question_text, $json.options, $json.explanation, $json.transformation_log, $json.quality_score] }}"
+        }
+      },
+      "id": "save-variant",
+      "name": "💾 類題保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE atomic_questions SET generation_count = COALESCE(generation_count, 0) + $1, updated_at = NOW() WHERE id = $2",
+        "options": {
+          "queryParams": "={{ [$node['📋 結果解析'].json.variant_count, $node['📋 結果解析'].json.original_question_id] }}"
+        }
+      },
+      "id": "update-counter",
+      "name": "📊 カウンター更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ process.env.N8N_WEBHOOK_URL || '{{$env.N8N_BASE_URL}}' }}/webhook/chatwork-notify",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ message: '📝 パラメトリック問題生成完了\\n\\nドメイン: ' + $node['📋 結果解析'].json.domain + '\\n生成数: ' + $node['📋 結果解析'].json.variant_count + '問\\nバッチID: ' + $node['📋 結果解析'].json.batch_id, room_id: process.env.CHATWORK_ROOM_ID }) }}"
+      },
+      "id": "notify-success",
+      "name": "📱 成功通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "url": "={{ process.env.N8N_WEBHOOK_URL || '{{$env.N8N_BASE_URL}}' }}/webhook/chatwork-notify",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ message: '❌ パラメトリック問題生成失敗\\n\\nエラー: ' + $json.error_message, room_id: process.env.CHATWORK_ROOM_ID }) }}"
+      },
+      "id": "notify-error",
+      "name": "📱 エラー通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, batch_id: $node['🔧 初期化'].json.batch_id, message: 'パラメトリック問題生成開始' }) }}",
+        "options": {
+          "responseCode": 202
+        }
+      },
+      "id": "respond-accepted",
+      "name": "受付応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: parametric-generate": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📥 元問題取得",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "受付応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📥 元問題取得": {
+      "main": [
+        [
+          {
+            "node": "🔍 変数抽出",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 変数抽出": {
+      "main": [
+        [
+          {
+            "node": "📝 プロンプト生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 プロンプト生成": {
+      "main": [
+        [
+          {
+            "node": "🤖 Gemini 類題生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 Gemini 類題生成": {
+      "main": [
+        [
+          {
+            "node": "📋 結果解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 結果解析": {
+      "main": [
+        [
+          {
+            "node": "生成成功？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "生成成功？": {
+      "main": [
+        [
+          {
+            "node": "📦 保存準備",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📱 エラー通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 保存準備": {
+      "main": [
+        [
+          {
+            "node": "💾 類題保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 類題保存": {
+      "main": [
+        [
+          {
+            "node": "📊 カウンター更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 カウンター更新": {
+      "main": [
+        [
+          {
+            "node": "📱 成功通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📱 成功通知": {
+      "main": [
+        [
+          {
+            "node": "📊 実行ログ送信 (成功)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📱 エラー通知": {
+      "main": [
+        [
+          {
+            "node": "📊 実行ログ送信 (成功)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "LMS"
+    },
+    {
+      "name": "V5"
+    },
+    {
+      "name": "パラメトリック"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "triggerCount": 0,
+  "updatedAt": "2026-01-20T00:00:00.000Z",
+  "versionId": "1"
+}

@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "n3-empire-governance": {
+      "command": "node",
+      "args": [
+        "/Users/aritahiroaki/n3-frontend_new/governance/mcp-governance-server.js"
+      ]
+    },
+    "n3-empire-filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@anthropic-ai/mcp-filesystem-server",
+        "/Users/aritahiroaki/n3-frontend_new"
+      ]
+    }
+  }
+}

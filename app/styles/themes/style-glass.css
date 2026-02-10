@@ -1,0 +1,154 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Style Theme: Glass (Glassmorphism)
+   ガラス効果。大きめ角丸、ブラー、半透明、ソフトシャドウ
+   ============================================================ */
+
+[data-style="glass"] {
+  /* ===== SHAPE - 大きめ角丸 ===== */
+  --style-radius-xs: 8px;
+  --style-radius-sm: 12px;
+  --style-radius-md: 16px;
+  --style-radius-lg: 20px;
+  --style-radius-xl: 24px;
+  --style-radius-full: 9999px;
+  
+  /* ===== SHADOWS - ソフトで広がりのある ===== */
+  --style-shadow-xs: 0 2px 8px rgba(0,0,0,0.04);
+  --style-shadow-sm: 0 4px 16px rgba(0,0,0,0.06);
+  --style-shadow-md: 0 8px 32px rgba(0,0,0,0.08);
+  --style-shadow-lg: 0 16px 48px rgba(0,0,0,0.10);
+  --style-shadow-xl: 0 24px 64px rgba(0,0,0,0.12);
+  
+  /* ===== BORDERS - 薄いボーダー ===== */
+  --style-border-width: 1px;
+  --style-border-style: solid;
+  --style-glass-border: rgba(255, 255, 255, 0.25);
+  
+  /* ===== EFFECTS - ブラー ===== */
+  --style-blur: blur(12px);
+  --style-backdrop: blur(16px);
+  --style-opacity: 0.85;
+  
+  /* ===== TRANSITIONS - スムーズ ===== */
+  --style-transition-fast: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --style-transition-normal: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --style-transition-slow: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  /* ===== COMPONENT OVERRIDES ===== */
+  
+  /* Button */
+  --style-btn-radius: 12px;
+  --style-btn-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  --style-btn-shadow-hover: 0 8px 24px rgba(0,0,0,0.12);
+  --style-btn-border: 1px solid var(--style-glass-border);
+  
+  /* Card */
+  --style-card-radius: 20px;
+  --style-card-shadow: 0 8px 32px rgba(0,0,0,0.06);
+  --style-card-shadow-hover: 0 16px 48px rgba(0,0,0,0.10);
+  --style-card-border: 1px solid var(--style-glass-border);
+  
+  /* Input */
+  --style-input-radius: 12px;
+  --style-input-shadow: inset 0 1px 4px rgba(0,0,0,0.04);
+  --style-input-shadow-focus: 0 0 0 4px rgba(99, 102, 241, 0.15);
+  --style-input-border: 1px solid var(--style-glass-border);
+  
+  /* Badge */
+  --style-badge-radius: var(--style-radius-full);
+}
+
+/* Glass: ボタンにガラス効果 */
+[data-style="glass"] .n3-btn {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+[data-style="glass"] .n3-btn-secondary {
+  background: rgba(255, 255, 255, 0.6) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+}
+
+[data-style="glass"] .n3-btn-ghost {
+  background: rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Glass: Input */
+[data-style="glass"] .n3-input,
+[data-style="glass"] .n3-select,
+[data-style="glass"] .n3-textarea {
+  background: rgba(255, 255, 255, 0.5) !important;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Glass: Badge */
+[data-style="glass"] .n3-badge {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Glass: ダークモード */
+[data-style="glass"][data-theme="dark"] .n3-btn-secondary,
+[data-style="glass"][data-theme="cyber"] .n3-btn-secondary {
+  background: rgba(30, 30, 40, 0.6) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+[data-style="glass"][data-theme="dark"] .n3-input,
+[data-style="glass"][data-theme="dark"] .n3-select,
+[data-style="glass"][data-theme="cyber"] .n3-input,
+[data-style="glass"][data-theme="cyber"] .n3-select {
+  background: rgba(30, 30, 40, 0.5) !important;
+}
+
+/* Glass: Header系コンポーネント */
+[data-style="glass"] .n3-header-tab {
+  border-radius: 12px !important;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+[data-style="glass"] .n3-header-tab.active {
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3) !important;
+}
+
+[data-style="glass"] .n3-lang-switch,
+[data-style="glass"] .n3-header-search-input {
+  border-radius: 12px !important;
+  background: rgba(255, 255, 255, 0.5) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+}
+
+[data-style="glass"] .n3-notification-bell:hover,
+[data-style="glass"] .n3-pin-button:hover {
+  background: rgba(255, 255, 255, 0.3) !important;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+[data-style="glass"] .n3-l2-tab__badge {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+[data-style="glass"] .n3-user-avatar {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+[data-style="glass"] .n3-header-tabs__panel {
+  background: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+  border-radius: 0 0 16px 16px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1) !important;
+}
+
+[data-style="glass"][data-theme="dark"] .n3-header-tabs__panel,
+[data-style="glass"][data-theme="cyber"] .n3-header-tabs__panel {
+  background: rgba(30, 30, 40, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}

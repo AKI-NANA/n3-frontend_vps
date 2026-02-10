@@ -1,0 +1,834 @@
+{
+  "name": "【同期】01_SYNC-07-棚卸し-スプレッドシート同期_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "stocktake-sync",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: stocktake-sync",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "stocktake-sync"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "1時間ごと同期",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst headers = $input.first().json.headers || {};\nconst apiUrl = $env.N3_API_URL;\nconst secret = $env.N8N_INTERNAL_SECRET;\nif (!apiUrl) return [{ json: { error: true, message: 'N3_API_URL環境変数が未設定です', code: 'CONFIG_ERROR' } }];\nif (!secret) return [{ json: { error: true, message: 'N8N_INTERNAL_SECRET環境変数が未設定です', code: 'CONFIG_ERROR' } }];\nconst internalToken = headers['x-n3-signature'] || headers['X-N3-Signature'];\nconst tokenTimestamp = headers['x-n3-token-timestamp'] || headers['X-N3-Token-Timestamp'];\nconst userId = body.user_id || 'default';\nif (internalToken && tokenTimestamp) {\n  try {\n    const r = await fetch(`${apiUrl}/api/n8n-auth/verify-internal-token`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, timestamp: tokenTimestamp, token: internalToken }) });\n    if (!(await r.json()).valid) return [{ json: { error: true, message: '内部トークンが無効', code: 'INVALID_TOKEN' } }];\n  } catch (e) { return [{ json: { error: true, message: 'トークン検証エラー: ' + e.message, code: 'VERIFY_API_ERROR' } }]; }\n}\nconst spreadsheetId = body.spreadsheet_id || $env.STOCKTAKE_SPREADSHEET_ID || '1lD9ESIhv2oTE6sgL172wOOF9fJAcIy0SHrdhkLNw3MM';\nconst sheetName = body.sheet_name || 'plus1棚卸し';\nconst storageLocation = body.storage_location || 'plus1';\nconst isScheduled = !$input.first().json.body;\nreturn [{ json: { user_id: userId, spreadsheet_id: spreadsheetId, sheet_name: sheetName, storage_location: storageLocation, is_scheduled: isScheduled, request_timestamp: new Date().toISOString() } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.spreadsheet_id }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "={{ $json.sheet_name }}"
+        },
+        "options": {
+          "dataLocationOnSheet": {
+            "rangeDefinition": "specifyRangeA1",
+            "range": "A:F"
+          }
+        }
+      },
+      "id": "read-sheet",
+      "name": "📊 スプレッドシート読込",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets",
+          "name": "Google Sheets"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "no-data",
+              "leftValue": "={{ Array.isArray($json) ? $json.length : 0 }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-sheet-data",
+      "name": "データ有無",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { success: true, message: 'スプレッドシートにデータなし', synced_count: 0 } }];"
+      },
+      "id": "no-sheet-data",
+      "name": "データなし",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(item => item.json);\nconst config = $node['🔐 初期化'].json;\nconst dataRows = rows.filter((row, idx) => {\n  if (idx === 0) { return !((row.SKU || row.sku || row.A || '').toLowerCase() === 'sku'); }\n  return true;\n});\nreturn dataRows.filter(row => {\n  const sku = row.SKU || row.sku || row.A || '';\n  return sku && sku.trim() !== '';\n}).map(row => {\n  return { json: {\n    sku: (row.SKU || row.sku || row.A || '').trim(),\n    product_name: row['商品名'] || row.product_name || row.B || '',\n    quantity: parseInt(row['数量'] || row.quantity || row.C || 0) || 0,\n    color: row['色'] || row.color || row.D || '',\n    size: row['サイズ'] || row.size || row.E || '',\n    note: row['備考'] || row.note || row.F || '',\n    storage_location: config.storage_location\n  } };\n});"
+      },
+      "id": "parse-sheet",
+      "name": "📋 データパース",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, sku, product_name, physical_quantity, storage_location, source_data FROM inventory_master WHERE storage_location = $1",
+        "options": {
+          "queryParams": "={{ [$node['🔐 初期化'].json.storage_location] }}"
+        }
+      },
+      "id": "get-current-inventory",
+      "name": "📦 現在の在庫取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const sheetData = $node['📋 データパース'].all().map(item => item.json);\nconst dbData = ($node['📦 現在の在庫取得'].first()?.json || []);\nconst dbArray = Array.isArray(dbData) ? dbData : (dbData.id ? [dbData] : []);\nconst config = $node['🔐 初期化'].json;\nconst dbMap = new Map(dbArray.map(item => [item.sku, item]));\nconst changes = [];\nfor (const sheetRow of sheetData) {\n  const dbItem = dbMap.get(sheetRow.sku);\n  if (!dbItem) {\n    changes.push({ action: 'insert', sku: sheetRow.sku, product_name: sheetRow.product_name, quantity: sheetRow.quantity, color: sheetRow.color, size: sheetRow.size, storage_location: sheetRow.storage_location });\n  } else if (dbItem.physical_quantity !== sheetRow.quantity) {\n    changes.push({ action: 'update', id: dbItem.id, sku: sheetRow.sku, old_quantity: dbItem.physical_quantity, new_quantity: sheetRow.quantity, storage_location: sheetRow.storage_location });\n  }\n}\nif (changes.length === 0) { return [{ json: { no_changes: true, checked_count: sheetData.length } }]; }\nreturn changes.map(c => ({ json: c }));"
+      },
+      "id": "compare-data",
+      "name": "🔄 差分検出",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "no-changes",
+              "leftValue": "={{ $json.no_changes }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-changes",
+      "name": "変更あり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { success: true, message: '変更なし', synced_count: 0, checked_count: $json.checked_count } }];"
+      },
+      "id": "no-changes",
+      "name": "変更なし",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-insert",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "insert",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-action",
+      "name": "アクション判定",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO inventory_master (sku, unique_id, product_name, title, physical_quantity, listing_quantity, storage_location, is_manual_entry, product_type, inventory_type, marketplace, source_data, created_at, updated_at) VALUES ($1, $1, $2, $2, $3, $3, $4, true, 'single', 'stock', 'manual', $5::jsonb, NOW(), NOW()) ON CONFLICT (sku) DO UPDATE SET physical_quantity = EXCLUDED.physical_quantity, listing_quantity = EXCLUDED.listing_quantity, updated_at = NOW() RETURNING id, sku",
+        "options": {
+          "queryParams": "={{ [$json.sku, ($json.product_name || $json.sku).substring(0, 200), $json.quantity, $json.storage_location, JSON.stringify({ color: $json.color, size: $json.size, source: 'spreadsheet_sync', synced_at: new Date().toISOString() })] }}"
+        }
+      },
+      "id": "insert-inventory",
+      "name": "📥 在庫新規登録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE inventory_master SET physical_quantity = $1, listing_quantity = $1, updated_at = NOW() WHERE id = $2 RETURNING id, sku, physical_quantity",
+        "options": {
+          "queryParams": "={{ [$json.new_quantity, $json.id] }}"
+        }
+      },
+      "id": "update-inventory",
+      "name": "📝 在庫数更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO inventory_logs (sku, action_type, old_quantity, new_quantity, reason, source, created_at) VALUES ($1, 'stocktake_sync', $2, $3, 'スプレッドシート同期', 'n8n_stocktake_sync', NOW())",
+        "options": {
+          "queryParams": "={{ [$json.sku || $node['🔄 差分検出'].json.sku, $json.old_quantity || 0, $json.new_quantity || $json.quantity || 0] }}"
+        }
+      },
+      "id": "log-change",
+      "name": "📜 変更ログ記録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "zero-stock",
+              "leftValue": "={{ ($json.new_quantity || $json.quantity || 0) }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-zero-stock",
+      "name": "在庫ゼロ？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_WEBHOOK_URL || 'http://{{$env.N8N_BASE_URL}}/webhook' }}/inventory-sync",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ action: 'sync_zero', sku: $json.sku || $node['🔄 差分検出'].json.sku, quantity: 0, source: 'stocktake_sync' }) }}",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "trigger-zero-sync",
+      "name": "🔄 在庫0同期トリガー",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "return items;"
+      },
+      "id": "pass-nonzero",
+      "name": "非ゼロ通過",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all().map(i => i.json);\nconst config = $node['🔐 初期化'].json;\nconst insertCount = results.filter(r => r.action === 'insert' || (r.id && !r.old_quantity)).length;\nconst updateCount = results.filter(r => r.action === 'update' || (r.id && r.old_quantity !== undefined)).length;\nconst zeroStockCount = results.filter(r => (r.new_quantity || r.quantity || 0) === 0).length;\nreturn [{ json: { success: true, synced_count: results.length, inserted_count: insertCount, updated_count: updateCount, zero_stock_count: zeroStockCount, synced_at: new Date().toISOString() } }];"
+      },
+      "id": "aggregate",
+      "name": "📊 結果集計",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-changes",
+              "leftValue": "={{ $json.synced_count }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "larger"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-notify",
+      "name": "同期あり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=[info][title]📋 棚卸し同期完了[/title]同期: {{ $json.synced_count }}件\\n📥新規: {{ $json.inserted_count }}件\\n📝更新: {{ $json.updated_count }}件\\n⚠️在庫0: {{ $json.zero_stock_count }}件[/info]"
+            }
+          ]
+        },
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "notify",
+      "name": "ChatWork通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: stocktake-sync": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "1時間ごと同期": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📊 スプレッドシート読込",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 スプレッドシート読込": {
+      "main": [
+        [
+          {
+            "node": "データ有無",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "データ有無": {
+      "main": [
+        [
+          {
+            "node": "データなし",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 データパース",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "データなし": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 データパース": {
+      "main": [
+        [
+          {
+            "node": "📦 現在の在庫取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 現在の在庫取得": {
+      "main": [
+        [
+          {
+            "node": "🔄 差分検出",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 差分検出": {
+      "main": [
+        [
+          {
+            "node": "変更あり？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "変更あり？": {
+      "main": [
+        [
+          {
+            "node": "変更なし",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "アクション判定",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "変更なし": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "アクション判定": {
+      "main": [
+        [
+          {
+            "node": "📥 在庫新規登録",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📝 在庫数更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📥 在庫新規登録": {
+      "main": [
+        [
+          {
+            "node": "📜 変更ログ記録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 在庫数更新": {
+      "main": [
+        [
+          {
+            "node": "📜 変更ログ記録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📜 変更ログ記録": {
+      "main": [
+        [
+          {
+            "node": "在庫ゼロ？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "在庫ゼロ？": {
+      "main": [
+        [
+          {
+            "node": "🔄 在庫0同期トリガー",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "非ゼロ通過",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 在庫0同期トリガー": {
+      "main": [
+        [
+          {
+            "node": "📊 結果集計",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "非ゼロ通過": {
+      "main": [
+        [
+          {
+            "node": "📊 結果集計",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 結果集計": {
+      "main": [
+        [
+          {
+            "node": "同期あり？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "同期あり？": {
+      "main": [
+        [
+          {
+            "node": "ChatWork通知",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ChatWork通知": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 300,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Sync",
+      "color": "#1e90ff"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "No-Crypto",
+      "color": "#9932cc"
+    },
+    {
+      "name": "SQL-Safe",
+      "color": "#32cd32"
+    },
+    {
+      "name": "Stocktake",
+      "color": "#ff6600"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

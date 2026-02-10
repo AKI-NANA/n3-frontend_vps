@@ -1,0 +1,19 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Footer
+   ============================================================ */
+
+.n3-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--footer-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px 0 calc(var(--sidebar-width) + 16px);
+  background: var(--glass);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--glass-border);
+  z-index: 60;
+}

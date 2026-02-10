@@ -1,0 +1,41 @@
+# ==================================================
+# N3 Empire OS — 容量ガード .gitignore
+# 自動生成 by imperial-staging.js v4.0
+# ★ このファイルは同期のたびに強制上書きされます ★
+# ==================================================
+
+# 巨大キャッシュ（最重要）
+.next/
+.swc/
+node_modules/
+.turbo/
+
+# 環境変数（機密）
+.env
+.env.local
+.env.development.local
+.env.production.local
+.env.test.local
+
+# 帝国統治（本番リポジトリには不要）
+governance/
+00_STAGING/
+01_PRODUCT/
+02_DEV_LAB/
+03_ARCHIVE_STORAGE/
+05_SKELETONS/
+
+# OS/IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ログ・ロック
+STOP_ENGINE
+MORNING_HOMEWORK.md
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

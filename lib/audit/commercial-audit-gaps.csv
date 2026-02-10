@@ -1,0 +1,31 @@
+ID,Category,Severity,Component,Description,Current State,Required State,Recommendation,Estimated Effort
+UI-001,ui,critical,API Credentials Manager UI,APIキー（eBay/Amazon/Keepa等）をUI経由で安全に設定する画面が不完全,app/api/credentials/route.tsにAPIは存在するがフロントエンドUIコンポーネントが欠落,各マーケットプレイスのOAuth認証フローとAPIキー入力フォームを持つ設定画面,app/tools/settings-n3/components/CredentialsManagerPanel.tsxを作成しOAuth2フローを統合,large
+UI-002,ui,critical,AI Decision Trace Viewer,AIエージェントの判断証跡（Decision Trace）を確認するUI画面が存在しない,core.ai_decision_tracesテーブルは存在するが閲覧UIが未実装,AIの全判断履歴をフィルタ・検索・詳細表示できるダッシュボード,app/tools/operations-n3/components/AIDecisionTracePanel.tsxを作成,medium
+UI-003,ui,high,API Budget Manager UI,API消費制限・予算設定画面が存在しない,core.api_consumption_limitsテーブルは存在するが設定UIが未実装,プロバイダ別の予算設定/アラート閾値/超過時アクションを設定できる画面,app/tools/settings-n3/components/APIBudgetPanel.tsxを作成,medium
+UI-004,ui,high,HitL Approval Dashboard,人間承認が必要なアクションを一覧・承認するUI画面が不完全,app/api/hitl/route.tsにAPIは存在するが一覧表示UIが欠落,pending状態の全アクションを表示し承認/拒否できるダッシュボード,app/tools/operations-n3/components/HitLApprovalPanel.tsxを作成,medium
+UI-005,ui,high,Category Quota Manager UI,カテゴリ別出品枠の設定・管理画面が存在しない,commerce.category_listing_quotasテーブルは存在するが設定UIが未実装,カテゴリ別の出品枠上限/時間帯設定/夜間シフト設定ができる画面,app/tools/listing-n3/components/CategoryQuotaPanel.tsxを作成,medium
+UI-006,ui,high,Exit Strategy Dashboard,撤退候補一覧・撤退計画承認画面が存在しない,ExitStrategyEngineはlib/ai/に実装済みだがUIが未実装,Soft/Hard Exit候補の一覧/損失見込み/承認ボタンを持つダッシュボード,app/tools/operations-n3/components/ExitStrategyPanel.tsxを作成,medium
+UI-007,ui,medium,Asset Score Viewer,商品別Asset Scoreとランクを表示するUI画面が存在しない,AssetPilotはlib/ai/に実装済みだがUIが未実装,商品リストにAsset Score/ランク列を追加/詳細ポップアップで内訳表示,editing-n3/inventoryのテーブルにAsset Score列を追加,medium
+UI-008,ui,medium,Portfolio Risk Dashboard,ポートフォリオリスク（集中度等）を可視化するUI画面が存在しない,finance.portfolio_risk_managerテーブルは存在するがUIが未実装,カテゴリ/ブランド集中度のグラフ/警告リスト/リスクスコアを表示,app/tools/analytics-n3/components/PortfolioRiskPanel.tsxを作成,medium
+UI-009,ui,medium,n8n Workflow Status UI,n8nワークフローの実行状況をリアルタイム表示するUI画面が不完全,n8n APIへの接続はあるがダッシュボード統合が不十分,アクティブなワークフロー/最近の実行履歴/エラー率を表示,app/tools/operations-n3/components/WorkflowStatusPanel.tsxを拡張,small
+UI-010,ui,medium,EOL/Reprint Tracking UI,EOL追跡・再販サイクル情報を表示するUI画面が存在しない,commerce.eol_tracking/commerce.reprint_cyclesテーブルは存在するがUIが未実装,EOL予定商品リスト/再販Dipの買い場アラート/高騰予測を表示,app/tools/research-n3/components/EOLTrackingPanel.tsxを作成,medium
+UI-011,ui,critical,OAuth Setup Wizard,eBay/Amazon OAuth認証をステップバイステップで行うウィザードが存在しない,OAuth APIは存在するがユーザーフレンドリーなウィザードUIがない,1.説明→2.認証→3.確認→4.完了のステップ形式ウィザード,app/tools/settings-n3/components/OAuthSetupWizard.tsxを作成,large
+UI-012,ui,high,Initial Setup Checklist,初期セットアップの進捗を表示するチェックリストUIが存在しない,どの設定が完了しているか/次に何をすべきかが不明確,必須設定項目のチェックリストと進捗バー/次のアクションボタン,app/tools/settings-n3/components/SetupChecklist.tsxを作成,small
+API-001,api,critical,eBay OAuth Callback Handler,eBay OAuth認証のコールバック処理が不完全,OAuth開始は可能だがトークン取得後の自動保存が一部手動,コールバック受信→トークン取得→DB保存→n8n Credentials更新が全自動,app/api/auth/ebay/callback/route.tsを拡張しn8n API連携を追加,medium
+API-002,api,critical,Amazon SP-API OAuth Flow,Amazon SP-API認証フローが未実装,Amazon関連APIは存在するがOAuth認証フローが不完全,LWA OAuth→Access Token→Refresh Token→DB保存の完全フロー,app/api/auth/amazon/oauth/route.tsを作成,large
+API-003,api,high,Keepa API Key Validation,Keepa APIキーの検証機能が存在しない,APIキー入力は可能だが有効性の事前検証がない,入力されたAPIキーでテストリクエストを行い有効性を確認,app/api/credentials/validate/keepa/route.tsを作成,small
+API-004,api,high,n8n Credentials Auto-Sync,DB保存されたAPIキーをn8n Credentialsに自動反映する機能が不完全,lib/n8n/secret-vault.tsに概念は存在するが実際の同期が未実装,DB更新時にn8n REST APIを呼び出しCredentialsを自動更新,lib/n8n/credentials-sync.tsを作成しWebhookトリガーを追加,medium
+API-005,api,medium,Token Refresh Automation,トークン期限切れ前の自動更新機能が不十分,eBayトークン更新は部分的に実装されているが全マーケットプレイス統一されていない,期限1時間前に自動更新/失敗時はアラート送信,app/api/cron/token-refresh/route.tsを作成しVercel Cronで定期実行,medium
+MON-001,monitoring,critical,System Health Metrics Table,全ツールの実行回数・成功率・コストを記録するテーブルが存在しない,core.audit_logsに部分的な情報はあるが集計用テーブルがない,ツール別・日別・時間別の集計メトリクステーブル,core.system_health_metricsテーブルを追加,medium
+MON-002,monitoring,high,Metrics Dashboard UI,システムヘルスメトリクスを表示するダッシュボードUIが存在しない,UIなし,実行回数/成功率/エラー率/APIコストをグラフ・テーブルで表示,app/tools/operations-n3/components/SystemHealthDashboard.tsxを作成,large
+MON-003,monitoring,high,Cost Tracking per Tool,ツール別のAPI消費コストをリアルタイム追跡する機能がない,core.api_consumption_limitsで予算設定は可能だがツール別の追跡がない,各ツール実行時にコストを自動計算し累積値を記録,V8.2.1のAudit-Logノードにコスト計算ロジックを追加,medium
+MON-004,monitoring,medium,Error Alert System,連続エラー発生時の自動アラート機能が不十分,ChatWork通知は部分的に実装されているが閾値ベースのアラートがない,5分間に3回以上エラーで即時アラート/日次サマリーメール,app/api/monitoring/alerts/route.tsを作成,medium
+MON-005,monitoring,medium,n8n Execution Aggregator,n8n実行履歴をDBに集約する機能がない,n8n内部にログは存在するがN3 DB側に同期されていない,n8n Execution Webhookを受信しcore.n8n_execution_logsに記録,app/api/n8n/execution-webhook/route.tsを作成,small
+INC-001,db,high,products_master vs products,一部のコードでproducts_masterとproductsを混同している可能性,スキーマはproducts_masterだが古いコードにproducts参照が残存の恐れ,全コードでproducts_masterに統一,grep -r from.*(products)[^_]で検索し修正,small
+INC-002,n8n,high,Webhook Path Inconsistency,README記載のWebhookパスと実際のn8nワークフロー設定に不一致の恐れ,/webhook/listing-reserve等のパスが一部のワークフローで異なる可能性,全Webhookパスを正規化しlib/n8n/webhook-paths.tsで一元管理,webhook-normalizer.tsを使用して全パスを検証・修正,medium
+INC-003,db,medium,Column Name Variations,テーブル間でカラム名の命名規則が不統一の箇所がある,created_at/createdAt/creation_dateなど混在の恐れ,全テーブルでsnake_case(created_at)に統一,DBスキーマを監査し統一されていないカラムをALTER TABLEで修正,small
+INC-004,api,medium,API Response Format,APIレスポンスの形式が統一されていない箇所がある,{success/data}/{data}/{result}など混在の恐れ,全APIで{success:boolean/data?:T/error?:{code/message}}に統一,lib/api/response-formatter.tsを作成し全APIで使用,medium
+INC-005,n8n,medium,Environment Variable Names,n8nとNext.jsで環境変数名が微妙に異なる箇所がある,SUPABASE_URL vs NEXT_PUBLIC_SUPABASE_URLなど,環境変数マッピングを明確化し両方で利用可能にする,lib/config/env-mapping.tsを作成し変換ロジックを一元化,small
+SEC-001,security,critical,API Rate Limiting,Next.js APIルートにレート制限が未実装,無制限のAPIアクセスが可能,IP/ユーザーごとに分単位のレート制限,middleware.tsでUpstash Ratelimitを導入,medium
+SEC-002,security,high,Input Validation,一部のAPIでZod等による入力バリデーションが不十分,body.xxxで直接アクセスしている箇所あり,全APIでZodスキーマによるバリデーション,lib/validation/api-schemas.tsを作成し全APIで使用,medium
+SEC-003,security,high,CSRF Protection,状態変更APIにCSRF保護が未実装の箇所がある,POST/PUT/DELETE APIにCSRFトークン検証なし,カスタムヘッダーorCSRFトークンによる保護,middleware.tsでOriginヘッダー検証を追加,small

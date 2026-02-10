@@ -1,0 +1,105 @@
+// app/tools/operations/hooks/use-product-data.ts
+// コピー元: editing/hooks/use-product-data.ts
+'use client'
+
+import { useState, useEffect } from 'react'
+import { fetchProducts, updateProduct, updateProducts, deleteProducts } from '@/lib/supabase/products'
+import type { Product, ProductUpdate } from '../types/product'
+
+export function useProductData() {
+  const [products, setProducts] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [modifiedIds, setModifiedIds] = useState<Set<string>>(new Set())
+  const [total, setTotal] = useState(0)
+  
+  // ✅ ページネーション状態
+  const [pageSize, setPageSize] = useState(50)
+  const [currentPage, setCurrentPage] = useState(1)
+
+  useEffect(() => { loadProducts() }, [pageSize, currentPage])
+
+  async function loadProducts() {
+    try {
+      setLoading(true)
+      const offset = (currentPage - 1) * pageSize
+      
+      const { products: data, total: count } = await fetchProducts(pageSize, offset)
+      
+      setProducts(data)
+      setTotal(count)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load products')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function markAsModified(id: string | number) { setModifiedIds(prev => new Set(prev).add(String(id))) }
+
+  function updateLocalProduct(id: string | number, updates: ProductUpdate) {
+    const normalizedId = String(id)
+    
+    setProducts(prev =>
+      prev.map(p => {
+        if (String(p.id) !== normalizedId) return p
+        const updatedProduct = { ...p }
+        for (const [key, value] of Object.entries(updates)) {
+          if (key === 'listing_data' || key === 'scraped_data' || key === 'ebay_api_data') {
+            updatedProduct[key as keyof Product] = { ...(p[key as keyof Product] as any || {}), ...(value as any) } as any
+          } else {
+            updatedProduct[key as keyof Product] = value as any
+          }
+        }
+        return updatedProduct
+      })
+    )
+    markAsModified(normalizedId)
+  }
+
+  async function saveProduct(id: string | number, updates: ProductUpdate) {
+    try {
+      const { listing_history, ...cleanUpdates } = updates as any
+      const idNum = typeof id === 'string' ? parseInt(id, 10) : id
+      const updated = await updateProduct(String(idNum), cleanUpdates)
+      setProducts(prev => prev.map(p => (p.id === idNum ? updated : p)))
+      setModifiedIds(prev => { const newSet = new Set(prev); newSet.delete(String(id)); return newSet })
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Failed to save' }
+    }
+  }
+
+  async function saveAllModified() {
+    
+    const updates = Array.from(modifiedIds).map(id => {
+      const product = products.find(p => String(p.id) === String(id))
+      if (!product) { console.error('❌ 商品が見つかりません:', id); return null }
+      const { listing_history, ...productData } = product
+      return { id: String(product.id), data: productData as ProductUpdate }
+    }).filter((u): u is { id: string; data: ProductUpdate } => u !== null)
+
+    const result = await updateProducts(updates)
+    
+    if (result.success > 0) {
+      setModifiedIds(new Set())
+      const productsWithEnglishTitle = updates.filter(u => { const product = u.data as any; return product?.english_title && product.english_title.trim() !== '' }).map(u => u.id)
+      if (productsWithEnglishTitle.length > 0) {
+        try {
+          const response = await fetch('/api/tools/html-generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productIds: productsWithEnglishTitle }) })
+          if (response.ok) { const htmlResult = await response.json(); console.log(`✅ HTML生成完了: ${htmlResult.updated}件`) }
+          else { console.error('❌ HTML生成失敗:', await response.text()) }
+        } catch (error) { console.error('❌ HTML生成エラー:', error) }
+      }
+      await loadProducts()
+    }
+    return result
+  }
+
+  async function deleteSelected(ids: string[]) {
+    try { await deleteProducts(ids); await loadProducts(); return { success: true } }
+    catch (err) { return { success: false, error: err instanceof Error ? err.message : 'Failed to delete' } }
+  }
+
+  return { products, loading, error, modifiedIds, total, pageSize, currentPage, setPageSize, setCurrentPage, loadProducts, updateLocalProduct, saveProduct, saveAllModified, deleteSelected, markAsModified }
+}

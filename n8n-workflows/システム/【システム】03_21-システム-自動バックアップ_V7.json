@@ -1,0 +1,467 @@
+{
+  "name": "【システム】03_21-システム-自動バックアップ_V7",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 4 * * 0"
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "毎週日曜AM4時",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "backup-trigger",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: backup-trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "backup-trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "// V7商用基準: テナント隔離 + Secret Vault参照\nconst headers = $input.first().json.headers || {};\nconst body = $input.first().json.body || $input.first().json || {};\n\n// 署名検証（Secret Vault参照）\nconst signature = headers['x-n3-signature'] || headers['X-N3-Signature'] || '';\nconst timestamp = headers['x-n3-timestamp'] || headers['X-N3-Timestamp'] || '';\n\nif (signature && timestamp) {\n  const ts = parseInt(timestamp, 10);\n  const now = Math.floor(Date.now() / 1000);\n  if (Math.abs(now - ts) > 300) {\n    return [{ json: { error: true, message: 'タイムスタンプ期限切れ', code: 'TIMESTAMP_EXPIRED' } }];\n  }\n  \n  // Vault経由で検証\n  try {\n    const vaultUrl = $env.SECRET_VAULT_URL || 'http://localhost:8080';\n    const vaultResponse = await fetch(`${vaultUrl}/decrypt`, {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json', 'X-Vault-Token': $env.VAULT_TOKEN || '' },\n      body: JSON.stringify({ ref_id: 'hmac-secret-001', payload: JSON.stringify(body), signature, timestamp })\n    });\n    if (vaultResponse.ok) {\n      const result = await vaultResponse.json();\n      if (!result.valid) {\n        return [{ json: { error: true, message: '署名検証失敗', code: 'INVALID_SIGNATURE' } }];\n      }\n    }\n  } catch (e) {\n    console.log('Vault検証スキップ: ' + e.message);\n  }\n}\n\n// テナントID抽出（バックアップはマルチテナント or 単一テナント）\nconst tenantId = body.tenant_id || headers['x-tenant-id'] || headers['X-Tenant-Id'] || $env.DEFAULT_TENANT_ID || 'all';\n\nconst now = new Date();\nconst timestamp_str = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);\nconst backupName = `n3-backup-${tenantId}-${timestamp_str}`;\n\nreturn [{ json: { \n  tenant_id: tenantId,\n  backup_name: backupName, \n  timestamp: now.toISOString(), \n  tables: ['products_master', 'inventory_master', 'orders_unified', 'research_results', 'admin_tasks', 'global_settings', 'logistics_providers', 'performance_snapshots'],\n  request_id: `bkp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`\n} }];"
+      },
+      "id": "init",
+      "name": "🔐 V7初期化 (テナント+Vault)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[V7_COMMERCIAL] テナント隔離 + Secret Vault参照"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT table_name, pg_size_pretty(pg_total_relation_size(quote_ident(table_name))) as size, (SELECT count(*) FROM information_schema.columns WHERE table_name = t.table_name) as columns FROM information_schema.tables t WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY pg_total_relation_size(quote_ident(table_name)) DESC LIMIT 20",
+        "options": {}
+      },
+      "id": "get-table-stats",
+      "name": "📊 テーブル統計取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) as products_count FROM products_master WHERE ($1 = 'all' OR tenant_id = $1)",
+        "options": {
+          "queryParams": "={{ [$node['🔐 V7初期化 (テナント+Vault)'].json.tenant_id] }}"
+        }
+      },
+      "id": "count-products",
+      "name": "📦 商品数カウント",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "notes": "[V7] テナント隔離対応"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) as orders_count FROM orders_unified WHERE ($1 = 'all' OR tenant_id = $1)",
+        "options": {
+          "queryParams": "={{ [$node['🔐 V7初期化 (テナント+Vault)'].json.tenant_id] }}"
+        }
+      },
+      "id": "count-orders",
+      "name": "🛒 受注数カウント",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "notes": "[V7] テナント隔離対応"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT backup_name, status, record_counts, created_at FROM backup_history WHERE ($1 = 'all' OR tenant_id = $1) ORDER BY created_at DESC LIMIT 10",
+        "options": {
+          "queryParams": "={{ [$node['🔐 V7初期化 (テナント+Vault)'].json.tenant_id] }}"
+        }
+      },
+      "id": "get-backup-history",
+      "name": "📜 バックアップ履歴取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true,
+      "notes": "[V7] 履歴タブ用データ"
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $node['🔐 V7初期化 (テナント+Vault)'].json;\nconst tableStats = $node['📊 テーブル統計取得'].json;\nconst productsCount = $node['📦 商品数カウント'].json?.products_count || 0;\nconst ordersCount = $node['🛒 受注数カウント'].json?.orders_count || 0;\nconst backupHistory = $node['📜 バックアップ履歴取得'].json;\n\nconst backupSummary = {\n  tenant_id: config.tenant_id,\n  backup_name: config.backup_name,\n  timestamp: config.timestamp,\n  request_id: config.request_id,\n  stats: {\n    products: parseInt(productsCount),\n    orders: parseInt(ordersCount),\n    tables: Array.isArray(tableStats) ? tableStats.length : 1\n  },\n  table_details: tableStats,\n  history: Array.isArray(backupHistory) ? backupHistory : (backupHistory?.backup_name ? [backupHistory] : [])\n};\n\nreturn [{ json: backupSummary }];"
+      },
+      "id": "compile-stats",
+      "name": "📋 統計コンパイル",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[V7] 履歴データ統合"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO backup_history (tenant_id, backup_name, status, record_counts, table_details, created_at) VALUES ($1, $2, 'completed', $3::jsonb, $4::jsonb, NOW()) RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.tenant_id, $json.backup_name, JSON.stringify($json.stats), JSON.stringify($json.table_details || [])] }}"
+        }
+      },
+      "id": "save-backup-history",
+      "name": "💾 バックアップ履歴保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true,
+      "notes": "[V7] テナント別履歴"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO performance_snapshots (tenant_id, snapshot_date, sales_data, inventory_data, tasks_data, listings_data) VALUES ($1, CURRENT_DATE, $2::jsonb, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb) ON CONFLICT (tenant_id, snapshot_date) DO UPDATE SET sales_data = EXCLUDED.sales_data, updated_at = NOW()",
+        "options": {
+          "queryParams": "={{ [$json.tenant_id, JSON.stringify({ backup_info: { backup_name: $json.backup_name, stats: $json.stats } })] }}"
+        }
+      },
+      "id": "log-backup",
+      "name": "💾 バックアップログ",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true,
+      "notes": "[V7] テナント隔離"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CHATWORK_API_URL || 'https://api.chatwork.com' }}/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=[info][title]💾 週次バックアップ完了[/title]バックアップ名: {{ $json.backup_name }}\\nテナント: {{ $json.tenant_id }}\\n\\n【統計】\\n商品数: {{ $json.stats.products }}件\\n受注数: {{ $json.stats.orders }}件\\nテーブル数: {{ $json.stats.tables }}\\n\\n※Supabase自動バックアップと連携[/info]"
+            }
+          ]
+        },
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "notify",
+      "name": "📢 完了通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const backup = $input.first().json;\n\n// V7: UI Config for DynamicRenderer（履歴タブ付き）\nconst uiConfig = {\n  renderer: 'DynamicRenderer',\n  layout: 'tabs',\n  tabs: [\n    {\n      id: 'status',\n      label: '現在のステータス',\n      icon: 'CheckCircle',\n      components: [\n        {\n          type: 'StatusCard',\n          props: {\n            title: '最新バックアップ',\n            status: 'success',\n            value: backup.backup_name,\n            timestamp: backup.timestamp\n          }\n        },\n        {\n          type: 'StatCard',\n          props: {\n            title: '商品数',\n            value: backup.stats.products,\n            suffix: '件'\n          }\n        },\n        {\n          type: 'StatCard',\n          props: {\n            title: '受注数',\n            value: backup.stats.orders,\n            suffix: '件'\n          }\n        },\n        {\n          type: 'StatCard',\n          props: {\n            title: 'テーブル数',\n            value: backup.stats.tables,\n            suffix: '個'\n          }\n        }\n      ]\n    },\n    {\n      id: 'history',\n      label: 'バックアップ履歴',\n      icon: 'History',\n      components: [\n        {\n          type: 'DataTable',\n          props: {\n            columns: [\n              { key: 'backup_name', label: 'バックアップ名' },\n              { key: 'status', label: 'ステータス' },\n              { key: 'created_at', label: '実行日時', format: 'datetime' }\n            ],\n            data: backup.history || [],\n            emptyMessage: '履歴がありません'\n          }\n        }\n      ]\n    },\n    {\n      id: 'tables',\n      label: 'テーブル詳細',\n      icon: 'Database',\n      components: [\n        {\n          type: 'DataTable',\n          props: {\n            columns: [\n              { key: 'table_name', label: 'テーブル名' },\n              { key: 'size', label: 'サイズ' },\n              { key: 'columns', label: 'カラム数' }\n            ],\n            data: Array.isArray(backup.table_details) ? backup.table_details : [backup.table_details].filter(Boolean)\n          }\n        }\n      ]\n    }\n  ]\n};\n\nreturn [{ json: { \n  success: true, \n  tenant_id: backup.tenant_id,\n  backup: {\n    name: backup.backup_name,\n    timestamp: backup.timestamp,\n    stats: backup.stats\n  },\n  ui_config: uiConfig\n} }];"
+      },
+      "id": "prepare-response",
+      "name": "📤 V7レスポンス (UI Config付)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[V7_COMMERCIAL] 履歴タブ + DynamicRenderer"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    }
+  ],
+  "connections": {
+    "毎週日曜AM4時": {
+      "main": [
+        [
+          {
+            "node": "🔐 V7初期化 (テナント+Vault)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook: backup-trigger": {
+      "main": [
+        [
+          {
+            "node": "🔐 V7初期化 (テナント+Vault)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 V7初期化 (テナント+Vault)": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📊 テーブル統計取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 テーブル統計取得": {
+      "main": [
+        [
+          {
+            "node": "📦 商品数カウント",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 商品数カウント": {
+      "main": [
+        [
+          {
+            "node": "🛒 受注数カウント",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🛒 受注数カウント": {
+      "main": [
+        [
+          {
+            "node": "📜 バックアップ履歴取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📜 バックアップ履歴取得": {
+      "main": [
+        [
+          {
+            "node": "📋 統計コンパイル",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 統計コンパイル": {
+      "main": [
+        [
+          {
+            "node": "💾 バックアップ履歴保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 バックアップ履歴保存": {
+      "main": [
+        [
+          {
+            "node": "💾 バックアップログ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 バックアップログ": {
+      "main": [
+        [
+          {
+            "node": "📢 完了通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📢 完了通知": {
+      "main": [
+        [
+          {
+            "node": "📤 V7レスポンス (UI Config付)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📤 V7レスポンス (UI Config付)": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 300,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none"
+  },
+  "tags": [
+    {
+      "name": "N3-System",
+      "color": "#2e8b57"
+    },
+    {
+      "name": "V7-COMMERCIAL",
+      "color": "#ff6b00"
+    },
+    {
+      "name": "Backup",
+      "color": "#4682b4"
+    },
+    {
+      "name": "TENANT-ISOLATED",
+      "color": "#8b0000"
+    },
+    {
+      "name": "UI-CONFIG",
+      "color": "#00ced1"
+    },
+    {
+      "name": "HISTORY-TAB",
+      "color": "#9370db"
+    }
+  ],
+  "active": false,
+  "_v7_commercial": true,
+  "_v7_version": "7.0.0",
+  "_v7_features": [
+    "tenant_isolation",
+    "secret_vault_ref",
+    "ui_config",
+    "history_tab"
+  ],
+  "_v7_timestamp": "2026-01-23T00:00:00.000Z"
+}

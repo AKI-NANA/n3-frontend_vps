@@ -1,0 +1,711 @@
+{
+  "name": "【司令塔】03_142-防衛-モバイルプロキシ管理-ローテーション-健全性監視_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "proxy-manage",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "name": "Webhook: proxy-manage",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "proxy-manage"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "name": "⏰ 30分ごとローテーション",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// モバイルプロキシ管理 初期化\n// ローテーション、健全性チェック、割り当て管理\n// ============================================================================\n\nconst body = $input.first().json.body || $input.first().json || {};\n\nconst action = body.action || 'rotate'; // 'rotate', 'health_check', 'assign', 'release', 'add'\nconst accountId = body.account_id;\nconst proxyId = body.proxy_id;\nconst countryCode = body.country_code || 'US';\n\n// 新規プロキシ追加用\nconst newProxy = body.new_proxy; // { host, port, username, password, provider, country_code }\n\nreturn [{\n  json: {\n    action: action,\n    account_id: accountId,\n    proxy_id: proxyId,\n    country_code: countryCode,\n    new_proxy: newProxy,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true
+          },
+          "conditions": [
+            {
+              "id": "rotate",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "rotate",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "name": "アクション分岐",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "options": {
+        "fallbackOutput": "none",
+        "rules": [
+          {
+            "output": 0,
+            "value": "rotate"
+          },
+          {
+            "output": 1,
+            "value": "health_check"
+          },
+          {
+            "output": 2,
+            "value": "assign"
+          },
+          {
+            "output": 3,
+            "value": "add"
+          }
+        ]
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT p.*, pa.google_email, pa.youtube_channel_id FROM mobile_proxy_pool p LEFT JOIN pva_accounts pa ON p.assigned_account_id = pa.id WHERE p.is_active = TRUE AND (p.last_rotated_at IS NULL OR p.last_rotated_at < NOW() - INTERVAL '30 minutes') ORDER BY p.last_rotated_at ASC NULLS FIRST LIMIT 20"
+      },
+      "name": "📥 ローテーション対象取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// プロキシローテーション実行\n// 各プロバイダーのAPI呼び出しでIPをリフレッシュ\n// ============================================================================\n\nconst proxies = $input.first().json || [];\n\nif (!Array.isArray(proxies) || proxies.length === 0) {\n  return [{ json: { action: 'rotate', rotated_count: 0, message: 'ローテーション対象なし' } }];\n}\n\nconst rotationCommands = proxies.map(proxy => {\n  // プロバイダー別のローテーションAPI\n  let rotateUrl = null;\n  let rotateMethod = 'GET';\n  let rotateHeaders = {};\n  \n  switch (proxy.provider) {\n    case 'brightdata':\n      // BrightData: セッション終了でIP更新\n      rotateUrl = `https://api.brightdata.com/zone/sessions/${proxy.proxy_username}/refresh`;\n      rotateHeaders = { 'Authorization': `Bearer ${$env.BRIGHTDATA_API_KEY}` };\n      break;\n    case 'oxylabs':\n      rotateUrl = `https://residential.oxylabs.io/api/rotate?session=${proxy.proxy_username}`;\n      rotateHeaders = { 'Authorization': `Basic ${Buffer.from(proxy.proxy_username + ':' + proxy.proxy_password).toString('base64')}` };\n      break;\n    case 'smartproxy':\n      // SmartProxy: 新しいセッションIDで接続\n      rotateUrl = null; // 接続時に自動ローテーション\n      break;\n    default:\n      rotateUrl = null;\n  }\n  \n  return {\n    proxy_id: proxy.id,\n    provider: proxy.provider,\n    current_host: proxy.proxy_host,\n    rotate_url: rotateUrl,\n    rotate_method: rotateMethod,\n    rotate_headers: rotateHeaders,\n    assigned_account: proxy.google_email\n  };\n});\n\nreturn rotationCommands.filter(c => c.rotate_url).map(c => ({ json: c }));"
+      },
+      "name": "🔄 ローテーションコマンド生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "batchSize": 5,
+        "options": {}
+      },
+      "name": "📦 バッチ処理",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "notes": "\n[PATCHER] WARNING: SplitInBatches直後にWaitノードがありません。API制限に注意してください。"
+    },
+    {
+      "parameters": {
+        "method": "={{ $json.rotate_method }}",
+        "url": "={{ $json.rotate_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $json.rotate_headers.Authorization }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "name": "🔄 ローテーションAPI呼び出し",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE mobile_proxy_pool SET last_rotated_at = NOW(), total_requests = total_requests + 1 WHERE id = $1",
+        "options": {
+          "queryParams": "={{ [$json.proxy_id] }}"
+        }
+      },
+      "name": "💾 ローテーション記録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM mobile_proxy_pool WHERE is_active = TRUE ORDER BY last_used_at ASC"
+      },
+      "name": "📥 全プロキシ取得（健全性）",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// プロキシ健全性チェック\n// 実際のIP確認、レスポンス速度、BAN状態確認\n// ============================================================================\n\nconst proxies = $input.first().json || [];\n\nif (!Array.isArray(proxies) || proxies.length === 0) {\n  return [{ json: { action: 'health_check', checked_count: 0, message: 'チェック対象なし' } }];\n}\n\nconst healthChecks = proxies.map(proxy => {\n  // プロキシ経由でIP確認APIを呼び出す設定\n  const proxyUrl = `http://${proxy.proxy_username}:${proxy.proxy_password}@${proxy.proxy_host}:${proxy.proxy_port}`;\n  \n  return {\n    proxy_id: proxy.id,\n    provider: proxy.provider,\n    proxy_url: proxyUrl,\n    country_code: proxy.country_code,\n    current_health_score: proxy.health_score,\n    check_url: 'https://api.ipify.org?format=json',\n    google_check_url: 'https://www.google.com/search?q=test' // Google BAN確認\n  };\n});\n\nreturn healthChecks.map(c => ({ json: c }));"
+      },
+      "name": "🏥 健全性チェック準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.check_url }}",
+        "options": {
+          "timeout": 15000,
+          "proxy": "={{ $json.proxy_url }}",
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "name": "🌐 IP確認リクエスト",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// 健全性スコア計算\nconst checkData = $node['🏥 健全性チェック準備'].json;\nconst ipResult = $input.first().json;\n\nlet healthScore = checkData.current_health_score || 100;\nlet status = 'healthy';\n\n// IPが取得できなかった場合\nif (!ipResult.ip && !ipResult.origin) {\n  healthScore = Math.max(healthScore - 20, 0);\n  status = 'degraded';\n}\n\n// レスポンス時間が遅い場合（5秒以上）\nif (ipResult.response_time > 5000) {\n  healthScore = Math.max(healthScore - 10, 0);\n}\n\n// エラーがあった場合\nif (ipResult.error) {\n  healthScore = Math.max(healthScore - 30, 0);\n  status = 'error';\n}\n\nreturn [{\n  json: {\n    proxy_id: checkData.proxy_id,\n    new_health_score: healthScore,\n    detected_ip: ipResult.ip || ipResult.origin,\n    status: status,\n    response_time_ms: ipResult.response_time\n  }\n}];"
+      },
+      "name": "📊 健全性スコア計算",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE mobile_proxy_pool SET health_score = $2, last_used_at = NOW() WHERE id = $1",
+        "options": {
+          "queryParams": "={{ [$json.proxy_id, $json.new_health_score] }}"
+        }
+      },
+      "name": "💾 健全性スコア更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM mobile_proxy_pool WHERE is_active = TRUE AND assigned_account_id IS NULL AND health_score >= 70 AND country_code = $1 ORDER BY health_score DESC, last_used_at ASC LIMIT 1",
+        "options": {
+          "queryParams": "={{ [$json.country_code] }}"
+        }
+      },
+      "name": "📥 利用可能プロキシ検索",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// プロキシ割り当て\nconst config = $node['🔧 初期化'].json;\nconst availableProxy = $input.first().json[0];\n\nif (!availableProxy) {\n  return [{ json: { success: false, error: '利用可能なプロキシがありません', country_code: config.country_code } }];\n}\n\nreturn [{\n  json: {\n    success: true,\n    proxy_id: availableProxy.id,\n    account_id: config.account_id,\n    proxy_host: availableProxy.proxy_host,\n    proxy_port: availableProxy.proxy_port,\n    proxy_username: availableProxy.proxy_username,\n    proxy_password: availableProxy.proxy_password,\n    country_code: availableProxy.country_code,\n    health_score: availableProxy.health_score\n  }\n}];"
+      },
+      "name": "📋 割り当て処理",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "name": "割り当て成功？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE mobile_proxy_pool SET assigned_account_id = $2, last_used_at = NOW() WHERE id = $1",
+        "options": {
+          "queryParams": "={{ [$json.proxy_id, $json.account_id] }}"
+        }
+      },
+      "name": "💾 割り当て記録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE pva_accounts SET proxy_id = $2 WHERE id = $1",
+        "options": {
+          "queryParams": "={{ [$json.account_id, $json.proxy_id] }}"
+        }
+      },
+      "name": "💾 アカウントにプロキシ紐付け",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO mobile_proxy_pool (provider, proxy_host, proxy_port, proxy_username, proxy_password, country_code, connection_type, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE) RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.new_proxy?.provider || 'custom', $json.new_proxy?.host, $json.new_proxy?.port, $json.new_proxy?.username, $json.new_proxy?.password, $json.new_proxy?.country_code || 'US', $json.new_proxy?.connection_type || '4g'] }}"
+        }
+      },
+      "name": "💾 新規プロキシ登録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 最終レスポンス生成\nconst action = $node['🔧 初期化'].json.action;\n\nlet result = { success: true, action: action };\n\nswitch (action) {\n  case 'rotate':\n    result.message = 'プロキシローテーション完了';\n    break;\n  case 'health_check':\n    result.message = '健全性チェック完了';\n    break;\n  case 'assign':\n    result = { ...$json, action: action };\n    break;\n  case 'add':\n    result.message = '新規プロキシ追加完了';\n    result.proxy_id = $json[0]?.id;\n    break;\n}\n\nreturn [{ json: result }];"
+      },
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: proxy-manage": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⏰ 30分ごとローテーション": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "アクション分岐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "アクション分岐": {
+      "main": [
+        [
+          {
+            "node": "📥 ローテーション対象取得",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📥 全プロキシ取得（健全性）",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📥 利用可能プロキシ検索",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💾 新規プロキシ登録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📥 ローテーション対象取得": {
+      "main": [
+        [
+          {
+            "node": "🔄 ローテーションコマンド生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 ローテーションコマンド生成": {
+      "main": [
+        [
+          {
+            "node": "📦 バッチ処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 バッチ処理": {
+      "main": [
+        [
+          {
+            "node": "🔄 ローテーションAPI呼び出し",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 ローテーションAPI呼び出し": {
+      "main": [
+        [
+          {
+            "node": "💾 ローテーション記録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 ローテーション記録": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📥 全プロキシ取得（健全性）": {
+      "main": [
+        [
+          {
+            "node": "🏥 健全性チェック準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🏥 健全性チェック準備": {
+      "main": [
+        [
+          {
+            "node": "🌐 IP確認リクエスト",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🌐 IP確認リクエスト": {
+      "main": [
+        [
+          {
+            "node": "📊 健全性スコア計算",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 健全性スコア計算": {
+      "main": [
+        [
+          {
+            "node": "💾 健全性スコア更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 健全性スコア更新": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📥 利用可能プロキシ検索": {
+      "main": [
+        [
+          {
+            "node": "📋 割り当て処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 割り当て処理": {
+      "main": [
+        [
+          {
+            "node": "割り当て成功？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "割り当て成功？": {
+      "main": [
+        [
+          {
+            "node": "💾 割り当て記録",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 割り当て記録": {
+      "main": [
+        [
+          {
+            "node": "💾 アカウントにプロキシ紐付け",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 アカウントにプロキシ紐付け": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 新規プロキシ登録": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 600,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Defense",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Proxy",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "Phase-14",
+      "color": "#f39c12"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

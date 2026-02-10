@@ -1,0 +1,530 @@
+{
+  "name": "N3-Empire-メイン統合パイプライン",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "empire-pipeline",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-main",
+      "name": "Webhook受信",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.action }}",
+              "operation": "equals",
+              "value2": "generate_script"
+            }
+          ]
+        }
+      },
+      "id": "switch-action",
+      "name": "アクション分岐",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": "public",
+        "table": "media_channels",
+        "where": {
+          "values": [
+            {
+              "column": "channel_id",
+              "value": "={{ $json.channel_id }}"
+            }
+          ]
+        },
+        "options": {
+          "limit": 1
+        }
+      },
+      "id": "get-channel",
+      "name": "チャンネル取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.3,
+      "position": [680, 160],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db",
+          "name": "Supabase DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": "public",
+        "table": "content_master",
+        "where": {
+          "values": [
+            {
+              "column": "content_id",
+              "value": "={{ $json.content_id }}"
+            }
+          ]
+        },
+        "options": {
+          "limit": 1
+        }
+      },
+      "id": "get-content",
+      "name": "コンテンツ取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.3,
+      "position": [680, 300],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db",
+          "name": "Supabase DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": "public",
+        "table": "cost_routing_config",
+        "where": {
+          "values": [
+            {
+              "column": "config_name",
+              "value": "default"
+            }
+          ]
+        }
+      },
+      "id": "get-cost-config",
+      "name": "コストルーティング取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.3,
+      "position": [680, 440],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db",
+          "name": "Supabase DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// コストルーティング: 収益ランクに応じた設定を選択\nconst channel = $('チャンネル取得').first().json;\nconst costConfig = $('コストルーティング取得').first().json;\nconst revenueRank = channel.revenue_rank || 'C';\n\nlet optimalConfig;\nswitch(revenueRank) {\n  case 'S': optimalConfig = costConfig.rank_s_config; break;\n  case 'A': optimalConfig = costConfig.rank_a_config; break;\n  case 'B': optimalConfig = costConfig.rank_b_config; break;\n  case 'C':\n  default: optimalConfig = costConfig.rank_c_config; break;\n}\n\nreturn {\n  channel,\n  optimalConfig,\n  voiceProvider: optimalConfig.voiceProvider,\n  renderQuality: optimalConfig.renderQuality,\n  enableLivePortrait: optimalConfig.enableLivePortrait\n};"
+      },
+      "id": "calc-optimal",
+      "name": "最適設定計算",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "={{ $credentials.apiKey }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [{\n    \"parts\": [{\n      \"text\": \"あなたは{{ $json.channel.genre }}系YouTubeチャンネルの脚本家です。\\n\\n以下のテーマについて、60秒のショート動画用脚本を作成してください。\\n\\nテーマ: {{ $json.topic || 'このチャンネルに適した教育コンテンツ' }}\\n\\n出力形式（JSON）:\\n{\\n  \\\"title\\\": \\\"動画タイトル\\\",\\n  \\\"segments\\\": [\\n    {\\n      \\\"index\\\": 0,\\n      \\\"narration\\\": \\\"ナレーションテキスト\\\",\\n      \\\"telop\\\": \\\"テロップテキスト\\\",\\n      \\\"emotion\\\": \\\"neutral|happy|serious|surprised|excited\\\",\\n      \\\"duration_seconds\\\": 5,\\n      \\\"effects\\\": [],\\n      \\\"se\\\": null\\n    }\\n  ],\\n  \\\"tags\\\": [\\\"タグ1\\\", \\\"タグ2\\\"],\\n  \\\"description\\\": \\\"動画説明文\\\"\\n}\\n\\nルール:\\n1. 冒頭3秒でフックを入れる\\n2. 各セグメントは3-8秒\\n3. 感情タグは演出に使用\\n4. テロップは簡潔に（15文字以内）\\n5. 視聴者維持率を意識した構成\\n\\nJSONのみを出力してください。\"\n    }]\n  }],\n  \"generationConfig\": {\n    \"temperature\": 0.7,\n    \"topK\": 40,\n    \"topP\": 0.95,\n    \"maxOutputTokens\": 2048\n  }\n}",
+        "options": {}
+      },
+      "id": "gemini-script",
+      "name": "Gemini脚本生成",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1120, 160],
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "gemini-api",
+          "name": "Gemini API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Geminiレスポンスから脚本JSONを抽出\nconst response = $input.first().json;\nlet scriptText = '';\n\ntry {\n  scriptText = response.candidates[0].content.parts[0].text;\n  // JSONブロックを抽出\n  const jsonMatch = scriptText.match(/```json\\n?([\\s\\S]*?)```/) || \n                    scriptText.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    scriptText = jsonMatch[1] || jsonMatch[0];\n  }\n  const script = JSON.parse(scriptText);\n  return {\n    success: true,\n    script,\n    title: script.title,\n    segments: script.segments,\n    tags: script.tags,\n    description: script.description\n  };\n} catch (e) {\n  return {\n    success: false,\n    error: e.message,\n    rawText: scriptText\n  };\n}"
+      },
+      "id": "parse-script",
+      "name": "脚本パース",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 160]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $credentials.token }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-3-5-sonnet-20241022\",\n  \"max_tokens\": 1024,\n  \"messages\": [{\n    \"role\": \"user\",\n    \"content\": \"あなたは事実確認の専門家です。以下の脚本を監査してください。\\n\\n脚本:\\n{{ JSON.stringify($json.script) }}\\n\\n確認項目:\\n1. 事実誤認がないか\\n2. 法的問題がないか\\n3. 誤解を招く表現がないか\\n4. 不適切な内容がないか\\n\\n出力形式（JSON）:\\n{\\n  \\\"approved\\\": true/false,\\n  \\\"confidence_score\\\": 0.0-1.0,\\n  \\\"issues\\\": [\\\"問題点\\\"],\\n  \\\"suggestions\\\": [\\\"改善提案\\\"]\\n}\\n\\nJSONのみを出力。\"\n  }]\n}",
+        "options": {}
+      },
+      "id": "claude-audit",
+      "name": "Claude監査",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1560, 160],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "anthropic-api",
+          "name": "Anthropic API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Claude監査結果をパース\nconst response = $input.first().json;\nlet auditText = '';\n\ntry {\n  auditText = response.content[0].text;\n  const jsonMatch = auditText.match(/```json\\n?([\\s\\S]*?)```/) || \n                    auditText.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    auditText = jsonMatch[1] || jsonMatch[0];\n  }\n  const audit = JSON.parse(auditText);\n  return {\n    approved: audit.approved,\n    confidence_score: audit.confidence_score,\n    issues: audit.issues || [],\n    suggestions: audit.suggestions || []\n  };\n} catch (e) {\n  return {\n    approved: false,\n    confidence_score: 0,\n    issues: ['監査結果のパースに失敗'],\n    error: e.message\n  };\n}"
+      },
+      "id": "parse-audit",
+      "name": "監査結果パース",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 160]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.approved }}",
+              "value2": true
+            }
+          ],
+          "number": [
+            {
+              "value1": "={{ $json.confidence_score }}",
+              "operation": "gte",
+              "value2": 0.7
+            }
+          ]
+        },
+        "combineOperation": "all"
+      },
+      "id": "check-approved",
+      "name": "承認チェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2000, 160]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": "public",
+        "table": "content_master",
+        "columns": {
+          "values": [
+            {
+              "column": "script_status",
+              "value": "approved"
+            },
+            {
+              "column": "script_json",
+              "value": "={{ JSON.stringify($('脚本パース').first().json.script) }}"
+            },
+            {
+              "column": "title",
+              "value": "={{ $('脚本パース').first().json.title }}"
+            },
+            {
+              "column": "tags",
+              "value": "={{ $('脚本パース').first().json.tags }}"
+            }
+          ]
+        },
+        "where": {
+          "values": [
+            {
+              "column": "content_id",
+              "value": "={{ $('Webhook受信').first().json.content_id }}"
+            }
+          ]
+        }
+      },
+      "id": "save-approved",
+      "name": "承認済み保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.3,
+      "position": [2220, 80],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db",
+          "name": "Supabase DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": "public",
+        "table": "content_master",
+        "columns": {
+          "values": [
+            {
+              "column": "script_status",
+              "value": "rejected"
+            },
+            {
+              "column": "ai_generation_config",
+              "value": "={{ JSON.stringify({ ...($('コンテンツ取得').first().json.ai_generation_config || {}), audit_issues: $json.issues, audit_suggestions: $json.suggestions }) }}"
+            }
+          ]
+        },
+        "where": {
+          "values": [
+            {
+              "column": "content_id",
+              "value": "={{ $('Webhook受信').first().json.content_id }}"
+            }
+          ]
+        }
+      },
+      "id": "save-rejected",
+      "name": "却下保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.3,
+      "position": [2220, 240],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db",
+          "name": "Supabase DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"content_id\": \"{{ $('Webhook受信').first().json.content_id }}\",\n  \"script_status\": \"approved\",\n  \"title\": \"{{ $('脚本パース').first().json.title }}\",\n  \"confidence_score\": {{ $('監査結果パース').first().json.confidence_score }}\n}",
+        "options": {}
+      },
+      "id": "respond-success",
+      "name": "成功レスポンス",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2440, 80]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": false,\n  \"content_id\": \"{{ $('Webhook受信').first().json.content_id }}\",\n  \"script_status\": \"rejected\",\n  \"issues\": {{ JSON.stringify($json.issues) }},\n  \"suggestions\": {{ JSON.stringify($json.suggestions) }}\n}",
+        "options": {}
+      },
+      "id": "respond-reject",
+      "name": "却下レスポンス",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2440, 240]
+    }
+  ],
+  "connections": {
+    "Webhook受信": {
+      "main": [
+        [
+          {
+            "node": "アクション分岐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "アクション分岐": {
+      "main": [
+        [
+          {
+            "node": "チャンネル取得",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "コンテンツ取得",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "コストルーティング取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "チャンネル取得": {
+      "main": [
+        [
+          {
+            "node": "最適設定計算",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "コンテンツ取得": {
+      "main": [
+        [
+          {
+            "node": "最適設定計算",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "コストルーティング取得": {
+      "main": [
+        [
+          {
+            "node": "最適設定計算",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "最適設定計算": {
+      "main": [
+        [
+          {
+            "node": "Gemini脚本生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini脚本生成": {
+      "main": [
+        [
+          {
+            "node": "脚本パース",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "脚本パース": {
+      "main": [
+        [
+          {
+            "node": "Claude監査",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude監査": {
+      "main": [
+        [
+          {
+            "node": "監査結果パース",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "監査結果パース": {
+      "main": [
+        [
+          {
+            "node": "承認チェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "承認チェック": {
+      "main": [
+        [
+          {
+            "node": "承認済み保存",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "却下保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "承認済み保存": {
+      "main": [
+        [
+          {
+            "node": "成功レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "却下保存": {
+      "main": [
+        [
+          {
+            "node": "却下レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "Empire OS",
+      "createdAt": "2026-01-28T00:00:00.000Z"
+    },
+    {
+      "name": "メディア",
+      "createdAt": "2026-01-28T00:00:00.000Z"
+    }
+  ],
+  "meta": {
+    "instanceId": "n3-empire-os"
+  }
+}

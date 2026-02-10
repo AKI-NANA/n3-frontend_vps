@@ -1,0 +1,590 @@
+{
+  "name": "【メディア】24_92-メディア-リーガルディフェンス-著作権異議自動生成_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "⏰ 6時間ごと実行",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "legal-defense",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: legal-defense",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "legal-defense"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst claimId = body.claim_id;\nconst action = body.action || 'scan_and_respond';\n\nreturn [{ json: { claim_id: claimId, action, timestamp: new Date().toISOString() } }];"
+      },
+      "id": "init",
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT cc.*, mc.channel_name FROM copyright_claims cc JOIN media_channels mc ON cc.channel_id = mc.channel_id WHERE cc.claim_status = 'active' AND cc.dispute_filed = FALSE AND ($1 IS NULL OR cc.id = $1) ORDER BY cc.strike_issued DESC LIMIT 20",
+        "options": {
+          "queryParams": "={{ [$json.claim_id] }}"
+        }
+      },
+      "id": "get-claims",
+      "name": "📋 未対応クレーム取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const claims = $input.first().json || [];\nconst claimList = Array.isArray(claims) ? claims : [claims].filter(c => c && c.id);\nif (claimList.length === 0) return [{ json: { skip: true, reason: 'なし' } }];\nreturn claimList.map(c => ({ json: { ...c, skip: false } }));"
+      },
+      "id": "filter-claims",
+      "name": "📋 クレームフィルタ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-skip",
+      "name": "処理あり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-goog-api-key",
+              "value": "={{ $env.GEMINI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: '著作権クレーム分析。申立者: ' + ($json.claimant_name || '不明') + ', 種類: ' + $json.claim_type + ', 理由: ' + ($json.claim_reason || '不明') + '。勝算と防衛戦略をJSON出力: {\"win_probability\": 数値, \"defense_type\": \"fair_use/license/original\", \"recommended_action\": \"dispute/review\", \"requires_lawyer\": bool}' }] }], generationConfig: { temperature: 0.3, maxOutputTokens: 1024 } }) }}",
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "analyze-claim",
+      "name": "🧠 AI法的分析",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const claim = $node['📋 クレームフィルタ'].json;\nconst geminiResult = $input.first().json;\nlet analysis = { win_probability: 50, defense_type: 'fair_use', recommended_action: 'review', requires_lawyer: true };\ntry {\n  const content = geminiResult?.candidates?.[0]?.content?.parts?.[0]?.text || '';\n  const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) analysis = JSON.parse(jsonMatch[0]);\n} catch (e) {}\nreturn [{ json: { ...claim, ai_analysis: analysis, should_auto_dispute: analysis.win_probability >= 70 && !analysis.requires_lawyer } }];"
+      },
+      "id": "parse-analysis",
+      "name": "📋 分析結果パース",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.should_auto_dispute }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-auto-dispute",
+      "name": "自動異議申立？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM legal_response_templates WHERE response_type = 'copyright_dispute' AND defense_type = $1 AND is_active = TRUE LIMIT 1",
+        "options": {
+          "queryParams": "={{ [$json.ai_analysis.defense_type] }}"
+        }
+      },
+      "id": "get-template",
+      "name": "📄 テンプレート取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const claim = $node['📋 分析結果パース'].json;\nconst templateData = $input.first().json;\nconst template = Array.isArray(templateData) ? templateData[0] : templateData;\nif (!template) return [{ json: { ...claim, dispute_generated: false } }];\nlet disputeText = (template.body_template || '').replace('{{claim_id}}', claim.claim_id || claim.id).replace('{{video_title}}', claim.video_title || '動画').replace('{{channel_name}}', claim.channel_name || 'チャンネル').replace('{{date}}', new Date().toLocaleDateString('ja-JP'));\nreturn [{ json: { ...claim, template_id: template.id, dispute_text: disputeText, dispute_generated: true } }];"
+      },
+      "id": "generate-dispute",
+      "name": "📝 異議申立文生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE copyright_claims SET dispute_filed = TRUE, dispute_filed_at = NOW(), dispute_reason = $2, dispute_text = $3, ai_assessment = $4 WHERE id = $1",
+        "options": {
+          "queryParams": "={{ [$json.id, $json.ai_analysis.defense_type, $json.dispute_text, JSON.stringify($json.ai_analysis)] }}"
+        }
+      },
+      "id": "update-claim",
+      "name": "💾 クレーム更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO legal_action_logs (claim_id, template_id, action_type, action_target, subject, body, sent_by) VALUES ($1, $2, 'dispute_filed', 'youtube', '著作権異議申立', $3, 'ai_system') RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.id, $json.template_id, $json.dispute_text] }}"
+        }
+      },
+      "id": "log-action",
+      "name": "📋 アクションログ",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE copyright_claims SET legal_review_required = TRUE, ai_assessment = $2 WHERE id = $1",
+        "options": {
+          "queryParams": "={{ [$node['📋 分析結果パース'].json.id, JSON.stringify($node['📋 分析結果パース'].json.ai_analysis)] }}"
+        }
+      },
+      "id": "flag-for-review",
+      "name": "⚖️ 人間レビュー要請",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.CHATWORK_WEBHOOK_URL || 'https://api.chatwork.com/v2/rooms/' + $env.CHATWORK_ROOM_ID + '/messages' }}",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "⚖️ 【著作権クレーム要対応】\nAI勝算: {{ $node['📋 分析結果パース'].json.ai_analysis.win_probability }}%\n弁護士確認が推奨されています。"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "notify-lawyer",
+      "name": "📢 弁護士通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { success: true, action: 'legal_defense', message: '著作権クレーム処理完了' } }];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "⏰ 6時間ごと実行": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook: legal-defense": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "📋 未対応クレーム取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 未対応クレーム取得": {
+      "main": [
+        [
+          {
+            "node": "📋 クレームフィルタ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 クレームフィルタ": {
+      "main": [
+        [
+          {
+            "node": "処理あり？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "処理あり？": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🧠 AI法的分析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧠 AI法的分析": {
+      "main": [
+        [
+          {
+            "node": "📋 分析結果パース",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 分析結果パース": {
+      "main": [
+        [
+          {
+            "node": "自動異議申立？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "自動異議申立？": {
+      "main": [
+        [
+          {
+            "node": "📄 テンプレート取得",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "⚖️ 人間レビュー要請",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📄 テンプレート取得": {
+      "main": [
+        [
+          {
+            "node": "📝 異議申立文生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 異議申立文生成": {
+      "main": [
+        [
+          {
+            "node": "💾 クレーム更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 クレーム更新": {
+      "main": [
+        [
+          {
+            "node": "📋 アクションログ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 アクションログ": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚖️ 人間レビュー要請": {
+      "main": [
+        [
+          {
+            "node": "📢 弁護士通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📢 弁護士通知": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 300,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Legal",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

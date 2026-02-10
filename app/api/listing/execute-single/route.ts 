@@ -1,0 +1,110 @@
+// app/api/listing/execute-single/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
+import { getValidToken } from '@/lib/ebay/token-manager';
+import { createEbayListing } from '@/lib/ebay/listing-api';
+
+export async function POST(request: NextRequest) {
+  try {
+    const { productId, marketplace, account } = await request.json();
+    
+    if (!productId) {
+      return NextResponse.json(
+        { success: false, error: '商品IDが指定されていません' },
+        { status: 400 }
+      );
+    }
+
+    const supabase = await createClient();
+
+    // 1. 商品データ取得
+    let product;
+    let tableName = 'products_master';
+    
+    // inventory_master を優先確認
+    const { data: invData } = await supabase
+      .from('inventory_master')
+      .select('*')
+      .eq('id', productId)
+      .single();
+      
+    if (invData) {
+      product = invData;
+      tableName = 'inventory_master';
+    } else {
+      // products_master を確認
+      const { data: prodData } = await supabase
+        .from('products_master')
+        .select('*')
+        .eq('id', productId)
+        .single();
+      product = prodData;
+    }
+
+    if (!product) {
+      return NextResponse.json(
+        { success: false, error: '商品が見つかりません' },
+        { status: 404 }
+      );
+    }
+
+    // 2. eBayトークン取得
+    const targetAccount = account || 'mjt';
+    let token;
+    try {
+      token = await getValidToken(targetAccount);
+    } catch (e: any) {
+      console.error('トークン取得エラー:', e);
+      return NextResponse.json(
+        { success: false, error: `トークン取得エラー: ${e.message}` },
+        { status: 500 }
+      );
+    }
+
+    // 3. 出品実行
+    console.log(`Listing product ${productId} to ${marketplace} using account ${targetAccount}...`);
+    const listingResult = await createEbayListing({
+      product,
+      token,
+      marketplace: marketplace || 'EBAY_US',
+      account: targetAccount
+    });
+
+    if (!listingResult.success) {
+      return NextResponse.json(
+        { success: false, error: listingResult.error },
+        { status: 500 }
+      );
+    }
+
+    // 4. 結果をDBに保存
+    const now = new Date().toISOString();
+    await supabase
+      .from(tableName)
+      .update({
+        ebay_item_id: listingResult.itemId,
+        listing_status: 'active',
+        listed_at: now,
+        source_data: {
+          ...product.source_data,
+          last_listing_attempt: now,
+          listing_result: 'success',
+          item_id: listingResult.itemId
+        }
+      })
+      .eq('id', productId);
+
+    return NextResponse.json({
+      success: true,
+      itemId: listingResult.itemId,
+      message: '出品に成功しました'
+    });
+
+  } catch (error: any) {
+    console.error('出品エラー:', error);
+    return NextResponse.json(
+      { success: false, error: error.message },
+      { status: 500 }
+    );
+  }
+}

@@ -1,0 +1,173 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Style Theme: Neumorphism
+   ニューモーフィズム。凹凸感、ソフトシャドウ、押し込み効果
+   ============================================================ */
+
+[data-style="neumorphism"] {
+  /* ===== SHAPE - 中程度の角丸 ===== */
+  --style-radius-xs: 8px;
+  --style-radius-sm: 10px;
+  --style-radius-md: 14px;
+  --style-radius-lg: 18px;
+  --style-radius-xl: 24px;
+  --style-radius-full: 9999px;
+  
+  /* ===== SHADOWS - 凸面シャドウ ===== */
+  --style-shadow-light: -4px -4px 8px rgba(255,255,255,0.8);
+  --style-shadow-dark: 4px 4px 8px rgba(0,0,0,0.08);
+  --style-shadow-xs: var(--style-shadow-light), var(--style-shadow-dark);
+  --style-shadow-sm: -4px -4px 10px rgba(255,255,255,0.9), 4px 4px 10px rgba(0,0,0,0.10);
+  --style-shadow-md: -6px -6px 14px rgba(255,255,255,0.9), 6px 6px 14px rgba(0,0,0,0.12);
+  --style-shadow-lg: -8px -8px 20px rgba(255,255,255,0.95), 8px 8px 20px rgba(0,0,0,0.15);
+  --style-shadow-xl: -10px -10px 30px rgba(255,255,255,1), 10px 10px 30px rgba(0,0,0,0.18);
+  
+  /* 凹面シャドウ（押し込み） */
+  --style-shadow-inset: inset 2px 2px 5px rgba(0,0,0,0.08), inset -2px -2px 5px rgba(255,255,255,0.8);
+  --style-shadow-inset-deep: inset 4px 4px 8px rgba(0,0,0,0.12), inset -4px -4px 8px rgba(255,255,255,0.9);
+  
+  /* ===== BORDERS - なし ===== */
+  --style-border-width: 0;
+  --style-border-style: none;
+  
+  /* ===== EFFECTS ===== */
+  --style-blur: none;
+  --style-backdrop: none;
+  --style-opacity: 1;
+  
+  /* ===== TRANSITIONS ===== */
+  --style-transition-fast: all 0.15s ease;
+  --style-transition-normal: all 0.2s ease;
+  --style-transition-slow: all 0.3s ease;
+  
+  /* ===== COMPONENT OVERRIDES ===== */
+  
+  /* Button - 凸面 */
+  --style-btn-radius: 12px;
+  --style-btn-shadow: var(--style-shadow-sm);
+  --style-btn-shadow-hover: var(--style-shadow-xs);
+  --style-btn-border: none;
+  
+  /* Card */
+  --style-card-radius: 20px;
+  --style-card-shadow: var(--style-shadow-md);
+  --style-card-shadow-hover: var(--style-shadow-lg);
+  --style-card-border: none;
+  
+  /* Input - 凹面 */
+  --style-input-radius: 10px;
+  --style-input-shadow: var(--style-shadow-inset);
+  --style-input-shadow-focus: var(--style-shadow-inset-deep);
+  --style-input-border: none;
+  
+  /* Badge */
+  --style-badge-radius: var(--style-radius-full);
+}
+
+/* Neumorphism: ボタン */
+[data-style="neumorphism"] .n3-btn {
+  border: none !important;
+  background: var(--panel) !important;
+}
+
+[data-style="neumorphism"] .n3-btn-primary {
+  background: var(--accent) !important;
+  box-shadow: -4px -4px 10px rgba(255,255,255,0.5), 4px 4px 10px rgba(99, 102, 241, 0.3) !important;
+}
+
+[data-style="neumorphism"] .n3-btn-primary:hover {
+  box-shadow: -2px -2px 6px rgba(255,255,255,0.4), 2px 2px 6px rgba(99, 102, 241, 0.2) !important;
+}
+
+[data-style="neumorphism"] .n3-btn-primary:active {
+  box-shadow: inset 2px 2px 5px rgba(0,0,0,0.15), inset -2px -2px 5px rgba(255,255,255,0.3) !important;
+}
+
+[data-style="neumorphism"] .n3-btn-secondary {
+  background: var(--panel) !important;
+  color: var(--text) !important;
+}
+
+[data-style="neumorphism"] .n3-btn-secondary:active {
+  box-shadow: var(--style-shadow-inset) !important;
+}
+
+/* Neumorphism: Input 凹面効果 */
+[data-style="neumorphism"] .n3-input,
+[data-style="neumorphism"] .n3-select,
+[data-style="neumorphism"] .n3-textarea {
+  background: var(--panel) !important;
+  border: none !important;
+  box-shadow: var(--style-shadow-inset) !important;
+}
+
+[data-style="neumorphism"] .n3-input:focus,
+[data-style="neumorphism"] .n3-select:focus,
+[data-style="neumorphism"] .n3-textarea:focus {
+  box-shadow: var(--style-shadow-inset-deep) !important;
+}
+
+/* Neumorphism: Badge 凸面 */
+[data-style="neumorphism"] .n3-badge {
+  box-shadow: -2px -2px 4px rgba(255,255,255,0.7), 2px 2px 4px rgba(0,0,0,0.08);
+}
+
+/* Neumorphism: ダークモード */
+[data-style="neumorphism"][data-theme="dark"],
+[data-style="neumorphism"][data-theme="cyber"] {
+  --style-shadow-light: -4px -4px 8px rgba(60,60,70,0.5);
+  --style-shadow-dark: 4px 4px 8px rgba(0,0,0,0.4);
+  --style-shadow-sm: -4px -4px 10px rgba(60,60,70,0.4), 4px 4px 10px rgba(0,0,0,0.5);
+  --style-shadow-md: -6px -6px 14px rgba(60,60,70,0.4), 6px 6px 14px rgba(0,0,0,0.5);
+  --style-shadow-inset: inset 2px 2px 5px rgba(0,0,0,0.4), inset -2px -2px 5px rgba(60,60,70,0.3);
+}
+
+/* Neumorphism: Header系コンポーネント */
+[data-style="neumorphism"] .n3-header-tab {
+  border: none !important;
+  background: var(--panel) !important;
+  box-shadow: -3px -3px 6px rgba(255,255,255,0.6), 3px 3px 6px rgba(0,0,0,0.08) !important;
+  border-radius: 10px !important;
+  margin: 4px !important;
+}
+
+[data-style="neumorphism"] .n3-header-tab.active {
+  box-shadow: inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.7) !important;
+  background: var(--accent) !important;
+}
+
+[data-style="neumorphism"] .n3-lang-switch,
+[data-style="neumorphism"] .n3-header-search-input {
+  border: none !important;
+  background: var(--panel) !important;
+  box-shadow: var(--style-shadow-inset) !important;
+  border-radius: 10px !important;
+}
+
+[data-style="neumorphism"] .n3-notification-bell,
+[data-style="neumorphism"] .n3-pin-button {
+  border: none !important;
+}
+
+[data-style="neumorphism"] .n3-notification-bell:hover,
+[data-style="neumorphism"] .n3-pin-button:hover {
+  box-shadow: -2px -2px 4px rgba(255,255,255,0.5), 2px 2px 4px rgba(0,0,0,0.06) !important;
+}
+
+[data-style="neumorphism"] .n3-user-avatar {
+  box-shadow: -3px -3px 6px rgba(255,255,255,0.5), 3px 3px 6px rgba(99, 102, 241, 0.2) !important;
+}
+
+[data-style="neumorphism"] .n3-l2-tab {
+  border-bottom: none !important;
+}
+
+[data-style="neumorphism"] .n3-l2-tab.active {
+  box-shadow: inset 1px 1px 3px rgba(0,0,0,0.08), inset -1px -1px 3px rgba(255,255,255,0.6) !important;
+  border-radius: 6px;
+}
+
+[data-style="neumorphism"] .n3-header-tabs__panel {
+  border: none !important;
+  box-shadow: var(--style-shadow-md) !important;
+  border-radius: 0 0 16px 16px !important;
+}

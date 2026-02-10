@@ -1,0 +1,604 @@
+{
+  "name": "【その他】09_201-成長-30日評価-言語解禁-自動格下げ_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "⏰ 日次実行",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "growth-evaluation",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: growth-evaluation",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "growth-evaluation"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// フェーズ2: 成長投資型ディスパッチャー初期化\n// 30日評価 → 言語解禁 or 自動格下げ\n// ============================================================================\n\nconst body = $input.first().json.body || $input.first().json || {};\nconst channelId = body.channel_id; // 特定チャンネルのみ評価する場合\nconst forceEvaluate = body.force_evaluate || false;\n\nreturn [{\n  json: {\n    channel_id: channelId,\n    force_evaluate: forceEvaluate,\n    evaluation_date: new Date().toISOString().split('T')[0],\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM growth_threshold_config WHERE is_active = TRUE LIMIT 1",
+        "options": {}
+      },
+      "id": "get-threshold-config",
+      "name": "📋 閾値設定取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT mc.channel_id, mc.channel_name, mc.created_at AS channel_created_at, mc.target_locales, mc.render_tier, (CURRENT_DATE - mc.created_at::date) AS days_since_creation, COUNT(mco.id) AS total_videos, COALESCE(SUM(ya.views), 0) AS total_views, COALESCE(AVG(ya.avg_view_duration), 0) AS avg_view_duration_seconds, COALESCE(AVG(ya.ctr), 0) AS avg_ctr, COALESCE(AVG(ya.retention_rate), 0) AS avg_retention FROM media_channels mc LEFT JOIN media_content mco ON mc.channel_id = mco.channel_id AND mco.publish_status = 'published' LEFT JOIN youtube_analytics ya ON mco.youtube_video_id = ya.video_id WHERE mc.is_active = TRUE AND ($1 IS NULL OR mc.channel_id = $1) AND (CURRENT_DATE - mc.created_at::date) >= $2 GROUP BY mc.channel_id, mc.channel_name, mc.created_at, mc.target_locales, mc.render_tier HAVING COUNT(mco.id) >= $3 OR $4 = TRUE",
+        "options": {
+          "queryParams": "={{ [$node['🔧 初期化'].json.channel_id, ($input.first().json[0]?.days_to_evaluate || 30), ($input.first().json[0]?.min_videos_for_evaluation || 10), $node['🔧 初期化'].json.force_evaluate] }}"
+        }
+      },
+      "id": "get-channels-to-evaluate",
+      "name": "📊 評価対象チャンネル取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 30日評価ロジック：登録者増加率、平均視聴時間、RPMで判定\n// ============================================================================\n\nconst config = $node['📋 閾値設定取得'].json;\nconst cfg = Array.isArray(config) ? config[0] : config;\nconst channelsData = $input.first().json;\nconst channels = Array.isArray(channelsData) ? channelsData : [channelsData].filter(c => c && c.channel_id);\n\nif (!channels.length) {\n  return [{ json: { skip: true, reason: '評価対象チャンネルなし' } }];\n}\n\n// 全チャンネルのスコアを計算してパーセンタイルを算出\nconst channelScores = channels.map(ch => {\n  // スコア = 視聴時間 × CTR × 視聴維持率\n  const score = (ch.avg_view_duration_seconds || 0) * (ch.avg_ctr || 0) * (ch.avg_retention || 0) * 1000;\n  return { ...ch, performance_score: score };\n}).sort((a, b) => a.performance_score - b.performance_score);\n\nconst totalChannels = channelScores.length;\nconst downgradeThreshold = Math.floor(totalChannels * (cfg.downgrade_percentile || 20) / 100);\nconst upgradeThreshold = Math.floor(totalChannels * (1 - (cfg.upgrade_percentile || 10) / 100));\n\n// 11言語リスト\nconst fullLocales = ['ja', 'en', 'zh-CN', 'zh-TW', 'ko', 'es', 'pt', 'de', 'fr', 'it', 'th', 'vi'];\n\nconst results = channelScores.map((ch, index) => {\n  const currentLocales = ch.target_locales || ['ja'];\n  const currentTier = ch.render_tier || 'standard';\n  let action = 'maintain';\n  let newLocales = currentLocales;\n  let newTier = currentTier;\n  let reason = '';\n\n  // 30日経過判定\n  const daysSinceCreation = ch.days_since_creation || 0;\n  const passesTimeThreshold = daysSinceCreation >= (cfg.days_to_evaluate || 30);\n\n  // 閾値判定\n  const passesViewDuration = (ch.avg_view_duration_seconds || 0) >= (cfg.min_avg_view_duration_seconds || 120);\n  const passesCtr = (ch.avg_ctr || 0) >= 0.03; // 3%以上\n  const passesRetention = (ch.avg_retention || 0) >= 0.4; // 40%以上\n\n  // === 言語解禁判定 ===\n  if (passesTimeThreshold && passesViewDuration && passesCtr && passesRetention) {\n    if (currentLocales.length < fullLocales.length) {\n      action = 'unlock_languages';\n      newLocales = fullLocales;\n      reason = `30日評価クリア: 視聴時間=${ch.avg_view_duration_seconds?.toFixed(0)}s, CTR=${(ch.avg_ctr*100)?.toFixed(2)}%`;\n    }\n  }\n\n  // === 格下げ判定（下位20%）===\n  if (index < downgradeThreshold && currentTier !== 'minimal') {\n    action = 'downgrade_tier';\n    newTier = currentTier === 'premium' ? 'standard' : currentTier === 'standard' ? 'economy' : 'minimal';\n    reason = `下位${cfg.downgrade_percentile}%: スコア=${ch.performance_score?.toFixed(4)}`;\n  }\n\n  // === 格上げ判定（上位10%）===\n  if (index >= upgradeThreshold && currentTier !== 'premium') {\n    action = 'upgrade_tier';\n    newTier = currentTier === 'minimal' ? 'economy' : currentTier === 'economy' ? 'standard' : 'premium';\n    reason = `上位${cfg.upgrade_percentile}%: スコア=${ch.performance_score?.toFixed(4)}`;\n  }\n\n  return {\n    channel_id: ch.channel_id,\n    channel_name: ch.channel_name,\n    days_since_creation: daysSinceCreation,\n    total_videos: ch.total_videos,\n    avg_view_duration_seconds: ch.avg_view_duration_seconds,\n    avg_ctr: ch.avg_ctr,\n    avg_retention: ch.avg_retention,\n    performance_score: ch.performance_score,\n    performance_rank: index + 1,\n    total_evaluated: totalChannels,\n    action: action,\n    previous_locales: currentLocales,\n    new_locales: newLocales,\n    previous_tier: currentTier,\n    new_tier: newTier,\n    reason: reason\n  };\n}).filter(r => r.action !== 'maintain');\n\nreturn results.length > 0 \n  ? results.map(r => ({ json: r }))\n  : [{ json: { skip: true, reason: 'アクション対象なし', evaluated_count: totalChannels } }];"
+      },
+      "id": "evaluate-growth",
+      "name": "🧠 成長評価ロジック",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "skip-check",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-skip",
+      "name": "アクションあり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO channel_growth_evaluation (channel_id, evaluation_date, evaluation_start_date, evaluation_end_date, days_since_creation, avg_view_duration_seconds, action_taken, previous_target_locales, new_target_locales, previous_render_tier, new_render_tier) VALUES ($1, CURRENT_DATE, CURRENT_DATE - INTERVAL '30 days', CURRENT_DATE, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8) RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.channel_id, $json.days_since_creation, $json.avg_view_duration_seconds, $json.action, JSON.stringify($json.previous_locales), JSON.stringify($json.new_locales), $json.previous_tier, $json.new_tier] }}"
+        }
+      },
+      "id": "save-evaluation",
+      "name": "💾 評価履歴保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $node['🧠 成長評価ロジック'].json.action }}",
+                    "rightValue": "unlock_languages",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "unlock"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $node['🧠 成長評価ロジック'].json.action }}",
+                    "rightValue": "downgrade_tier",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "downgrade"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $node['🧠 成長評価ロジック'].json.action }}",
+                    "rightValue": "upgrade_tier",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "upgrade"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "route-action",
+      "name": "アクション分岐",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE media_channels SET target_locales = $2::jsonb, updated_at = NOW() WHERE channel_id = $1",
+        "options": {
+          "queryParams": "={{ [$node['🧠 成長評価ロジック'].json.channel_id, JSON.stringify($node['🧠 成長評価ロジック'].json.new_locales)] }}"
+        }
+      },
+      "id": "update-locales",
+      "name": "🌐 言語解禁",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE media_channels SET render_tier = $2, updated_at = NOW() WHERE channel_id = $1",
+        "options": {
+          "queryParams": "={{ [$node['🧠 成長評価ロジック'].json.channel_id, $node['🧠 成長評価ロジック'].json.new_tier] }}"
+        }
+      },
+      "id": "downgrade-tier",
+      "name": "📉 ティア格下げ",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE media_channels SET render_tier = $2, updated_at = NOW() WHERE channel_id = $1",
+        "options": {
+          "queryParams": "={{ [$node['🧠 成長評価ロジック'].json.channel_id, $node['🧠 成長評価ロジック'].json.new_tier] }}"
+        }
+      },
+      "id": "upgrade-tier",
+      "name": "📈 ティア格上げ",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.CHATWORK_WEBHOOK_URL || 'https://api.chatwork.com/v2/rooms/' + $env.CHATWORK_ROOM_ID + '/messages' }}",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "📊 【成長評価】{{ $node['🧠 成長評価ロジック'].json.channel_name }}\n\nアクション: {{ $node['🧠 成長評価ロジック'].json.action }}\n理由: {{ $node['🧠 成長評価ロジック'].json.reason }}\n\n{{ $node['🧠 成長評価ロジック'].json.action === 'unlock_languages' ? '🌐 11言語に解禁しました！' : $node['🧠 成長評価ロジック'].json.action === 'downgrade_tier' ? '📉 ティアを' + $node['🧠 成長評価ロジック'].json.previous_tier + '→' + $node['🧠 成長評価ロジック'].json.new_tier + 'に変更' : '📈 ティアを' + $node['🧠 成長評価ロジック'].json.previous_tier + '→' + $node['🧠 成長評価ロジック'].json.new_tier + 'に格上げ' }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "notify-chatwork",
+      "name": "📢 ChatWork通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const evalData = $node['🧠 成長評価ロジック'].json;\nreturn [{ json: { success: true, action: 'growth_evaluation', channel_id: evalData.channel_id, channel_name: evalData.channel_name, action_taken: evalData.action, reason: evalData.reason, new_tier: evalData.new_tier, new_locales: evalData.new_locales } }];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, message: $json.reason }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-skip",
+      "name": "⏭️ スキップ応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "⏰ 日次実行": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook: growth-evaluation": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "📋 閾値設定取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 閾値設定取得": {
+      "main": [
+        [
+          {
+            "node": "📊 評価対象チャンネル取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 評価対象チャンネル取得": {
+      "main": [
+        [
+          {
+            "node": "🧠 成長評価ロジック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧠 成長評価ロジック": {
+      "main": [
+        [
+          {
+            "node": "アクションあり？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "アクションあり？": {
+      "main": [
+        [
+          {
+            "node": "💾 評価履歴保存",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "⏭️ スキップ応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 評価履歴保存": {
+      "main": [
+        [
+          {
+            "node": "アクション分岐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "アクション分岐": {
+      "main": [
+        [
+          {
+            "node": "🌐 言語解禁",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📉 ティア格下げ",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📈 ティア格上げ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🌐 言語解禁": {
+      "main": [
+        [
+          {
+            "node": "📢 ChatWork通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📉 ティア格下げ": {
+      "main": [
+        [
+          {
+            "node": "📢 ChatWork通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📈 ティア格上げ": {
+      "main": [
+        [
+          {
+            "node": "📢 ChatWork通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📢 ChatWork通知": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 300,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Growth",
+      "color": "#f39c12"
+    },
+    {
+      "name": "Phase-2",
+      "color": "#3498db"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

@@ -1,0 +1,293 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Cards
+   スタイル変数対応版
+   ============================================================ */
+
+.n3-card {
+  background: var(--panel);
+  border: var(--style-card-border, 1px solid var(--panel-border));
+  border-radius: var(--style-card-radius, var(--style-radius-md, 6px));
+  box-shadow: var(--style-card-shadow, none);
+  padding: 12px;
+  transition: var(--style-transition-normal, all 0.15s ease);
+}
+
+.n3-card:hover { 
+  box-shadow: var(--style-card-shadow-hover, var(--style-shadow-md)); 
+}
+
+/* Card with header */
+.n3-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.n3-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.n3-card-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.n3-card-body {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.n3-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 12px;
+  margin-top: 12px;
+  border-top: 1px solid var(--panel-border);
+}
+
+/* Card sizes */
+.n3-card-sm {
+  padding: 8px;
+}
+
+.n3-card-lg {
+  padding: 16px;
+}
+
+/* Clickable Card */
+.n3-card-clickable {
+  cursor: pointer;
+}
+
+.n3-card-clickable:hover {
+  border-color: var(--accent);
+}
+
+/* Selected Card */
+.n3-card-selected {
+  border-color: var(--accent);
+  background: rgba(99, 102, 241, 0.05);
+}
+
+/* Stat Card */
+.n3-stat-card {
+  background: var(--panel);
+  border: var(--style-card-border, 1px solid var(--panel-border));
+  border-radius: var(--style-card-radius, var(--style-radius-md, 6px));
+  box-shadow: var(--style-card-shadow, none);
+  padding: 16px;
+  transition: var(--style-transition-normal, all 0.15s ease);
+}
+
+.n3-stat-card:hover {
+  box-shadow: var(--style-card-shadow-hover, var(--style-shadow-md));
+}
+
+.n3-stat-card__label {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.n3-stat-card__value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.n3-stat-card__trend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.n3-stat-card__trend.up {
+  color: var(--success);
+}
+
+.n3-stat-card__trend.down {
+  color: var(--error);
+}
+
+/* View Switch - リスト/カード切り替え */
+.n3-view-switch {
+  display: flex;
+  align-items: center;
+  border: var(--style-border-width, 1px) solid var(--panel-border);
+  border-radius: var(--style-radius-sm, 4px);
+  overflow: hidden;
+}
+
+.n3-view-switch-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 26px;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+.n3-view-switch-item:hover {
+  color: var(--text);
+  background: var(--highlight);
+}
+
+.n3-view-switch-item.active {
+  color: white;
+  background: var(--accent);
+}
+
+/* Image Card */
+.n3-image-card {
+  background: var(--panel);
+  border: var(--style-card-border, 1px solid var(--panel-border));
+  border-radius: var(--style-card-radius, var(--style-radius-md, 6px));
+  overflow: hidden;
+  transition: var(--style-transition-normal, all 0.15s ease);
+}
+
+.n3-image-card:hover {
+  box-shadow: var(--style-card-shadow-hover, var(--style-shadow-md));
+}
+
+.n3-image-card__image {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
+.n3-image-card__content {
+  padding: 12px;
+}
+
+/* Product Card */
+.n3-product-card {
+  background: var(--panel);
+  border: var(--style-card-border, 1px solid var(--panel-border));
+  border-radius: var(--style-card-radius, var(--style-radius-md, 6px));
+  overflow: hidden;
+  transition: var(--style-transition-normal, all 0.15s ease);
+}
+
+.n3-product-card:hover {
+  box-shadow: var(--style-card-shadow-hover, var(--style-shadow-md));
+  border-color: var(--accent);
+}
+
+.n3-product-card__image {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+  background: var(--highlight);
+}
+
+.n3-product-card__body {
+  padding: 12px;
+}
+
+.n3-product-card__title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.n3-product-card__price {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--accent);
+  margin-top: 8px;
+}
+
+.n3-product-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Blog Card */
+.n3-blog-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: var(--style-card-border, 1px solid var(--panel-border));
+  border-radius: var(--style-card-radius, var(--style-radius-md, 6px));
+  overflow: hidden;
+  transition: var(--style-transition-normal, all 0.15s ease);
+}
+
+.n3-blog-card:hover {
+  box-shadow: var(--style-card-shadow-hover, var(--style-shadow-md));
+}
+
+.n3-blog-card__image {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
+.n3-blog-card__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+}
+
+.n3-blog-card__category {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.n3-blog-card__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  margin-top: 8px;
+  line-height: 1.4;
+}
+
+.n3-blog-card__excerpt {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 8px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.n3-blog-card__footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}

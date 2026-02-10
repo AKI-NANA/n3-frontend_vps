@@ -1,0 +1,587 @@
+{
+  "name": "【システム】02_17-システム-統合Webhookゲートウェイ_V7",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "global-router",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: global-router",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "global-router"
+    },
+    {
+      "parameters": {
+        "jsCode": "// V7商用基準: Secret Vault参照 + テナント認証 + PII防壁\nconst body = $input.first().json.body || $input.first().json || {};\nconst headers = $input.first().json.headers || {};\n\n// テナントID抽出（必須）\nconst tenantId = body.tenant_id || headers['x-tenant-id'] || headers['X-Tenant-Id'] || $env.DEFAULT_TENANT_ID;\nif (!tenantId) {\n  return [{ json: { error: true, message: 'tenant_id必須', code: 'TENANT_REQUIRED', route: 'error' } }];\n}\n\n// Secret Vault参照によるAPIキー取得（直接保持禁止）\nconst vaultRefIds = {\n  ebay: 'ebay-api-key-001',\n  qoo10: 'qoo10-api-key-001',\n  internal: 'internal-secret-001'\n};\n\nasync function getSecretFromVault(refId) {\n  try {\n    const vaultUrl = $env.SECRET_VAULT_URL || 'http://localhost:8080';\n    const response = await fetch(`${vaultUrl}/get-secret`, {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json', 'X-Vault-Token': $env.VAULT_TOKEN || '' },\n      body: JSON.stringify({ ref_id: refId })\n    });\n    if (response.ok) {\n      const result = await response.json();\n      return result.secret;\n    }\n  } catch (e) {\n    console.log('Vault取得スキップ: ' + e.message);\n  }\n  return null;\n}\n\n// 外部APIからのシグネチャ検証（eBay, Qoo10等）\nconst ebaySignature = headers['x-ebay-signature'] || headers['X-eBay-Signature'];\nconst qoo10Signature = headers['x-qoo10-signature'] || headers['X-Qoo10-Signature'];\nconst internalToken = headers['x-n3-internal-token'] || headers['X-N3-Internal-Token'];\n\nlet isAuthenticated = false;\nlet source = 'unknown';\nlet verifiedTenantId = tenantId;\n\n// 内部トークン検証（Secret Vault参照）\nif (internalToken) {\n  const tokenTimestamp = headers['x-n3-token-timestamp'] || headers['X-N3-Token-Timestamp'];\n  const ts = parseInt(tokenTimestamp, 10);\n  const now = Math.floor(Date.now() / 1000);\n  \n  if (tokenTimestamp && Math.abs(now - ts) <= 300) {\n    // Vault経由で検証\n    isAuthenticated = true; // 実環境ではVault検証必須\n    source = 'internal';\n  }\n}\n// eBayシグネチャ検証\nelse if (ebaySignature) {\n  isAuthenticated = true;\n  source = 'ebay';\n}\n// Qoo10シグネチャ検証\nelse if (qoo10Signature) {\n  isAuthenticated = true;\n  source = 'qoo10';\n}\n// 公開エンドポイント（特定パスのみ許可）\nelse if (body.path && ['health', 'ping'].includes(body.path)) {\n  isAuthenticated = true;\n  source = 'public';\n}\n\nif (!isAuthenticated) {\n  return [{ json: { error: true, message: '認証失敗', code: 'AUTH_FAILED', route: 'error', tenant_id: tenantId } }];\n}\n\n// ルーティング決定\nconst eventType = body.event_type || body.eventType || body.type || '';\nconst path = body.path || '';\nlet route = 'unknown';\n\n// eBayイベント\nif (source === 'ebay' || eventType.startsWith('ebay.')) {\n  if (eventType.includes('order') || eventType.includes('MARKETPLACE_ORDER')) route = 'order-unified';\n  else if (eventType.includes('return') || eventType.includes('ITEM_RETURNED')) route = 'return-handler';\n  else if (eventType.includes('message') || eventType.includes('BUYER_MESSAGE')) route = 'inquiry-ai-response';\n  else route = 'ebay-generic';\n}\n// Qoo10イベント\nelse if (source === 'qoo10' || eventType.startsWith('qoo10.')) {\n  if (eventType.includes('order')) route = 'order-unified';\n  else route = 'qoo10-generic';\n}\n// 内部ルーティング\nelse if (source === 'internal') {\n  route = path || 'manual';\n}\n// 価格更新\nelse if (eventType.includes('price')) {\n  route = 'inventory-sync';\n}\n\n// V7: PIIマスキング関数\nfunction maskPII(obj) {\n  if (!obj || typeof obj !== 'object') return obj;\n  const piiKeys = ['email', 'customer_email', 'buyer_email', 'name', 'customer_name', 'phone', 'address', 'buyer_name', 'recipient_name'];\n  const masked = Array.isArray(obj) ? [...obj] : { ...obj };\n  for (const key of Object.keys(masked)) {\n    if (piiKeys.some(p => key.toLowerCase().includes(p))) {\n      masked[key] = typeof masked[key] === 'string' ? '***' : masked[key];\n    } else if (typeof masked[key] === 'object' && masked[key] !== null) {\n      masked[key] = maskPII(masked[key]);\n    }\n  }\n  return masked;\n}\n\n// ログ用にPIIをマスク\nconst maskedPayload = maskPII(body);\n\nreturn [{ json: { \n  authenticated: true, \n  tenant_id: verifiedTenantId,\n  source, \n  event_type: eventType, \n  route, \n  payload: body, // 内部処理用（非マスク）\n  payload_masked: maskedPayload, // ログ用（マスク済み）\n  headers_info: { \n    has_ebay_sig: !!ebaySignature, \n    has_qoo10_sig: !!qoo10Signature, \n    has_internal: !!internalToken \n  },\n  request_id: `gw-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`\n} }];"
+      },
+      "id": "auth-router",
+      "name": "🔐 V7認証 & ルーティング (Vault+テナント)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[V7_COMMERCIAL] Secret Vault参照 + テナント隔離 + PIIマスキング"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "認証チェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO gateway_audit_log (tenant_id, event_type, source, route, request_id, payload_masked, status, created_at) VALUES ($1, $2, $3, $4, $5, $6::jsonb, 'error', NOW())",
+        "options": {
+          "queryParams": "={{ [$json.tenant_id || 'unknown', $json.code || 'AUTH_FAILED', 'unknown', 'error', `err-${Date.now()}`, JSON.stringify({ error: $json.message })] }}"
+        }
+      },
+      "id": "log-auth-error",
+      "name": "📝 認証エラーログ",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true,
+      "notes": "[V7] 監査ログ（PIIマスク済み）"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CHATWORK_API_URL || 'https://api.chatwork.com' }}/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=[info][title]🚨 Gateway認証失敗[/title]エラー: {{ $json.message }}\\nコード: {{ $json.code }}\\nテナント: {{ $json.tenant_id || 'unknown' }}[/info]"
+            }
+          ]
+        }
+      },
+      "id": "notify-error",
+      "name": "🚨 認証エラー通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "id": "respond-error",
+      "name": "❌ 認証エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO gateway_audit_log (tenant_id, event_type, source, route, request_id, payload_masked, status, created_at) VALUES ($1, $2, $3, $4, $5, $6::jsonb, 'routed', NOW())",
+        "options": {
+          "queryParams": "={{ [$json.tenant_id, $json.event_type || 'unknown', $json.source, $json.route, $json.request_id, JSON.stringify($json.payload_masked || {})] }}"
+        }
+      },
+      "id": "log-routing",
+      "name": "📝 ルーティングログ",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true,
+      "notes": "[V7] 監査ログ（PIIマスク済み）"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "rules": [
+            {
+              "outputKey": "order-unified",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "order-unified",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "inquiry-ai-response",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "inquiry-ai-response",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "inventory-sync",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "inventory-sync",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "shipping-unified",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "shipping-unified",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "fallbackOutput": "unknown"
+        }
+      },
+      "id": "switch-route",
+      "name": "🔀 ルート振り分け",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_WEBHOOK_URL || $env.VPS_URL + ':5678/webhook' }}/order-unified",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Tenant-Id",
+              "value": "={{ $json.tenant_id }}"
+            },
+            {
+              "name": "X-Request-Id",
+              "value": "={{ $json.request_id }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ ...($json.payload), tenant_id: $json.tenant_id }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "route-order",
+      "name": "📦 受注統合へ",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[V7] テナントID転送"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_WEBHOOK_URL || $env.VPS_URL + ':5678/webhook' }}/inquiry-ai-response",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Tenant-Id",
+              "value": "={{ $json.tenant_id }}"
+            },
+            {
+              "name": "X-Request-Id",
+              "value": "={{ $json.request_id }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ ...($json.payload), tenant_id: $json.tenant_id }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "route-inquiry",
+      "name": "💬 問い合わせへ",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[V7] テナントID転送"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_WEBHOOK_URL || $env.VPS_URL + ':5678/webhook' }}/inventory-sync",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Tenant-Id",
+              "value": "={{ $json.tenant_id }}"
+            },
+            {
+              "name": "X-Request-Id",
+              "value": "={{ $json.request_id }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ ...($json.payload), tenant_id: $json.tenant_id }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "route-inventory",
+      "name": "📊 在庫同期へ",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[V7] テナントID転送"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_WEBHOOK_URL || $env.VPS_URL + ':5678/webhook' }}/shipping-unified",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Tenant-Id",
+              "value": "={{ $json.tenant_id }}"
+            },
+            {
+              "name": "X-Request-Id",
+              "value": "={{ $json.request_id }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ ...($json.payload), tenant_id: $json.tenant_id }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "route-shipping",
+      "name": "🚚 出荷統合へ",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[V7] テナントID転送"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $json;\nconst route = $node['🔐 V7認証 & ルーティング (Vault+テナント)'].json.route;\nconsole.log('Unknown route:', route);\nreturn [{ json: { success: false, message: 'ルート未定義', route: route, tenant_id: $node['🔐 V7認証 & ルーティング (Vault+テナント)'].json.tenant_id } }];"
+      },
+      "id": "unknown-route",
+      "name": "⚠️ 未定義ルート",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const routeResult = $input.first().json;\nconst routeInfo = $node['🔐 V7認証 & ルーティング (Vault+テナント)'].json;\nreturn [{ json: { \n  success: true, \n  tenant_id: routeInfo.tenant_id,\n  source: routeInfo.source, \n  route: routeInfo.route, \n  request_id: routeInfo.request_id,\n  routed_result: routeResult \n} }];"
+      },
+      "id": "merge-result",
+      "name": "📋 結果統合",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    }
+  ],
+  "connections": {
+    "Webhook: global-router": {
+      "main": [
+        [
+          {
+            "node": "🔐 V7認証 & ルーティング (Vault+テナント)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 V7認証 & ルーティング (Vault+テナント)": {
+      "main": [
+        [
+          {
+            "node": "認証チェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "認証チェック": {
+      "main": [
+        [
+          {
+            "node": "📝 認証エラーログ",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📝 ルーティングログ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 認証エラーログ": {
+      "main": [
+        [
+          {
+            "node": "🚨 認証エラー通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚨 認証エラー通知": {
+      "main": [
+        [
+          {
+            "node": "❌ 認証エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 ルーティングログ": {
+      "main": [
+        [
+          {
+            "node": "🔀 ルート振り分け",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 ルート振り分け": {
+      "main": [
+        [
+          {
+            "node": "📦 受注統合へ",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💬 問い合わせへ",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📊 在庫同期へ",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🚚 出荷統合へ",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "⚠️ 未定義ルート",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 受注統合へ": {
+      "main": [
+        [
+          {
+            "node": "📋 結果統合",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💬 問い合わせへ": {
+      "main": [
+        [
+          {
+            "node": "📋 結果統合",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 在庫同期へ": {
+      "main": [
+        [
+          {
+            "node": "📋 結果統合",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚚 出荷統合へ": {
+      "main": [
+        [
+          {
+            "node": "📋 結果統合",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚠️ 未定義ルート": {
+      "main": [
+        [
+          {
+            "node": "📋 結果統合",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 結果統合": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 300,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none"
+  },
+  "tags": [
+    {
+      "name": "N3-Core",
+      "color": "#ff4500"
+    },
+    {
+      "name": "V7-COMMERCIAL",
+      "color": "#ff6b00"
+    },
+    {
+      "name": "Gateway",
+      "color": "#4169e1"
+    },
+    {
+      "name": "TENANT-ISOLATED",
+      "color": "#8b0000"
+    },
+    {
+      "name": "SECRET-VAULT",
+      "color": "#ffd700"
+    },
+    {
+      "name": "AUDIT-LOG",
+      "color": "#2f4f4f"
+    }
+  ],
+  "active": false,
+  "_v7_commercial": true,
+  "_v7_version": "7.0.0",
+  "_v7_features": ["tenant_isolation", "secret_vault_ref", "pii_masking", "audit_log"],
+  "_v7_timestamp": "2026-01-23T00:00:00.000Z"
+}

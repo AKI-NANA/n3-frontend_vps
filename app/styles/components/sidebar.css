@@ -1,0 +1,364 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Sidebar
+   ============================================================ */
+
+/* ============================================================
+   BASE SIDEBAR
+   ============================================================ */
+.n3-sidebar {
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border-right: 1px solid var(--panel-border);
+  transition: var(--style-transition-normal, all 0.2s ease);
+}
+
+/* ============================================================
+   SIDEBAR HEADER
+   ============================================================ */
+.n3-sidebar__header {
+  display: flex;
+  align-items: center;
+  gap: var(--n3-gap);
+  padding: var(--n3-px);
+  border-bottom: 1px solid var(--panel-border);
+  min-height: var(--n3-header-height, 48px);
+}
+
+.n3-sidebar__logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: var(--accent);
+  color: white;
+  font-weight: 700;
+  font-size: 12px;
+  border-radius: var(--style-radius-sm, 4px);
+}
+
+.n3-sidebar__title {
+  font-weight: 600;
+  font-size: var(--n3-font);
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.n3-sidebar__toggle,
+.n3-sidebar__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--style-radius-sm, 4px);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+  margin-left: auto;
+}
+
+.n3-sidebar__toggle:hover,
+.n3-sidebar__close:hover {
+  background: var(--highlight);
+  color: var(--text);
+}
+
+.n3-sidebar__toggle svg,
+.n3-sidebar__close svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ============================================================
+   SIDEBAR NAV
+   ============================================================ */
+.n3-sidebar__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--n3-gap);
+  flex: 1;
+  overflow-y: auto;
+}
+
+.n3-sidebar__item {
+  display: flex;
+  align-items: center;
+  gap: var(--n3-gap);
+  padding: 0 var(--n3-px);
+  height: var(--n3-height);
+  background: transparent;
+  border: none;
+  border-radius: var(--style-btn-radius, var(--n3-radius));
+  color: var(--text-muted);
+  font-size: var(--n3-font);
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+  white-space: nowrap;
+}
+
+.n3-sidebar__item:hover {
+  background: var(--highlight);
+  color: var(--text);
+}
+
+.n3-sidebar__item.active {
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--accent);
+}
+
+.n3-sidebar__icon {
+  width: var(--n3-icon);
+  height: var(--n3-icon);
+  flex-shrink: 0;
+}
+
+.n3-sidebar__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.n3-sidebar__badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: var(--accent);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 9px;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   FIXED SIDEBAR
+   ============================================================ */
+.n3-sidebar--fixed {
+  width: 220px;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   COLLAPSIBLE SIDEBAR
+   ============================================================ */
+.n3-sidebar--collapsible {
+  width: 220px;
+  flex-shrink: 0;
+}
+
+.n3-sidebar--collapsible.collapsed {
+  width: 56px;
+}
+
+.n3-sidebar--collapsible.collapsed .n3-sidebar__item {
+  justify-content: center;
+  padding: 0;
+}
+
+.n3-sidebar--collapsible.collapsed .n3-sidebar__header {
+  justify-content: center;
+}
+
+/* ============================================================
+   OVERLAY SIDEBAR
+   ============================================================ */
+.n3-sidebar--overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 260px;
+  z-index: 20;
+  transform: translateX(-100%);
+  box-shadow: var(--style-shadow-lg, 0 10px 25px rgba(0,0,0,0.15));
+}
+
+.n3-sidebar--overlay.open {
+  transform: translateX(0);
+}
+
+/* ============================================================
+   MINI SIDEBAR (アイコンのみ)
+   ============================================================ */
+.n3-sidebar-mini {
+  display: flex;
+  flex-direction: column;
+  width: 48px;
+  height: 100%;
+  flex-shrink: 0;
+  background: var(--panel);
+  border-right: 1px solid var(--panel-border);
+}
+
+.n3-sidebar-mini__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 6px;
+  flex: 1;
+}
+
+.n3-sidebar-mini__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--style-btn-radius, 6px);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+.n3-sidebar-mini__item:hover {
+  background: var(--highlight);
+  color: var(--text);
+}
+
+.n3-sidebar-mini__item.active {
+  background: var(--accent);
+  color: white;
+}
+
+.n3-sidebar-mini__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.n3-sidebar-mini__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.n3-sidebar-mini__badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  background: var(--error);
+  color: white;
+  font-size: 9px;
+  font-weight: 600;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.n3-sidebar-mini__tooltip {
+  position: absolute;
+  left: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 6px 10px;
+  background: var(--tooltip-bg, #1f2937);
+  color: var(--tooltip-text, white);
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 6px;
+  white-space: nowrap;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+}
+
+.n3-sidebar-mini__tooltip::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 4px solid transparent;
+  border-right-color: var(--tooltip-bg, #1f2937);
+}
+
+/* ============================================================
+   STYLE THEME OVERRIDES
+   ============================================================ */
+
+/* Flat */
+[data-style="flat"] .n3-sidebar {
+  border-right-width: 2px;
+}
+
+[data-style="flat"] .n3-sidebar__item {
+  border-radius: 2px;
+}
+
+[data-style="flat"] .n3-sidebar__item.active {
+  background: transparent;
+  border-left: 3px solid var(--accent);
+  padding-left: calc(var(--n3-px) - 3px);
+}
+
+[data-style="flat"] .n3-sidebar-mini__item {
+  border-radius: 2px;
+}
+
+/* Glass */
+[data-style="glass"] .n3-sidebar,
+[data-style="glass"] .n3-sidebar-mini {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+[data-style="glass"] .n3-sidebar__item,
+[data-style="glass"] .n3-sidebar-mini__item {
+  border-radius: 8px;
+}
+
+[data-style="glass"] .n3-sidebar__item.active,
+[data-style="glass"] .n3-sidebar-mini__item.active {
+  background: rgba(99, 102, 241, 0.15);
+  backdrop-filter: blur(4px);
+}
+
+[data-style="glass"][data-theme="dark"] .n3-sidebar,
+[data-style="glass"][data-theme="cyber"] .n3-sidebar,
+[data-style="glass"][data-theme="dark"] .n3-sidebar-mini,
+[data-style="glass"][data-theme="cyber"] .n3-sidebar-mini {
+  background: rgba(20, 20, 30, 0.8);
+}
+
+/* Neumorphism */
+[data-style="neumorphism"] .n3-sidebar,
+[data-style="neumorphism"] .n3-sidebar-mini {
+  border-right: none;
+  box-shadow: 4px 0 8px rgba(0,0,0,0.05);
+}
+
+[data-style="neumorphism"] .n3-sidebar__item,
+[data-style="neumorphism"] .n3-sidebar-mini__item {
+  border-radius: 8px;
+}
+
+[data-style="neumorphism"] .n3-sidebar__item:hover,
+[data-style="neumorphism"] .n3-sidebar-mini__item:hover {
+  box-shadow: -2px -2px 4px rgba(255,255,255,0.5), 2px 2px 4px rgba(0,0,0,0.05);
+}
+
+[data-style="neumorphism"] .n3-sidebar__item.active,
+[data-style="neumorphism"] .n3-sidebar-mini__item.active {
+  box-shadow: inset 2px 2px 4px rgba(0,0,0,0.08), inset -2px -2px 4px rgba(255,255,255,0.5);
+  background: var(--panel);
+}

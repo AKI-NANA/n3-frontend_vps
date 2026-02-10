@@ -1,0 +1,386 @@
+{
+  "name": "【共通】V8-BURN-LIMIT-CHECKER",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "burn-limit-start",
+      "name": "Burn Limit Start",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 燃焼上限チェック V8.2.1\nconst input = $input.first().json;\n\n// 入力パラメータ\nconst tenantId = input.tenantId || 'default';\nconst apiProvider = input.apiProvider || 'openai';  // openai, gemini, elevenlabs, midjourney, etc.\nconst estimatedCostUsd = input.estimatedCostUsd || 0.01;\nconst callCount = input.callCount || 1;\nconst workflowName = input.workflowName || 'unknown';\nconst requestId = input.requestId || `req_${Date.now()}`;\n\nreturn {\n  json: {\n    tenantId,\n    apiProvider,\n    estimatedCostUsd,\n    callCount,\n    workflowName,\n    requestId,\n    originalPayload: input\n  }\n};"
+      },
+      "id": "burn-limit-prepare",
+      "name": "Prepare Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT check_and_consume_api(\n  '{{ $json.tenantId }}',\n  '{{ $json.apiProvider }}',\n  {{ $json.estimatedCostUsd }},\n  {{ $json.callCount }}\n) as result;",
+        "options": {}
+      },
+      "id": "burn-limit-db-check",
+      "name": "Check & Consume API Quota",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        650,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-postgres",
+          "name": "Supabase PostgreSQL"
+        }
+      },
+      "notes": "\n[PATCHER] WARNING: このクエリはqueryParams方式への移行が必要です。手動で修正してください。"
+    },
+    {
+      "parameters": {
+        "jsCode": "// DB結果の処理\nconst input = $input.first().json;\nconst dbResult = input.result || {};\nconst prevData = $('Prepare Check').first().json;\n\nlet result = {\n  ...prevData,\n  quotaCheck: dbResult,\n  allowed: dbResult.allowed === true,\n  reason: dbResult.reason || (dbResult.allowed ? 'quota_available' : 'quota_exceeded'),\n  dailyUsed: dbResult.daily_used,\n  dailyLimit: dbResult.daily_limit,\n  dailyPercent: dbResult.daily_percent,\n  monthlyUsed: dbResult.monthly_used,\n  monthlyLimit: dbResult.monthly_limit,\n  monthlyPercent: dbResult.monthly_percent,\n  alertTriggered: dbResult.alert_triggered === true,\n  checkedAt: new Date().toISOString()\n};\n\nreturn { json: result };"
+      },
+      "id": "burn-limit-process",
+      "name": "Process Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        850,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-allowed",
+              "leftValue": "={{ $json.allowed }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "burn-limit-switch",
+      "name": "Quota Allowed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1050,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-alert",
+              "leftValue": "={{ $json.alertTriggered }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "burn-limit-alert-check",
+      "name": "Alert Threshold?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1250,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=⚠️ [API消費アラート]\n\nAPI: {{ $json.apiProvider }}\n日次使用: {{ $json.dailyUsed }} / {{ $json.dailyLimit }} USD ({{ $json.dailyPercent }}%)\n月次使用: {{ $json.monthlyUsed }} / {{ $json.monthlyLimit }} USD ({{ $json.monthlyPercent }}%)\n\nワークフロー: {{ $json.workflowName }}\nリクエストID: {{ $json.requestId }}\n時刻: {{ $json.checkedAt }}"
+            }
+          ]
+        },
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "burn-limit-alert-notify",
+      "name": "ChatWork Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1450,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 許可 - 元のペイロードを返す\nconst input = $input.first().json;\n\nreturn {\n  json: {\n    quotaApproved: true,\n    tenantId: input.tenantId,\n    requestId: input.requestId,\n    apiProvider: input.apiProvider,\n    consumedCostUsd: input.estimatedCostUsd,\n    dailyPercent: input.dailyPercent,\n    monthlyPercent: input.monthlyPercent,\n    ...input.originalPayload\n  }\n};"
+      },
+      "id": "burn-limit-success",
+      "name": "Quota Approved",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1650,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=🛑 [燃焼上限超過]\n\nAPI: {{ $json.apiProvider }}\n理由: {{ $json.reason }}\n日次使用: {{ $json.dailyUsed }} / {{ $json.dailyLimit }} USD\n月次使用: {{ $json.monthlyUsed }} / {{ $json.monthlyLimit }} USD\n\nワークフロー: {{ $json.workflowName }}\nリクエストID: {{ $json.requestId }}\n\n⚠️ 実行をスキップしました"
+            }
+          ]
+        },
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "burn-limit-exceeded-notify",
+      "name": "Notify Exceeded",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1250,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO audit_logs (\n  tenant_id, workflow_name, request_id, action,\n  payload_masked, risk_level, status, error_message, metadata\n) VALUES (\n  '{{ $json.tenantId }}',\n  '{{ $json.workflowName }}',\n  '{{ $json.requestId }}',\n  'burn_limit_exceeded',\n  '{{ JSON.stringify({ api_provider: $json.apiProvider, estimated_cost: $json.estimatedCostUsd }) }}'::jsonb,\n  'HIGH',\n  'cancelled',\n  'API quota exceeded: {{ $json.reason }}',\n  '{{ JSON.stringify({ daily_used: $json.dailyUsed, daily_limit: $json.dailyLimit, monthly_used: $json.monthlyUsed, monthly_limit: $json.monthlyLimit }) }}'::jsonb\n);",
+        "options": {}
+      },
+      "id": "burn-limit-audit-log",
+      "name": "Audit Log - Exceeded",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1450,
+        400
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-postgres",
+          "name": "Supabase PostgreSQL"
+        }
+      },
+      "notes": "\n[PATCHER] WARNING: このクエリはqueryParams方式への移行が必要です。手動で修正してください。"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 拒否 - エラーレスポンス\nconst input = $input.first().json;\n\nreturn {\n  json: {\n    quotaApproved: false,\n    error: true,\n    errorCode: 'BURN_LIMIT_EXCEEDED',\n    errorMessage: `API quota exceeded: ${input.reason}`,\n    apiProvider: input.apiProvider,\n    dailyUsed: input.dailyUsed,\n    dailyLimit: input.dailyLimit,\n    monthlyUsed: input.monthlyUsed,\n    monthlyLimit: input.monthlyLimit,\n    requestId: input.requestId,\n    workflowName: input.workflowName,\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "burn-limit-failure",
+      "name": "Quota Denied",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1650,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Burn Limit Start": {
+      "main": [
+        [
+          {
+            "node": "Prepare Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Check": {
+      "main": [
+        [
+          {
+            "node": "Check & Consume API Quota",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check & Consume API Quota": {
+      "main": [
+        [
+          {
+            "node": "Process Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Result": {
+      "main": [
+        [
+          {
+            "node": "Quota Allowed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Quota Allowed?": {
+      "main": [
+        [
+          {
+            "node": "Alert Threshold?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify Exceeded",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert Threshold?": {
+      "main": [
+        [
+          {
+            "node": "ChatWork Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Quota Approved",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ChatWork Alert": {
+      "main": [
+        [
+          {
+            "node": "Quota Approved",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Exceeded": {
+      "main": [
+        [
+          {
+            "node": "Audit Log - Exceeded",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Log - Exceeded": {
+      "main": [
+        [
+          {
+            "node": "Quota Denied",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    "V8",
+    "Burn-Limit",
+    "Quota",
+    "共通モジュール"
+  ],
+  "triggerCount": 0,
+  "updatedAt": "2026-01-24T00:00:00.000Z",
+  "versionId": "v8.2.1"
+}

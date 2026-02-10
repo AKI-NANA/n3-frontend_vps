@@ -1,0 +1,319 @@
+{
+  "name": "【翻訳】01_101-メディア-映像解析-Gemini-タイムスタンプ抽出_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "video-analyze",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: video-analyze",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "video-analyze"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 映像解析 初期化\n// ============================================================================\n\nconst body = $input.first().json.body || $input.first().json || {};\n\nconst sourceType = body.source_type || 'upload'; // 'puppeteer', 'upload', 'external_url'\nconst sourcePath = body.source_path;\nconst sourceUrl = body.source_url;\nconst channelId = body.channel_id;\nconst contentId = body.content_id;\nconst analysisType = body.analysis_type || 'full'; // 'full', 'highlights_only', 'transcription_only'\n\nif (!sourcePath && !sourceUrl) {\n  return [{ json: { error: true, message: 'source_path または source_url は必須です', code: 'MISSING_PARAM' } }];\n}\n\nreturn [{\n  json: {\n    source_type: sourceType,\n    source_path: sourcePath,\n    source_url: sourceUrl,\n    channel_id: channelId,\n    content_id: contentId,\n    analysis_type: analysisType,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-goog-api-key",
+              "value": "={{ $env.GEMINI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: `あなたは動画編集のエキスパートです。以下の動画を分析し、編集に必要な情報をJSON形式で出力してください。\n\n【動画URL】\n${$json.source_url || $json.source_path}\n\n【分析タイプ】\n${$json.analysis_type}\n\n【出力形式】JSONのみ、余計な説明は不要\n{\n  \"duration_seconds\": 120,\n  \"highlights\": [\n    {\"timestamp_ms\": 5000, \"type\": \"key_moment\", \"description\": \"重要な説明の開始\", \"importance\": 0.9},\n    {\"timestamp_ms\": 45000, \"type\": \"demonstration\", \"description\": \"実演シーン\", \"importance\": 0.8}\n  ],\n  \"cut_points\": [\n    {\"timestamp_ms\": 12000, \"reason\": \"silence\", \"duration_ms\": 3000},\n    {\"timestamp_ms\": 78000, \"reason\": \"mistake\", \"description\": \"言い間違い\"}\n  ],\n  \"scene_changes\": [\n    {\"timestamp_ms\": 0, \"scene_type\": \"intro\"},\n    {\"timestamp_ms\": 10000, \"scene_type\": \"main_content\"},\n    {\"timestamp_ms\": 100000, \"scene_type\": \"outro\"}\n  ],\n  \"visual_features\": {\n    \"dominant_colors\": [\"#ffffff\", \"#3498db\"],\n    \"face_detected\": true,\n    \"text_regions\": [{\"timestamp_ms\": 5000, \"text\": \"重要ポイント\", \"position\": \"center\"}]\n  },\n  \"suggested_edits\": [\n    {\"type\": \"trim\", \"start_ms\": 12000, \"end_ms\": 15000, \"reason\": \"無音部分カット\"},\n    {\"type\": \"add_annotation\", \"timestamp_ms\": 5000, \"annotation_type\": \"circle\", \"target\": \"重要ポイント\"}\n  ]\n}` }] }], generationConfig: { temperature: 0.3, maxOutputTokens: 4096 } }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "gemini-analyze",
+      "name": "🧠 Gemini映像解析",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// Gemini結果パース\n// ============================================================================\n\nconst initData = $node['🔧 初期化'].json;\nconst geminiResult = $input.first().json;\n\nlet analysis = {\n  duration_seconds: 0,\n  highlights: [],\n  cut_points: [],\n  scene_changes: [],\n  visual_features: {},\n  suggested_edits: []\n};\n\ntry {\n  const content = geminiResult?.candidates?.[0]?.content?.parts?.[0]?.text || '';\n  const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    analysis = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  console.log('Gemini parse error:', e.message);\n}\n\nreturn [{\n  json: {\n    source_type: initData.source_type,\n    source_path: initData.source_path,\n    source_url: initData.source_url,\n    channel_id: initData.channel_id,\n    content_id: initData.content_id,\n    analysis: analysis\n  }\n}];"
+      },
+      "id": "parse-analysis",
+      "name": "📋 解析結果パース",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO video_analysis_results (source_type, source_path, source_url, analysis_model, duration_seconds, highlights, cut_points, scene_changes, visual_features, edit_instructions, channel_id, content_id) VALUES ($1, $2, $3, 'gemini-1.5-flash', $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.source_type, $json.source_path, $json.source_url, $json.analysis.duration_seconds || 0, JSON.stringify($json.analysis.highlights || []), JSON.stringify($json.analysis.cut_points || []), JSON.stringify($json.analysis.scene_changes || []), JSON.stringify($json.analysis.visual_features || {}), JSON.stringify($json.analysis.suggested_edits || []), $json.channel_id, $json.content_id] }}"
+        }
+      },
+      "id": "save-analysis",
+      "name": "💾 解析結果保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// Remotion用編集指示JSON生成\n// ============================================================================\n\nconst data = $node['📋 解析結果パース'].json;\nconst analysis = data.analysis;\n\n// Remotion用のedit_instructionsを生成\nconst remotionInstructions = {\n  composition_id: 'HybridVideo',\n  source_video: data.source_url || data.source_path,\n  duration_frames: Math.round((analysis.duration_seconds || 60) * 30), // 30fps\n  \n  // カットポイント（トリム）\n  trims: (analysis.cut_points || []).filter(cp => cp.reason === 'silence' || cp.reason === 'mistake').map(cp => ({\n    start_frame: Math.round(cp.timestamp_ms / 1000 * 30),\n    end_frame: Math.round((cp.timestamp_ms + (cp.duration_ms || 1000)) / 1000 * 30),\n    type: 'cut'\n  })),\n  \n  // 注釈（桜井スタイル）\n  annotations: (analysis.suggested_edits || []).filter(se => se.type === 'add_annotation').map(se => ({\n    frame: Math.round(se.timestamp_ms / 1000 * 30),\n    duration_frames: 90, // 3秒\n    type: se.annotation_type || 'highlight',\n    target: se.target,\n    style: 'sakurai'\n  })),\n  \n  // ハイライト\n  highlights: (analysis.highlights || []).map(h => ({\n    frame: Math.round(h.timestamp_ms / 1000 * 30),\n    importance: h.importance || 0.5,\n    description: h.description,\n    effect: h.importance > 0.8 ? 'zoom_in' : 'subtle_highlight'\n  })),\n  \n  // シーン情報\n  scenes: (analysis.scene_changes || []).map(sc => ({\n    start_frame: Math.round(sc.timestamp_ms / 1000 * 30),\n    type: sc.scene_type\n  }))\n};\n\nreturn [{\n  json: {\n    success: true,\n    source_type: data.source_type,\n    source_url: data.source_url,\n    channel_id: data.channel_id,\n    content_id: data.content_id,\n    analysis: analysis,\n    remotion_instructions: remotionInstructions\n  }\n}];"
+      },
+      "id": "generate-instructions",
+      "name": "🎬 Remotion指示生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: video-analyze": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🧠 Gemini映像解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧠 Gemini映像解析": {
+      "main": [
+        [
+          {
+            "node": "📋 解析結果パース",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 解析結果パース": {
+      "main": [
+        [
+          {
+            "node": "💾 解析結果保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 解析結果保存": {
+      "main": [
+        [
+          {
+            "node": "🎬 Remotion指示生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎬 Remotion指示生成": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 180,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Gemini",
+      "color": "#4285f4"
+    },
+    {
+      "name": "Phase12",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

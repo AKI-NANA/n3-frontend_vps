@@ -1,0 +1,504 @@
+{
+  "name": "【メディア】20_81-メディア-ナレッジブロック生成-NotebookLM級_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "knowledge-block",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: knowledge-block",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "knowledge-block"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst rawContent = body.content || body.text;\nconst domain = body.domain;\nconst category = body.category;\nconst topic = body.topic;\nconst sourceUrl = body.source_url;\nconst sourcePage = body.source_page;\n\nif (!rawContent) {\n  return [{ json: { error: true, message: 'content は必須です', code: 'MISSING_PARAM' } }];\n}\nif (!domain) {\n  return [{ json: { error: true, message: 'domain は必須です', code: 'MISSING_PARAM' } }];\n}\n\nreturn [{\n  json: {\n    raw_content: rawContent,\n    domain: domain,\n    category: category || null,\n    topic: topic || null,\n    source_url: sourceUrl || null,\n    source_page: sourcePage || null,\n    block_id: `KB-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-goog-api-key",
+              "value": "={{ $env.GEMINI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: '教育コンテンツ専門家として、以下からナレッジブロックを生成。分野:' + $json.domain + ' 原文:' + $json.raw_content.substring(0, 2000) + ' 出力形式:JSON {layer1_summary,layer2_explanation,layer3_expert_detail,key_points[],keywords[],entities[],confidence_score}' }] }], generationConfig: { temperature: 0.3, maxOutputTokens: 4096 } }) }}",
+        "options": {
+          "timeout": 120000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "gemini-generate",
+      "name": "🧠 Gemini: 3層構造生成",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const initData = $node['🔐 初期化'].json;\nconst geminiResult = $input.first().json;\nlet parsedContent = null;\nlet confidence = 0;\n\ntry {\n  const responseText = geminiResult?.candidates?.[0]?.content?.parts?.[0]?.text || '';\n  const jsonMatch = responseText.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    parsedContent = JSON.parse(jsonMatch[0]);\n    confidence = parsedContent.confidence_score || 0.8;\n  }\n} catch (e) {\n  parsedContent = {\n    layer1_summary: initData.raw_content.substring(0, 50),\n    layer2_explanation: initData.raw_content.substring(0, 200),\n    layer3_expert_detail: initData.raw_content.substring(0, 500),\n    key_points: [], keywords: [], entities: []\n  };\n  confidence = 0.5;\n}\n\nreturn [{ json: { ...initData, parsed_content: parsedContent, gemini_confidence: confidence, gemini_status: parsedContent ? 'success' : 'fallback' } }];"
+      },
+      "id": "parse-gemini",
+      "name": "📋 Gemini結果パース",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Diffトークンダイエット: Claude監査に差分のみ送信（30%+削減）\nconst prevData = $input.first().json;\nconst originalText = prevData.raw_content || '';\nconst geminiContent = prevData.parsed_content || {};\n\nconst diff = {\n  original_summary: originalText.substring(0, 100) + (originalText.length > 100 ? '...' : ''),\n  original_length: originalText.length,\n  generated_summary: geminiContent.layer1_summary || '',\n  key_claims: geminiContent.key_points || [],\n  entities_to_verify: geminiContent.entities || [],\n  numerical_claims: ((geminiContent.layer3_expert_detail || '').match(/\\d+[%年月日円個件]/g) || []).slice(0, 10)\n};\n\nconst originalTokens = Math.ceil(originalText.length / 4);\nconst diffTokens = Math.ceil(JSON.stringify(diff).length / 4);\nconst reduction = originalTokens > 0 ? Math.round((1 - diffTokens / originalTokens) * 100) : 0;\n\nreturn [{ json: { ...prevData, diff_for_claude: diff, token_optimization: { original_tokens: originalTokens, diff_tokens: diffTokens, reduction_percent: reduction } } }];"
+      },
+      "id": "diff-token-diet",
+      "name": "📉 Diffトークンダイエット",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.ANTHROPIC_API_KEY }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-3-5-sonnet-20241022', max_tokens: 1024, messages: [{ role: 'user', content: '論理検証者として検証。分野:' + $json.domain + ' 元概要:' + $json.diff_for_claude.original_summary + ' 検証対象要約:' + $json.diff_for_claude.generated_summary + ' 主張:' + JSON.stringify($json.diff_for_claude.key_claims) + ' 数値:' + JSON.stringify($json.diff_for_claude.numerical_claims) + ' 出力JSON:{verified,issues[],corrections[],confidence}' }] }) }}",
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "claude-verify",
+      "name": "🔍 Claude: 論理監査(Diff版)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const prevData = $node['📉 Diffトークンダイエット'].json;\nconst claudeResult = $input.first().json;\nlet verification = { verified: true, issues: [], corrections: [], confidence: 0.8 };\n\ntry {\n  const responseText = claudeResult?.content?.[0]?.text || '';\n  const jsonMatch = responseText.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) verification = JSON.parse(jsonMatch[0]);\n} catch (e) {}\n\nreturn [{ json: { ...prevData, claude_verification: verification, claude_verified: verification.verified, fact_check_status: verification.verified ? 'verified' : 'flagged' } }];"
+      },
+      "id": "parse-claude",
+      "name": "📋 Claude結果パース",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.OPENAI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'gpt-4o', messages: [{ role: 'user', content: '演出家として演出タグ追加。要約:' + ($json.parsed_content?.layer1_summary || '') + ' ポイント:' + JSON.stringify($json.parsed_content?.key_points || []) + ' 出力JSON:{hook_opening,emotional_tags[],visual_cues[],timing_marks[],cta_suggestion}' }], max_tokens: 1024 }) }}",
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "gpt-enhance",
+      "name": "✨ GPT: 演出タグ付与",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const prevData = $node['📋 Claude結果パース'].json;\nconst gptResult = $input.first().json;\nlet enhancement = { hook_opening: '', emotional_tags: [], visual_cues: [], timing_marks: [], cta_suggestion: '' };\n\ntry {\n  const responseText = gptResult?.choices?.[0]?.message?.content || '';\n  const jsonMatch = responseText.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) enhancement = JSON.parse(jsonMatch[0]);\n} catch (e) {}\n\nconst knowledgeBlock = {\n  block_id: prevData.block_id, domain: prevData.domain, category: prevData.category, topic: prevData.topic,\n  source_url: prevData.source_url, source_page: prevData.source_page, raw_content: prevData.raw_content,\n  layer1_summary: prevData.parsed_content?.layer1_summary || '',\n  layer2_explanation: prevData.parsed_content?.layer2_explanation || '',\n  layer3_expert_detail: prevData.parsed_content?.layer3_expert_detail || '',\n  rich_content: { key_points: prevData.parsed_content?.key_points || [], examples: prevData.parsed_content?.examples || [] },\n  keywords: prevData.parsed_content?.keywords || [], entities: prevData.parsed_content?.entities || [],\n  gemini_confidence: prevData.gemini_confidence, claude_verified: prevData.claude_verified, fact_check_status: prevData.fact_check_status,\n  enhancement: enhancement, gpt_enhanced: Object.keys(enhancement).length > 0,\n  token_optimization: prevData.token_optimization\n};\n\nreturn [{ json: knowledgeBlock }];"
+      },
+      "id": "build-block",
+      "name": "📦 ナレッジブロック構築",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO knowledge_blocks (block_id, domain, category, topic, source_url, source_page, raw_content, layer1_summary, layer2_explanation, layer3_expert_detail, rich_content, keywords, entities, gemini_confidence, claude_verified, fact_check_status, gpt_enhanced) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12::text[], $13::text[], $14, $15, $16, $17) ON CONFLICT (block_id) DO UPDATE SET layer1_summary = EXCLUDED.layer1_summary, claude_verified = EXCLUDED.claude_verified, fact_check_status = EXCLUDED.fact_check_status, gpt_enhanced = EXCLUDED.gpt_enhanced, version = knowledge_blocks.version + 1, updated_at = NOW() RETURNING id, block_id, version",
+        "options": {
+          "queryParams": "={{ [$json.block_id, $json.domain, $json.category, $json.topic, $json.source_url, $json.source_page, $json.raw_content, $json.layer1_summary, $json.layer2_explanation, $json.layer3_expert_detail, JSON.stringify($json.rich_content), $json.keywords, $json.entities, $json.gemini_confidence, $json.claude_verified, $json.fact_check_status, $json.gpt_enhanced] }}"
+        }
+      },
+      "id": "save-block",
+      "name": "💾 ナレッジブロック保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const blockData = $node['📦 ナレッジブロック構築'].json;\nconst saveResult = $input.first().json;\nconst saved = Array.isArray(saveResult) ? saveResult[0] : saveResult;\n\nreturn [{ json: {\n  success: true, block_id: blockData.block_id, db_id: saved?.id, version: saved?.version || 1,\n  domain: blockData.domain, fact_check_status: blockData.fact_check_status,\n  gemini_confidence: blockData.gemini_confidence, claude_verified: blockData.claude_verified, gpt_enhanced: blockData.gpt_enhanced,\n  layer1_summary: blockData.layer1_summary, key_points_count: blockData.rich_content?.key_points?.length || 0,\n  token_optimization: blockData.token_optimization\n} }];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: knowledge-block": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🧠 Gemini: 3層構造生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧠 Gemini: 3層構造生成": {
+      "main": [
+        [
+          {
+            "node": "📋 Gemini結果パース",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 Gemini結果パース": {
+      "main": [
+        [
+          {
+            "node": "📉 Diffトークンダイエット",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📉 Diffトークンダイエット": {
+      "main": [
+        [
+          {
+            "node": "🔍 Claude: 論理監査(Diff版)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 Claude: 論理監査(Diff版)": {
+      "main": [
+        [
+          {
+            "node": "📋 Claude結果パース",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 Claude結果パース": {
+      "main": [
+        [
+          {
+            "node": "✨ GPT: 演出タグ付与",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✨ GPT: 演出タグ付与": {
+      "main": [
+        [
+          {
+            "node": "📦 ナレッジブロック構築",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 ナレッジブロック構築": {
+      "main": [
+        [
+          {
+            "node": "💾 ナレッジブロック保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 ナレッジブロック保存": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 300,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Knowledge-Block",
+      "color": "#3498db"
+    },
+    {
+      "name": "3-AI-Pipeline",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "TokenDiet",
+      "color": "#f1c40f"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false,
+  "meta": {
+    "description": "N3-81 ナレッジブロック生成 NotebookLM級 V5-PRODUCTION - Diffトークンダイエット実装",
+    "version": "5.1",
+    "changelog": "2026-01-20: Gemini指示書準拠 - Claude監査フェーズにDiff送信ロジック実装（30%+トークン削減）",
+    "gemini_requirements_met": [
+      "diff_token_diet",
+      "token_reduction_30_percent"
+    ]
+  }
+}

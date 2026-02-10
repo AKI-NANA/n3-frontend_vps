@@ -1,0 +1,840 @@
+{
+  "name": "【司令塔】05_144-防衛-PVAアカウント管理-物理SIMファーム連携-分散リカバリ_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "pva-manage",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "name": "Webhook: pva-manage",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "pva-manage"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "name": "⏰ 6時間ごと健全性チェック",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// PVAアカウント管理 初期化\n// Phone Verified Accounts の登録・管理・復旧\n// ============================================================================\n\nconst body = $input.first().json.body || $input.first().json || {};\n\n// action: 'list', 'register', 'verify', 'health_check', 'recovery', 'assign_profile'\nconst action = body.action || 'list';\nconst accountId = body.account_id;\nconst clusterId = body.cluster_id; // リカバリツリーのクラスターID\nconst status = body.status; // 'active', 'suspended', 'banned', 'recovery'\n\n// 新規登録用\nconst newAccount = body.new_account;\n// { google_email, google_password, recovery_email, phone_number, sim_slot_id }\n\nreturn [{\n  json: {\n    action: action,\n    account_id: accountId,\n    cluster_id: clusterId,\n    status_filter: status,\n    new_account: newAccount,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true
+          },
+          "conditions": [
+            {
+              "id": "action",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ]
+        }
+      },
+      "name": "アクション分岐",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "options": {
+        "fallbackOutput": "none",
+        "rules": [
+          {
+            "output": 0,
+            "value": "list"
+          },
+          {
+            "output": 1,
+            "value": "register"
+          },
+          {
+            "output": 2,
+            "value": "health_check"
+          },
+          {
+            "output": 3,
+            "value": "recovery"
+          },
+          {
+            "output": 4,
+            "value": "assign_profile"
+          }
+        ]
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT pa.*, rc.cluster_name, ap.profile_name, ap.provider as antidetect_provider, mpp.proxy_host FROM pva_accounts pa LEFT JOIN recovery_clusters rc ON pa.cluster_id = rc.id LEFT JOIN antidetect_profiles ap ON pa.antidetect_profile_id = ap.id LEFT JOIN mobile_proxy_pool mpp ON pa.proxy_id = mpp.id WHERE ($1::text IS NULL OR pa.status = $1) AND ($2::int IS NULL OR pa.cluster_id = $2) ORDER BY pa.created_at DESC",
+        "options": {
+          "queryParams": "={{ [$json.status_filter, $json.cluster_id] }}"
+        }
+      },
+      "name": "📥 PVAアカウント一覧取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 新規PVAアカウント登録\n// リカバリクラスターへの自動割り当て\n// ============================================================================\n\nconst config = $input.first().json;\nconst newAccount = config.new_account;\n\nif (!newAccount || !newAccount.google_email) {\n  return [{ json: { success: false, error: 'google_emailは必須です' } }];\n}\n\n// リカバリクラスターの自動選択（最も空いているクラスター）\n// 10アカウントごとに1クラスターが推奨\nreturn [{\n  json: {\n    ...config,\n    account_data: {\n      google_email: newAccount.google_email,\n      google_password_encrypted: newAccount.google_password, // 暗号化処理は別途\n      recovery_email: newAccount.recovery_email,\n      phone_number: newAccount.phone_number,\n      sim_slot_id: newAccount.sim_slot_id,\n      status: 'active',\n      trust_score: 100 // 初期信頼スコア\n    }\n  }\n}];"
+      },
+      "name": "📋 登録データ準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id FROM recovery_clusters WHERE (SELECT COUNT(*) FROM pva_accounts WHERE cluster_id = recovery_clusters.id) < 10 ORDER BY (SELECT COUNT(*) FROM pva_accounts WHERE cluster_id = recovery_clusters.id) ASC LIMIT 1"
+      },
+      "name": "📥 空きクラスター検索",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// クラスターがなければ新規作成\nconst clusters = $input.first().json;\nconst config = $node['📋 登録データ準備'].json;\n\nlet clusterId = clusters?.[0]?.id;\n\nif (!clusterId) {\n  // 新規クラスター作成が必要\n  return [{\n    json: {\n      ...config,\n      need_new_cluster: true,\n      cluster_name: `Cluster-${Date.now()}`\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    ...config,\n    cluster_id: clusterId,\n    need_new_cluster: false\n  }\n}];"
+      },
+      "name": "📋 クラスター割り当て",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.need_new_cluster }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "name": "新規クラスター必要？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO recovery_clusters (cluster_name, max_accounts, is_active) VALUES ($1, 10, TRUE) RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.cluster_name] }}"
+        }
+      },
+      "name": "💾 新規クラスター作成",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 新規作成したクラスターIDを取得\nconst newClusterId = $input.first().json?.[0]?.id;\nconst config = $node['📋 クラスター割り当て'].json;\n\nreturn [{\n  json: {\n    ...config,\n    cluster_id: newClusterId\n  }\n}];"
+      },
+      "name": "📋 クラスターID取得",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "name": "🔀 マージ",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO pva_accounts (google_email, google_password_encrypted, recovery_email, phone_number, sim_slot_id, cluster_id, status, trust_score) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, google_email",
+        "options": {
+          "queryParams": "={{ [$json.account_data.google_email, $json.account_data.google_password_encrypted, $json.account_data.recovery_email, $json.account_data.phone_number, $json.account_data.sim_slot_id, $json.cluster_id, 'active', 100] }}"
+        }
+      },
+      "name": "💾 PVAアカウント登録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT pa.id, pa.google_email, pa.status, pa.trust_score, pa.last_login_at, ap.external_profile_id, ap.provider FROM pva_accounts pa LEFT JOIN antidetect_profiles ap ON pa.antidetect_profile_id = ap.id WHERE pa.status = 'active' AND (pa.last_health_check_at IS NULL OR pa.last_health_check_at < NOW() - INTERVAL '6 hours') LIMIT 50"
+      },
+      "name": "📥 チェック対象取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// PVA健全性チェック\n// Googleアカウントのログイン状態、YouTube API呼び出し可否を確認\n// ============================================================================\n\nconst accounts = $input.first().json || [];\n\nif (!Array.isArray(accounts) || accounts.length === 0) {\n  return [{ json: { action: 'health_check', checked_count: 0, message: 'チェック対象なし' } }];\n}\n\n// 各アカウントのチェック項目を生成\nconst healthChecks = accounts.map(account => {\n  return {\n    account_id: account.id,\n    google_email: account.google_email,\n    current_trust_score: account.trust_score,\n    antidetect_profile_id: account.external_profile_id,\n    antidetect_provider: account.provider,\n    checks: [\n      { type: 'google_login', weight: 30 },\n      { type: 'youtube_api', weight: 40 },\n      { type: 'channel_status', weight: 30 }\n    ]\n  };\n});\n\nreturn healthChecks.map(c => ({ json: c }));"
+      },
+      "name": "📋 健全性チェック準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "batchSize": 5,
+        "options": {}
+      },
+      "name": "📦 バッチ処理",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "notes": "\n[PATCHER] WARNING: SplitInBatches直後にWaitノードがありません。API制限に注意してください。"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/youtube/v3/channels",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "part",
+              "value": "status,snippet"
+            },
+            {
+              "name": "mine",
+              "value": "true"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ACCOUNT_TOKEN}}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "name": "🌐 YouTube API確認",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// 健全性スコア計算\nconst checkData = $node['📋 健全性チェック準備'].json;\nconst apiResult = $input.first().json;\n\nlet newTrustScore = checkData.current_trust_score;\nlet newStatus = 'active';\nlet issues = [];\n\n// YouTube APIが失敗した場合\nif (apiResult.error || !apiResult.items) {\n  newTrustScore = Math.max(newTrustScore - 20, 0);\n  issues.push('YouTube API access failed');\n  \n  if (apiResult.error?.code === 403) {\n    newStatus = 'suspended';\n    newTrustScore = Math.max(newTrustScore - 50, 0);\n    issues.push('Account may be suspended');\n  }\n}\n\n// チャンネルステータス確認\nconst channel = apiResult.items?.[0];\nif (channel) {\n  if (channel.status?.privacyStatus === 'private') {\n    newTrustScore = Math.max(newTrustScore - 10, 0);\n    issues.push('Channel is private');\n  }\n  if (channel.status?.longUploadsStatus !== 'allowed') {\n    issues.push('Long uploads not allowed');\n  }\n}\n\n// 信頼スコアが30以下なら要注意\nif (newTrustScore <= 30) {\n  newStatus = 'recovery';\n}\n\n// スコアが0なら凍結\nif (newTrustScore <= 0) {\n  newStatus = 'banned';\n}\n\nreturn [{\n  json: {\n    account_id: checkData.account_id,\n    google_email: checkData.google_email,\n    previous_trust_score: checkData.current_trust_score,\n    new_trust_score: newTrustScore,\n    new_status: newStatus,\n    issues: issues,\n    channel_id: channel?.id,\n    channel_title: channel?.snippet?.title\n  }\n}];"
+      },
+      "name": "📊 信頼スコア計算",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE pva_accounts SET trust_score = $2, status = $3, last_health_check_at = NOW(), youtube_channel_id = COALESCE($4, youtube_channel_id), youtube_channel_title = COALESCE($5, youtube_channel_title) WHERE id = $1",
+        "options": {
+          "queryParams": "={{ [$json.account_id, $json.new_trust_score, $json.new_status, $json.channel_id, $json.channel_title] }}"
+        }
+      },
+      "name": "💾 健全性更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT pa.*, rc.cluster_name, rc.recovery_email as cluster_recovery_email FROM pva_accounts pa JOIN recovery_clusters rc ON pa.cluster_id = rc.id WHERE pa.status = 'recovery' OR pa.status = 'suspended' ORDER BY pa.trust_score ASC LIMIT 10"
+      },
+      "name": "📥 要復旧アカウント取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// アカウント復旧処理\n// 分散型リカバリツリーを使用した復旧プロセス\n// ============================================================================\n\nconst accounts = $input.first().json || [];\n\nif (!Array.isArray(accounts) || accounts.length === 0) {\n  return [{ json: { action: 'recovery', recovered_count: 0, message: '復旧対象なし' } }];\n}\n\nconst recoveryTasks = accounts.map(account => {\n  // 復旧優先順位を計算\n  let priority = 'low';\n  if (account.trust_score <= 10) priority = 'critical';\n  else if (account.trust_score <= 30) priority = 'high';\n  else if (account.trust_score <= 50) priority = 'medium';\n  \n  return {\n    account_id: account.id,\n    google_email: account.google_email,\n    current_status: account.status,\n    trust_score: account.trust_score,\n    cluster_id: account.cluster_id,\n    cluster_name: account.cluster_name,\n    recovery_email: account.recovery_email || account.cluster_recovery_email,\n    phone_number: account.phone_number,\n    priority: priority,\n    recovery_steps: [\n      '1. アンチディテクトブラウザでプロファイル起動',\n      '2. Googleアカウント復旧ページへアクセス',\n      '3. 電話番号または予備メールで認証',\n      '4. パスワードリセット（必要な場合）',\n      '5. YouTube Studio確認',\n      '6. 信頼スコアリセット'\n    ]\n  };\n});\n\nreturn recoveryTasks.map(t => ({ json: t }));"
+      },
+      "name": "📋 復旧タスク生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO recovery_tasks (account_id, priority, status, recovery_steps) VALUES ($1, $2, 'pending', $3) ON CONFLICT (account_id) WHERE status = 'pending' DO UPDATE SET priority = EXCLUDED.priority, updated_at = NOW() RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.account_id, $json.priority, JSON.stringify($json.recovery_steps)] }}"
+        }
+      },
+      "name": "💾 復旧タスク登録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// アンチディテクトプロファイル割り当て\n// PVAアカウントに専用プロファイルを紐付け\n// ============================================================================\n\nconst config = $input.first().json;\nconst accountId = config.account_id;\nconst profileId = config.profile_id; // antidetect_profiles.id\n\nif (!accountId || !profileId) {\n  return [{ json: { success: false, error: 'account_idとprofile_idは必須です' } }];\n}\n\nreturn [{\n  json: {\n    account_id: accountId,\n    profile_id: profileId\n  }\n}];"
+      },
+      "name": "📋 プロファイル割り当て準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE pva_accounts SET antidetect_profile_id = $2 WHERE id = $1 RETURNING id, google_email, antidetect_profile_id",
+        "options": {
+          "queryParams": "={{ [$json.account_id, $json.profile_id] }}"
+        }
+      },
+      "name": "💾 プロファイル紐付け",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE antidetect_profiles SET assigned_account_id = $1 WHERE id = $2",
+        "options": {
+          "queryParams": "={{ [$json[0]?.id, $node['📋 プロファイル割り当て準備'].json.profile_id] }}"
+        }
+      },
+      "name": "💾 逆紐付け更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 最終レスポンス生成\nconst action = $node['🔧 初期化'].json.action;\n\nlet result = { success: true, action: action };\n\nswitch (action) {\n  case 'list':\n    const accounts = $node['📥 PVAアカウント一覧取得'].json;\n    result.accounts = accounts;\n    result.count = Array.isArray(accounts) ? accounts.length : 0;\n    break;\n    \n  case 'register':\n    result.message = 'PVAアカウント登録完了';\n    result.account = $node['💾 PVAアカウント登録'].json?.[0];\n    break;\n    \n  case 'health_check':\n    result.message = '健全性チェック完了';\n    result.checked_count = $items().length;\n    break;\n    \n  case 'recovery':\n    result.message = '復旧タスク生成完了';\n    result.tasks = $items().map(i => i.json);\n    break;\n    \n  case 'assign_profile':\n    result.message = 'プロファイル割り当て完了';\n    result.account = $node['💾 プロファイル紐付け'].json?.[0];\n    break;\n}\n\nreturn [{ json: result }];"
+      },
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: pva-manage": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⏰ 6時間ごと健全性チェック": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "アクション分岐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "アクション分岐": {
+      "main": [
+        [
+          {
+            "node": "📥 PVAアカウント一覧取得",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 登録データ準備",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📥 チェック対象取得",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📥 要復旧アカウント取得",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 プロファイル割り当て準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📥 PVAアカウント一覧取得": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 登録データ準備": {
+      "main": [
+        [
+          {
+            "node": "📥 空きクラスター検索",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📥 空きクラスター検索": {
+      "main": [
+        [
+          {
+            "node": "📋 クラスター割り当て",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 クラスター割り当て": {
+      "main": [
+        [
+          {
+            "node": "新規クラスター必要？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "新規クラスター必要？": {
+      "main": [
+        [
+          {
+            "node": "💾 新規クラスター作成",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🔀 マージ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 新規クラスター作成": {
+      "main": [
+        [
+          {
+            "node": "📋 クラスターID取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 クラスターID取得": {
+      "main": [
+        [
+          {
+            "node": "🔀 マージ",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "🔀 マージ": {
+      "main": [
+        [
+          {
+            "node": "💾 PVAアカウント登録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 PVAアカウント登録": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📥 チェック対象取得": {
+      "main": [
+        [
+          {
+            "node": "📋 健全性チェック準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 健全性チェック準備": {
+      "main": [
+        [
+          {
+            "node": "📦 バッチ処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 バッチ処理": {
+      "main": [
+        [
+          {
+            "node": "🌐 YouTube API確認",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🌐 YouTube API確認": {
+      "main": [
+        [
+          {
+            "node": "📊 信頼スコア計算",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 信頼スコア計算": {
+      "main": [
+        [
+          {
+            "node": "💾 健全性更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 健全性更新": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📥 要復旧アカウント取得": {
+      "main": [
+        [
+          {
+            "node": "📋 復旧タスク生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 復旧タスク生成": {
+      "main": [
+        [
+          {
+            "node": "💾 復旧タスク登録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 復旧タスク登録": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 プロファイル割り当て準備": {
+      "main": [
+        [
+          {
+            "node": "💾 プロファイル紐付け",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 プロファイル紐付け": {
+      "main": [
+        [
+          {
+            "node": "💾 逆紐付け更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 逆紐付け更新": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 600,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Defense",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "PVA",
+      "color": "#3498db"
+    },
+    {
+      "name": "Phase-14",
+      "color": "#f39c12"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

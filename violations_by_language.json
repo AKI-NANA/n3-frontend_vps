@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-02-06T07:55:32.264Z",
+  "law_sync": {
+    "law_rules_extracted": 8,
+    "rules_merged": 17,
+    "rules_skipped": 8,
+    "source": "MASTER_LAW.md → audit-rules.json → EMPIRE_RULES"
+  },
+  "stats": {
+    "totalCount": 0,
+    "passCount": 0,
+    "passRate": "NaN",
+    "avgScore": "NaN",
+    "totalCritical": 0,
+    "totalErrors": 0,
+    "totalWarnings": 0,
+    "totalAutofixable": 0
+  },
+  "results": []
+}

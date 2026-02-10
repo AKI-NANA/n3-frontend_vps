@@ -1,0 +1,492 @@
+{
+  "name": "【メディア】28_97-メディア-APIリソースディスパッチャー-動的配分_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 24
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "⏰ 日次実行",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "api-resource-dispatch",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: api-resource-dispatch",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "api-resource-dispatch"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nreturn [{ json: { channel_id: body.channel_id, service_name: body.service_name || null, force_reevaluate: body.force_reevaluate || false, timestamp: new Date().toISOString() } }];"
+      },
+      "id": "init",
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT project_id, service_name, quota_limit, current_usage, (quota_limit - current_usage) as remaining, reset_at, CASE WHEN reset_at < NOW() THEN TRUE ELSE FALSE END as needs_reset FROM api_quota_usage WHERE ($1 IS NULL OR service_name = $1) AND (quota_limit - current_usage) > 0 ORDER BY remaining DESC",
+        "options": {
+          "queryParams": "={{ [$json.service_name] }}"
+        }
+      },
+      "id": "get-quota-status",
+      "name": "📊 クォータ状況取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT mc.channel_id, mc.channel_name, COUNT(mco.id) as video_count, COALESCE(SUM(ya.views), 0) as total_views, COALESCE(AVG(ya.retention_rate), 0) as avg_retention, COALESCE(AVG(ya.ctr), 0) as avg_ctr, cpm.performance_rank as current_rank, cpm.assigned_tts_tier, cpm.api_cost_total, cpm.revenue_generated FROM media_channels mc LEFT JOIN media_content mco ON mc.channel_id = mco.channel_id AND mco.publish_status = 'published' LEFT JOIN youtube_analytics ya ON mco.youtube_video_id = ya.video_id LEFT JOIN channel_performance_metrics cpm ON mc.channel_id = cpm.channel_id AND cpm.evaluation_date = CURRENT_DATE - 1 WHERE mc.is_active = TRUE AND ($1 IS NULL OR mc.channel_id = $1) GROUP BY mc.channel_id, mc.channel_name, cpm.performance_rank, cpm.assigned_tts_tier, cpm.api_cost_total, cpm.revenue_generated HAVING COUNT(mco.id) >= 3 OR $2 = TRUE",
+        "options": {
+          "queryParams": "={{ [$json.channel_id, $json.force_reevaluate] }}"
+        }
+      },
+      "id": "get-channel-stats",
+      "name": "📊 チャンネル統計取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "mergeByFields": {
+          "values": []
+        },
+        "combinationMode": "multiplex",
+        "options": {}
+      },
+      "id": "merge-data",
+      "name": "🔀 データ統合",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM api_resource_allocation_rules WHERE is_active = TRUE ORDER BY priority ASC",
+        "options": {}
+      },
+      "id": "get-rules",
+      "name": "📋 配分ルール取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 動的APIキー選択ロジック（Gemini指示書準拠）\nconst allItems = $input.all();\nconst quotaData = $node['📊 クォータ状況取得'].json || [];\nconst channelData = $node['📊 チャンネル統計取得'].json || [];\nconst rulesData = allItems[0]?.json || [];\n\nconst quotas = Array.isArray(quotaData) ? quotaData : [quotaData].filter(q => q && q.project_id);\nconst channels = Array.isArray(channelData) ? channelData : [channelData].filter(c => c && c.channel_id);\nconst rules = Array.isArray(rulesData) ? rulesData : [rulesData].filter(r => r && r.id);\n\n// サービスごとの最適プロジェクト選択関数\nfunction selectBestProject(serviceName, quotas) {\n  const serviceQuotas = quotas.filter(q => q.service_name === serviceName && q.remaining > 0);\n  if (serviceQuotas.length === 0) return null;\n  \n  // 残りクォータが最も多いプロジェクトを選択\n  serviceQuotas.sort((a, b) => b.remaining - a.remaining);\n  return {\n    project_id: serviceQuotas[0].project_id,\n    remaining: serviceQuotas[0].remaining,\n    quota_limit: serviceQuotas[0].quota_limit\n  };\n}\n\n// 各サービスの最適プロジェクト\nconst optimalProjects = {\n  youtube: selectBestProject('youtube', quotas),\n  gemini: selectBestProject('gemini', quotas),\n  elevenlabs: selectBestProject('elevenlabs', quotas),\n  openai: selectBestProject('openai', quotas),\n  anthropic: selectBestProject('anthropic', quotas)\n};\n\nconst results = [];\n\nfor (const channel of channels) {\n  const apiCost = channel.api_cost_total || 1;\n  const revenue = channel.revenue_generated || 0;\n  const roiScore = revenue / apiCost;\n  \n  let matchedRule = rules.find(r => r.rule_name === 'Dランク（新規・未評価）');\n  \n  for (const rule of rules) {\n    const meetsRoi = rule.min_roi_score === null || roiScore >= rule.min_roi_score;\n    const meetsRetention = rule.min_retention_rate === null || channel.avg_retention >= rule.min_retention_rate;\n    const meetsImpressions = rule.min_impressions === null || channel.total_views >= rule.min_impressions;\n    \n    if (meetsRoi && meetsRetention && meetsImpressions) {\n      matchedRule = rule;\n      break;\n    }\n  }\n  \n  const newRank = matchedRule?.rule_name?.match(/([SABCD])ランク/)?.[1] || 'D';\n  const rankChanged = newRank !== channel.current_rank;\n  \n  // TTS/Image tierに基づく動的APIキー選択\n  const ttsTier = matchedRule?.tts_tier || 'openai_tts';\n  const imageTier = matchedRule?.image_tier || 'dalle';\n  \n  let selectedTtsProject = null;\n  let selectedImageProject = null;\n  \n  if (ttsTier === 'elevenlabs') {\n    selectedTtsProject = optimalProjects.elevenlabs;\n  } else {\n    selectedTtsProject = optimalProjects.openai;\n  }\n  \n  if (imageTier === 'midjourney') {\n    selectedImageProject = optimalProjects.openai; // MJはDiscord経由\n  } else {\n    selectedImageProject = optimalProjects.openai;\n  }\n  \n  results.push({\n    channel_id: channel.channel_id,\n    channel_name: channel.channel_name,\n    video_count: channel.video_count,\n    total_views: channel.total_views,\n    avg_retention: channel.avg_retention,\n    avg_ctr: channel.avg_ctr,\n    roi_score: roiScore.toFixed(4),\n    previous_rank: channel.current_rank,\n    new_rank: newRank,\n    rank_changed: rankChanged,\n    assigned_tts_tier: ttsTier,\n    assigned_image_tier: imageTier,\n    budget_multiplier: matchedRule?.monthly_budget_multiplier || 1.0,\n    dynamic_api_keys: {\n      tts_project: selectedTtsProject?.project_id || 'default',\n      tts_remaining_quota: selectedTtsProject?.remaining || 0,\n      image_project: selectedImageProject?.project_id || 'default',\n      image_remaining_quota: selectedImageProject?.remaining || 0,\n      youtube_project: optimalProjects.youtube?.project_id || 'default',\n      gemini_project: optimalProjects.gemini?.project_id || 'default'\n    }\n  });\n}\n\n// クォータリセット対象の更新\nconst resetTargets = quotas.filter(q => q.needs_reset).map(q => ({\n  project_id: q.project_id,\n  service_name: q.service_name\n}));\n\nreturn results.map(r => ({ json: { ...r, quota_reset_needed: resetTargets } }));"
+      },
+      "id": "evaluate-channels",
+      "name": "🧠 チャンネル評価＋動的APIキー選択",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO channel_performance_metrics (channel_id, evaluation_date, videos_analyzed, total_impressions, avg_retention_rate, avg_ctr, roi_score, performance_rank, previous_rank, assigned_tts_tier, assigned_image_tier, dynamic_api_config) VALUES ($1, CURRENT_DATE, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb) ON CONFLICT (channel_id, evaluation_date) DO UPDATE SET videos_analyzed = $2, total_impressions = $3, avg_retention_rate = $4, avg_ctr = $5, roi_score = $6, performance_rank = $7, previous_rank = $8, assigned_tts_tier = $9, assigned_image_tier = $10, dynamic_api_config = $11::jsonb RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.channel_id, $json.video_count, $json.total_views, $json.avg_retention, $json.avg_ctr, $json.roi_score, $json.new_rank, $json.previous_rank, $json.assigned_tts_tier, $json.assigned_image_tier, JSON.stringify($json.dynamic_api_keys)] }}"
+        }
+      },
+      "id": "save-metrics",
+      "name": "💾 メトリクス保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-reset",
+              "leftValue": "={{ $json.quota_reset_needed?.length > 0 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-quota-reset",
+      "name": "クォータリセット必要？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE api_quota_usage SET current_usage = 0, reset_at = NOW() + INTERVAL '1 month' WHERE reset_at < NOW() RETURNING project_id, service_name",
+        "options": {}
+      },
+      "id": "reset-quotas",
+      "name": "🔄 クォータリセット",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all();"
+      },
+      "id": "skip-reset",
+      "name": "スキップ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "mergeByFields": {
+          "values": []
+        },
+        "combinationMode": "multiplex",
+        "options": {}
+      },
+      "id": "merge-final",
+      "name": "🔀 統合",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all().map(item => item.json);\nconst channelItems = items.filter(i => i.channel_id);\nconst rankChanges = channelItems.filter(i => i.rank_changed);\n\nconst summary = {\n  total_evaluated: channelItems.length,\n  rank_changes: rankChanges.length,\n  s_rank: channelItems.filter(i => i.new_rank === 'S').length,\n  a_rank: channelItems.filter(i => i.new_rank === 'A').length,\n  b_rank: channelItems.filter(i => i.new_rank === 'B').length,\n  c_rank: channelItems.filter(i => i.new_rank === 'C').length,\n  d_rank: channelItems.filter(i => i.new_rank === 'D').length,\n  dynamic_api_allocation: {\n    elevenlabs_channels: channelItems.filter(i => i.assigned_tts_tier === 'elevenlabs').length,\n    openai_tts_channels: channelItems.filter(i => i.assigned_tts_tier === 'openai_tts').length\n  }\n};\n\nreturn [{\n  json: {\n    success: true,\n    action: 'api_resource_dispatch',\n    summary,\n    rank_changes: rankChanges.slice(0, 10).map(r => ({\n      channel: r.channel_name,\n      from: r.previous_rank,\n      to: r.new_rank,\n      tts: r.assigned_tts_tier,\n      api_project: r.dynamic_api_keys?.tts_project\n    }))\n  }\n}];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "⏰ 日次実行": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook: api-resource-dispatch": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "📊 クォータ状況取得",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📊 チャンネル統計取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 クォータ状況取得": {
+      "main": [
+        [
+          {
+            "node": "🔀 データ統合",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 チャンネル統計取得": {
+      "main": [
+        [
+          {
+            "node": "🔀 データ統合",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "🔀 データ統合": {
+      "main": [
+        [
+          {
+            "node": "📋 配分ルール取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 配分ルール取得": {
+      "main": [
+        [
+          {
+            "node": "🧠 チャンネル評価＋動的APIキー選択",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧠 チャンネル評価＋動的APIキー選択": {
+      "main": [
+        [
+          {
+            "node": "💾 メトリクス保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 メトリクス保存": {
+      "main": [
+        [
+          {
+            "node": "クォータリセット必要？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "クォータリセット必要？": {
+      "main": [
+        [
+          {
+            "node": "🔄 クォータリセット",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "スキップ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 クォータリセット": {
+      "main": [
+        [
+          {
+            "node": "🔀 統合",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "スキップ": {
+      "main": [
+        [
+          {
+            "node": "🔀 統合",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "🔀 統合": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 300,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Resource",
+      "color": "#f39c12"
+    },
+    {
+      "name": "DynamicAPI",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false,
+  "meta": {
+    "description": "N3-97 APIリソースディスパッチャー V5-PRODUCTION - 動的APIキー選択実装",
+    "version": "5.1",
+    "changelog": "2026-01-20: Gemini指示書準拠 - api_quota_usage参照による動的プロジェクト選択、クォータ自動リセット",
+    "gemini_requirements_met": [
+      "dynamic_api_key_selection",
+      "quota_based_routing",
+      "auto_quota_reset"
+    ]
+  }
+}

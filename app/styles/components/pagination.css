@@ -1,0 +1,262 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Pagination
+   統一サイズシステム対応版
+   ============================================================ */
+
+.n3-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--panel);
+  border: var(--style-panel-border, 1px solid var(--panel-border));
+  border-radius: var(--style-panel-radius, var(--radius-md));
+  box-shadow: var(--style-panel-shadow, none);
+  min-height: 40px;
+}
+
+.n3-pagination__info {
+  font-size: var(--comp-font-sm);
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.n3-pagination__info strong {
+  font-weight: 500;
+  color: var(--text);
+}
+
+.n3-pagination__controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.n3-pagination__size-select {
+  height: var(--comp-height-xs);
+  padding: 0 var(--comp-px-sm);
+  font-size: var(--comp-font-xs);
+  border: var(--style-input-border, 1px solid var(--panel-border));
+  border-radius: var(--style-input-radius, var(--radius-sm));
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+.n3-pagination__size-select:hover {
+  border-color: var(--color-primary);
+}
+
+.n3-pagination__size-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.n3-pagination__pages {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.n3-pagination__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--comp-height-sm);
+  height: var(--comp-height-sm);
+  padding: 0 var(--comp-px-xs);
+  font-size: var(--comp-font-sm);
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: var(--style-btn-border, 1px solid var(--panel-border));
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+.n3-pagination__btn svg {
+  width: var(--comp-icon-sm);
+  height: var(--comp-icon-sm);
+}
+
+.n3-pagination__btn:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--highlight);
+  border-color: var(--color-primary);
+}
+
+.n3-pagination__btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.n3-pagination__btn.active {
+  color: white;
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.n3-pagination__ellipsis {
+  padding: 0 4px;
+  font-size: var(--comp-font-sm);
+  color: var(--text-muted);
+}
+
+/* ============================================================
+   PAGINATION SIZES
+   ============================================================ */
+
+.n3-pagination-xs .n3-pagination__btn {
+  min-width: var(--comp-height-xs);
+  height: var(--comp-height-xs);
+  font-size: var(--comp-font-xs);
+}
+
+.n3-pagination-sm .n3-pagination__btn {
+  min-width: var(--comp-height-sm);
+  height: var(--comp-height-sm);
+  font-size: var(--comp-font-sm);
+}
+
+.n3-pagination-md .n3-pagination__btn {
+  min-width: var(--comp-height-md);
+  height: var(--comp-height-md);
+  font-size: var(--comp-font-md);
+}
+
+/* ============================================================
+   SIMPLE PAGINATION
+   ============================================================ */
+
+.n3-pagination-simple {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.n3-pagination-simple__text {
+  font-size: var(--comp-font-sm);
+  color: var(--text-muted);
+}
+
+/* ============================================================
+   COMPACT PAGINATION
+   ============================================================ */
+
+.n3-pagination-compact {
+  display: inline-flex;
+  align-items: center;
+  border: var(--style-panel-border, 1px solid var(--panel-border));
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+  overflow: hidden;
+}
+
+.n3-pagination-compact__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--comp-height-sm);
+  height: var(--comp-height-sm);
+  color: var(--text-muted);
+  background: var(--panel);
+  border: none;
+  border-right: 1px solid var(--panel-border);
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+.n3-pagination-compact__btn:last-child {
+  border-right: none;
+}
+
+.n3-pagination-compact__btn:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--highlight);
+}
+
+.n3-pagination-compact__btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.n3-pagination-compact__input {
+  width: 48px;
+  height: var(--comp-height-sm);
+  padding: 0 var(--comp-px-sm);
+  font-size: var(--comp-font-sm);
+  text-align: center;
+  background: var(--panel);
+  border: none;
+  border-right: 1px solid var(--panel-border);
+  color: var(--text);
+}
+
+.n3-pagination-compact__input:focus {
+  outline: none;
+  background: var(--highlight);
+}
+
+/* ============================================================
+   LOAD MORE BUTTON
+   ============================================================ */
+
+.n3-load-more {
+  display: flex;
+  justify-content: center;
+  padding: 16px;
+}
+
+.n3-load-more__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--comp-gap-md);
+  height: var(--comp-height-sm);
+  padding: 0 var(--comp-px-md);
+  font-size: var(--comp-font-sm);
+  font-weight: 500;
+  color: var(--color-primary);
+  background: transparent;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+.n3-load-more__btn:hover {
+  background: var(--color-primary);
+  color: white;
+}
+
+.n3-load-more__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============================================================
+   INFINITE SCROLL LOADING
+   ============================================================ */
+
+.n3-infinite-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  color: var(--text-muted);
+  font-size: var(--comp-font-sm);
+}
+
+.n3-infinite-loading__spinner {
+  width: 16px;
+  height: 16px;
+  margin-right: 8px;
+  border: 2px solid var(--panel-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: n3-spin 0.8s linear infinite;
+}
+
+@keyframes n3-spin {
+  to { transform: rotate(360deg); }
+}

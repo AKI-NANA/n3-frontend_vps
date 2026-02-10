@@ -1,0 +1,457 @@
+{
+  "name": "【出品】13_51-メディア-Shopify自動集客エンジン_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "media-generate",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: media-generate",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "media-generate"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "毎日AM9時",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst apiUrl = $env.N3_API_URL || '{{$env.GATEWAY_URL}}';\nconst productId = body.product_id;\nconst contentTypes = body.content_types || ['blog', 'youtube_short'];\nconst isScheduled = !$input.first().json.body;\nreturn [{ json: { product_id: productId, content_types: contentTypes, is_scheduled: isScheduled, api_url: apiUrl } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-scheduled",
+              "leftValue": "={{ $json.is_scheduled }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-scheduled",
+      "name": "スケジュール？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT pm.* FROM products_master pm LEFT JOIN media_content mc ON pm.id = mc.product_id AND mc.content_type = 'blog' WHERE pm.status = 'active' AND mc.id IS NULL ORDER BY pm.created_at DESC LIMIT 5",
+        "options": {}
+      },
+      "id": "get-new-products",
+      "name": "📦 新着商品取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM products_master WHERE id = $1",
+        "options": {
+          "queryParams": "={{ [$node['🔐 初期化'].json.product_id] }}"
+        }
+      },
+      "id": "get-single-product",
+      "name": "📦 単一商品取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $node['🔐 初期化'].json;\nlet products = [];\nif (config.is_scheduled) {\n  const newProducts = $node['📦 新着商品取得'].json;\n  products = Array.isArray(newProducts) ? newProducts : (newProducts ? [newProducts] : []);\n} else {\n  const singleProduct = $node['📦 単一商品取得'].json;\n  products = Array.isArray(singleProduct) ? singleProduct : (singleProduct ? [singleProduct] : []);\n}\nif (products.length === 0) return [{ json: { no_products: true } }];\nreturn products.map(p => ({ json: { product: p, content_types: config.content_types, api_url: config.api_url } }));"
+      },
+      "id": "prepare-products",
+      "name": "📋 商品準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "no-products",
+              "leftValue": "={{ $json.no_products }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-products",
+      "name": "商品あり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { success: true, message: '対象商品なし', generated: [] } }];"
+      },
+      "id": "no-products",
+      "name": "対象なし",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.api_url }}/api/ai/generate-blog",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ product_title: $json.product.title, product_description: $json.product.description, style: 'problem_solving', language: 'ja' }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "generate-blog",
+      "name": "📝 ブログ生成",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const product = $node['📋 商品準備'].json.product;\nconst blogResult = $input.first().json;\nconst blogTitle = blogResult.title || `${product.title}の魅力と活用法`;\nconst blogContent = blogResult.content || blogResult.body || `${product.title}についての記事です。`;\nconst keywords = blogResult.keywords || [product.title];\nreturn [{ json: { product_id: product.id, content_type: 'blog', title: blogTitle, description: blogContent, keywords: keywords, publish_status: 'draft' } }];"
+      },
+      "id": "format-blog",
+      "name": "📋 ブログ整形",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO media_content (product_id, content_type, title, description, keywords, publish_status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.product_id, $json.content_type, $json.title, $json.description, $json.keywords, $json.publish_status] }}"
+        }
+      },
+      "id": "save-content",
+      "name": "💾 コンテンツ保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all().map(i => i.json);\nconst saved = results.filter(r => r.id);\nreturn [{ json: { success: true, generated_count: saved.length, content_ids: saved.map(s => s.id) } }];"
+      },
+      "id": "aggregate",
+      "name": "📊 集計",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: media-generate": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "毎日AM9時": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "スケジュール？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "スケジュール？": {
+      "main": [
+        [
+          {
+            "node": "📦 新着商品取得",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📦 単一商品取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 新着商品取得": {
+      "main": [
+        [
+          {
+            "node": "📋 商品準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 単一商品取得": {
+      "main": [
+        [
+          {
+            "node": "📋 商品準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 商品準備": {
+      "main": [
+        [
+          {
+            "node": "商品あり？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "商品あり？": {
+      "main": [
+        [
+          {
+            "node": "対象なし",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📝 ブログ生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "対象なし": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 ブログ生成": {
+      "main": [
+        [
+          {
+            "node": "📋 ブログ整形",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 ブログ整形": {
+      "main": [
+        [
+          {
+            "node": "💾 コンテンツ保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 コンテンツ保存": {
+      "main": [
+        [
+          {
+            "node": "📊 集計",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 集計": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 300,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Empire-OS",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

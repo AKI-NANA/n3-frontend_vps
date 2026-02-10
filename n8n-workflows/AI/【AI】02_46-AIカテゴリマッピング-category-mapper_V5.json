@@ -1,0 +1,597 @@
+{
+  "name": "【AI】02_46-AIカテゴリマッピング-category-mapper_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "category-mapper",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: category-mapper",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "category-mapper"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// N3-46 V5: AIカテゴリマッピング - 鉄の掟準拠\n// 商品タイトル・説明からマーケットプレイス別カテゴリを自動推定\n// ============================================================================\n\nconst geminiKey = $env.GEMINI_API_KEY;\nconst apiUrl = $env.N3_API_URL || $env.API_BASE_URL;\n\nif (!geminiKey) {\n  return [{ json: { error: true, message: 'GEMINI_API_KEY環境変数が未設定', code: 'CONFIG_ERROR' } }];\n}\n\nconst body = $input.first().json.body || $input.first().json || {};\n\nconst productId = body.product_id;\nconst productTitle = body.title;\nconst productDescription = body.description;\nconst targetMarketplaces = body.marketplaces || ['ebay', 'amazon', 'qoo10', 'shopify'];\nconst useCache = body.use_cache !== false;\n\nif (!productId && !productTitle) {\n  return [{ json: { error: true, message: 'product_id または title は必須', code: 'MISSING_PARAM' } }];\n}\n\nreturn [{\n  json: {\n    product_id: productId,\n    title: productTitle,\n    description: productDescription,\n    marketplaces: targetMarketplaces,\n    use_cache: useCache,\n    api_url: apiUrl,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔐 初期化（鉄の掟準拠）",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-product-id",
+              "leftValue": "={{ $json.product_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-product-id",
+      "name": "商品ID有？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT pm.id, pm.title, pm.title_en, pm.description, pm.description_en, pm.ebay_category_id, cm.category_mappings FROM products_master pm LEFT JOIN category_mappings cm ON pm.id = cm.product_id WHERE pm.id = $1",
+        "options": {
+          "queryParams": "={{ [$json.product_id] }}"
+        }
+      },
+      "id": "get-product",
+      "name": "📦 商品取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const initData = $node['🔐 初期化（鉄の掟準拠）'].json;\nconst product = $input.first()?.json;\n\n// 商品データまたは直接入力からタイトル・説明を取得\nconst title = product?.title_en || product?.title || initData.title;\nconst description = product?.description_en || product?.description || initData.description || '';\n\n// キャッシュチェック\nif (initData.use_cache && product?.category_mappings) {\n  const cached = typeof product.category_mappings === 'string' \n    ? JSON.parse(product.category_mappings) \n    : product.category_mappings;\n  \n  return [{\n    json: {\n      ...initData,\n      product_id: product?.id || initData.product_id,\n      title: title,\n      description: description,\n      cached_mappings: cached,\n      use_ai: false\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    ...initData,\n    product_id: product?.id || initData.product_id,\n    title: title,\n    description: description,\n    existing_ebay_category: product?.ebay_category_id,\n    use_ai: true\n  }\n}];"
+      },
+      "id": "prepare-data",
+      "name": "📋 データ準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "use-ai",
+              "leftValue": "={{ $json.use_ai }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-use-ai",
+      "name": "AI使用？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-goog-api-key",
+              "value": "={{ $env.GEMINI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: 'あなたはEコマースカテゴリ専門家です。以下の商品情報から各マーケットプレイスの最適なカテゴリIDを推定してください。\\n\\n商品タイトル: ' + $json.title + '\\n商品説明: ' + ($json.description || '').substring(0, 500) + '\\n\\n対象マーケットプレイス: ' + $json.marketplaces.join(', ') + '\\n\\n出力形式(JSON): { \"ebay\": { \"category_id\": \"数字\", \"category_name\": \"名前\", \"confidence\": 0-1 }, \"amazon\": { \"browse_node_id\": \"数字\", \"category_path\": \"パス\", \"confidence\": 0-1 }, \"qoo10\": { \"category_code\": \"コード\", \"category_name\": \"名前\", \"confidence\": 0-1 }, \"shopify\": { \"product_type\": \"タイプ\", \"tags\": [\"タグ\"], \"confidence\": 0-1 } }' }] }], generationConfig: { temperature: 0.2, maxOutputTokens: 1024 } }) }}",
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "gemini-mapping",
+      "name": "🧠 Geminiカテゴリ推定",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const initData = $node['📋 データ準備'].json;\nconst geminiResult = $input.first().json;\n\nlet mappings = {};\n\ntry {\n  const responseText = geminiResult?.candidates?.[0]?.content?.parts?.[0]?.text || '';\n  const jsonMatch = responseText.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    mappings = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  // デフォルトマッピング\n  mappings = {\n    ebay: { category_id: '175673', category_name: 'Collectibles', confidence: 0.5 },\n    amazon: { browse_node_id: '0', category_path: 'Other', confidence: 0.3 },\n    qoo10: { category_code: '000000', category_name: 'その他', confidence: 0.3 },\n    shopify: { product_type: 'General', tags: ['import'], confidence: 0.5 }\n  };\n}\n\nreturn [{\n  json: {\n    ...initData,\n    mappings: mappings,\n    source: 'ai_generated'\n  }\n}];"
+      },
+      "id": "parse-ai-result",
+      "name": "📋 AI結果パース",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nreturn [{ json: { ...data, mappings: data.cached_mappings, source: 'cached' } }];"
+      },
+      "id": "use-cache",
+      "name": "📦 キャッシュ使用",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "output": "single"
+      },
+      "id": "merge-paths",
+      "name": "🔀 パス統合",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-product-id",
+              "leftValue": "={{ $json.product_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "ai-generated",
+              "leftValue": "={{ $json.source }}",
+              "rightValue": "ai_generated",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "check-save",
+      "name": "保存必要？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO category_mappings (product_id, category_mappings, created_at, updated_at) VALUES ($1, $2::jsonb, NOW(), NOW()) ON CONFLICT (product_id) DO UPDATE SET category_mappings = $2::jsonb, updated_at = NOW()",
+        "options": {
+          "queryParams": "={{ [$json.product_id, JSON.stringify($json.mappings)] }}"
+        }
+      },
+      "id": "save-mappings",
+      "name": "💾 マッピング保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "output": "single"
+      },
+      "id": "merge-save",
+      "name": "🔀 保存統合",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\nreturn [{\n  json: {\n    success: true,\n    action: 'category_mapped',\n    product_id: data.product_id,\n    title: data.title,\n    mappings: data.mappings,\n    source: data.source,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: category-mapper": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化（鉄の掟準拠）": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "商品ID有？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "商品ID有？": {
+      "main": [
+        [
+          {
+            "node": "📦 商品取得",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 データ準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 商品取得": {
+      "main": [
+        [
+          {
+            "node": "📋 データ準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 データ準備": {
+      "main": [
+        [
+          {
+            "node": "AI使用？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI使用？": {
+      "main": [
+        [
+          {
+            "node": "🧠 Geminiカテゴリ推定",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📦 キャッシュ使用",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧠 Geminiカテゴリ推定": {
+      "main": [
+        [
+          {
+            "node": "📋 AI結果パース",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 AI結果パース": {
+      "main": [
+        [
+          {
+            "node": "🔀 パス統合",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 キャッシュ使用": {
+      "main": [
+        [
+          {
+            "node": "🔀 パス統合",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "🔀 パス統合": {
+      "main": [
+        [
+          {
+            "node": "保存必要？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "保存必要？": {
+      "main": [
+        [
+          {
+            "node": "💾 マッピング保存",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🔀 保存統合",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "💾 マッピング保存": {
+      "main": [
+        [
+          {
+            "node": "🔀 保存統合",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 保存統合": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化（鉄の掟準拠）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 120,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Commerce",
+      "color": "#3498db"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "AI-Category",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "IronRule",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false,
+  "meta": {
+    "description": "N3-46 V5 AIカテゴリマッピング - Geminiによる自動カテゴリ推定",
+    "version": "5.0",
+    "changelog": "2026-01-20: V2からV5にマイグレーション、鉄の掟準拠",
+    "iron_rules_compliant": [
+      "no_hardcoded_urls",
+      "query_params_only",
+      "no_crypto_require"
+    ]
+  }
+}

@@ -1,0 +1,206 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Layout
+   ページレイアウト用CSS
+   ============================================================ */
+
+/* ============================================================
+   HEADER LAYOUT
+   ============================================================ */
+.n3-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--n3-header-height, 48px);
+  padding: 0 var(--n3-header-px, 16px);
+  background: var(--panel);
+  border-bottom: 1px solid var(--panel-border);
+  gap: var(--n3-header-gap, 16px);
+}
+
+/* Left section */
+.n3-header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--n3-gap);
+  flex-shrink: 0;
+}
+
+/* Center section */
+.n3-header-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Right section */
+.n3-header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--n3-gap);
+  flex-shrink: 0;
+}
+
+/* Title */
+.n3-header-title {
+  font-size: calc(var(--n3-font) * 1.2);
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+/* Tabs group (Tools/Flow/Filter等) */
+.n3-header-tabs-group {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  gap: 0;
+  margin-left: calc(var(--n3-px) * -1); /* ヘッダーpaddingを相殺 */
+}
+
+/* Hover panel overlay */
+.n3-header-panel-overlay {
+  position: fixed;
+  top: var(--n3-header-height, 48px);
+  left: 0;
+  right: 0;
+  padding: var(--n3-px);
+  background: var(--panel);
+  border-bottom: var(--style-card-border, 1px solid var(--panel-border));
+  box-shadow: var(--style-card-shadow, 0 4px 12px rgba(0, 0, 0, 0.08));
+  z-index: 99;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* Pinned panel wrapper (通常フローで押し下げ) */
+.n3-pinned-panel-wrapper {
+  position: relative;
+  z-index: 40;
+}
+
+.n3-header-panel.pinned {
+  padding: var(--n3-px);
+  background: var(--panel);
+  border-bottom: 1px solid var(--panel-border);
+}
+
+/* mainの調整 */
+.n3-main {
+  padding-top: var(--header-height);
+  margin-left: var(--sidebar-width);
+}
+
+.n3-main--with-panel {
+  /* ピン留めパネルがある時はパネル分の余白が自動的に追加される */
+}
+
+/* Panel content (inside header preview) */
+.n3-header-panel-content {
+  background: var(--panel);
+  border-top: 1px solid var(--panel-border);
+}
+
+/* パネル展開アニメーション */
+.n3-header-panel-animated {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: 
+    grid-template-rows 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.2s ease;
+  overflow: hidden;
+}
+
+.n3-header-panel-animated.open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.n3-header-panel-animated > div {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ============================================================
+   HEADER LAYOUT VARIANTS
+   ============================================================ */
+
+/* Compact header (smaller) */
+.n3-header--compact {
+  --n3-header-height: 40px;
+  --n3-header-px: 12px;
+  --n3-header-gap: 12px;
+}
+
+/* Dense header (very compact) */
+.n3-header--dense {
+  --n3-header-height: 36px;
+  --n3-header-px: 8px;
+  --n3-header-gap: 8px;
+}
+
+/* ============================================================
+   SPACING UTILITIES
+   ============================================================ */
+
+/* Gap utilities */
+.n3-gap-0 { gap: 0 !important; }
+.n3-gap-xs { gap: 4px !important; }
+.n3-gap-sm { gap: 8px !important; }
+.n3-gap-md { gap: 12px !important; }
+.n3-gap-lg { gap: 16px !important; }
+.n3-gap-xl { gap: 24px !important; }
+
+/* Padding utilities */
+.n3-px-0 { padding-left: 0 !important; padding-right: 0 !important; }
+.n3-px-xs { padding-left: 4px !important; padding-right: 4px !important; }
+.n3-px-sm { padding-left: 8px !important; padding-right: 8px !important; }
+.n3-px-md { padding-left: 12px !important; padding-right: 12px !important; }
+.n3-px-lg { padding-left: 16px !important; padding-right: 16px !important; }
+
+.n3-py-0 { padding-top: 0 !important; padding-bottom: 0 !important; }
+.n3-py-xs { padding-top: 4px !important; padding-bottom: 4px !important; }
+.n3-py-sm { padding-top: 8px !important; padding-bottom: 8px !important; }
+.n3-py-md { padding-top: 12px !important; padding-bottom: 12px !important; }
+
+/* Margin utilities */
+.n3-ml-auto { margin-left: auto !important; }
+.n3-mr-auto { margin-right: auto !important; }
+
+/* ============================================================
+   CONTEXT MODIFIERS
+   場所によってスタイルを上書き
+   ============================================================ */
+
+/* ヘッダー内コンテキスト（角丸なし、高さ100%） */
+.n3-header-context {
+  border-radius: 0 !important;
+  height: 100%;
+}
+
+/* ツールバー内コンテキスト */
+.n3-toolbar-context {
+  border-radius: var(--style-radius-sm, 4px) !important;
+}
+
+/* パネル内コンテキスト */
+.n3-panel-context {
+  /* パネル内での特別なスタイル */
+}
+
+/* モーダル内コンテキスト */
+.n3-modal-context {
+  /* モーダル内での特別なスタイル */
+}
+
+/* ============================================================
+   FLEX UTILITIES
+   ============================================================ */
+.n3-flex { display: flex !important; }
+.n3-flex-1 { flex: 1 !important; }
+.n3-flex-shrink-0 { flex-shrink: 0 !important; }
+.n3-items-center { align-items: center !important; }
+.n3-justify-center { justify-content: center !important; }
+.n3-justify-between { justify-content: space-between !important; }

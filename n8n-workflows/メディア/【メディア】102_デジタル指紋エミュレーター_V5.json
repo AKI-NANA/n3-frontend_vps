@@ -1,0 +1,413 @@
+{
+  "name": "N3-102-メディア-デジタル指紋エミュレーター-V5-PRODUCTION",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "digital-fingerprint",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: digital-fingerprint",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "digital-fingerprint"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst channelId = body.channel_id;\nconst accountId = body.account_id;\nconst action = body.action || 'generate'; // generate | refresh | get\n\nif (!channelId && !accountId) {\n  return [{ json: { error: true, message: 'channel_id または account_id は必須', code: 'MISSING_PARAM' } }];\n}\n\nreturn [{ json: { channel_id: channelId, account_id: accountId, action: action, timestamp: new Date().toISOString() } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT df.*, mc.channel_name FROM digital_fingerprints df LEFT JOIN media_channels mc ON df.channel_id = mc.channel_id WHERE (df.channel_id = $1 OR df.account_id = $2) AND df.is_active = TRUE ORDER BY df.created_at DESC LIMIT 1",
+        "options": {
+          "queryParams": "={{ [$json.channel_id, $json.account_id] }}"
+        }
+      },
+      "id": "get-existing",
+      "name": "📊 既存指紋取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const initData = $node['🔐 初期化'].json;\nconst existingData = $input.first().json;\nconst existing = Array.isArray(existingData) ? existingData[0] : existingData;\nconst action = initData.action;\n\n// action=get で既存があればそのまま返す\nif (action === 'get' && existing && existing.fingerprint_id) {\n  return [{ json: { ...existing, action: 'get', needs_generation: false } }];\n}\n\n// action=refresh または既存がない場合は新規生成フラグ\nconst needsGen = action === 'refresh' || !existing || !existing.fingerprint_id;\n\nreturn [{ json: { ...initData, existing: existing, needs_generation: needsGen } }];"
+      },
+      "id": "check-action",
+      "name": "🔄 アクション判定",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "needs-gen",
+              "leftValue": "={{ $json.needs_generation }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-needs-gen",
+      "name": "生成必要？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// 高度デジタル指紋生成（Gemini指示書準拠）\nconst initData = $input.first().json;\n\n// User-Agent プール（実際のブラウザ統計ベース）\nconst userAgents = [\n  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',\n  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',\n  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',\n  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',\n  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15',\n  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/120.0.0.0 Safari/537.36'\n];\n\n// スクリーンサイズ プール（実際の統計ベース）\nconst screenSizes = [\n  { width: 1920, height: 1080 },\n  { width: 1366, height: 768 },\n  { width: 1536, height: 864 },\n  { width: 1440, height: 900 },\n  { width: 1280, height: 720 },\n  { width: 2560, height: 1440 },\n  { width: 1680, height: 1050 }\n];\n\n// タイムゾーン プール\nconst timezones = [\n  { name: 'Asia/Tokyo', offset: 540 },\n  { name: 'America/New_York', offset: -300 },\n  { name: 'America/Los_Angeles', offset: -480 },\n  { name: 'Europe/London', offset: 0 },\n  { name: 'Europe/Paris', offset: 60 },\n  { name: 'Australia/Sydney', offset: 660 }\n];\n\n// 言語 プール\nconst languages = [\n  { primary: 'ja-JP', secondary: ['ja', 'en-US', 'en'] },\n  { primary: 'en-US', secondary: ['en', 'ja'] },\n  { primary: 'en-GB', secondary: ['en', 'en-US'] },\n  { primary: 'ko-KR', secondary: ['ko', 'en-US', 'en'] },\n  { primary: 'zh-CN', secondary: ['zh', 'en-US', 'en'] }\n];\n\n// ハードウェア プール\nconst hardware = [\n  { concurrency: 4, memory: 8, platform: 'Win32' },\n  { concurrency: 8, memory: 16, platform: 'Win32' },\n  { concurrency: 12, memory: 32, platform: 'Win32' },\n  { concurrency: 8, memory: 8, platform: 'MacIntel' },\n  { concurrency: 10, memory: 16, platform: 'MacIntel' }\n];\n\n// Canvas指紋ハッシュ（事前計算済みリアルデータ風）\nconst canvasHashes = [\n  'a7f3b2e1c8d9f4a6b5c3e2d1f0a9b8c7',\n  'b8e4c3f2d1a0e9f8c7b6a5d4c3b2a1f0',\n  'c9f5d4a3e2b1f0a9d8c7b6e5f4a3b2c1',\n  'd0a6e5b4f3c2a1b0e9f8d7c6a5b4c3d2',\n  'e1b7f6c5a4d3b2c1f0a9e8d7f6c5b4a3'\n];\n\n// WebGL情報プール\nconst webglInfo = [\n  { vendor: 'Google Inc. (NVIDIA)', renderer: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0)' },\n  { vendor: 'Google Inc. (Intel)', renderer: 'ANGLE (Intel, Intel(R) UHD Graphics 630 Direct3D11 vs_5_0 ps_5_0)' },\n  { vendor: 'Google Inc. (AMD)', renderer: 'ANGLE (AMD, AMD Radeon RX 5700 XT Direct3D11 vs_5_0 ps_5_0)' },\n  { vendor: 'Apple Inc.', renderer: 'Apple M1 Pro' },\n  { vendor: 'Apple Inc.', renderer: 'Apple M2' }\n];\n\n// ランダム選択ヘルパー\nconst pick = (arr) => arr[Math.floor(Math.random() * arr.length)];\n\n// 指紋生成\nconst selectedScreen = pick(screenSizes);\nconst selectedTimezone = pick(timezones);\nconst selectedLanguage = pick(languages);\nconst selectedHardware = pick(hardware);\nconst selectedWebgl = pick(webglInfo);\n\nconst fingerprint = {\n  fingerprint_id: `FP-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,\n  channel_id: initData.channel_id,\n  account_id: initData.account_id,\n  \n  // ブラウザ情報\n  user_agent: pick(userAgents),\n  accept_language: selectedLanguage.secondary.join(','),\n  \n  // スクリーン情報\n  screen_width: selectedScreen.width,\n  screen_height: selectedScreen.height,\n  screen_resolution: `${selectedScreen.width}x${selectedScreen.height}`,\n  color_depth: pick([24, 32]),\n  pixel_ratio: pick([1, 1.25, 1.5, 2]),\n  \n  // タイムゾーン情報\n  timezone: selectedTimezone.name,\n  timezone_offset: selectedTimezone.offset,\n  \n  // 言語情報\n  language: selectedLanguage.primary,\n  languages: selectedLanguage.secondary,\n  \n  // ハードウェア情報\n  hardware_concurrency: selectedHardware.concurrency,\n  device_memory: selectedHardware.memory,\n  platform: selectedHardware.platform,\n  \n  // Canvas/WebGL指紋\n  canvas_hash: pick(canvasHashes),\n  webgl_vendor: selectedWebgl.vendor,\n  webgl_renderer: selectedWebgl.renderer,\n  \n  // 追加フィンガープリント要素\n  do_not_track: pick([null, '1']),\n  cookies_enabled: true,\n  local_storage_enabled: true,\n  session_storage_enabled: true,\n  indexed_db_enabled: true,\n  \n  // フォントリスト（サンプル）\n  fonts: pick([\n    ['Arial', 'Helvetica', 'Times New Roman', 'Georgia', 'Verdana', 'Meiryo'],\n    ['Arial', 'Helvetica', 'Times New Roman', 'Calibri', 'Cambria', 'Segoe UI'],\n    ['Arial', 'Helvetica', 'Times New Roman', 'San Francisco', 'Hiragino Sans']\n  ]),\n  \n  // プラグインリスト\n  plugins: pick([\n    ['PDF Viewer', 'Chrome PDF Viewer', 'Chromium PDF Viewer'],\n    ['PDF Viewer', 'Chrome PDF Viewer'],\n    ['PDF Viewer']\n  ]),\n  \n  // メタ情報\n  generated_at: new Date().toISOString(),\n  is_active: true,\n  usage_count: 0\n};\n\nreturn [{ json: fingerprint }];"
+      },
+      "id": "generate-fingerprint",
+      "name": "🎭 指紋生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO digital_fingerprints (fingerprint_id, channel_id, account_id, user_agent, accept_language, screen_width, screen_height, screen_resolution, color_depth, pixel_ratio, timezone, timezone_offset, language, languages, hardware_concurrency, device_memory, platform, canvas_hash, webgl_vendor, webgl_renderer, do_not_track, cookies_enabled, fonts, plugins, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::text[], $15, $16, $17, $18, $19, $20, $21, $22, $23::text[], $24::text[], TRUE) ON CONFLICT (fingerprint_id) DO UPDATE SET user_agent = EXCLUDED.user_agent, is_active = TRUE, updated_at = NOW() RETURNING id, fingerprint_id",
+        "options": {
+          "queryParams": "={{ [$json.fingerprint_id, $json.channel_id, $json.account_id, $json.user_agent, $json.accept_language, $json.screen_width, $json.screen_height, $json.screen_resolution, $json.color_depth, $json.pixel_ratio, $json.timezone, $json.timezone_offset, $json.language, $json.languages, $json.hardware_concurrency, $json.device_memory, $json.platform, $json.canvas_hash, $json.webgl_vendor, $json.webgl_renderer, $json.do_not_track, $json.cookies_enabled, $json.fonts, $json.plugins] }}"
+        }
+      },
+      "id": "save-fingerprint",
+      "name": "💾 指紋保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const fingerprint = $node['🎭 指紋生成'].json;\nconst saveResult = $input.first().json;\nconst saved = Array.isArray(saveResult) ? saveResult[0] : saveResult;\n\n// HTTPリクエスト用ヘッダー形式に変換\nconst httpHeaders = {\n  'User-Agent': fingerprint.user_agent,\n  'Accept-Language': fingerprint.accept_language,\n  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',\n  'Accept-Encoding': 'gzip, deflate, br',\n  'Connection': 'keep-alive',\n  'Upgrade-Insecure-Requests': '1',\n  'Sec-Fetch-Dest': 'document',\n  'Sec-Fetch-Mode': 'navigate',\n  'Sec-Fetch-Site': 'none',\n  'Sec-Fetch-User': '?1',\n  'Cache-Control': 'max-age=0'\n};\n\nreturn [{ json: {\n  success: true,\n  action: 'generated',\n  fingerprint_id: fingerprint.fingerprint_id,\n  db_id: saved?.id,\n  channel_id: fingerprint.channel_id,\n  account_id: fingerprint.account_id,\n  fingerprint: {\n    user_agent: fingerprint.user_agent,\n    screen_resolution: fingerprint.screen_resolution,\n    timezone: fingerprint.timezone,\n    language: fingerprint.language,\n    platform: fingerprint.platform,\n    hardware_concurrency: fingerprint.hardware_concurrency,\n    device_memory: fingerprint.device_memory,\n    canvas_hash: fingerprint.canvas_hash,\n    webgl_vendor: fingerprint.webgl_vendor\n  },\n  http_headers: httpHeaders,\n  generated_at: fingerprint.generated_at\n} }];"
+      },
+      "id": "format-new",
+      "name": "📋 新規レスポンス",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "jsCode": "const existing = $input.first().json;\n\nconst httpHeaders = {\n  'User-Agent': existing.user_agent,\n  'Accept-Language': existing.accept_language,\n  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',\n  'Accept-Encoding': 'gzip, deflate, br',\n  'Connection': 'keep-alive'\n};\n\nreturn [{ json: {\n  success: true,\n  action: 'retrieved',\n  fingerprint_id: existing.fingerprint_id,\n  channel_id: existing.channel_id,\n  account_id: existing.account_id,\n  fingerprint: {\n    user_agent: existing.user_agent,\n    screen_resolution: existing.screen_resolution,\n    timezone: existing.timezone,\n    language: existing.language,\n    platform: existing.platform,\n    hardware_concurrency: existing.hardware_concurrency,\n    device_memory: existing.device_memory,\n    canvas_hash: existing.canvas_hash,\n    webgl_vendor: existing.webgl_vendor\n  },\n  http_headers: httpHeaders\n} }];"
+      },
+      "id": "format-existing",
+      "name": "📋 既存レスポンス",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: digital-fingerprint": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📊 既存指紋取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 既存指紋取得": {
+      "main": [
+        [
+          {
+            "node": "🔄 アクション判定",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 アクション判定": {
+      "main": [
+        [
+          {
+            "node": "生成必要？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "生成必要？": {
+      "main": [
+        [
+          {
+            "node": "🎭 指紋生成",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 既存レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎭 指紋生成": {
+      "main": [
+        [
+          {
+            "node": "💾 指紋保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 指紋保存": {
+      "main": [
+        [
+          {
+            "node": "📋 新規レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 新規レスポンス": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 既存レスポンス": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 60,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "AntiDetect",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "Fingerprint",
+      "color": "#3498db"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false,
+  "meta": {
+    "description": "N3-102 デジタル指紋エミュレーター V5-PRODUCTION - User-Agent/Screen/Canvas/Hardware情報の動的生成",
+    "version": "5.0",
+    "changelog": "2026-01-20: Gemini指示書準拠 - 高度デジタル指紋生成（UA,Screen,Canvas,WebGL,Hardware）",
+    "gemini_requirements_met": [
+      "user_agent_randomization",
+      "screen_size_emulation",
+      "canvas_fingerprint",
+      "hardware_info",
+      "webgl_emulation"
+    ]
+  }
+}

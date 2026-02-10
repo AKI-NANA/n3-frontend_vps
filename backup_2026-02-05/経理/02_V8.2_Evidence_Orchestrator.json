@@ -1,0 +1,263 @@
+{
+  "name": "【V8.2】Evidence Orchestrator - 証跡自動集約エンジン",
+  "description": "N3 Empire OS V8.2: 取引に関わる全エビデンスを自動集約し、警察（古物台帳）・税務署（経費精算）様式のPDFを出力する",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "evidence-orchestrator",
+        "options": { "responseMode": "responseNode" }
+      },
+      "id": "webhook-entry",
+      "name": "🚪 Webhook Entry",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "evidence-orchestrator",
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// V8.2 AUTH-GATE\nconst crypto = require('crypto');\nconst body = $input.first().json.body || $input.first().json || {};\nconst headers = $input.first().json.headers || {};\nconst tenantId = body.tenant_id || headers['x-tenant-id'] || 'default';\nconst signature = headers['x-n3-signature'];\nconst timestamp = headers['x-n3-timestamp'];\nconst hmacSecret = $env.N8N_HMAC_SECRET;\n\nif (hmacSecret && signature && timestamp) {\n  const tsAge = Date.now() - parseInt(timestamp);\n  if (tsAge > 300000) return [{ json: { _auth_error: true, code: 'TIMESTAMP_EXPIRED' } }];\n  const expectedHmac = crypto.createHmac('sha256', hmacSecret).update(timestamp + '.' + JSON.stringify(body)).digest('hex');\n  if (signature !== expectedHmac) return [{ json: { _auth_error: true, code: 'HMAC_INVALID' } }];\n}\n\nreturn [{ json: { _auth_passed: true, _tenant_id: tenantId, _request_id: `evid-${Date.now()}-${Math.random().toString(36).substr(2,9)}`, _timestamp: new Date().toISOString(), payload: body } }];"
+      },
+      "id": "auth-gate",
+      "name": "🔐 V8.2 Auth-Gate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true },
+          "conditions": [{ "leftValue": "={{ $json._auth_error }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }]
+        }
+      },
+      "id": "auth-check",
+      "name": "認証チェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: 'Authentication failed' }) }}",
+        "options": { "responseCode": 401 }
+      },
+      "id": "auth-error",
+      "name": "❌ 認証エラー",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// アクション分岐\nconst data = $input.first().json;\nconst action = data.payload?.action || 'collect';\nconst validActions = ['collect', 'generate_pdf', 'reconcile', 'archive'];\nif (!validActions.includes(action)) {\n  return [{ json: { ...data, _action: 'error', _error: `Invalid action: ${action}` } }];\n}\nreturn [{ json: { ...data, _action: action } }];"
+      },
+      "id": "action-router",
+      "name": "📋 アクション分岐",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 400]
+    },
+    {
+      "parameters": {
+        "rules": { "values": [{ "outputKey": "collect" }, { "outputKey": "generate_pdf" }, { "outputKey": "reconcile" }] },
+        "fallbackOutput": "none",
+        "dataType": "string",
+        "value1": "={{ $json._action }}"
+      },
+      "id": "switch",
+      "name": "🔀 Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [1100, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// エビデンス収集計画生成\nconst data = $input.first().json;\nconst payload = data.payload || {};\nconst targets = payload.targets || ['ebay', 'amazon', 'yahoo', 'bank'];\nconst dateFrom = payload.date_from || new Date(Date.now() - 30*24*60*60*1000).toISOString().split('T')[0];\nconst dateTo = payload.date_to || new Date().toISOString().split('T')[0];\n\nconst plan = {\n  tenant_id: data._tenant_id,\n  date_range: { from: dateFrom, to: dateTo },\n  targets: targets.map(t => ({\n    platform: t,\n    evidence_types: t === 'bank' ? ['bank_statement'] : ['receipt', 'invoice', 'shipping_label'],\n    retention_years: 7\n  })),\n  ai_reasoning: {\n    pattern: 'evidence_collection',\n    confidence: 0.95,\n    factors: targets.map(t => `${t}からエビデンス収集`)\n  }\n};\n\nreturn [{ json: { ...data, _collection_plan: plan } }];"
+      },
+      "id": "collect-plan",
+      "name": "📥 収集計画",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 200]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT dl.id, dl.transaction_type, dl.transaction_date, dl.item_name, dl.item_total_price, dl.source_platform, dl.source_transaction_id, dl.counterparty_name, dl.evidence_ids FROM dealer_ledger dl WHERE dl.tenant_id = $1 AND dl.transaction_date BETWEEN $2 AND $3 AND COALESCE(array_length(dl.evidence_ids, 1), 0) = 0 ORDER BY dl.transaction_date DESC LIMIT 100",
+        "options": { "queryParams": "={{ [$json._tenant_id, $json._collection_plan.date_range.from, $json._collection_plan.date_range.to] }}" }
+      },
+      "id": "get-transactions",
+      "name": "📊 取引取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" } },
+      "position": [1540, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// エビデンス処理・ハッシュ計算\nconst crypto = require('crypto');\nconst data = $input.first().json;\nconst transactions = $input.all().slice(1).map(i => i.json);\n\nconst evidenceRecords = transactions.map(tx => {\n  const content = JSON.stringify({ tx_id: tx.source_transaction_id, date: tx.transaction_date, amount: tx.item_total_price });\n  const hash = crypto.createHash('sha256').update(content).digest('hex');\n  return {\n    tenant_id: data._tenant_id,\n    evidence_type: tx.transaction_type === 'purchase' ? 'receipt' : 'invoice',\n    title: `${tx.source_platform} - ${tx.item_name}`,\n    file_hash_sha256: hash,\n    evidence_timestamp: tx.transaction_date + 'T00:00:00Z',\n    related_entity_type: 'dealer_ledger',\n    related_entity_id: tx.id,\n    retention_required_until: new Date(new Date(tx.transaction_date).getTime() + 7*365*24*60*60*1000).toISOString().split('T')[0],\n    ai_confidence: 0.95\n  };\n});\n\nreturn [{ json: { ...data, _evidence_records: evidenceRecords, _stats: { total: transactions.length, created: evidenceRecords.length } } }];"
+      },
+      "id": "process-evidence",
+      "name": "🖼️ エビデンス処理",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1760, 200]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO evidence_registry (tenant_id, evidence_type, title, file_hash_sha256, evidence_timestamp, related_entity_type, related_entity_id, retention_required_until, ai_confidence, created_by) SELECT (r->>'tenant_id')::text, (r->>'evidence_type')::text, (r->>'title')::text, (r->>'file_hash_sha256')::text, (r->>'evidence_timestamp')::timestamptz, (r->>'related_entity_type')::text, (r->>'related_entity_id')::uuid, (r->>'retention_required_until')::date, (r->>'ai_confidence')::numeric, 'evidence_orchestrator' FROM jsonb_array_elements($1::jsonb) AS r RETURNING id",
+        "options": { "queryParams": "={{ [JSON.stringify($json._evidence_records)] }}" }
+      },
+      "id": "insert-evidence",
+      "name": "💾 登録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" } },
+      "position": [1980, 200],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// PDF生成設定\nconst data = $input.first().json;\nconst payload = data.payload || {};\nconst templateType = payload.template_type || 'police_kobutsu';\nconst dateFrom = payload.date_from || new Date(Date.now() - 30*24*60*60*1000).toISOString().split('T')[0];\nconst dateTo = payload.date_to || new Date().toISOString().split('T')[0];\n\nconst legalReqs = {\n  police_kobutsu: ['古物営業法第16条', '品名・特徴・数量・代価・取引日時必須', '1万円以上は本人確認'],\n  tax_expense: ['法人税法7年保存', '消費税法仕入税額控除要件', '日付・金額・取引先・内容必須'],\n  tax_journal: ['会社法帳簿保存', '企業会計原則', '日付・科目・借貸・摘要必須']\n};\n\nreturn [{ json: { ...data, _pdf_config: { tenant_id: data._tenant_id, template_type: templateType, date_range: { from: dateFrom, to: dateTo }, legal_requirements: legalReqs[templateType] || [], ai_reasoning: { template: templateType, confidence: 0.98 } } } }];"
+      },
+      "id": "pdf-config",
+      "name": "📄 PDF設定",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 400]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT dl.*, dlic.license_number, dlic.business_name, dlic.business_address FROM dealer_ledger dl LEFT JOIN dealer_license dlic ON dl.license_id = dlic.id WHERE dl.tenant_id = $1 AND dl.transaction_date BETWEEN $2 AND $3 ORDER BY dl.transaction_date DESC",
+        "options": { "queryParams": "={{ [$json._tenant_id, $json._pdf_config.date_range.from, $json._pdf_config.date_range.to] }}" }
+      },
+      "id": "get-ledger",
+      "name": "📊 台帳取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" } },
+      "position": [1540, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 古物台帳PDF HTML生成\nconst data = $input.first().json;\nconst config = data._pdf_config;\nconst records = $input.all().slice(1).map(i => i.json);\nif (!records.length) return [{ json: { ...data, _pdf_html: null, _error: '対象データなし' } }];\n\nconst license = records[0];\nconst now = new Date().toLocaleDateString('ja-JP');\n\nconst html = `<!DOCTYPE html><html lang=\"ja\"><head><meta charset=\"UTF-8\"><title>古物台帳</title>\n<style>@page{size:A4 landscape;margin:10mm}body{font-family:'Noto Sans JP',sans-serif;font-size:9pt}h1{text-align:center;font-size:16pt}.info{display:flex;justify-content:space-between;margin:15px 0;font-size:8pt}table{width:100%;border-collapse:collapse;font-size:7pt}th,td{border:1px solid #333;padding:3px 5px}th{background:#f0f0f0}.amt{text-align:right}.footer{margin-top:15px;font-size:7pt;text-align:right}</style></head>\n<body><h1>古 物 台 帳</h1><p style=\"text-align:center\">(古物営業法第16条に基づく記録)</p>\n<div class=\"info\"><div><b>許可番号:</b> ${license.license_number||'____'}<br><b>営業所:</b> ${license.business_name||'____'}<br><b>所在地:</b> ${license.business_address||'____'}</div><div><b>期間:</b> ${config.date_range.from} 〜 ${config.date_range.to}<br><b>出力日:</b> ${now}<br><b>出力番号:</b> ${data._request_id}</div></div>\n<table><thead><tr><th>取引日</th><th>種別</th><th>品目</th><th>品名</th><th>特徴</th><th>数量</th><th>単価</th><th>金額</th><th>相手方</th><th>住所</th><th>確認</th></tr></thead>\n<tbody>${records.map(r=>`<tr><td>${r.transaction_date}</td><td>${r.transaction_type==='purchase'?'買受':'売却'}</td><td>${r.item_category||''}</td><td>${r.item_name}</td><td>${r.item_description||''}</td><td class=\"amt\">${r.item_quantity}</td><td class=\"amt\">¥${Number(r.item_unit_price).toLocaleString()}</td><td class=\"amt\">¥${Number(r.item_total_price).toLocaleString()}</td><td>${r.counterparty_name||'省略'}</td><td>${r.counterparty_address||'省略'}</td><td>${r.verification_method||''}</td></tr>`).join('')}</tbody></table>\n<div class=\"footer\">総件数: ${records.length}件 | 買受合計: ¥${records.filter(r=>r.transaction_type==='purchase').reduce((s,r)=>s+Number(r.item_total_price),0).toLocaleString()} | 売却合計: ¥${records.filter(r=>r.transaction_type==='sale').reduce((s,r)=>s+Number(r.item_total_price),0).toLocaleString()}</div>\n</body></html>`;\n\nreturn [{ json: { ...data, _pdf_html: html, _record_count: records.length } }];"
+      },
+      "id": "generate-html",
+      "name": "📄 HTML生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1760, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 突合ロジック - 銀行明細とプラットフォーム収益のマッチング\nconst data = $input.first().json;\nconst payload = data.payload || {};\nconst dateFrom = payload.date_from || new Date(Date.now() - 30*24*60*60*1000).toISOString().split('T')[0];\nconst dateTo = payload.date_to || new Date().toISOString().split('T')[0];\n\n// 突合計画\nconst reconcilePlan = {\n  tenant_id: data._tenant_id,\n  date_range: { from: dateFrom, to: dateTo },\n  matching_rules: [\n    { rule: 'exact_amount', priority: 1, tolerance: 0 },\n    { rule: 'date_proximity', priority: 2, days: 3 },\n    { rule: 'description_similarity', priority: 3, threshold: 0.8 },\n    { rule: 'platform_pattern', priority: 4, patterns: ['PAYPAL', 'EBAY', 'AMAZON'] }\n  ],\n  ai_reasoning: {\n    approach: 'multi_rule_matching',\n    confidence: 0.90,\n    factors: ['金額完全一致', '日付近接性', '摘要類似度', 'プラットフォームパターン']\n  }\n};\n\nreturn [{ json: { ...data, _reconcile_plan: reconcilePlan } }];"
+      },
+      "id": "reconcile-plan",
+      "name": "🔄 突合計画",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 600]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- 未照合の銀行明細を取得\nSELECT bs.id, bs.transaction_date, bs.amount, bs.transaction_type, bs.description, bs.counterparty, bs.reference_number, bs.mf_category FROM bank_statements bs WHERE bs.tenant_id = $1 AND bs.transaction_date BETWEEN $2 AND $3 AND bs.matching_status = 'unmatched' ORDER BY bs.transaction_date DESC LIMIT 200",
+        "options": { "queryParams": "={{ [$json._tenant_id, $json._reconcile_plan.date_range.from, $json._reconcile_plan.date_range.to] }}" }
+      },
+      "id": "get-unmatched-bank",
+      "name": "📊 未照合明細",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" } },
+      "position": [1540, 600]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- プラットフォーム収益サマリーを取得\nSELECT prs.id, prs.summary_date, prs.platform, prs.net_sales, prs.total_fees, prs.expected_payout, prs.actual_payout, prs.reconciliation_status FROM platform_revenue_summary prs WHERE prs.tenant_id = $1 AND prs.summary_date BETWEEN $2 AND $3 ORDER BY prs.summary_date DESC",
+        "options": { "queryParams": "={{ [$json._tenant_id, $json._reconcile_plan.date_range.from, $json._reconcile_plan.date_range.to] }}" }
+      },
+      "id": "get-platform-revenue",
+      "name": "📊 収益サマリー",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" } },
+      "position": [1760, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "// AIマッチングロジック\nconst data = $input.first().json;\nconst bankStatements = $json.bank_statements || [];\nconst platformRevenue = $json.platform_revenue || [];\nconst plan = data._reconcile_plan;\n\nconst matches = [];\nconst unmatched = [];\nconst suspicious = [];\n\n// シンプルなマッチングロジック（実際はより高度なAI分析を使用）\nfor (const bs of bankStatements) {\n  let matched = false;\n  let bestMatch = null;\n  let bestScore = 0;\n  \n  for (const pr of platformRevenue) {\n    let score = 0;\n    \n    // 金額一致チェック\n    const amountDiff = Math.abs(Number(bs.amount) - Number(pr.expected_payout || pr.actual_payout));\n    if (amountDiff === 0) score += 40;\n    else if (amountDiff < 100) score += 30;\n    else if (amountDiff < 1000) score += 10;\n    \n    // 日付近接チェック\n    const dateDiff = Math.abs(new Date(bs.transaction_date) - new Date(pr.summary_date)) / (1000*60*60*24);\n    if (dateDiff <= 1) score += 30;\n    else if (dateDiff <= 3) score += 20;\n    else if (dateDiff <= 7) score += 10;\n    \n    // 摘要パターンチェック\n    const desc = (bs.description || '').toUpperCase();\n    if (desc.includes(pr.platform.toUpperCase())) score += 30;\n    if (desc.includes('PAYPAL') && pr.platform === 'ebay') score += 20;\n    \n    if (score > bestScore) {\n      bestScore = score;\n      bestMatch = { bank_statement_id: bs.id, platform_revenue_id: pr.id, score: score, confidence: score / 100 };\n    }\n  }\n  \n  if (bestScore >= 70) {\n    matches.push({ ...bestMatch, status: 'auto_matched' });\n    matched = true;\n  } else if (bestScore >= 40) {\n    suspicious.push({ ...bestMatch, status: 'suspicious', reason: `スコア${bestScore}%で自動照合閾値未満` });\n  }\n  \n  if (!matched) {\n    unmatched.push({ bank_statement_id: bs.id, amount: bs.amount, date: bs.transaction_date, description: bs.description });\n  }\n}\n\nreturn [{ json: {\n  ...data,\n  _reconcile_result: {\n    matches: matches,\n    suspicious: suspicious,\n    unmatched: unmatched,\n    stats: {\n      total_bank: bankStatements.length,\n      matched: matches.length,\n      suspicious: suspicious.length,\n      unmatched: unmatched.length,\n      match_rate: bankStatements.length > 0 ? (matches.length / bankStatements.length * 100).toFixed(1) + '%' : '0%'\n    }\n  },\n  ai_reasoning: {\n    approach: 'multi_rule_scoring',\n    rules_applied: ['amount_match', 'date_proximity', 'description_pattern'],\n    confidence: matches.length > 0 ? matches.reduce((s,m) => s + m.confidence, 0) / matches.length : 0\n  }\n} }];"
+      },
+      "id": "ai-matching",
+      "name": "🤖 AIマッチング",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1980, 600]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO audit_logs (tenant_id, workflow_name, request_id, action, payload_masked, status, executed_at, metadata) VALUES ($1, 'evidence-orchestrator', $2, $3, $4::jsonb, 'success', NOW(), $5::jsonb)",
+        "options": { "queryParams": "={{ [$json._tenant_id, $json._request_id, $json._action, JSON.stringify({action: $json._action}), JSON.stringify($json.ai_reasoning || {})] }}" }
+      },
+      "id": "audit-log",
+      "name": "📝 監査ログ",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" } },
+      "position": [2200, 400],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// 最終レスポンス\nconst data = $input.first().json;\nconst action = data._action;\n\nlet result = { success: true, tenant_id: data._tenant_id, request_id: data._request_id, action: action, timestamp: new Date().toISOString() };\n\nswitch (action) {\n  case 'collect':\n    result.stats = data._stats;\n    result.evidence_count = data._evidence_records?.length || 0;\n    break;\n  case 'generate_pdf':\n    result.pdf_config = data._pdf_config;\n    result.record_count = data._record_count;\n    result.pdf_ready = !!data._pdf_html;\n    break;\n  case 'reconcile':\n    result.reconcile_result = data._reconcile_result;\n    break;\n}\n\nreturn [{ json: result }];"
+      },
+      "id": "final-response",
+      "name": "📊 最終応答",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2420, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "respond",
+      "name": "✅ 応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2640, 400]
+    }
+  ],
+  "connections": {
+    "🚪 Webhook Entry": { "main": [[{ "node": "🔐 V8.2 Auth-Gate", "type": "main", "index": 0 }]] },
+    "🔐 V8.2 Auth-Gate": { "main": [[{ "node": "認証チェック", "type": "main", "index": 0 }]] },
+    "認証チェック": { "main": [[{ "node": "❌ 認証エラー", "type": "main", "index": 0 }], [{ "node": "📋 アクション分岐", "type": "main", "index": 0 }]] },
+    "📋 アクション分岐": { "main": [[{ "node": "🔀 Switch", "type": "main", "index": 0 }]] },
+    "🔀 Switch": { "main": [[{ "node": "📥 収集計画", "type": "main", "index": 0 }], [{ "node": "📄 PDF設定", "type": "main", "index": 0 }], [{ "node": "🔄 突合計画", "type": "main", "index": 0 }]] },
+    "📥 収集計画": { "main": [[{ "node": "📊 取引取得", "type": "main", "index": 0 }]] },
+    "📊 取引取得": { "main": [[{ "node": "🖼️ エビデンス処理", "type": "main", "index": 0 }]] },
+    "🖼️ エビデンス処理": { "main": [[{ "node": "💾 登録", "type": "main", "index": 0 }]] },
+    "💾 登録": { "main": [[{ "node": "📝 監査ログ", "type": "main", "index": 0 }]] },
+    "📄 PDF設定": { "main": [[{ "node": "📊 台帳取得", "type": "main", "index": 0 }]] },
+    "📊 台帳取得": { "main": [[{ "node": "📄 HTML生成", "type": "main", "index": 0 }]] },
+    "📄 HTML生成": { "main": [[{ "node": "📝 監査ログ", "type": "main", "index": 0 }]] },
+    "🔄 突合計画": { "main": [[{ "node": "📊 未照合明細", "type": "main", "index": 0 }]] },
+    "📊 未照合明細": { "main": [[{ "node": "📊 収益サマリー", "type": "main", "index": 0 }]] },
+    "📊 収益サマリー": { "main": [[{ "node": "🤖 AIマッチング", "type": "main", "index": 0 }]] },
+    "🤖 AIマッチング": { "main": [[{ "node": "📝 監査ログ", "type": "main", "index": 0 }]] },
+    "📝 監査ログ": { "main": [[{ "node": "📊 最終応答", "type": "main", "index": 0 }]] },
+    "📊 最終応答": { "main": [[{ "node": "✅ 応答", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionTimeout": 300, "saveDataErrorExecution": "all" },
+  "tags": [{ "name": "V8.2-UNSINKABLE" }, { "name": "Evidence" }, { "name": "PDF" }, { "name": "Reconcile" }],
+  "active": false,
+  "_v8_version": "8.2.0"
+}

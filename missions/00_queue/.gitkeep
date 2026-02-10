@@ -1,0 +1,3 @@
+# 00_queue: 未実行ミッション
+# .md ファイルをここに配置すると、imperial-nightly-engine.js がファイル名順に直列処理します
+# task_key をファイル冒頭の YAML front matter に記述すると task_index.json から対象ファイルを参照します

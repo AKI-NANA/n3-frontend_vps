@@ -1,0 +1,556 @@
+{
+  "name": "【メディア】16_52c-メディア-Remotion-Lambda-大規模レンダリング_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lambda-render",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: lambda-render",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "lambda-render"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// AWS Lambda + Remotion 初期化\n// Gemini回答準拠: arm64 (Graviton)、チャンク並列、Queue管理\n// ============================================================================\n\nconst body = $input.first().json.body || $input.first().json || {};\n\n// 必須パラメータ\nconst compositionId = body.composition_id || 'ShortVideo';\nconst inputProps = body.input_props || {};\nconst productId = body.product_id;\n\n// Lambda設定（Gemini推奨値）\nconst lambdaConfig = {\n  region: body.region || $env.AWS_REGION || 'ap-northeast-1',\n  functionName: body.function_name || $env.REMOTION_LAMBDA_FUNCTION || 'remotion-render-arm64',\n  serveUrl: body.serve_url || $env.REMOTION_SERVE_URL,\n  \n  // Gemini推奨: arm64でコスト30%削減\n  architecture: 'arm64',\n  \n  // 並列チャンク数（Gemini推奨: 10分動画を10チャンクで30秒レンダリング）\n  framesPerLambda: body.frames_per_lambda || 120,\n  \n  // メモリ設定（コスト最適化）\n  memorySize: body.memory_size || 2048,\n  \n  // タイムアウト（秒）\n  timeoutInSeconds: body.timeout || 240,\n  \n  // 出力設定\n  codec: body.codec || 'h264',\n  imageFormat: body.image_format || 'jpeg',\n  quality: body.quality || 80,\n  \n  // S3出力先\n  outName: `render-${productId || Date.now()}.mp4`,\n  s3OutputBucket: body.s3_bucket || $env.REMOTION_S3_BUCKET || 'n3-media-renders'\n};\n\nif (!lambdaConfig.serveUrl) {\n  return [{ json: { error: true, message: 'REMOTION_SERVE_URL が設定されていません', code: 'MISSING_CONFIG' } }];\n}\n\nreturn [{\n  json: {\n    product_id: productId,\n    composition_id: compositionId,\n    input_props: inputProps,\n    lambda_config: lambdaConfig,\n    request_id: `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔐 Lambda初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO render_queue (product_id, composition_id, input_props, lambda_config, status, request_id) VALUES ($1, $2, $3, $4, 'queued', $5) RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.product_id, $json.composition_id, JSON.stringify($json.input_props), JSON.stringify($json.lambda_config), $json.request_id] }}"
+        }
+      },
+      "id": "queue-insert",
+      "name": "📥 キュー登録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://lambda.{{ $node['🔐 Lambda初期化'].json.lambda_config.region }}.amazonaws.com/2015-03-31/functions/{{ $node['🔐 Lambda初期化'].json.lambda_config.functionName }}/invocations",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Amz-Invocation-Type",
+              "value": "RequestResponse"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ type: 'start', serveUrl: $node['🔐 Lambda初期化'].json.lambda_config.serveUrl, composition: $node['🔐 Lambda初期化'].json.composition_id, inputProps: $node['🔐 Lambda初期化'].json.input_props, codec: $node['🔐 Lambda初期化'].json.lambda_config.codec, imageFormat: $node['🔐 Lambda初期化'].json.lambda_config.imageFormat, crf: 23, framesPerLambda: $node['🔐 Lambda初期化'].json.lambda_config.framesPerLambda, privacy: 'public', outName: $node['🔐 Lambda初期化'].json.lambda_config.outName }) }}",
+        "options": {
+          "timeout": 300000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "lambda-invoke",
+      "name": "⚡ Lambda起動",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "aws-lambda-auth",
+          "name": "AWS Lambda Auth"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// Lambda結果処理\n// ============================================================================\n\nconst initData = $node['🔐 Lambda初期化'].json;\nconst lambdaResult = $input.first().json;\nconst queueResult = $node['📥 キュー登録'].json;\n\n// Lambdaからの応答を解析\nlet renderId = null;\nlet status = 'pending';\nlet outputUrl = null;\nlet errorMessage = null;\n\nif (lambdaResult.errorMessage) {\n  status = 'error';\n  errorMessage = lambdaResult.errorMessage;\n} else if (lambdaResult.renderId) {\n  renderId = lambdaResult.renderId;\n  status = 'rendering';\n} else if (lambdaResult.outputUrl || lambdaResult.url) {\n  outputUrl = lambdaResult.outputUrl || lambdaResult.url;\n  status = 'completed';\n}\n\nreturn [{\n  json: {\n    queue_id: queueResult?.[0]?.id || queueResult?.id,\n    request_id: initData.request_id,\n    product_id: initData.product_id,\n    composition_id: initData.composition_id,\n    render_id: renderId,\n    status: status,\n    output_url: outputUrl,\n    error_message: errorMessage,\n    lambda_config: initData.lambda_config\n  }\n}];"
+      },
+      "id": "process-lambda",
+      "name": "📋 Lambda結果処理",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "rendering",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "rendering",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-rendering",
+      "name": "レンダリング中？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "amount": 10,
+        "unit": "seconds"
+      },
+      "id": "wait-render",
+      "name": "⏳ 10秒待機",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://lambda.{{ $json.lambda_config.region }}.amazonaws.com/2015-03-31/functions/{{ $json.lambda_config.functionName }}/invocations",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ type: 'status', renderId: $json.render_id }) }}",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "check-status",
+      "name": "🔍 ステータス確認",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "aws-lambda-auth",
+          "name": "AWS Lambda Auth"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// ステータス更新\n// ============================================================================\n\nconst prevData = $node['📋 Lambda結果処理'].json;\nconst statusResult = $input.first().json;\n\nlet status = 'rendering';\nlet outputUrl = null;\nlet progress = 0;\n\nif (statusResult.done) {\n  status = 'completed';\n  outputUrl = statusResult.outputUrl || statusResult.url;\n} else if (statusResult.error) {\n  status = 'error';\n} else {\n  progress = statusResult.progress || statusResult.overallProgress || 0;\n}\n\n// ループ制御（最大30回=5分）\nconst loopCount = ($node['⏳ 10秒待機']?.json?.loopCount || 0) + 1;\nconst shouldContinue = status === 'rendering' && loopCount < 30;\n\nreturn [{\n  json: {\n    ...prevData,\n    status,\n    output_url: outputUrl,\n    progress,\n    loop_count: loopCount,\n    should_continue: shouldContinue\n  }\n}];"
+      },
+      "id": "update-status",
+      "name": "📋 ステータス更新",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "continue-loop",
+              "leftValue": "={{ $json.should_continue }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-continue",
+      "name": "継続？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE render_queue SET status = $1, output_url = $2, render_id = $3, progress = $4, updated_at = NOW() WHERE request_id = $5",
+        "options": {
+          "queryParams": "={{ [$json.status, $json.output_url, $json.render_id, $json.progress, $json.request_id] }}"
+        }
+      },
+      "id": "update-queue",
+      "name": "💾 キュー更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 最終レスポンス生成\n// ============================================================================\n\nconst data = $input.first().json;\n\n// コスト概算（Gemini推奨値: $0.02-$0.05/本）\nconst estimatedCost = data.status === 'completed' ? 0.03 : null;\n\nreturn [{\n  json: {\n    success: data.status === 'completed',\n    request_id: data.request_id,\n    product_id: data.product_id,\n    composition_id: data.composition_id,\n    render_id: data.render_id,\n    status: data.status,\n    output_url: data.output_url,\n    progress: data.progress,\n    estimated_cost_usd: estimatedCost,\n    lambda_region: data.lambda_config?.region,\n    architecture: 'arm64'\n  }\n}];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: lambda-render": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 Lambda初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📥 キュー登録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📥 キュー登録": {
+      "main": [
+        [
+          {
+            "node": "⚡ Lambda起動",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚡ Lambda起動": {
+      "main": [
+        [
+          {
+            "node": "📋 Lambda結果処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 Lambda結果処理": {
+      "main": [
+        [
+          {
+            "node": "レンダリング中？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "レンダリング中？": {
+      "main": [
+        [
+          {
+            "node": "⏳ 10秒待機",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💾 キュー更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⏳ 10秒待機": {
+      "main": [
+        [
+          {
+            "node": "🔍 ステータス確認",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 ステータス確認": {
+      "main": [
+        [
+          {
+            "node": "📋 ステータス更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 ステータス更新": {
+      "main": [
+        [
+          {
+            "node": "継続？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "継続？": {
+      "main": [
+        [
+          {
+            "node": "⏳ 10秒待機",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💾 キュー更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 キュー更新": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 Lambda初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 900,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "AWS-Lambda",
+      "color": "#ff9900"
+    },
+    {
+      "name": "Remotion",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "Scale",
+      "color": "#3498db"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

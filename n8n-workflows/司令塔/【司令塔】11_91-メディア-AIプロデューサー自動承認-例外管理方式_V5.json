@@ -1,0 +1,675 @@
+{
+  "name": "【司令塔】11_91-メディア-AIプロデューサー自動承認-例外管理方式_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "⏰ 30分ごと実行",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai-producer",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: ai-producer",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "ai-producer"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst contentId = body.content_id;\nconst forceReview = body.force_review === true;\n\nreturn [{ json: { content_id: contentId, force_review: forceReview, timestamp: new Date().toISOString() } }];"
+      },
+      "id": "init",
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM auto_approval_rules WHERE is_active = TRUE ORDER BY priority ASC LIMIT 1",
+        "options": {}
+      },
+      "id": "get-rules",
+      "name": "📋 承認ルール取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT mc.*, kb.fact_check_status, kb.gemini_confidence, kb.claude_verified FROM media_content mc LEFT JOIN knowledge_blocks kb ON mc.knowledge_block_id = kb.id WHERE mc.publish_status = 'pending_approval' AND ($1 IS NULL OR mc.id = $1) ORDER BY mc.created_at ASC LIMIT 50",
+        "options": {
+          "queryParams": "={{ [$node['🔧 初期化'].json.content_id] }}"
+        }
+      },
+      "id": "get-pending-content",
+      "name": "📄 承認待ちコンテンツ取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rules = $node['📋 承認ルール取得'].json;\nconst rule = Array.isArray(rules) ? rules[0] : rules;\nconst contents = $input.first().json || [];\nconst contentList = Array.isArray(contents) ? contents : [contents].filter(c => c && c.id);\nconst forceReview = $node['🔧 初期化'].json.force_review;\n\nif (!rule || contentList.length === 0) {\n  return [{ json: { skip: true, reason: 'ルールまたはコンテンツなし' } }];\n}\n\nconst results = contentList.map(content => {\n  // スコア計算\n  const confidenceScore = content.gemini_confidence || 0;\n  const factCheckScore = content.claude_verified ? 0.98 : (content.fact_check_status === 'verified' ? 0.95 : 0.7);\n  const legalScore = 0.95; // TODO: 実際のVEROチェック結果を使用\n  const veroScore = 0.95;\n  const plagiarismScore = 0.99;\n  \n  // センシティブフラグチェック（簡易版）\n  const sensitiveKeywords = ['政治', '宗教', '差別', '暴力', '薬物'];\n  const sensitiveFlags = sensitiveKeywords.filter(k => \n    (content.title || '').includes(k) || (content.description || '').includes(k)\n  );\n  \n  // 判定\n  let decision = 'escalated';\n  let decisionReason = '';\n  \n  if (forceReview) {\n    decision = 'escalated';\n    decisionReason = '強制レビュー指定';\n  } else if (confidenceScore >= rule.min_confidence_score && \n             factCheckScore >= rule.min_fact_check_score &&\n             sensitiveFlags.length <= rule.max_sensitive_flags) {\n    decision = 'approved';\n    decisionReason = '全スコアが閾値を満たしている';\n  } else if (confidenceScore < rule.min_confidence_score * 0.8) {\n    decision = 'rejected';\n    decisionReason = `自信度スコアが低すぎる (${(confidenceScore * 100).toFixed(1)}%)`;\n  } else {\n    decision = 'escalated';\n    decisionReason = `閾値未達 (自信度: ${(confidenceScore * 100).toFixed(1)}%, 事実確認: ${(factCheckScore * 100).toFixed(1)}%)`;\n  }\n  \n  return {\n    content_id: content.id,\n    content_type: content.content_type || 'video',\n    channel_id: content.channel_id,\n    title: content.title,\n    rule_id: rule.id,\n    confidence_score: confidenceScore,\n    fact_check_score: factCheckScore,\n    legal_score: legalScore,\n    vero_score: veroScore,\n    plagiarism_score: plagiarismScore,\n    sensitive_flags: sensitiveFlags,\n    decision: decision,\n    decision_reason: decisionReason,\n    auto_publish: rule.auto_publish && decision === 'approved'\n  };\n});\n\nreturn results.map(r => ({ json: r }));"
+      },
+      "id": "evaluate-content",
+      "name": "🧠 コンテンツ評価",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-skip",
+      "name": "処理あり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO auto_approval_logs (content_id, content_type, channel_id, rule_id, confidence_score, fact_check_score, legal_score, vero_score, plagiarism_score, decision, decision_reason, sensitive_flags) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::text[]) RETURNING id, log_id",
+        "options": {
+          "queryParams": "={{ [$json.content_id, $json.content_type, $json.channel_id, $json.rule_id, $json.confidence_score, $json.fact_check_score, $json.legal_score, $json.vero_score, $json.plagiarism_score, $json.decision, $json.decision_reason, '{' + ($json.sensitive_flags || []).join(',') + '}'] }}"
+        }
+      },
+      "id": "save-log",
+      "name": "💾 承認ログ保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $node['🧠 コンテンツ評価'].json.decision }}",
+                    "rightValue": "approved",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "approved"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $node['🧠 コンテンツ評価'].json.decision }}",
+                    "rightValue": "rejected",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "rejected"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $node['🧠 コンテンツ評価'].json.decision }}",
+                    "rightValue": "escalated",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "escalated"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "route-decision",
+      "name": "判定分岐",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE media_content SET publish_status = 'approved', approved_at = NOW(), approved_by = 'ai_producer' WHERE id = $1",
+        "options": {
+          "queryParams": "={{ [$node['🧠 コンテンツ評価'].json.content_id] }}"
+        }
+      },
+      "id": "approve-content",
+      "name": "✅ 自動承認",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $node['🧠 コンテンツ評価'].json.auto_publish }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-auto-publish",
+      "name": "自動投稿？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_WEBHOOK_URL }}/webhook/listing-reserve",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ action: 'list_now', content_id: $node['🧠 コンテンツ評価'].json.content_id, source: 'ai_producer' }) }}",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "trigger-publish",
+      "name": "🚀 投稿トリガー",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE media_content SET publish_status = 'rejected', rejection_reason = $2 WHERE id = $1",
+        "options": {
+          "queryParams": "={{ [$node['🧠 コンテンツ評価'].json.content_id, $node['🧠 コンテンツ評価'].json.decision_reason] }}"
+        }
+      },
+      "id": "reject-content",
+      "name": "❌ 却下",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE media_content SET publish_status = 'escalated', escalated_to = 'human_director', escalation_reason = $2 WHERE id = $1",
+        "options": {
+          "queryParams": "={{ [$node['🧠 コンテンツ評価'].json.content_id, $node['🧠 コンテンツ評価'].json.decision_reason] }}"
+        }
+      },
+      "id": "escalate-content",
+      "name": "⚠️ エスカレーション",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.CHATWORK_WEBHOOK_URL || 'https://api.chatwork.com/v2/rooms/' + $env.CHATWORK_ROOM_ID + '/messages' }}",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "⚠️ 【人間レビュー必要】\n\nコンテンツID: {{ $node['🧠 コンテンツ評価'].json.content_id }}\nタイトル: {{ $node['🧠 コンテンツ評価'].json.title }}\n\n理由: {{ $node['🧠 コンテンツ評価'].json.decision_reason }}\n自信度: {{ ($node['🧠 コンテンツ評価'].json.confidence_score * 100).toFixed(1) }}%\n\nダッシュボードで確認してください。"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "notify-escalation",
+      "name": "📢 エスカレーション通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const evaluation = $node['🧠 コンテンツ評価'].json;\nreturn [{ json: { success: true, action: 'ai_producer', content_id: evaluation.content_id, decision: evaluation.decision, confidence: evaluation.confidence_score, message: evaluation.decision === 'approved' ? '自動承認完了' : evaluation.decision === 'rejected' ? '自動却下' : '人間レビューへエスカレーション' } }];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "⏰ 30分ごと実行": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook: ai-producer": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "📋 承認ルール取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 承認ルール取得": {
+      "main": [
+        [
+          {
+            "node": "📄 承認待ちコンテンツ取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📄 承認待ちコンテンツ取得": {
+      "main": [
+        [
+          {
+            "node": "🧠 コンテンツ評価",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧠 コンテンツ評価": {
+      "main": [
+        [
+          {
+            "node": "処理あり？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "処理あり？": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💾 承認ログ保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 承認ログ保存": {
+      "main": [
+        [
+          {
+            "node": "判定分岐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "判定分岐": {
+      "main": [
+        [
+          {
+            "node": "✅ 自動承認",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "❌ 却下",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "⚠️ エスカレーション",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ 自動承認": {
+      "main": [
+        [
+          {
+            "node": "自動投稿？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "自動投稿？": {
+      "main": [
+        [
+          {
+            "node": "🚀 投稿トリガー",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚀 投稿トリガー": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "❌ 却下": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚠️ エスカレーション": {
+      "main": [
+        [
+          {
+            "node": "📢 エスカレーション通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📢 エスカレーション通知": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 180,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "AI-Producer",
+      "color": "#3498db"
+    },
+    {
+      "name": "Auto-Approval",
+      "color": "#27ae60"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

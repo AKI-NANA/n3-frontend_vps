@@ -1,0 +1,555 @@
+{
+  "name": "【その他】08_180-監修UI-エッセンス注入-島主一言合成_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "audit-essence-inject",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: essence-inject",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "audit-essence-inject"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// N3-180: 監修UIエッセンス注入 - 鉄の掟準拠\n// 監修者（島主）が1次情報・インサイトを動画に注入するためのAPI\n// ============================================================================\n\nconst apiUrl = $env.N3_API_URL || $env.API_BASE_URL;\nconst elevenlabsKey = $env.ELEVENLABS_API_KEY;\n\nif (!apiUrl) {\n  return [{ json: { error: true, message: 'N3_API_URL環境変数が未設定', code: 'CONFIG_ERROR' } }];\n}\n\nconst body = $input.first().json.body || $input.first().json || {};\n\n// 必須パラメータ\nconst contentId = body.content_id;\nconst managerId = body.manager_id; // 監修者ID（島主）\nconst essenceText = body.essence_text; // テキスト入力\nconst essenceAudioUrl = body.essence_audio_url; // 音声録音URL（オプション）\nconst insertPosition = body.insert_position || 'end'; // start, end, custom, auto\nconst customTimestamp = body.custom_timestamp; // insertPosition=custom時に使用（秒）\nconst essenceType = body.essence_type || 'insight'; // insight, correction, emphasis, warning\n\n// バリデーション\nif (!contentId || !managerId) {\n  return [{ json: { error: true, message: 'content_id, manager_id は必須', code: 'MISSING_PARAM' } }];\n}\nif (!essenceText && !essenceAudioUrl) {\n  return [{ json: { error: true, message: 'essence_text または essence_audio_url が必要', code: 'MISSING_PARAM' } }];\n}\n\n// エッセンスタイプ別の演出設定\nconst essenceConfig = {\n  insight: {\n    bgm_ducking: -12, // dB\n    overlay_style: 'highlight_box',\n    voice_stability: 0.7,\n    voice_style: 0.3,\n    intro_text: '【監修者より】',\n    color: '#4CAF50'\n  },\n  correction: {\n    bgm_ducking: -15,\n    overlay_style: 'warning_stripe',\n    voice_stability: 0.8,\n    voice_style: 0.1,\n    intro_text: '【訂正】',\n    color: '#FF9800'\n  },\n  emphasis: {\n    bgm_ducking: -10,\n    overlay_style: 'pulse_glow',\n    voice_stability: 0.5,\n    voice_style: 0.5,\n    intro_text: '【重要ポイント】',\n    color: '#2196F3'\n  },\n  warning: {\n    bgm_ducking: -18,\n    overlay_style: 'alert_flash',\n    voice_stability: 0.9,\n    voice_style: 0.0,\n    intro_text: '【注意】',\n    color: '#F44336'\n  }\n};\n\nconst config = essenceConfig[essenceType] || essenceConfig.insight;\n\nreturn [{\n  json: {\n    content_id: contentId,\n    manager_id: managerId,\n    essence_text: essenceText,\n    essence_audio_url: essenceAudioUrl,\n    insert_position: insertPosition,\n    custom_timestamp: customTimestamp,\n    essence_type: essenceType,\n    config: config,\n    api_url: apiUrl,\n    has_elevenlabs: !!elevenlabsKey,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔐 初期化（鉄の掟準拠）",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT cm.content_id, cm.channel_id, cm.title, cm.script_data, cm.audio_url, cm.video_url, cm.status, cm.duration_seconds, ch.manager_id as channel_manager FROM content_master cm JOIN channels ch ON cm.channel_id = ch.channel_id WHERE cm.content_id = $1",
+        "options": {
+          "queryParams": "={{ [$json.content_id] }}"
+        }
+      },
+      "id": "get-content",
+      "name": "📋 コンテンツ取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// コンテンツ検証 & 権限チェック\n// ============================================================================\n\nconst initData = $node['🔐 初期化（鉄の掟準拠）'].json;\nconst content = $input.first().json;\n\nif (!content || !content.content_id) {\n  return [{ json: { error: true, message: 'コンテンツが見つかりません', code: 'NOT_FOUND' } }];\n}\n\n// 権限チェック（監修者がこのチャンネルの担当か）\n// 実際の運用ではより厳密な権限管理が必要\nif (content.channel_manager !== initData.manager_id) {\n  // 警告ログを残すが、処理は続行（管理者オーバーライド可能）\n  console.log(`Warning: Manager ${initData.manager_id} is not the assigned manager for channel`);\n}\n\nreturn [{\n  json: {\n    ...initData,\n    content: content,\n    needs_voice_generation: !initData.essence_audio_url && initData.essence_text\n  }\n}];"
+      },
+      "id": "validate-content",
+      "name": "✅ コンテンツ検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "needs-voice",
+              "leftValue": "={{ $json.needs_voice_generation }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-needs-voice",
+      "name": "音声生成必要？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 島主一言合成 - バイオモジュレーション適用\n// Gemini指示: ピッチ±0.2%ランダム化、句読点ポーズ0.05-0.15s\n// ============================================================================\n\nconst data = $input.first().json;\nconst config = data.config;\nlet text = data.essence_text;\n\n// 1. イントロテキスト追加\ntext = config.intro_text + ' ' + text;\n\n// 2. 句読点後のポーズをランダム化（0.05-0.15秒）\n// ElevenLabsの<break>タグを使用\ntext = text.replace(/([。！？])/g, (match) => {\n  const pauseMs = Math.floor(50 + Math.random() * 100); // 50-150ms\n  return match + `<break time=\"${pauseMs}ms\"/>`;\n});\n\ntext = text.replace(/([、])/g, (match) => {\n  const pauseMs = Math.floor(30 + Math.random() * 70); // 30-100ms\n  return match + `<break time=\"${pauseMs}ms\"/>`;\n});\n\n// 3. 息継ぎマーカー挿入（30%の確率）\ntext = text.replace(/([。])/g, (match, offset, string) => {\n  if (Math.random() < 0.3) {\n    return `<break time=\"200ms\"/>` + match;\n  }\n  return match;\n});\n\nreturn [{\n  json: {\n    ...data,\n    processed_text: text,\n    voice_settings: {\n      stability: config.voice_stability,\n      similarity_boost: 0.8,\n      style: config.voice_style,\n      use_speaker_boost: true\n    }\n  }\n}];"
+      },
+      "id": "prepare-voice",
+      "name": "🎙️ 島主一言準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.elevenlabs.io/v1/text-to-speech/{{ $env.ELEVENLABS_MANAGER_VOICE_ID || 'EXAVITQu4vr4xnSDxMaL' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "audio/mpeg"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $json.processed_text, model_id: 'eleven_multilingual_v2', voice_settings: $json.voice_settings }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "timeout": 120000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "elevenlabs-api",
+      "name": "🔊 ElevenLabs音声生成",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "elevenlabs-auth",
+          "name": "ElevenLabs API Key"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 音声結果処理 & ピッチ微調整パラメータ生成\n// Gemini指示: 語尾ピッチ±0.2%ランダム化\n// ============================================================================\n\nconst response = $input.first();\nconst prevData = $node['🎙️ 島主一言準備'].json;\n\n// エラーチェック\nif (response.json?.error || response.json?.detail) {\n  return [{\n    json: {\n      ...prevData,\n      voice_generated: false,\n      voice_error: response.json?.detail || 'ElevenLabs API Error'\n    }\n  }];\n}\n\n// ピッチ微調整パラメータ（FFmpegで後処理用）\n// ±0.2% = 0.998 ~ 1.002\nconst pitchVariation = 0.998 + (Math.random() * 0.004);\n\nreturn [{\n  json: {\n    ...prevData,\n    voice_generated: true,\n    audio_size: response.binary?.data?.fileSize || 0,\n    pitch_adjustment: pitchVariation,\n    ffmpeg_filter: `asetrate=44100*${pitchVariation},aresample=44100`\n  },\n  binary: response.binary\n}];"
+      },
+      "id": "process-voice",
+      "name": "📋 音声処理",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 挿入位置計算\n// auto: AIが最適な位置を判断（関連セクションの前後）\n// ============================================================================\n\nconst data = $input.first().json;\nconst content = data.content;\nconst duration = content.duration_seconds || 60;\n\nlet insertTimestamp;\n\nswitch (data.insert_position) {\n  case 'start':\n    insertTimestamp = 3; // 3秒後（イントロ後）\n    break;\n  case 'end':\n    insertTimestamp = Math.max(duration - 10, duration * 0.9); // 終わり10秒前\n    break;\n  case 'custom':\n    insertTimestamp = data.custom_timestamp || duration / 2;\n    break;\n  case 'auto':\n  default:\n    // スクリプトデータから関連箇所を探す（簡易実装）\n    // 実際にはAIで解析\n    insertTimestamp = duration * 0.7; // 70%地点をデフォルト\n    break;\n}\n\nreturn [{\n  json: {\n    ...data,\n    insert_timestamp: insertTimestamp,\n    insert_timestamp_formatted: new Date(insertTimestamp * 1000).toISOString().substr(14, 5)\n  }\n}];"
+      },
+      "id": "calc-position",
+      "name": "📍 挿入位置計算",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "mergeByFields": {
+          "values": [
+            {
+              "field1": "content_id",
+              "field2": "content_id"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "merge-data",
+      "name": "🔀 データ統合",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO supervisor_insights (content_id, manager_id, essence_type, essence_text, audio_url, insert_timestamp, overlay_config, status, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, 'pending', NOW()) RETURNING insight_id",
+        "options": {
+          "queryParams": "={{ [$json.content_id, $json.manager_id, $json.essence_type, $json.essence_text, $json.essence_audio_url || null, $json.insert_timestamp, JSON.stringify({ style: $json.config.overlay_style, color: $json.config.color, bgm_ducking: $json.config.bgm_ducking })] }}"
+        }
+      },
+      "id": "save-insight",
+      "name": "💾 インサイト保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE content_master SET status = 'essence_pending', updated_at = NOW() WHERE content_id = $1",
+        "options": {
+          "queryParams": "={{ [$json.content_id] }}"
+        }
+      },
+      "id": "update-status",
+      "name": "📝 ステータス更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst insightId = $node['💾 インサイト保存'].json?.insight_id;\n\nreturn [{\n  json: {\n    success: true,\n    action: 'essence_injected',\n    insight_id: insightId,\n    content_id: data.content_id,\n    manager_id: data.manager_id,\n    essence_type: data.essence_type,\n    insert_position: data.insert_position,\n    insert_timestamp: data.insert_timestamp,\n    voice_generated: data.voice_generated || false,\n    next_step: 'Re-render video with essence overlay',\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: essence-inject": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化（鉄の掟準拠）": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 コンテンツ取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 コンテンツ取得": {
+      "main": [
+        [
+          {
+            "node": "✅ コンテンツ検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ コンテンツ検証": {
+      "main": [
+        [
+          {
+            "node": "音声生成必要？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "音声生成必要？": {
+      "main": [
+        [
+          {
+            "node": "🎙️ 島主一言準備",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📍 挿入位置計算",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎙️ 島主一言準備": {
+      "main": [
+        [
+          {
+            "node": "🔊 ElevenLabs音声生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔊 ElevenLabs音声生成": {
+      "main": [
+        [
+          {
+            "node": "📋 音声処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 音声処理": {
+      "main": [
+        [
+          {
+            "node": "🔀 データ統合",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📍 挿入位置計算": {
+      "main": [
+        [
+          {
+            "node": "🔀 データ統合",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "🔀 データ統合": {
+      "main": [
+        [
+          {
+            "node": "💾 インサイト保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 インサイト保存": {
+      "main": [
+        [
+          {
+            "node": "📝 ステータス更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 ステータス更新": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化（鉄の掟準拠）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 300,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Supervisor",
+      "color": "#e67e22"
+    },
+    {
+      "name": "IronRule",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false,
+  "meta": {
+    "description": "N3-180 監修UIエッセンス注入 V5-PRODUCTION - 監修者（島主）が1次情報・インサイトを動画に注入",
+    "version": "5.0",
+    "changelog": "2026-01-20: 鉄の掟準拠、Gemini指示（ピッチ±0.2%、句読点ポーズ0.05-0.15s）実装",
+    "iron_rules_compliant": [
+      "no_hardcoded_urls",
+      "query_params_only",
+      "no_crypto_require"
+    ],
+    "gemini_instructions": [
+      "pitch_variation_0.2%",
+      "pause_randomization_0.05-0.15s"
+    ]
+  }
+}

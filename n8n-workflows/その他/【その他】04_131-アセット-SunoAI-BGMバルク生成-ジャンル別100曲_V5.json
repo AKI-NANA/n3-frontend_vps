@@ -1,0 +1,339 @@
+{
+  "name": "【その他】04_131-アセット-SunoAI-BGMバルク生成-ジャンル別100曲_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "suno-bgm-generate",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: suno-bgm-generate",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "suno-bgm-generate"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Suno AI BGM生成 初期化\nconst body = $input.first().json.body || $input.first().json || {};\n\nconst genre = body.genre || 'educational';\nconst mood = body.mood || 'positive';\nconst tempo = body.tempo || 'medium';\nconst durationSeconds = body.duration_seconds || 180;\nconst totalTracks = Math.min(body.total_tracks || 10, 50);\nconst channelId = body.channel_id;\n\nconst genreTemplates = {\n  upbeat: 'upbeat, energetic, positive vibes',\n  calm: 'calm, peaceful, ambient, soft piano',\n  dramatic: 'dramatic, cinematic, orchestral',\n  educational: 'educational background, soft, non-distracting',\n  'lo-fi': 'lo-fi hip hop, chill beats, jazzy',\n  corporate: 'corporate, professional, inspiring'\n};\n\nconst basePrompt = genreTemplates[genre] || genreTemplates.educational;\nconst fullPrompt = `${basePrompt}, ${mood} mood, ${tempo} tempo, instrumental only, no vocals`;\n\nconst jobId = 'suno_' + Date.now();\n\nreturn [{ json: { job_id: jobId, genre, mood, tempo, duration_seconds: durationSeconds, total_tracks: totalTracks, prompt: fullPrompt, channel_id: channelId } }];"
+      },
+      "id": "init",
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO suno_bgm_generation_jobs (id, status, genre, mood, tempo, duration_seconds, total_tracks, custom_prompt, channel_id, created_at) VALUES (gen_random_uuid(), 'processing', $1, $2, $3, $4, $5, $6, $7, NOW()) RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.genre, $json.mood, $json.tempo, $json.duration_seconds, $json.total_tracks, $json.prompt, $json.channel_id] }}"
+        }
+      },
+      "id": "save-job",
+      "name": "💾 ジョブ登録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// トラック生成タスク準備\nconst config = $node['🔧 初期化'].json;\nconst dbResult = $input.first().json;\nconst tasks = [];\nfor (let i = 0; i < config.total_tracks; i++) {\n  tasks.push({ index: i, prompt: config.prompt + ` variation ${i+1}`, db_id: dbResult[0]?.id, job_id: config.job_id });\n}\nreturn tasks.map(t => ({ json: t }));"
+      },
+      "id": "prepare-tasks",
+      "name": "📝 タスク準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "batchSize": 3,
+        "options": {}
+      },
+      "id": "batch-tasks",
+      "name": "📦 バッチ処理",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "notes": "\n[PATCHER] WARNING: SplitInBatches直後にWaitノードがありません。API制限に注意してください。"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ process.env.SUNO_API_URL || 'https://api.suno.ai/v1/generate' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ prompt: $json.prompt, duration: $node['🔧 初期化'].json.duration_seconds, instrumental: true }) }}",
+        "options": {
+          "timeout": 180000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "call-suno",
+      "name": "🎵 Suno API呼び出し",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "suno-api",
+          "name": "Suno API"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// 生成結果処理\nconst task = $node['📦 バッチ処理'].json;\nconst result = $input.first().json;\nconst audioUrl = result.audio_url || result.url || null;\nconst success = !!audioUrl;\n\nreturn [{ json: { index: task.index, audio_url: audioUrl, success, db_id: task.db_id } }];"
+      },
+      "id": "parse-result",
+      "name": "📋 結果解析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE suno_bgm_generation_jobs SET generated_count = generated_count + 1, output_urls = COALESCE(output_urls, '[]'::jsonb) || to_jsonb($2::text), updated_at = NOW() WHERE id = $1",
+        "options": {
+          "queryParams": "={{ [$json.db_id, $json.audio_url || 'failed'] }}"
+        }
+      },
+      "id": "update-job",
+      "name": "💾 ジョブ更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 60,
+        "unit": "seconds"
+      },
+      "id": "wait-rate-limit",
+      "name": "⏳ 60秒待機",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, job_id: $node['🔧 初期化'].json.job_id }) }}",
+        "options": {
+          "responseCode": 202
+        }
+      },
+      "id": "respond-accepted",
+      "name": "受付応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: suno-bgm-generate": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "💾 ジョブ登録",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "受付応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 ジョブ登録": {
+      "main": [
+        [
+          {
+            "node": "📝 タスク準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 タスク準備": {
+      "main": [
+        [
+          {
+            "node": "📦 バッチ処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 バッチ処理": {
+      "main": [
+        [
+          {
+            "node": "🎵 Suno API呼び出し",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎵 Suno API呼び出し": {
+      "main": [
+        [
+          {
+            "node": "📋 結果解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 結果解析": {
+      "main": [
+        [
+          {
+            "node": "💾 ジョブ更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 ジョブ更新": {
+      "main": [
+        [
+          {
+            "node": "⏳ 60秒待機",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⏳ 60秒待機": {
+      "main": [
+        [
+          {
+            "node": "📦 バッチ処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "アセット"
+    },
+    {
+      "name": "V5"
+    },
+    {
+      "name": "Suno"
+    },
+    {
+      "name": "BGM"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ]
+}

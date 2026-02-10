@@ -1,0 +1,474 @@
+{
+  "name": "【その他】14_55-B2B-リードジェネレーション-貿易書類_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "b2b-lead",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: b2b-lead",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "b2b-lead"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst apiUrl = $env.N3_API_URL || '{{$env.GATEWAY_URL}}';\nconst action = body.action || 'scout';\nconst countryCode = body.country_code || 'US';\nconst category = body.category || 'Japanese goods';\nconst leadId = body.lead_id;\nconst orderId = body.order_id;\nconst documentType = body.document_type;\nreturn [{ json: { action, country_code: countryCode, category, lead_id: leadId, order_id: orderId, document_type: documentType, api_url: apiUrl } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "rules": [
+            {
+              "outputKey": "scout",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "scout",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "outreach",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "outreach",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "document",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "generate_document",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "fallbackOutput": "scout"
+        }
+      },
+      "id": "switch-action",
+      "name": "🔀 アクション分岐",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $input.first().json;\nconst mockLeads = [\n  { business_name: 'Tokyo Import Co', business_type: 'wholesale', country_code: config.country_code, city: 'New York', contact_email: 'info@tokyoimport.com', categories: ['Japanese goods'], rating: 4.5, review_count: 120, lead_score: 75 },\n  { business_name: 'Asia Select Store', business_type: 'retail', country_code: config.country_code, city: 'Los Angeles', contact_email: 'buyer@asiaselect.com', categories: ['crafts', 'home'], rating: 4.2, review_count: 85, lead_score: 65 }\n];\nreturn mockLeads.map(lead => ({ json: { ...lead, source: 'google_maps_mock' } }));"
+      },
+      "id": "scout-leads",
+      "name": "🔍 店舗スカウト",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO b2b_leads (business_name, business_type, country_code, city, contact_email, categories, rating, review_count, lead_score, lead_status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'new') ON CONFLICT DO NOTHING RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.business_name, $json.business_type, $json.country_code, $json.city, $json.contact_email, $json.categories, $json.rating, $json.review_count, $json.lead_score] }}"
+        }
+      },
+      "id": "save-leads",
+      "name": "💾 リード保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM b2b_leads WHERE id = $1::uuid",
+        "options": {
+          "queryParams": "={{ [$node['🔐 初期化'].json.lead_id] }}"
+        }
+      },
+      "id": "get-lead",
+      "name": "📋 リード取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $node['🔐 初期化'].json.api_url }}/api/ai/generate-email",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ business_name: $json.business_name || $json[0]?.business_name, categories: $json.categories || $json[0]?.categories, style: 'b2b_wholesale', language: 'en' }) }}",
+        "options": {
+          "timeout": 45000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "generate-email",
+      "name": "✉️ 営業メール生成",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const leadRaw = $node['📋 リード取得'].json;\nconst emailResult = $input.first().json;\nconst lead = Array.isArray(leadRaw) ? leadRaw[0] : leadRaw;\nconst subject = emailResult.subject || `Partnership Opportunity - Japanese Products for ${lead?.business_name || 'Your Store'}`;\nconst body = emailResult.body || `Dear ${lead?.business_name},\\n\\nWe are a Japanese export company specializing in high-quality products...`;\nreturn [{ json: { lead_id: lead?.id, subject, body_text: body, ai_generated: true, outreach_status: 'draft' } }];"
+      },
+      "id": "format-email",
+      "name": "📋 メール整形",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO b2b_outreach (lead_id, subject, body_text, ai_generated, outreach_status) VALUES ($1::uuid, $2, $3, $4, $5) RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.lead_id, $json.subject, $json.body_text, $json.ai_generated, $json.outreach_status] }}"
+        }
+      },
+      "id": "save-outreach",
+      "name": "💾 営業メール保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $node['🔐 初期化'].json;\nconst documentType = config.document_type || 'proforma_invoice';\nconst orderId = config.order_id;\nconst now = new Date();\nconst docNumber = `${documentType.toUpperCase().substring(0,2)}-${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}-${Math.random().toString(36).substring(2,8).toUpperCase()}`;\nconst documentData = {\n  document_number: docNumber,\n  date: now.toISOString().split('T')[0],\n  seller: { name: 'N3 Global Trading', address: 'Tokyo, Japan', email: 'export@n3global.com' },\n  buyer: { name: 'TBD', address: 'TBD' },\n  items: [{ description: 'Japanese Products', quantity: 1, unit_price: 0, total: 0 }],\n  terms: 'FOB Japan',\n  payment_terms: 'T/T 30 days'\n};\nreturn [{ json: { order_id: orderId, document_type: documentType, document_number: docNumber, document_data: documentData, document_status: 'draft' } }];"
+      },
+      "id": "generate-document",
+      "name": "📄 貿易書類生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO trade_documents (order_id, document_type, document_number, document_data, document_status) VALUES ($1::uuid, $2, $3, $4, $5) RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.order_id, $json.document_type, $json.document_number, JSON.stringify($json.document_data), $json.document_status] }}"
+        }
+      },
+      "id": "save-document",
+      "name": "💾 書類保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const action = $node['🔐 初期化'].json.action;\nlet result = { success: true, action };\nif (action === 'scout') {\n  const saved = $node['💾 リード保存'].json;\n  result.leads_count = Array.isArray(saved) ? saved.length : 1;\n} else if (action === 'outreach') {\n  const outreach = $node['💾 営業メール保存'].json;\n  result.outreach_id = outreach?.id;\n} else if (action === 'generate_document') {\n  const doc = $node['💾 書類保存'].json;\n  result.document_id = doc?.id;\n  result.document_number = $node['📄 貿易書類生成'].json.document_number;\n}\nreturn [{ json: result }];"
+      },
+      "id": "aggregate",
+      "name": "📊 集計",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: b2b-lead": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "🔀 アクション分岐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 アクション分岐": {
+      "main": [
+        [
+          {
+            "node": "🔍 店舗スカウト",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 リード取得",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📄 貿易書類生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 店舗スカウト": {
+      "main": [
+        [
+          {
+            "node": "💾 リード保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 リード保存": {
+      "main": [
+        [
+          {
+            "node": "📊 集計",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 リード取得": {
+      "main": [
+        [
+          {
+            "node": "✉️ 営業メール生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✉️ 営業メール生成": {
+      "main": [
+        [
+          {
+            "node": "📋 メール整形",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 メール整形": {
+      "main": [
+        [
+          {
+            "node": "💾 営業メール保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 営業メール保存": {
+      "main": [
+        [
+          {
+            "node": "📊 集計",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📄 貿易書類生成": {
+      "main": [
+        [
+          {
+            "node": "💾 書類保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 書類保存": {
+      "main": [
+        [
+          {
+            "node": "📊 集計",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 集計": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 180,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-B2B",
+      "color": "#2c3e50"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Trade",
+      "color": "#f39c12"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

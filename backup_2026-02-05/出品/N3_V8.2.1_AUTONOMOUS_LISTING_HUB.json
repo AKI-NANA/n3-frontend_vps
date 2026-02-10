@@ -1,0 +1,457 @@
+{
+  "name": "【V8.2.1-AUTONOMOUS】出品ハブ・統合ディスパッチャー",
+  "description": "N3 Empire OS V8.2.1-Autonomous: 27次元防衛準拠・価格計算強制統合・AIエージェント・カテゴリ枠最適化",
+  "_version": "8.2.1-autonomous",
+  "_27d_compliance": ["dim3_auth_gate", "dim13_decision_trace", "dim22_cost_limit", "dim5_hitl"],
+  
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "v821-listing-hub",
+        "options": { "responseMode": "responseNode" }
+      },
+      "name": "Webhook: V8.2.1出品ハブ",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "v821-listing-hub"
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 🔐 27次元-3: JITトークン検証（Auth-Gateバイパス排除）\n// ============================================================================\nconst body = $input.first().json.body || $input.first().json;\nconst headers = $input.first().json.headers || {};\n\nconst jitToken = headers['x-n3-jit-token'] || headers['X-N3-JIT-Token'];\nconst hmacSignature = headers['x-n3-signature'] || headers['X-N3-Signature'];\nconst timestamp = headers['x-n3-timestamp'] || headers['X-N3-Timestamp'];\n\nif (!jitToken && !hmacSignature) {\n  return [{ json: { \n    error: true, \n    code: 'AUTH_REQUIRED', \n    message: '認証トークンが必要です（JIT Token または HMAC）',\n    _27d_violation: 'dim3_auth_gate'\n  }}];\n}\n\n// JITトークン検証（優先）\nif (jitToken) {\n  try {\n    const validateResponse = await fetch(`${$env.SUPABASE_URL}/rest/v1/rpc/validate_jit_token`, {\n      method: 'POST',\n      headers: {\n        'Content-Type': 'application/json',\n        'apikey': $env.SUPABASE_ANON_KEY,\n        'Authorization': `Bearer ${$env.SUPABASE_SERVICE_ROLE_KEY}`\n      },\n      body: JSON.stringify({\n        p_token: jitToken,\n        p_purpose: 'listing',\n        p_required_scope: 'write'\n      })\n    });\n    const result = await validateResponse.json();\n    \n    if (!result.valid) {\n      return [{ json: { \n        error: true, \n        code: 'INVALID_JIT_TOKEN', \n        message: `JITトークン検証失敗: ${result.reason}`,\n        _27d_violation: 'dim3_auth_gate'\n      }}];\n    }\n    \n    // 検証成功\n    return [{ json: {\n      ...body,\n      _auth: {\n        method: 'jit_token',\n        tenant_id: result.tenant_id,\n        scope: result.scope,\n        verified_at: new Date().toISOString()\n      }\n    }}];\n  } catch (e) {\n    return [{ json: { error: true, code: 'JIT_VALIDATION_ERROR', message: e.message }}];\n  }\n}\n\n// HMAC署名検証（フォールバック）\nconst crypto = require('crypto');\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  return [{ json: { error: true, code: 'CONFIG_ERROR', message: 'N8N_HMAC_SECRET未設定' }}];\n}\n\nif (!timestamp || Math.abs(Date.now() - parseInt(timestamp)) > 300000) {\n  return [{ json: { error: true, code: 'TIMESTAMP_EXPIRED', message: 'タイムスタンプ期限切れ' }}];\n}\n\nconst computedHmac = crypto.createHmac('sha256', secret).update(timestamp + '.' + JSON.stringify(body)).digest('hex');\nif (hmacSignature !== computedHmac) {\n  return [{ json: { error: true, code: 'HMAC_INVALID', message: 'HMAC署名検証失敗' }}];\n}\n\nreturn [{ json: {\n  ...body,\n  _auth: {\n    method: 'hmac',\n    tenant_id: body.user_id || 'default',\n    verified_at: new Date().toISOString()\n  }\n}}];"
+      },
+      "name": "🔐 Auth-Gate（27次元-3）",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[27次元-3] JITトークン優先、HMACフォールバック"
+    },
+
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [{ "id": "error-check", "leftValue": "={{ $json.error }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" }}]
+        }
+      },
+      "name": "認証エラー？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": { "responseCode": 403 }
+      },
+      "name": "認証エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 💰 27次元-22: API燃焼上限チェック\n// ============================================================================\nconst data = $input.first().json;\nconst tenantId = data._auth?.tenant_id || data.user_id || 'default';\n\n// APIコスト事前チェック\ntry {\n  const checkResponse = await fetch(`${$env.SUPABASE_URL}/rest/v1/api_consumption_limits?tenant_id=eq.${tenantId}&api_provider=eq.gemini`, {\n    headers: {\n      'apikey': $env.SUPABASE_ANON_KEY,\n      'Authorization': `Bearer ${$env.SUPABASE_SERVICE_ROLE_KEY}`\n    }\n  });\n  const limits = await checkResponse.json();\n  \n  if (limits.length > 0 && limits[0].is_blocked) {\n    return [{ json: {\n      error: true,\n      code: 'COST_LIMIT_EXCEEDED',\n      message: `API燃焼上限到達: ${limits[0].blocked_reason}`,\n      _27d_violation: 'dim22_cost_limit',\n      daily_used: limits[0].daily_used_usd,\n      daily_limit: limits[0].daily_limit_usd\n    }}];\n  }\n} catch (e) {\n  // チェック失敗は警告のみで続行\n  console.log('Cost limit check warning:', e.message);\n}\n\nreturn [{ json: { ...data, _cost_check: { passed: true, checked_at: new Date().toISOString() } }}];"
+      },
+      "name": "💰 燃焼上限チェック（27次元-22）",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[27次元-22] API消費コスト日次/月次上限チェック"
+    },
+
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [{ "id": "cost-error", "leftValue": "={{ $json.error }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" }}]
+        }
+      },
+      "name": "燃焼上限超過？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code, _27d_violation: $json._27d_violation }) }}",
+        "options": { "responseCode": 429 }
+      },
+      "name": "燃焼上限エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT pm.id, pm.sku, pm.title, pm.title_en, pm.product_name, pm.description, pm.description_en, pm.image_urls, pm.listing_price, pm.item_specifics, pm.ebay_category_id, pm.sm_confidence_score, pm.updated_at, im.purchase_price, im.purchase_currency, im.weight_grams, im.dimension_cm_l, im.dimension_cm_w, im.dimension_cm_h, im.physical_quantity, COALESCE(im.packaging_cost, 200) as packaging_cost FROM products_master pm LEFT JOIN inventory_master im ON im.product_master_id = pm.id WHERE pm.id = $1 AND (pm.user_id = $2 OR pm.user_id IS NULL) LIMIT 1",
+        "options": { "queryParams": "={{ [$json.product_id, $json._auth?.tenant_id || $json.user_id || 'default'] }}" }
+      },
+      "name": "📦 商品情報取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" }}
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 🔗 多販路価格計算強制呼び出し\n// ============================================================================\nconst prevData = $node['💰 燃焼上限チェック（27次元-22）'].json;\nconst productArr = Array.isArray($input.first().json) ? $input.first().json : [$input.first().json];\nconst product = productArr[0];\n\nif (!product || !product.id) {\n  return [{ json: { error: true, code: 'PRODUCT_NOT_FOUND', message: '商品が見つかりません' }}];\n}\n\nconst tenantId = prevData._auth?.tenant_id || prevData.user_id || 'default';\nconst targetMarketplaces = prevData.target_marketplaces || ['ebay_us', 'qoo10_jp', 'amazon_us'];\n\n// 価格計算API呼び出し\nconst calcPayload = {\n  product_id: product.id,\n  user_id: tenantId,\n  target_marketplaces: targetMarketplaces,\n  target_margin: prevData.target_margin || 15,\n  enable_media_queue: false\n};\n\ntry {\n  const timestamp = Date.now().toString();\n  const crypto = require('crypto');\n  const signature = crypto.createHmac('sha256', $env.N8N_HMAC_SECRET || '')\n    .update(timestamp + '.' + JSON.stringify(calcPayload))\n    .digest('hex');\n  \n  const calcResponse = await fetch(`${$env.N8N_BASE_URL || $env.N8N_WEBHOOK_URL}/webhook/multi-marketplace-calculate`, {\n    method: 'POST',\n    headers: {\n      'Content-Type': 'application/json',\n      'x-n3-signature': signature,\n      'x-n3-timestamp': timestamp\n    },\n    body: JSON.stringify(calcPayload)\n  });\n  \n  const calcResult = await calcResponse.json();\n  \n  if (!calcResult.success) {\n    return [{ json: {\n      error: true,\n      code: 'PRICE_CALC_FAILED',\n      message: '価格計算失敗: ' + (calcResult.error || 'Unknown'),\n      product_id: product.id\n    }}];\n  }\n  \n  // 利益が出る販路のみフィルタ\n  const profitableMarkets = (calcResult.calculations || []).filter(c => c.is_profitable === 1);\n  \n  if (profitableMarkets.length === 0) {\n    return [{ json: {\n      error: true,\n      code: 'NO_PROFITABLE_MARKET',\n      message: '全ての販路で利益基準（5%以上）を満たしません',\n      product_id: product.id,\n      calculations: calcResult.calculations\n    }}];\n  }\n  \n  return [{ json: {\n    ...prevData,\n    product: product,\n    price_calculations: calcResult.calculations,\n    profitable_markets: profitableMarkets,\n    _price_calc: {\n      success: true,\n      total_markets: targetMarketplaces.length,\n      profitable_count: profitableMarkets.length,\n      calculated_at: calcResult.calculated_at\n    }\n  }}];\n  \n} catch (e) {\n  return [{ json: {\n    error: true,\n    code: 'PRICE_CALC_ERROR',\n    message: '価格計算APIエラー: ' + e.message,\n    product_id: product.id\n  }}];\n}"
+      },
+      "name": "🔗 価格計算強制統合",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[CRITICAL] 出品前に必ず multi-marketplace-calculate を呼び出し"
+    },
+
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [{ "id": "calc-error", "leftValue": "={{ $json.error }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" }}]
+        }
+      },
+      "name": "価格計算エラー？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code, calculations: $json.calculations }) }}",
+        "options": { "responseCode": 400 }
+      },
+      "name": "価格計算エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 📊 カテゴリ枠最適化（ナップサック近似解法）\n// ============================================================================\nconst data = $input.first().json;\nconst tenantId = data._auth?.tenant_id || data.user_id || 'default';\nconst product = data.product;\nconst profitableMarkets = data.profitable_markets || [];\n\n// 利益期待値計算\nconst expectedValue = profitableMarkets.reduce((sum, m) => {\n  const sellProbability = 0.5;  // TODO: 履歴データから算出\n  return sum + (m.profit_jpy * sellProbability);\n}, 0);\n\n// 枠割り当てリクエスト\ntry {\n  const optimizeResponse = await fetch(`${$env.SUPABASE_URL}/rest/v1/rpc/optimize_slot_allocation`, {\n    method: 'POST',\n    headers: {\n      'Content-Type': 'application/json',\n      'apikey': $env.SUPABASE_ANON_KEY,\n      'Authorization': `Bearer ${$env.SUPABASE_SERVICE_ROLE_KEY}`\n    },\n    body: JSON.stringify({\n      p_tenant_id: tenantId,\n      p_products: JSON.stringify([{\n        id: product.id,\n        category_id: product.ebay_category_id || 'default',\n        profit_margin: profitableMarkets[0]?.profit_rate / 100 || 0.15,\n        sell_probability: 0.5,\n        price_usd: profitableMarkets.find(m => m.currency === 'USD')?.selling_price || 50\n      }]),\n      p_max_allocations: 1\n    })\n  });\n  \n  const slotResult = await optimizeResponse.json();\n  \n  if (!slotResult.success || slotResult.assigned_count === 0) {\n    // 枠なし → 夜間シフトキューへ\n    return [{ json: {\n      ...data,\n      _slot_allocation: {\n        success: false,\n        reason: 'no_available_slot',\n        action: 'queue_night_shift'\n      }\n    }}];\n  }\n  \n  const assignment = slotResult.assignments[0];\n  \n  return [{ json: {\n    ...data,\n    _slot_allocation: {\n      success: true,\n      account_id: assignment.account_id,\n      category_id: assignment.category_id,\n      expected_value: assignment.expected_value,\n      priority: assignment.priority\n    }\n  }}];\n  \n} catch (e) {\n  // 枠チェック失敗は警告で続行（デフォルトアカウント使用）\n  return [{ json: {\n    ...data,\n    _slot_allocation: {\n      success: false,\n      reason: 'check_failed',\n      error: e.message,\n      action: 'use_default_account'\n    }\n  }}];\n}"
+      },
+      "name": "📊 枠オプティマイザー",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[V8.2.1] カテゴリ枠最適化。枠なしなら夜間シフトキューへ"
+    },
+
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [{ "id": "no-slot", "leftValue": "={{ $json._slot_allocation?.action }}", "rightValue": "queue_night_shift", "operator": { "type": "string", "operation": "equals" }}]
+        }
+      },
+      "name": "枠なし？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO async_task_queue (tenant_id, task_type, priority, payload, night_shift_only, scheduled_at) VALUES ($1, 'listing', 5, $2::jsonb, true, NOW() + INTERVAL '1 hour') RETURNING task_id",
+        "options": { "queryParams": "={{ [$json._auth?.tenant_id || $json.user_id, JSON.stringify({ product_id: $json.product?.id, target_marketplaces: $json.profitable_markets?.map(m => m.marketplace) })] }}" }
+      },
+      "name": "🌙 夜間シフトキュー登録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" }},
+      "continueOnFail": true
+    },
+
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, action: 'queued_night_shift', message: '枠空き待ち。夜間シフトで処理予定', task_id: $json.task_id }) }}",
+        "options": { "responseCode": 202 }
+      },
+      "name": "夜間シフト応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "x-goog-api-key", "value": "={{ $env.GEMINI_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: '## 多販路タイトル最適化\\n\\n商品名: ' + ($json.product?.title || $json.product?.product_name || '') + '\\n説明: ' + ($json.product?.description || '').substring(0, 500) + '\\n\\n以下のJSONを生成してください:\\n{\\n  \"ebay_title\": \"英語80文字以内\",\\n  \"qoo10_title\": \"日本語100文字以内\",\\n  \"amazon_title\": \"英語200文字以内\",\\n  \"reasoning\": \"タイトル最適化の理由\"\\n}' }] }], generationConfig: { temperature: 0.3, maxOutputTokens: 1024 } }) }}",
+        "options": { "timeout": 30000 }
+      },
+      "name": "🧠 Gemini: タイトル最適化",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 📝 27次元-13: Decision Trace（AI判断証跡）記録\n// ============================================================================\nconst prevData = $node['📊 枠オプティマイザー'].json;\nconst aiResponse = $input.first().json;\nconst tenantId = prevData._auth?.tenant_id || prevData.user_id || 'default';\n\n// AIレスポンス解析\nlet optimized = { ebay_title: '', qoo10_title: '', amazon_title: '', reasoning: '' };\ntry {\n  const text = aiResponse.candidates?.[0]?.content?.parts?.[0]?.text || '{}';\n  const match = text.match(/\\{[\\s\\S]*\\}/);\n  if (match) optimized = JSON.parse(match[0]);\n} catch (e) {\n  optimized.reasoning = 'AI解析失敗、デフォルトタイトル使用';\n}\n\n// Decision Trace記録\ntry {\n  await fetch(`${$env.SUPABASE_URL}/rest/v1/ai_decision_traces`, {\n    method: 'POST',\n    headers: {\n      'Content-Type': 'application/json',\n      'apikey': $env.SUPABASE_ANON_KEY,\n      'Authorization': `Bearer ${$env.SUPABASE_SERVICE_ROLE_KEY}`,\n      'Prefer': 'return=minimal'\n    },\n    body: JSON.stringify({\n      tenant_id: tenantId,\n      workflow_id: $workflow.id,\n      workflow_name: $workflow.name,\n      decision_point: 'title_optimization',\n      input_data: { product_title: prevData.product?.title, product_id: prevData.product?.id },\n      ai_model: 'gemini-1.5-flash',\n      ai_prompt_hash: require('crypto').createHash('sha256').update('title_optimization_v1').digest('hex').substring(0, 16),\n      ai_response: optimized,\n      reasoning: optimized.reasoning || 'タイトル最適化完了',\n      confidence_score: optimized.reasoning?.includes('失敗') ? 30 : 85,\n      decision_outcome: 'approved'\n    })\n  });\n} catch (e) {\n  console.log('Decision trace save warning:', e.message);\n}\n\nreturn [{ json: {\n  ...prevData,\n  optimized_titles: optimized,\n  _decision_trace: {\n    recorded: true,\n    decision_point: 'title_optimization',\n    confidence: optimized.reasoning?.includes('失敗') ? 30 : 85\n  }\n}}];"
+      },
+      "name": "📝 Decision Trace記録（27次元-13）",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[27次元-13] AI判断の証跡を全件記録"
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 🛡️ 赤字絶対回避ガーディアン + HitL判定\n// ============================================================================\nconst data = $input.first().json;\nconst profitableMarkets = data.profitable_markets || [];\nconst tenantId = data._auth?.tenant_id || data.user_id || 'default';\n\n// 最低利益率チェック（再確認）\nconst minMargin = Math.min(...profitableMarkets.map(m => m.profit_rate));\nconst avgMargin = profitableMarkets.reduce((sum, m) => sum + m.profit_rate, 0) / profitableMarkets.length;\n\n// リスク評価\nlet riskLevel = 'low';\nlet riskFactors = [];\nlet requiresHitL = false;\n\nif (minMargin < 8) {\n  riskLevel = 'medium';\n  riskFactors.push(`低利益率販路あり (${minMargin.toFixed(1)}%)`);\n}\n\nif (avgMargin < 10) {\n  riskLevel = 'high';\n  riskFactors.push(`平均利益率低い (${avgMargin.toFixed(1)}%)`);\n  requiresHitL = true;\n}\n\nif (data.product?.sm_confidence_score && data.product.sm_confidence_score < 70) {\n  riskLevel = 'high';\n  riskFactors.push(`SM信頼度低い (${data.product.sm_confidence_score}点)`);\n  requiresHitL = true;\n}\n\n// 高額商品チェック\nconst maxPrice = Math.max(...profitableMarkets.map(m => m.selling_price_jpy || 0));\nif (maxPrice > 50000) {\n  riskLevel = 'high';\n  riskFactors.push(`高額商品 (¥${maxPrice.toLocaleString()})`);\n  requiresHitL = true;\n}\n\nreturn [{ json: {\n  ...data,\n  _risk_assessment: {\n    risk_level: riskLevel,\n    risk_factors: riskFactors,\n    min_margin: minMargin,\n    avg_margin: avgMargin,\n    max_price_jpy: maxPrice,\n    requires_hitl: requiresHitL\n  }\n}}];"
+      },
+      "name": "🛡️ リスク評価 + HitL判定",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[27次元-5] 高リスク操作は人間承認必須"
+    },
+
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [{ "id": "requires-hitl", "leftValue": "={{ $json._risk_assessment?.requires_hitl }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" }}]
+        }
+      },
+      "name": "HitL必要？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO hitl_approval_queue (tenant_id, entity_type, entity_id, entity_data, risk_level, risk_factors, ai_recommendation, ai_confidence, ai_reasoning, auto_approve_if_confidence_above, expires_at) VALUES ($1, 'listing', $2, $3::jsonb, $4, $5::jsonb, 'approve', $6, $7, 95, NOW() + INTERVAL '24 hours') RETURNING queue_id",
+        "options": { "queryParams": "={{ [$json._auth?.tenant_id || $json.user_id, $json.product?.id, JSON.stringify({ product_sku: $json.product?.sku, profitable_markets: $json.profitable_markets, optimized_titles: $json.optimized_titles }), $json._risk_assessment?.risk_level, JSON.stringify($json._risk_assessment?.risk_factors || []), $json._decision_trace?.confidence || 70, 'リスク要因: ' + ($json._risk_assessment?.risk_factors || []).join(', ')] }}" }
+      },
+      "name": "📋 HitLキュー登録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" }}
+    },
+
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, action: 'pending_approval', queue_id: $json.queue_id, risk_level: $node['🛡️ リスク評価 + HitL判定'].json._risk_assessment?.risk_level, risk_factors: $node['🛡️ リスク評価 + HitL判定'].json._risk_assessment?.risk_factors, message: '人間による承認が必要です' }) }}",
+        "options": { "responseCode": 202 }
+      },
+      "name": "HitL待ち応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.profitable_markets?.[0]?.marketplace?.split('_')[0] || 'ebay' }}",
+        "rules": {
+          "rules": [
+            { "value2": "ebay", "output": 0 },
+            { "value2": "qoo10", "output": 1 },
+            { "value2": "amazon", "output": 2 },
+            { "value2": "shopee", "output": 3 }
+          ]
+        },
+        "fallbackOutput": 4
+      },
+      "name": "販路分岐",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_WEBHOOK_URL || $env.N8N_BASE_URL + '/webhook' }}/ebay-listing",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-n3-signature", "value": "={{ require('crypto').createHmac('sha256', $env.N8N_HMAC_SECRET || '').update(Date.now() + '.' + JSON.stringify({ product_id: $json.product?.id, user_id: $json._auth?.tenant_id, price: $json.profitable_markets?.find(m => m.marketplace?.startsWith('ebay'))?.selling_price })).digest('hex') }}" },
+            { "name": "x-n3-timestamp", "value": "={{ Date.now().toString() }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ product_id: $json.product?.id, user_id: $json._auth?.tenant_id || $json.user_id, title: $json.optimized_titles?.ebay_title || $json.product?.title_en || $json.product?.title, price: $json.profitable_markets?.find(m => m.marketplace?.startsWith('ebay'))?.selling_price, account_id: $json._slot_allocation?.account_id }) }}",
+        "options": { "timeout": 120000 }
+      },
+      "name": "eBay出品実行",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_WEBHOOK_URL || $env.N8N_BASE_URL + '/webhook' }}/qoo10-listing",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-n3-signature", "value": "={{ require('crypto').createHmac('sha256', $env.N8N_HMAC_SECRET || '').update(Date.now() + '.' + JSON.stringify({ product_id: $json.product?.id, user_id: $json._auth?.tenant_id })).digest('hex') }}" },
+            { "name": "x-n3-timestamp", "value": "={{ Date.now().toString() }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ product_id: $json.product?.id, user_id: $json._auth?.tenant_id || $json.user_id, title: $json.optimized_titles?.qoo10_title || $json.product?.title, price: $json.profitable_markets?.find(m => m.marketplace === 'qoo10_jp')?.selling_price }) }}",
+        "options": { "timeout": 120000 }
+      },
+      "name": "Qoo10出品実行",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_WEBHOOK_URL || $env.N8N_BASE_URL + '/webhook' }}/amazon-listing",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-n3-signature", "value": "={{ require('crypto').createHmac('sha256', $env.N8N_HMAC_SECRET || '').update(Date.now() + '.' + JSON.stringify({ product_id: $json.product?.id, user_id: $json._auth?.tenant_id })).digest('hex') }}" },
+            { "name": "x-n3-timestamp", "value": "={{ Date.now().toString() }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ product_id: $json.product?.id, user_id: $json._auth?.tenant_id || $json.user_id, title: $json.optimized_titles?.amazon_title || $json.product?.title_en, price: $json.profitable_markets?.find(m => m.marketplace?.startsWith('amazon'))?.selling_price }) }}",
+        "options": { "timeout": 120000 }
+      },
+      "name": "Amazon出品実行",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { error: true, code: 'SHOPEE_NOT_IMPLEMENTED', message: 'Shopee出品ワークフローは未実装' }}];"
+      },
+      "name": "Shopee（未実装）",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { error: true, code: 'UNKNOWN_MARKETPLACE', message: '未対応の販路です' }}];"
+      },
+      "name": "未対応販路",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 📊 結果集約\n// ============================================================================\nconst result = $input.first().json;\nconst prevData = $node['🛡️ リスク評価 + HitL判定'].json;\n\nconst success = !result.error && (result.success || result.ItemID || result.status === 'success');\n\nreturn [{ json: {\n  success: success,\n  product_id: prevData.product?.id,\n  product_sku: prevData.product?.sku,\n  marketplace: prevData.profitable_markets?.[0]?.marketplace,\n  selling_price: prevData.profitable_markets?.[0]?.selling_price,\n  profit_rate: prevData.profitable_markets?.[0]?.profit_rate,\n  account_id: prevData._slot_allocation?.account_id,\n  risk_level: prevData._risk_assessment?.risk_level,\n  listing_result: result,\n  _traces: {\n    auth: prevData._auth,\n    price_calc: prevData._price_calc,\n    slot_allocation: prevData._slot_allocation,\n    decision_trace: prevData._decision_trace\n  }\n}}];"
+      },
+      "name": "📊 結果集約",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO listing_history (user_id, product_id, target_mall, status, result_json, created_at) VALUES ($1, $2, $3, $4, $5::jsonb, NOW())",
+        "options": { "queryParams": "={{ [$json._traces?.auth?.tenant_id || 'default', $json.product_id, $json.marketplace, $json.success ? 'success' : 'failed', JSON.stringify({ success: $json.success, price: $json.selling_price, profit_rate: $json.profit_rate, account_id: $json.account_id })] }}" }
+      },
+      "name": "💾 出品履歴記録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" }},
+      "continueOnFail": true
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{$env.SUPABASE_ANON_KEY}}" },
+            { "name": "Authorization", "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"{{ $json.success ? 'success' : 'failed' }}\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": {{ $json.success ? 'null' : JSON.stringify($json.listing_result?.error || 'Unknown') }},\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": { \"product_id\": \"{{ $json.product_id }}\", \"marketplace\": \"{{ $json.marketplace }}\" }\n}"
+      },
+      "name": "📊 実行ログ送信",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": { "responseCode": "={{ $json.success ? 200 : 400 }}" }
+      },
+      "name": "✅ 最終応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    }
+  ],
+
+  "connections": {
+    "Webhook: V8.2.1出品ハブ": { "main": [[{ "node": "🔐 Auth-Gate（27次元-3）", "type": "main", "index": 0 }]] },
+    "🔐 Auth-Gate（27次元-3）": { "main": [[{ "node": "認証エラー？", "type": "main", "index": 0 }]] },
+    "認証エラー？": { "main": [[{ "node": "認証エラー応答", "type": "main", "index": 0 }], [{ "node": "💰 燃焼上限チェック（27次元-22）", "type": "main", "index": 0 }]] },
+    "💰 燃焼上限チェック（27次元-22）": { "main": [[{ "node": "燃焼上限超過？", "type": "main", "index": 0 }]] },
+    "燃焼上限超過？": { "main": [[{ "node": "燃焼上限エラー応答", "type": "main", "index": 0 }], [{ "node": "📦 商品情報取得", "type": "main", "index": 0 }]] },
+    "📦 商品情報取得": { "main": [[{ "node": "🔗 価格計算強制統合", "type": "main", "index": 0 }]] },
+    "🔗 価格計算強制統合": { "main": [[{ "node": "価格計算エラー？", "type": "main", "index": 0 }]] },
+    "価格計算エラー？": { "main": [[{ "node": "価格計算エラー応答", "type": "main", "index": 0 }], [{ "node": "📊 枠オプティマイザー", "type": "main", "index": 0 }]] },
+    "📊 枠オプティマイザー": { "main": [[{ "node": "枠なし？", "type": "main", "index": 0 }]] },
+    "枠なし？": { "main": [[{ "node": "🌙 夜間シフトキュー登録", "type": "main", "index": 0 }], [{ "node": "🧠 Gemini: タイトル最適化", "type": "main", "index": 0 }]] },
+    "🌙 夜間シフトキュー登録": { "main": [[{ "node": "夜間シフト応答", "type": "main", "index": 0 }]] },
+    "🧠 Gemini: タイトル最適化": { "main": [[{ "node": "📝 Decision Trace記録（27次元-13）", "type": "main", "index": 0 }]] },
+    "📝 Decision Trace記録（27次元-13）": { "main": [[{ "node": "🛡️ リスク評価 + HitL判定", "type": "main", "index": 0 }]] },
+    "🛡️ リスク評価 + HitL判定": { "main": [[{ "node": "HitL必要？", "type": "main", "index": 0 }]] },
+    "HitL必要？": { "main": [[{ "node": "📋 HitLキュー登録", "type": "main", "index": 0 }], [{ "node": "販路分岐", "type": "main", "index": 0 }]] },
+    "📋 HitLキュー登録": { "main": [[{ "node": "HitL待ち応答", "type": "main", "index": 0 }]] },
+    "販路分岐": { "main": [[{ "node": "eBay出品実行", "type": "main", "index": 0 }], [{ "node": "Qoo10出品実行", "type": "main", "index": 0 }], [{ "node": "Amazon出品実行", "type": "main", "index": 0 }], [{ "node": "Shopee（未実装）", "type": "main", "index": 0 }], [{ "node": "未対応販路", "type": "main", "index": 0 }]] },
+    "eBay出品実行": { "main": [[{ "node": "📊 結果集約", "type": "main", "index": 0 }]] },
+    "Qoo10出品実行": { "main": [[{ "node": "📊 結果集約", "type": "main", "index": 0 }]] },
+    "Amazon出品実行": { "main": [[{ "node": "📊 結果集約", "type": "main", "index": 0 }]] },
+    "Shopee（未実装）": { "main": [[{ "node": "📊 結果集約", "type": "main", "index": 0 }]] },
+    "未対応販路": { "main": [[{ "node": "📊 結果集約", "type": "main", "index": 0 }]] },
+    "📊 結果集約": { "main": [[{ "node": "💾 出品履歴記録", "type": "main", "index": 0 }]] },
+    "💾 出品履歴記録": { "main": [[{ "node": "📊 実行ログ送信", "type": "main", "index": 0 }]] },
+    "📊 実行ログ送信": { "main": [[{ "node": "✅ 最終応答", "type": "main", "index": 0 }]] }
+  },
+
+  "settings": {
+    "executionTimeout": 600,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+
+  "tags": [
+    { "name": "V8.2.1-Autonomous", "color": "#dc143c" },
+    { "name": "27D-Compliant", "color": "#ffd700" },
+    { "name": "Price-Calc-Integrated", "color": "#32cd32" },
+    { "name": "Slot-Optimizer", "color": "#9b59b6" },
+    { "name": "HitL-Enabled", "color": "#3498db" }
+  ],
+
+  "active": false
+}

@@ -1,0 +1,323 @@
+{
+  "_meta": {
+    "version": "5.0",
+    "description": "27次元帝国法典 — 監査ルール定義 (MASTER_LAW.md から自動同期)",
+    "generated_from": "total-empire-audit.js EMPIRE_RULES",
+    "updated_at": "2026-02-06",
+    "how_to_add_rules": "このファイルにルールを追加し、total-empire-audit.js が自動で読み込みます。patternは正規表現文字列です。",
+    "last_synced_from_law": "2026-02-06T07:55:32.260Z",
+    "law_rules_count": 8
+  },
+  "scan_targets": {
+    "typescript": [
+      {
+        "dir": "app",
+        "extensions": [
+          ".ts",
+          ".tsx"
+        ]
+      },
+      {
+        "dir": "src/app",
+        "extensions": [
+          ".ts",
+          ".tsx"
+        ]
+      },
+      {
+        "dir": "lib",
+        "extensions": [
+          ".ts",
+          ".tsx"
+        ]
+      },
+      {
+        "dir": "components",
+        "extensions": [
+          ".ts",
+          ".tsx"
+        ]
+      },
+      {
+        "dir": "services",
+        "extensions": [
+          ".ts"
+        ]
+      },
+      {
+        "dir": "hooks",
+        "extensions": [
+          ".ts",
+          ".tsx"
+        ]
+      },
+      {
+        "dir": "contexts",
+        "extensions": [
+          ".ts",
+          ".tsx"
+        ]
+      },
+      {
+        "dir": "types",
+        "extensions": [
+          ".ts"
+        ]
+      }
+    ],
+    "python": [
+      {
+        "dir": "scripts",
+        "extensions": [
+          ".py"
+        ]
+      },
+      {
+        "dir": "python-scripts",
+        "extensions": [
+          ".py"
+        ]
+      },
+      {
+        "dir": "02_DEV_LAB/python-scripts",
+        "extensions": [
+          ".py"
+        ]
+      }
+    ],
+    "n8n": [
+      {
+        "dir": "02_DEV_LAB/n8n-workflows/PRODUCTION",
+        "extensions": [
+          ".json"
+        ]
+      }
+    ]
+  },
+  "exclude_dirs": [
+    "node_modules",
+    ".next",
+    ".git",
+    "__pycache__",
+    ".venv",
+    "dist",
+    "build"
+  ],
+  "exclude_files": [
+    ".d.ts",
+    ".test.ts",
+    ".spec.ts",
+    "package.json",
+    "tsconfig.json"
+  ],
+  "rules": {
+    "typescript": {
+      "physical": {
+        "TS-PHY-001": {
+          "name": "console.log使用",
+          "severity": "WARNING",
+          "description": "本番環境でのconsole出力（第6.3条: 永久追放）",
+          "pattern": "console\\.(log|debug|info)\\s*\\(",
+          "flags": "g",
+          "autofix": true
+        },
+        "TS-PHY-002": {
+          "name": "process.env直参照",
+          "severity": "CRITICAL",
+          "description": "process.env直参照（getEnvまたはfetchSecretを使用すべき、第4.5条: 大逆罪）",
+          "pattern": "process\\.env\\.\\w+",
+          "flags": "g",
+          "autofix": false
+        },
+        "TS-PHY-003": {
+          "name": "ハードコードURL",
+          "pattern": "['\"`]https?://(?!localhost)[^'\"`\\s]+['\"`]",
+          "flags": "g",
+          "severity": "WARNING",
+          "autofix": false,
+          "description": "ハードコードされた外部URL"
+        },
+        "TS-PHY-004": {
+          "name": "ハードコードIPアドレス",
+          "pattern": "['\"`]\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}['\"`]",
+          "flags": "g",
+          "severity": "CRITICAL",
+          "autofix": false,
+          "description": "ハードコードされたIPアドレス"
+        },
+        "TS-PHY-005": {
+          "name": "ハードコードシークレット",
+          "severity": "CRITICAL",
+          "description": "ハードコードされたシークレット/APIキー（第4.5条: 大逆罪）",
+          "pattern": "(?:api[_-]?key|secret|password|token)\\s*[:=]\\s*['\"`][A-Za-z0-9_\\-]{16,}['\"`]",
+          "flags": "gi",
+          "autofix": false
+        },
+        "TS-PHY-006": {
+          "name": "any型使用",
+          "pattern": ":\\s*any\\b|as\\s+any\\b",
+          "flags": "g",
+          "severity": "WARNING",
+          "autofix": false,
+          "description": "any型の使用（型安全性の欠如）"
+        },
+        "TS-PHY-007": {
+          "name": "eslint-disable",
+          "pattern": "//\\s*eslint-disable|/\\*\\s*eslint-disable",
+          "flags": "g",
+          "severity": "WARNING",
+          "autofix": false,
+          "description": "ESLint無効化コメント"
+        },
+        "TS-PHY-008": {
+          "name": "@ts-ignore",
+          "severity": "ERROR",
+          "description": "TypeScriptチェック無効化",
+          "pattern": "\\/\\/\\s*@ts-ignore|\\/\\/\\s*@ts-nocheck",
+          "flags": "g",
+          "autofix": false
+        }
+      },
+      "logical": {
+        "TS-LOG-001": {
+          "name": "生fetch使用",
+          "check_type": "function",
+          "check_logic": "hasFetchWithoutWrapper",
+          "severity": "ERROR",
+          "description": "生fetch()使用（imperialSafeDispatchを使用すべき）"
+        },
+        "TS-LOG-002": {
+          "name": "Zod未使用API処理",
+          "check_type": "function",
+          "check_logic": "apiWithoutZod",
+          "severity": "WARNING",
+          "description": "APIレスポンスのZodスキーマ検証なし"
+        },
+        "TS-LOG-003": {
+          "name": "try-catch欠落",
+          "check_type": "function",
+          "check_logic": "asyncWithoutTryCatch",
+          "severity": "ERROR",
+          "description": "非同期処理にtry-catchがない"
+        },
+        "TS-LOG-004": {
+          "name": "エラーハンドリング不備",
+          "check_type": "function",
+          "check_logic": "emptyCatch",
+          "severity": "ERROR",
+          "description": "空のcatchまたはconsole.logのみのエラーハンドリング"
+        },
+        "TS-LOG-005": {
+          "name": "CORS設定露出",
+          "check_type": "function",
+          "check_logic": "looseCORS",
+          "severity": "WARNING",
+          "description": "CORS設定が緩すぎる（ワイルドカード使用）"
+        }
+      },
+      "dimension": {
+        "TS-DIM-003": {
+          "name": "次元3: Auth-Gate",
+          "check_type": "dimension",
+          "check_logic": "authGate",
+          "severity": "CRITICAL",
+          "description": "API認証なし"
+        },
+        "TS-DIM-022": {
+          "name": "次元22: Burn Limit",
+          "check_type": "dimension",
+          "check_logic": "burnLimit",
+          "severity": "ERROR",
+          "description": "燃焼上限チェックなし"
+        },
+        "TS-DIM-027": {
+          "name": "次元27: 通知",
+          "check_type": "dimension",
+          "check_logic": "notification",
+          "severity": "WARNING",
+          "description": "エラー通知なし"
+        }
+      }
+    },
+    "python": {
+      "physical": {
+        "PY-PHY-001": {
+          "name": "print()使用",
+          "severity": "WARNING",
+          "description": "本番環境でのprint()使用（loggingを使用すべき、第6.3条）",
+          "pattern": "\\bprint\\s*\\(",
+          "flags": "g",
+          "autofix": true
+        },
+        "PY-PHY-002": {
+          "name": "os.getenv直参照",
+          "severity": "ERROR",
+          "description": "os.getenv直参照（SecretManagerを使用すべき、第4.5条）",
+          "pattern": "os\\.getenv\\s*\\(|os\\.environ\\[",
+          "flags": "g",
+          "autofix": false
+        },
+        "PY-PHY-003": {
+          "name": "ハードコードパスワード",
+          "pattern": "(?:password|secret|api_key|token)\\s*=\\s*['\"][^'\"]{8,}['\"]",
+          "flags": "gi",
+          "severity": "CRITICAL",
+          "autofix": false,
+          "description": "ハードコードされたパスワード/シークレット"
+        },
+        "PY-PHY-004": {
+          "name": "eval()使用",
+          "pattern": "\\beval\\s*\\(",
+          "flags": "g",
+          "severity": "CRITICAL",
+          "autofix": false,
+          "description": "eval()使用（セキュリティリスク）"
+        },
+        "PY-PHY-005": {
+          "name": "ハードコード接続文字列",
+          "pattern": "(?:postgresql|mysql|mongodb)://[^\\s'\"]+",
+          "flags": "g",
+          "severity": "CRITICAL",
+          "autofix": false,
+          "description": "ハードコードされたDB接続文字列"
+        },
+        "PY-PHY-006": {
+          "name": "SQLインジェクションリスク",
+          "severity": "CRITICAL",
+          "description": "SQLインジェクションリスク（パラメータ化クエリを使用すべき、第10条）",
+          "pattern": "execute\\s*\\(\\s*f['\"]|execute\\s*\\([^)]*%\\s*\\(",
+          "flags": "g",
+          "autofix": false
+        }
+      }
+    },
+    "n8n": {
+      "physical": {
+        "N8N-PHY-001": {
+          "name": "ハードコードURL",
+          "pattern": "https?://(?!localhost|\\{\\{)[^\"\\s]+",
+          "flags": "g",
+          "severity": "WARNING",
+          "autofix": false,
+          "description": "ハードコードされたURL（変数を使用すべき）"
+        },
+        "N8N-PHY-002": {
+          "name": "ハードコードAPIキー",
+          "pattern": "(?:api[_-]?key|token|secret).*?['\"][A-Za-z0-9_\\-]{16,}['\"]",
+          "flags": "gi",
+          "severity": "CRITICAL",
+          "autofix": false,
+          "description": "ハードコードされたAPIキー"
+        },
+        "N8N-PHY-004": {
+          "name": "SQLテンプレートインジェクション",
+          "severity": "CRITICAL",
+          "description": "SQLインジェクションリスク（第10条）",
+          "pattern": "VALUES\\s*\\([^)]*\\{\\{",
+          "flags": "g",
+          "autofix": false
+        }
+      }
+    }
+  }
+}

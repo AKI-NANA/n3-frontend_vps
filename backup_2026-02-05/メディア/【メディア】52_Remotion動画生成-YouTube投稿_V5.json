@@ -1,0 +1,772 @@
+{
+  "name": "N3-52-メディア-Remotion動画生成-YouTube投稿-V5-PRODUCTION",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "video-generate",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: video-generate",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "video-generate"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst apiUrl = $env.N3_API_URL || '{{$env.GATEWAY_URL}}';\nconst remotionUrl = $env.REMOTION_API_URL || 'http://localhost:3100';\nconst n8nUrl = $env.N8N_URL || '{{$env.N8N_BASE_URL}}';\n\nconst productId = body.product_id;\nconst videoType = body.video_type || 'youtube_short';\nconst autoPublish = body.auto_publish || false;\nconst generateVoice = body.generate_voice !== false;\nconst genre = body.genre || 'general';\n\nif (!productId) {\n  return [{ json: { error: true, message: 'product_id は必須', code: 'MISSING_PARAM' } }];\n}\n\nreturn [{ json: { product_id: productId, video_type: videoType, auto_publish: autoPublish, generate_voice: generateVoice, genre: genre, api_url: apiUrl, remotion_url: remotionUrl, n8n_url: n8nUrl } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT pm.*, pm.title_en, pm.description_en, im.purchase_price, im.image_url AS inv_image_url FROM products_master pm LEFT JOIN inventory_master im ON pm.id = im.product_id WHERE pm.id = $1",
+        "options": {
+          "queryParams": "={{ [$json.product_id] }}"
+        }
+      },
+      "id": "get-product",
+      "name": "📦 商品取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $node['🔐 初期化'].json.api_url }}/api/ai/generate-script",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ product_title: $json[0]?.title || $json.title, product_description: $json[0]?.description || $json.description, video_type: $node['🔐 初期化'].json.video_type, language: 'ja', duration: $node['🔐 初期化'].json.video_type === 'youtube_short' ? 60 : 300, genre: $node['🔐 初期化'].json.genre }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "generate-script",
+      "name": "📝 スクリプト生成",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $node['🔐 初期化'].json;\nconst productRaw = $node['📦 商品取得'].json;\nconst scriptResult = $input.first().json;\nconst product = Array.isArray(productRaw) ? productRaw[0] : productRaw;\n\nif (!product) return [{ json: { error: true, message: '商品が見つかりません' } }];\n\nconst script = scriptResult.script || scriptResult.text || `${product.title}の紹介動画です。日本からお届けする高品質な商品をぜひご覧ください。`;\nconst scenes = scriptResult.scenes || [\n  { duration: 3, type: 'title', text: product.title },\n  { duration: 5, type: 'image', image_url: product.image_url || product.inv_image_url },\n  { duration: 7, type: 'text', text: script.substring(0, 100) },\n  { duration: 3, type: 'cta', text: '概要欄のリンクから購入できます' }\n];\n\nreturn [{ json: { product_id: product.id, product_title: product.title, product_description: product.description, image_url: product.image_url || product.inv_image_url, price: product.price_inc_vat || product.price, script: script, scenes: scenes, video_type: config.video_type, auto_publish: config.auto_publish, generate_voice: config.generate_voice, genre: config.genre, remotion_url: config.remotion_url, n8n_url: config.n8n_url } }];"
+      },
+      "id": "process-script",
+      "name": "📋 スクリプト処理",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "generate-voice",
+              "leftValue": "={{ $json.generate_voice }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-voice",
+      "name": "音声生成？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.n8n_url }}/webhook/voice-generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $json.script, product_id: $json.product_id, genre: $json.genre, language: 'ja', add_breath: true }) }}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "generate-voice",
+      "name": "🎙️ ElevenLabs音声生成",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nreturn [{ json: { ...data, audio_url: null, audio_duration: null } }];"
+      },
+      "id": "skip-voice",
+      "name": "スキップ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const prevData = $node['📋 スクリプト処理'].json;\nconst voiceResult = $input.first().json;\nconst audioUrl = voiceResult.audio_url || null;\nconst audioDuration = voiceResult.duration_seconds || null;\nconst compositionId = prevData.video_type === 'youtube_short' ? 'ShortVideo' : 'LongVideo';\n\nconst remotionProps = {\n  compositionId: compositionId,\n  inputProps: {\n    title: prevData.product_title,\n    description: prevData.product_description,\n    script: prevData.script,\n    imageUrl: prevData.image_url,\n    audioUrl: audioUrl,\n    audioDuration: audioDuration,\n    scenes: prevData.scenes,\n    product: { price: prevData.price, currency: 'USD' },\n    style: { primaryColor: '#ff6b35', accentColor: '#fbbf24', fontFamily: 'Noto Sans JP', seed: prevData.product_id }\n  },\n  codec: 'h264',\n  imageFormat: 'jpeg'\n};\n\nreturn [{ json: { ...prevData, audio_url: audioUrl, audio_duration: audioDuration, remotion_props: remotionProps } }];"
+      },
+      "id": "prepare-remotion",
+      "name": "🎬 Remotion準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.remotion_url }}/api/render",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.remotion_props) }}",
+        "options": {
+          "timeout": 600000
+        }
+      },
+      "id": "render-video",
+      "name": "🎥 動画レンダリング",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const prepData = $node['🎬 Remotion準備'].json;\nconst renderResult = $input.first().json;\nconst videoUrl = renderResult.outputUrl || renderResult.url || renderResult.videoUrl || null;\nconst renderId = renderResult.renderId || renderResult.id || 'mock-render-' + Date.now();\nconst renderStatus = videoUrl ? 'completed' : (renderResult.error ? 'error' : 'pending');\nreturn [{ json: { ...prepData, video_url: videoUrl, render_id: renderId, render_status: renderStatus, render_error: renderResult.error || null } }];"
+      },
+      "id": "process-render",
+      "name": "📋 レンダー処理",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "auto-publish",
+              "leftValue": "={{ $json.auto_publish && $json.video_url }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-publish",
+      "name": "自動投稿？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// OAuth事前チェック（YouTube投稿前）\n// Gemini指示書準拠: トークン有効期限を5分前にチェックし、必要に応じてリフレッシュ\n// ============================================================================\n\nconst data = $input.first().json;\nconst n8nUrl = $env.N8N_URL || '{{$env.N8N_BASE_URL}}';\n\n// DBからトークン取得を試みる（youtube_tokensテーブル）\nlet needsRefresh = false;\nlet accessToken = $env.YOUTUBE_ACCESS_TOKEN || null;\nlet tokenExpiresAt = null;\n\ntry {\n  // 環境変数に有効期限がない場合はリフレッシュ推奨\n  if (!accessToken) {\n    needsRefresh = true;\n  } else {\n    // 一般的にYouTube OAuthトークンは1時間有効\n    // 安全のため、常にリフレッシュサブフローを呼び出し、最新トークンを取得\n    needsRefresh = true; // 常に最新を取得する安全設計\n  }\n} catch (e) {\n  needsRefresh = true;\n}\n\nreturn [{ json: { ...data, needs_token_refresh: needsRefresh, current_token: accessToken, n8n_url: n8nUrl } }];"
+      },
+      "id": "oauth-precheck",
+      "name": "🔑 OAuth事前チェック",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "needs-refresh",
+              "leftValue": "={{ $json.needs_token_refresh }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-token-refresh",
+      "name": "リフレッシュ必要？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.n8n_url }}/webhook/youtube-refresh-token",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ force: true }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "refresh-token",
+      "name": "🔄 トークンリフレッシュ",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// トークンリフレッシュ結果をマージ\nconst prevData = $node['🔑 OAuth事前チェック'].json;\nconst refreshResult = $input.first().json;\n\n// リフレッシュ成功時は新しいトークンを使用\nconst newToken = refreshResult.access_token || refreshResult.token || prevData.current_token;\nconst refreshSuccess = !!refreshResult.access_token || !!refreshResult.token;\n\nreturn [{ json: { ...prevData, youtube_access_token: newToken, token_refresh_success: refreshSuccess } }];"
+      },
+      "id": "process-refresh",
+      "name": "📋 リフレッシュ処理",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// リフレッシュスキップ時は現在のトークンを使用\nconst data = $input.first().json;\nreturn [{ json: { ...data, youtube_access_token: data.current_token || $env.YOUTUBE_ACCESS_TOKEN, token_refresh_success: false } }];"
+      },
+      "id": "skip-refresh",
+      "name": "スキップリフレッシュ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $json.youtube_access_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ snippet: { title: $json.product_title + ' - ' + ($json.video_type === 'youtube_short' ? '#Shorts' : '商品紹介'), description: $json.script.substring(0, 500) + '\\n\\n🛒 購入はこちら: 概要欄のリンクから', tags: ['Japanese products', 'N3 Global', '日本製', 'Quality'], categoryId: '22' }, status: { privacyStatus: 'public', selfDeclaredMadeForKids: false } }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "youtube-upload",
+      "name": "📺 YouTube投稿",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const prevData = $node['📋 リフレッシュ処理']?.json || $node['スキップリフレッシュ']?.json || {};\nconst youtubeResult = $input.first().json;\nconst youtubeId = youtubeResult.id || null;\nreturn [{ json: { ...prevData, youtube_id: youtubeId, publish_status: youtubeId ? 'published' : 'draft' } }];"
+      },
+      "id": "process-youtube",
+      "name": "📋 YouTube処理",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nreturn [{ json: { ...data, youtube_id: null, publish_status: 'draft' } }];"
+      },
+      "id": "skip-publish",
+      "name": "スキップ投稿",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO media_content (product_id, content_type, title, script, audio_url, media_url, platform_id, publish_status, render_status, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) ON CONFLICT (product_id, content_type) DO UPDATE SET title = EXCLUDED.title, script = EXCLUDED.script, audio_url = EXCLUDED.audio_url, media_url = EXCLUDED.media_url, platform_id = EXCLUDED.platform_id, publish_status = EXCLUDED.publish_status, render_status = EXCLUDED.render_status, metadata = EXCLUDED.metadata, updated_at = NOW() RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.product_id, $json.video_type, $json.product_title, $json.script, $json.audio_url, $json.video_url, $json.youtube_id, $json.publish_status, $json.render_status, JSON.stringify({ render_id: $json.render_id, genre: $json.genre, scenes: $json.scenes })] }}"
+        }
+      },
+      "id": "save-content",
+      "name": "💾 コンテンツ保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $node['📋 レンダー処理'].json;\nconst youtubeData = $node['📋 YouTube処理']?.json || $node['スキップ投稿']?.json || {};\nconst saveResult = $input.first().json;\nreturn [{ json: { success: true, content_id: saveResult?.id || saveResult?.[0]?.id, product_id: data.product_id, video_type: data.video_type, video_url: data.video_url, audio_url: data.audio_url, youtube_id: youtubeData.youtube_id, publish_status: youtubeData.publish_status || 'draft', render_status: data.render_status } }];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: video-generate": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📦 商品取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 商品取得": {
+      "main": [
+        [
+          {
+            "node": "📝 スクリプト生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 スクリプト生成": {
+      "main": [
+        [
+          {
+            "node": "📋 スクリプト処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 スクリプト処理": {
+      "main": [
+        [
+          {
+            "node": "音声生成？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "音声生成？": {
+      "main": [
+        [
+          {
+            "node": "🎙️ ElevenLabs音声生成",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "スキップ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎙️ ElevenLabs音声生成": {
+      "main": [
+        [
+          {
+            "node": "🎬 Remotion準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "スキップ": {
+      "main": [
+        [
+          {
+            "node": "🎬 Remotion準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎬 Remotion準備": {
+      "main": [
+        [
+          {
+            "node": "🎥 動画レンダリング",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎥 動画レンダリング": {
+      "main": [
+        [
+          {
+            "node": "📋 レンダー処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レンダー処理": {
+      "main": [
+        [
+          {
+            "node": "自動投稿？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "自動投稿？": {
+      "main": [
+        [
+          {
+            "node": "🔑 OAuth事前チェック",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "スキップ投稿",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔑 OAuth事前チェック": {
+      "main": [
+        [
+          {
+            "node": "リフレッシュ必要？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "リフレッシュ必要？": {
+      "main": [
+        [
+          {
+            "node": "🔄 トークンリフレッシュ",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "スキップリフレッシュ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 トークンリフレッシュ": {
+      "main": [
+        [
+          {
+            "node": "📋 リフレッシュ処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 リフレッシュ処理": {
+      "main": [
+        [
+          {
+            "node": "📺 YouTube投稿",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "スキップリフレッシュ": {
+      "main": [
+        [
+          {
+            "node": "📺 YouTube投稿",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📺 YouTube投稿": {
+      "main": [
+        [
+          {
+            "node": "📋 YouTube処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 YouTube処理": {
+      "main": [
+        [
+          {
+            "node": "💾 コンテンツ保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "スキップ投稿": {
+      "main": [
+        [
+          {
+            "node": "💾 コンテンツ保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 コンテンツ保存": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 900,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Remotion",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "YouTube",
+      "color": "#ff0000"
+    },
+    {
+      "name": "ElevenLabs",
+      "color": "#3498db"
+    },
+    {
+      "name": "OAuth-Enhanced",
+      "color": "#f1c40f"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false,
+  "meta": {
+    "description": "N3-52 Remotion動画生成 + YouTube投稿 V5-PRODUCTION - OAuth事前チェック追加版",
+    "version": "5.1",
+    "changelog": "2026-01-20: OAuth事前チェックノード追加（Gemini指示書準拠）",
+    "gemini_requirements_met": [
+      "oauth_auto_refresh",
+      "token_precheck"
+    ]
+  }
+}

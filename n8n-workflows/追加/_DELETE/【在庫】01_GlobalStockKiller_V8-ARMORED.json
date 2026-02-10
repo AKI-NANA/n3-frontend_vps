@@ -1,0 +1,945 @@
+{
+  "name": "【在庫】01_GlobalStockKiller_V8-ARMORED",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "stock-sync",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: 販売イベント",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        100,
+        300
+      ],
+      "webhookId": "stock-sync"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================\n// V8.2.1 Auth-Gate - JITトークン検証\n// ワークフロー: GlobalStockKiller\n// ========================================\n\nconst crypto = require('crypto');\nconst input = $input.first().json;\nconst startTime = Date.now();\n\nconst rawData = input.body || input;\nconst hmacSignature = input.headers?.['x-n3-signature'] || input.headers?.['X-N3-Signature'];\nconst hmacTimestamp = input.headers?.['x-n3-timestamp'] || input.headers?.['X-N3-Timestamp'];\n\nconst workflowName = '【在庫】01_GlobalStockKiller';\nconst requestId = rawData.requestId || `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;\nconst tenantId = rawData.tenantId || rawData.user_id || 'default';\nconst sourceIp = input.headers?.['x-forwarded-for'] || input.headers?.['x-real-ip'] || 'unknown';\n\nlet authResult = {\n  isValid: false,\n  reason: 'unknown',\n  tenantId: tenantId,\n  requestId: requestId,\n  workflowName: workflowName,\n  sourceIp: sourceIp,\n  validatedAt: new Date().toISOString()\n};\n\nif (hmacSignature && hmacTimestamp) {\n  const secret = $env.N8N_HMAC_SECRET;\n  if (!secret) {\n    authResult.reason = 'hmac_secret_missing';\n    authResult.shouldLogUnauthorized = true;\n  } else {\n    const now = Date.now();\n    const tsAge = now - parseInt(hmacTimestamp);\n    \n    if (tsAge > 300000 || tsAge < -30000) {\n      authResult.reason = 'timestamp_expired';\n      authResult.shouldLogUnauthorized = true;\n    } else {\n      const bodyString = JSON.stringify(rawData);\n      const computedHmac = crypto.createHmac('sha256', secret).update(hmacTimestamp + '.' + bodyString).digest('hex');\n      \n      if (hmacSignature === computedHmac) {\n        authResult.isValid = true;\n        authResult.reason = 'hmac_valid';\n        authResult.authMethod = 'hmac';\n      } else {\n        authResult.reason = 'hmac_invalid';\n        authResult.shouldLogUnauthorized = true;\n      }\n    }\n  }\n} else if (!input.headers) {\n  authResult.isValid = true;\n  authResult.reason = 'internal_call';\n  authResult.authMethod = 'internal';\n} else {\n  authResult.reason = 'no_auth_provided';\n  authResult.shouldLogUnauthorized = true;\n}\n\nauthResult.validationTimeMs = Date.now() - startTime;\nauthResult.originalPayload = rawData;\n\nreturn { json: authResult };"
+      },
+      "id": "auth-gate-v8",
+      "name": "🔐 V8 Auth-Gate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        300
+      ],
+      "notes": "[V8.2.1] Auth-Gate - 次元3実装"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.isValid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "auth-switch",
+      "name": "Auth Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO audit_logs (tenant_id, workflow_name, request_id, action, payload_masked, risk_level, status, error_message) VALUES ('{{ $json.tenantId }}', '{{ $json.workflowName }}', '{{ $json.requestId }}', 'auth_gate_blocked', '{\"source_ip\": \"{{ $json.sourceIp }}\", \"reason\": \"{{ $json.reason }}\"}'::jsonb, 'HIGH', 'error', 'Authentication failed: {{ $json.reason }}');",
+        "options": {}
+      },
+      "id": "auth-log-unauthorized",
+      "name": "📝 Log Unauthorized",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        500,
+        500
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-postgres",
+          "name": "Supabase PostgreSQL"
+        }
+      },
+      "notes": "\n[PATCHER] WARNING: このクエリはqueryParams方式への移行が必要です。手動で修正してください。"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT log_unauthorized_access('{{ $json.tenantId }}', '{{ $json.workflowName }}', '{{ $json.requestId }}', '{{ $json.authMethod || \"unknown\" }}', '{{ $json.reason }}', '{{ $json.sourceIp }}', NULL, NULL) as log_id;",
+        "options": {}
+      },
+      "id": "log-unauth-access",
+      "name": "🚫 Log Unauthorized Access",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        700,
+        500
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-postgres",
+          "name": "Supabase PostgreSQL"
+        }
+      },
+      "notes": "\n[PATCHER] WARNING: このクエリはqueryParams方式への移行が必要です。手動で修正してください。"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: 'AUTH_GATE_BLOCKED', message: $json.reason, requestId: $json.requestId }) }}",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "id": "auth-reject",
+      "name": "🚫 Auth Rejected",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        900,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst payload = input.originalPayload || {};\nreturn [{ json: { ...payload, _auth: { tenantId: input.tenantId, requestId: input.requestId, workflowName: input.workflowName, validatedAt: input.validatedAt, authMethod: input.authMethod } } }];"
+      },
+      "id": "auth-success-restore",
+      "name": "✅ Auth Success",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json;\nconst auth = body._auth || {};\nconst apiUrl = $env.N3_API_URL;\nif (!apiUrl) return [{ json: { error: true, message: 'N3_API_URL未設定', code: 'CONFIG_ERROR', _auth: auth } }];\n\nreturn [{ json: { product_id: body.product_id, marketplace: body.marketplace || 'ebay_us', user_id: body.user_id || auth.tenantId || 'default', limit: body.limit || 10, force: body.force || false, request_timestamp: Date.now(), _auth: auth } }];"
+      },
+      "id": "validate",
+      "name": "リクエスト検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.error }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラー？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, product_master_id, physical_quantity, updated_at FROM inventory_master WHERE product_master_id = '{{ $json.product_id }}' AND user_id = '{{ $json.user_id }}' LIMIT 1",
+        "options": {}
+      },
+      "id": "get-inventory",
+      "name": "在庫取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1300,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-postgres",
+          "name": "Supabase PostgreSQL"
+        }
+      },
+      "notes": "\n[PATCHER] WARNING: このクエリはqueryParams方式への移行が必要です。手動で修正してください。"
+    },
+    {
+      "parameters": {
+        "jsCode": "const event = $node['リクエスト検証'].json;\nconst inv = $input.first().json;\nif (!inv?.id) return [{ json: { error: true, message: '在庫未検出', _auth: event._auth } }];\nconst prev = inv.physical_quantity || 0;\nconst change = event.quantity_change || -1;\nreturn [{ json: { user_id: event.user_id, product_master_id: event.product_id, inventory_id: inv.id, inventory_updated_at: inv.updated_at, previous_quantity: prev, new_quantity: Math.max(0, prev + change), event_type: event.event_type || 'sync', source_marketplace: event.marketplace, ts: event.request_timestamp, _auth: event._auth } }];"
+      },
+      "id": "calc-stock",
+      "name": "在庫計算",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE inventory_master SET physical_quantity = {{ $json.new_quantity }}, updated_at = NOW() WHERE id = {{ $json.inventory_id }} AND user_id = '{{ $json.user_id }}'",
+        "options": {}
+      },
+      "id": "update-inventory",
+      "name": "在庫更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1700,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-postgres",
+          "name": "Supabase PostgreSQL"
+        }
+      },
+      "notes": "\n[PATCHER] WARNING: このクエリはqueryParams方式への移行が必要です。手動で修正してください。"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, marketplace_id, item_id, platform, status FROM marketplace_listings WHERE product_master_id = '{{ $json.product_master_id }}' AND user_id = '{{ $json.user_id }}' AND status IN ('active', 'pending')",
+        "options": {}
+      },
+      "id": "get-listings",
+      "name": "出品一覧取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1900,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-postgres",
+          "name": "Supabase PostgreSQL"
+        }
+      },
+      "notes": "\n[PATCHER] WARNING: このクエリはqueryParams方式への移行が必要です。手動で修正してください。"
+    },
+    {
+      "parameters": {
+        "jsCode": "const listings = Array.isArray($input.first().json) ? $input.first().json : [$input.first().json];\nconst ctx = $node['在庫計算'].json;\nif (!listings[0]?.id) return [{ json: { skip: true, ...ctx } }];\nreturn listings.map(l => ({ json: { ...l, ...ctx } }));"
+      },
+      "id": "expand-listings",
+      "name": "出品展開",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.skip }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-skip",
+      "name": "出品なし？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2300,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 5,
+        "options": {}
+      },
+      "id": "batch",
+      "name": "バッチ分割",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2500,
+        300
+      ],
+      "notes": "\n[PATCHER] WARNING: SplitInBatches直後にWaitノードがありません。API制限に注意してください。"
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.platform }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "ebay",
+              "output": 0
+            },
+            {
+              "value2": "shopee",
+              "output": 1
+            },
+            {
+              "value2": "amazon",
+              "output": 2
+            },
+            {
+              "value2": "qoo10",
+              "output": 3
+            }
+          ]
+        },
+        "fallbackOutput": 4
+      },
+      "id": "switch-platform",
+      "name": "販路分岐",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        2700,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_WEBHOOK_URL }}/webhook/ebay-revise-quantity",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N3-Signature",
+              "value": "={{ $env.N8N_INTERNAL_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ user_id: $json.user_id, item_id: $json.item_id, quantity: $json.new_quantity }) }}",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "ebay-api",
+      "name": "eBay API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2900,
+        100
+      ],
+      "retryOnFail": true,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N3_API_URL }}/api/shopee/update-stock",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ user_id: $json.user_id, item_id: $json.item_id, quantity: $json.new_quantity }) }}",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "shopee-api",
+      "name": "Shopee API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2900,
+        250
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N3_API_URL }}/api/amazon/update-inventory",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ user_id: $json.user_id, sku: $json.item_id, quantity: $json.new_quantity }) }}",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "amazon-api",
+      "name": "Amazon API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2900,
+        400
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N3_API_URL }}/api/qoo10/update-stock",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ user_id: $json.user_id, item_code: $json.item_id, quantity: $json.new_quantity }) }}",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "qoo10-api",
+      "name": "Qoo10 API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2900,
+        550
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { ...$input.first().json, sync_skipped: true } }];"
+      },
+      "id": "other-platform",
+      "name": "その他",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2900,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all().map(i => i.json);\nconst ctx = $node['在庫計算'].json;\nconst ok = results.filter(r => !r.error && !r.sync_skipped).length;\nconst err = results.filter(r => r.error).length;\nreturn [{ json: { user_id: ctx.user_id, product_master_id: ctx.product_master_id, prev_qty: ctx.previous_quantity, new_qty: ctx.new_quantity, total: results.length, ok, err, exec_ms: Date.now() - ctx.ts, _auth: ctx._auth } }];"
+      },
+      "id": "aggregate",
+      "name": "結果集約",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO audit_logs (tenant_id, workflow_name, request_id, action, payload_masked, risk_level, status, execution_time_ms) VALUES ('{{ $json.user_id }}', '【在庫】GlobalStockKiller', '{{ $json._auth.requestId }}', 'stock_sync_complete', '{\"product_id\": \"{{ $json.product_master_id }}\"}'::jsonb, 'LOW', '{{ $json.err > 0 ? \"error\" : \"success\" }}', {{ $json.exec_ms }});",
+        "options": {}
+      },
+      "id": "audit-log",
+      "name": "📊 Audit Log",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        3300,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-postgres",
+          "name": "Supabase PostgreSQL"
+        }
+      },
+      "continueOnFail": true,
+      "notes": "\n[PATCHER] WARNING: このクエリはqueryParams方式への移行が必要です。手動で修正してください。"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.err }}",
+              "operation": "larger",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "check-errors",
+      "name": "エラーあり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=[info][title]🚨 在庫同期エラー[/title]{{ $json.product_master_id }}\nOK: {{ $json.ok }} / ERR: {{ $json.err }}[/info]"
+            }
+          ]
+        },
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "alert",
+      "name": "ChatWork通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3700,
+        200
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, requestId: $json._auth?.requestId, ...$json }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond",
+      "name": "成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        3900,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook: 販売イベント": {
+      "main": [
+        [
+          {
+            "node": "🔐 V8 Auth-Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 V8 Auth-Gate": {
+      "main": [
+        [
+          {
+            "node": "Auth Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auth Valid?": {
+      "main": [
+        [
+          {
+            "node": "✅ Auth Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📝 Log Unauthorized",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 Log Unauthorized": {
+      "main": [
+        [
+          {
+            "node": "🚫 Log Unauthorized Access",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚫 Log Unauthorized Access": {
+      "main": [
+        [
+          {
+            "node": "🚫 Auth Rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ Auth Success": {
+      "main": [
+        [
+          {
+            "node": "リクエスト検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "リクエスト検証": {
+      "main": [
+        [
+          {
+            "node": "エラー？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラー？": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "在庫取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "在庫取得": {
+      "main": [
+        [
+          {
+            "node": "在庫計算",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "在庫計算": {
+      "main": [
+        [
+          {
+            "node": "在庫更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "在庫更新": {
+      "main": [
+        [
+          {
+            "node": "出品一覧取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "出品一覧取得": {
+      "main": [
+        [
+          {
+            "node": "出品展開",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "出品展開": {
+      "main": [
+        [
+          {
+            "node": "出品なし？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "出品なし？": {
+      "main": [
+        [
+          {
+            "node": "結果集約",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "バッチ分割",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "バッチ分割": {
+      "main": [
+        [
+          {
+            "node": "販路分岐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "販路分岐": {
+      "main": [
+        [
+          {
+            "node": "eBay API",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Shopee API",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Amazon API",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Qoo10 API",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "その他",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "eBay API": {
+      "main": [
+        [
+          {
+            "node": "結果集約",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shopee API": {
+      "main": [
+        [
+          {
+            "node": "結果集約",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Amazon API": {
+      "main": [
+        [
+          {
+            "node": "結果集約",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qoo10 API": {
+      "main": [
+        [
+          {
+            "node": "結果集約",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "その他": {
+      "main": [
+        [
+          {
+            "node": "結果集約",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "結果集約": {
+      "main": [
+        [
+          {
+            "node": "📊 Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Audit Log": {
+      "main": [
+        [
+          {
+            "node": "エラーあり？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーあり？": {
+      "main": [
+        [
+          {
+            "node": "ChatWork通知",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ChatWork通知": {
+      "main": [
+        [
+          {
+            "node": "成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 120,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none"
+  },
+  "tags": [
+    {
+      "name": "V8.2.1-ARMORED"
+    },
+    {
+      "name": "Auth-Gate"
+    },
+    {
+      "name": "Audit-Log"
+    }
+  ],
+  "active": false,
+  "versionId": "v8.2.1-armored"
+}

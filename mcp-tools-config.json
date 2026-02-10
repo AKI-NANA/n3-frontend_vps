@@ -1,0 +1,110 @@
+{
+  "_comment": "N3 Empire MCP ツール定義 — Claude Desktop / Cursor 用",
+  "_version": "1.0.0",
+  "_updated_at": "2026-02-06",
+  "_description": "7大領土 + 帝国エンジンを最大限活用するためのMCPツール定義。claude_desktop_config.json の mcpServers セクションに貼り付けてください。",
+
+  "mcpServers": {
+    "n3-empire-filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@anthropic-ai/mcp-filesystem-server",
+        "/Users/aritahiroaki/n3-frontend_new"
+      ],
+      "env": {}
+    },
+    "n3-empire-governance": {
+      "command": "node",
+      "args": ["/Users/aritahiroaki/n3-frontend_new/governance/mcp-governance-server.js"],
+      "env": {}
+    }
+  },
+
+  "_tool_definitions": {
+    "get_imperial_map": {
+      "description": "IMPERIAL_MAP.json (v2.0) を取得する。7大領土のディレクトリ構造、許可ファイル、routing rules、protected files を返す。AIコード生成前に必ず呼び出し、正しい配置先を確認すること。",
+      "implementation": "fs.readFileSync('governance/IMPERIAL_MAP.json', 'utf8')",
+      "returns": "IMPERIAL_MAP.json の全内容（JSON）",
+      "when_to_use": [
+        "新規ファイル作成前（配置先の確認）",
+        "ディレクトリ構造の質問時",
+        "PROTECTED_FILES の確認時",
+        "task_index.json の検索パス確認時"
+      ]
+    },
+    "run_organizer": {
+      "description": "帝国整理官（imperial-organizer.js）を実行する。IMPERIAL_MAP.json に基づき、野良ファイルを検出し 05_SKELETONS に移送する。--dry-run オプションで検出のみも可能。",
+      "implementation": "node governance/imperial-organizer.js [--dry-run] [--report]",
+      "returns": "organizer_result.json（検出・移送結果）",
+      "when_to_use": [
+        "開発セッション開始時",
+        "ファイル配置の整合性チェック時",
+        "野良ファイルの検出・掃除時"
+      ]
+    },
+    "run_audit": {
+      "description": "帝国統一監査スキャナー（total-empire-audit.js v4.1）を実行する。Law-to-Code 同期を含む。MASTER_LAW.md のルールが動的にマージされ、TypeScript/React, Python, n8n JSON を全言語監査する。",
+      "implementation": "node governance/total-empire-audit.js",
+      "returns": "TOTAL_EMPIRE_REPORT.md, total_audit.csv, violations_by_language.json",
+      "when_to_use": [
+        "コード品質チェック時",
+        "デプロイ前の最終確認",
+        "法典（MASTER_LAW.md）変更後の影響確認",
+        "定期的な帝国健康診断"
+      ]
+    },
+    "run_nightly_engine": {
+      "description": "帝国夜間エンジン（imperial-nightly-engine.js v4.0）を実行する。missions/00_queue のミッションを直列処理。起動時にOrganizer→憲法検証→法典検証を順次実行。",
+      "implementation": "node governance/imperial-nightly-engine.js [--dry-run] [--watch] [--status]",
+      "returns": "nightly_result.json + ジョブログ",
+      "when_to_use": [
+        "夜間バッチ実行時",
+        "ミッションステータス確認時 (--status)"
+      ]
+    },
+    "get_constitution": {
+      "description": "CONSTITUTION.md（帝国憲法全30条）を取得する。",
+      "implementation": "fs.readFileSync('governance/CONSTITUTION.md', 'utf8')",
+      "returns": "CONSTITUTION.md の全内容",
+      "when_to_use": [
+        "判断基準の確認時",
+        "PROTECTED_FILES の根拠確認時",
+        "停止条件の確認時"
+      ]
+    },
+    "get_master_law": {
+      "description": "MASTER_LAW.md（帝国法典 v2.1）を取得する。コーディング規約、json:rule 定義を含む。",
+      "implementation": "fs.readFileSync('governance/MASTER_LAW.md', 'utf8')",
+      "returns": "MASTER_LAW.md の全内容",
+      "when_to_use": [
+        "コーディング規約の確認時",
+        "監査ルールの根拠確認時",
+        "法典同期ルールの確認時"
+      ]
+    },
+    "get_task_index": {
+      "description": "task_index.json を取得する。登録済みタスクのキー、エイリアス、対象ファイル一覧。",
+      "implementation": "検索順: 01_PRODUCT/lib/data/ → src/lib/data/ → lib/data/",
+      "returns": "task_index.json の全内容",
+      "when_to_use": [
+        "開発タスク着手前（対象ファイルの確認）",
+        "ミッション作成時",
+        "タスク未登録の確認時"
+      ]
+    }
+  },
+
+  "_usage_instructions": {
+    "claude_desktop": {
+      "step_1": "Claude Desktop の設定ファイルを開く: ~/Library/Application Support/Claude/claude_desktop_config.json",
+      "step_2": "mcpServers セクションに上記の n3-empire-filesystem を追加",
+      "step_3": "Claude Desktop を再起動",
+      "step_4": "チャットで「get_imperial_map を読んで」と指示すれば帝国地図が読み込まれる"
+    },
+    "cursor": {
+      "step_1": ".cursor/mcp.json に上記ツール定義を追加",
+      "step_2": "Cursor を再起動"
+    }
+  }
+}

@@ -1,0 +1,29 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Theme: Light
+   ============================================================ */
+
+[data-theme="light"] {
+  --bg: #f8fafc;
+  --bg-solid: #f8fafc;
+  --glass: #ffffff;
+  --glass-border: #e2e8f0;
+  --panel: #ffffff;
+  --panel-border: #e2e8f0;
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --text-subtle: #94a3b8;
+  --accent: #6366f1;
+  --accent-bg: #6366f1;
+  --highlight: #f1f5f9;
+}
+
+[data-theme="light"] .n3-top-tools-container,
+[data-theme="light"] .n3-l2-tab-bar,
+[data-theme="light"] .n3-top-tools-container .n3-tools-nav-bar,
+[data-theme="light"] .n3-tools-panel {
+  background: var(--bg-solid);
+}
+
+[data-theme="light"] .n3-tools-panel-overlay {
+  background: var(--bg-solid) !important;
+}

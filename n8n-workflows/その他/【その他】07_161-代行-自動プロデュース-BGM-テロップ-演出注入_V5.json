@@ -1,0 +1,370 @@
+{
+  "name": "【その他】07_161-代行-自動プロデュース-BGM-テロップ-演出注入_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "partner-auto-produce",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: auto-produce",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "partner-auto-produce"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 鉄の掟準拠：環境変数必須チェック\nconst apiUrl = $env.N3_API_URL || $env.API_BASE_URL;\nconst remotionUrl = $env.REMOTION_API_URL;\n\nif (!apiUrl) {\n  return [{ json: { error: true, message: 'N3_API_URL環境変数が未設定', code: 'CONFIG_ERROR' } }];\n}\n\nconst body = $input.first().json.body || $input.first().json || {};\nconst uploadId = body.upload_id;\n\nif (!uploadId) {\n  return [{ json: { error: true, message: 'upload_id は必須', code: 'MISSING_PARAM' } }];\n}\n\nreturn [{\n  json: {\n    upload_id: uploadId,\n    api_url: apiUrl,\n    remotion_url: remotionUrl,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔐 初期化（鉄の掟準拠）",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT pu.upload_id, pu.partner_id, pu.video_url, pu.video_key, pu.analysis_result, pp.partner_name, pp.default_style, pp.channel_id, mc.persona_dna FROM partner_uploads pu JOIN partner_profiles pp ON pu.partner_id = pp.partner_id LEFT JOIN media_channels mc ON pp.channel_id = mc.channel_id WHERE pu.upload_id = $1 AND pu.status = 'pending_production'",
+        "options": {
+          "queryParams": "={{ [$json.upload_id] }}"
+        }
+      },
+      "id": "get-upload",
+      "name": "📋 アップロード情報取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 演出パラメータ生成（解析結果に基づく）\nconst initData = $node['🔐 初期化（鉄の掟準拠）'].json;\nconst uploadData = $input.first().json;\n\nif (!uploadData || !uploadData.upload_id) {\n  return [{ json: { error: true, message: 'アップロードが見つかりません', code: 'UPLOAD_NOT_FOUND' } }];\n}\n\nconst analysis = typeof uploadData.analysis_result === 'string' \n  ? JSON.parse(uploadData.analysis_result) \n  : uploadData.analysis_result || {};\n\nconst personaDna = typeof uploadData.persona_dna === 'string'\n  ? JSON.parse(uploadData.persona_dna)\n  : uploadData.persona_dna || {};\n\n// BGM選択ロジック\nconst bgmMap = {\n  'energetic': 'upbeat_pop',\n  'calm': 'ambient_chill',\n  'educational': 'light_corporate',\n  'entertaining': 'fun_quirky',\n  'neutral': 'soft_background'\n};\nconst recommendedBgm = bgmMap[analysis.recommended_bgm] || 'soft_background';\n\n// テロップスタイル選択\nconst styleMap = {\n  'professional': { font: 'NotoSansJP-Bold', color: '#333333', bg: '#FFFFFF' },\n  'casual': { font: 'RoundedMplus1c', color: '#FF6B6B', bg: '#FFF5F5' },\n  'tech': { font: 'SourceCodePro', color: '#00D4FF', bg: '#1A1A2E' },\n  'standard': { font: 'NotoSansJP-Medium', color: '#222222', bg: '#F5F5F5' }\n};\nconst telopStyle = styleMap[analysis.recommended_style] || styleMap['standard'];\n\n// 演出パラメータ構築\nconst productionParams = {\n  bgm: {\n    track_id: recommendedBgm,\n    volume: 0.15,\n    ducking_enabled: true,\n    ducking_threshold: -20\n  },\n  telop: {\n    ...telopStyle,\n    animation: 'fade_slide',\n    duration_multiplier: 1.0\n  },\n  effects: {\n    intro_animation: true,\n    outro_animation: true,\n    transition_style: 'smooth_fade',\n    color_correction: analysis.quality_score < 7 ? 'enhance' : 'none'\n  },\n  persona: personaDna\n};\n\nreturn [{\n  json: {\n    ...initData,\n    ...uploadData,\n    analysis: analysis,\n    production_params: productionParams\n  }\n}];"
+      },
+      "id": "build-production",
+      "name": "🎬 演出パラメータ構築",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.remotion_url || $env.REMOTION_API_URL }}/api/render",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.REMOTION_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"composition\": \"PartnerVideoProduction\",\n  \"inputProps\": {\n    \"sourceVideoUrl\": \"{{ $json.video_url }}\",\n    \"bgm\": {{ JSON.stringify($json.production_params.bgm) }},\n    \"telop\": {{ JSON.stringify($json.production_params.telop) }},\n    \"effects\": {{ JSON.stringify($json.production_params.effects) }},\n    \"persona\": {{ JSON.stringify($json.production_params.persona) }}\n  },\n  \"codec\": \"h264\",\n  \"imageFormat\": \"jpeg\"\n}",
+        "options": {
+          "timeout": 600000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "remotion-render",
+      "name": "🎥 Remotionレンダリング",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE partner_uploads SET status = 'produced', production_params = $2::jsonb, produced_video_url = $3, produced_at = NOW(), updated_at = NOW() WHERE upload_id = $1",
+        "options": {
+          "queryParams": "={{ [$json.upload_id, JSON.stringify($node['🎬 演出パラメータ構築'].json.production_params), $json.outputUrl || ''] }}"
+        }
+      },
+      "id": "update-status",
+      "name": "💾 ステータス更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const buildData = $node['🎬 演出パラメータ構築'].json;\nconst renderResult = $node['🎥 Remotionレンダリング'].json;\n\nreturn [{\n  json: {\n    success: true,\n    action: 'partner_video_produced',\n    upload_id: buildData.upload_id,\n    partner_id: buildData.partner_id,\n    partner_name: buildData.partner_name,\n    produced_video_url: renderResult.outputUrl || null,\n    production_params: buildData.production_params,\n    next_step: 'revenue_share_calculate',\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: auto-produce": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化（鉄の掟準拠）": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 アップロード情報取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 アップロード情報取得": {
+      "main": [
+        [
+          {
+            "node": "🎬 演出パラメータ構築",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎬 演出パラメータ構築": {
+      "main": [
+        [
+          {
+            "node": "🎥 Remotionレンダリング",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎥 Remotionレンダリング": {
+      "main": [
+        [
+          {
+            "node": "💾 ステータス更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 ステータス更新": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化（鉄の掟準拠）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 900,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Partner",
+      "color": "#3498db"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Remotion",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "IronRule",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false,
+  "meta": {
+    "description": "N3-161 自動プロデュース V5-PRODUCTION - BGM/テロップ/演出を自動注入→Remotionレンダリング",
+    "version": "5.0",
+    "changelog": "2026-01-20: 鉄の掟準拠 - 環境変数必須化、解析結果に基づく動的演出選択",
+    "iron_rules_compliant": [
+      "no_hardcoded_urls",
+      "query_params_only",
+      "no_crypto_require"
+    ]
+  }
+}

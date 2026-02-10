@@ -1,0 +1,568 @@
+{
+  "name": "【司令塔】08_59-外注-作業管理-報酬計算_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "outsource-manage",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: outsource-manage",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "outsource-manage"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0 25 * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-monthly",
+      "name": "毎月25日",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst action = body.action || 'list_workers'; // list_workers, record_task, calc_payment, list_tasks\nconst workerId = body.worker_id;\nconst taskData = body.task_data || {};\nconst periodStart = body.period_start;\nconst periodEnd = body.period_end;\nconst isScheduled = !$input.first().json.body;\nreturn [{ json: { action, worker_id: workerId, task_data: taskData, period_start: periodStart, period_end: periodEnd, is_scheduled: isScheduled } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "rules": [
+            {
+              "outputKey": "list_workers",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "list_workers",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "record_task",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "record_task",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "list_tasks",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "list_tasks",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "calc_payment",
+              "conditions": {
+                "combinator": "or",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "calc_payment",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  },
+                  {
+                    "leftValue": "={{ $json.is_scheduled }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "fallbackOutput": "list_workers"
+        }
+      },
+      "id": "switch-action",
+      "name": "🔀 アクション分岐",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM outsource_workers WHERE is_active = true ORDER BY worker_name",
+        "options": {}
+      },
+      "id": "list-workers",
+      "name": "👷 スタッフ一覧",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT ow.*, ot.task_type, ot.quantity, ot.task_date FROM outsource_workers ow LEFT JOIN outsource_tasks ot ON ow.id = ot.worker_id WHERE ow.id = $1::uuid ORDER BY ot.task_date DESC LIMIT 50",
+        "options": {
+          "queryParams": "={{ [$node['🔐 初期化'].json.worker_id] }}"
+        }
+      },
+      "id": "list-tasks",
+      "name": "📋 作業一覧",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM outsource_workers WHERE id = $1::uuid",
+        "options": {
+          "queryParams": "={{ [$node['🔐 初期化'].json.worker_id] }}"
+        }
+      },
+      "id": "get-worker",
+      "name": "👷 スタッフ取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $node['🔐 初期化'].json;\nconst workerRaw = $input.first().json;\nconst worker = Array.isArray(workerRaw) ? workerRaw[0] : workerRaw;\nif (!worker) return [{ json: { error: true, message: 'スタッフが見つかりません' } }];\n\nconst task = config.task_data;\nconst taskType = task.type || 'inspection';\n\nconst rateMap = {\n  'inspection': worker.rate_inspection || 100,\n  'photography': worker.rate_photography || 50,\n  'packing': worker.rate_packing || 150,\n  'shipping': worker.rate_shipping || 100,\n  'listing': worker.rate_listing || 200,\n  'other': 100\n};\n\nconst unitRate = rateMap[taskType] || 100;\nconst quantity = task.quantity || 1;\nconst totalAmount = unitRate * quantity;\n\nreturn [{ json: { worker_id: worker.id, task_type: taskType, quantity: quantity, unit_rate: unitRate, total_amount: totalAmount, product_id: task.product_id, order_id: task.order_id, notes: task.notes, photo_count: task.photo_count } }];"
+      },
+      "id": "calc-task",
+      "name": "💰 作業金額計算",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO outsource_tasks (worker_id, task_type, quantity, unit_rate, total_amount, product_id, order_id, notes, photo_count, task_status) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7::uuid, $8, $9, 'completed') RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.worker_id, $json.task_type, $json.quantity, $json.unit_rate, $json.total_amount, $json.product_id, $json.order_id, $json.notes, $json.photo_count] }}"
+        }
+      },
+      "id": "insert-task",
+      "name": "💾 作業記録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT ow.id as worker_id, ow.worker_name, ow.bank_name, ow.bank_account_number, COUNT(ot.id) as total_tasks, SUM(CASE WHEN ot.task_type = 'inspection' THEN ot.quantity ELSE 0 END) as total_inspection, SUM(CASE WHEN ot.task_type = 'photography' THEN ot.quantity ELSE 0 END) as total_photography, SUM(CASE WHEN ot.task_type = 'packing' THEN ot.quantity ELSE 0 END) as total_packing, SUM(CASE WHEN ot.task_type = 'shipping' THEN ot.quantity ELSE 0 END) as total_shipping, SUM(CASE WHEN ot.task_type = 'listing' THEN ot.quantity ELSE 0 END) as total_listing, SUM(ot.total_amount) as gross_amount FROM outsource_workers ow LEFT JOIN outsource_tasks ot ON ow.id = ot.worker_id AND ot.task_date >= DATE_TRUNC('month', CURRENT_DATE) AND ot.task_date < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month' WHERE ow.is_active = true GROUP BY ow.id, ow.worker_name, ow.bank_name, ow.bank_account_number",
+        "options": {}
+      },
+      "id": "calc-monthly",
+      "name": "📊 月次集計",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst workers = Array.isArray(data) ? data : (data?.worker_id ? [data] : []);\n\nconst now = new Date();\nconst periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];\nconst periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];\n\nconst payments = workers.filter(w => w.gross_amount > 0).map(w => ({\n  worker_id: w.worker_id,\n  worker_name: w.worker_name,\n  period_start: periodStart,\n  period_end: periodEnd,\n  total_tasks: parseInt(w.total_tasks) || 0,\n  total_inspection: parseInt(w.total_inspection) || 0,\n  total_photography: parseInt(w.total_photography) || 0,\n  total_packing: parseInt(w.total_packing) || 0,\n  total_shipping: parseInt(w.total_shipping) || 0,\n  total_listing: parseInt(w.total_listing) || 0,\n  gross_amount: parseInt(w.gross_amount) || 0,\n  net_amount: parseInt(w.gross_amount) || 0,\n  bank_info: `${w.bank_name || ''} ${w.bank_account_number || ''}`\n}));\n\nreturn payments.length > 0 ? payments.map(p => ({ json: p })) : [{ json: { no_data: true, message: '支払対象なし' } }];"
+      },
+      "id": "prepare-payments",
+      "name": "📋 支払準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO outsource_payments (worker_id, period_start, period_end, total_tasks, total_inspection, total_photography, total_packing, total_shipping, total_listing, gross_amount, net_amount, payment_status) VALUES ($1::uuid, $2::date, $3::date, $4, $5, $6, $7, $8, $9, $10, $11, 'pending') ON CONFLICT DO NOTHING RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.worker_id, $json.period_start, $json.period_end, $json.total_tasks, $json.total_inspection, $json.total_photography, $json.total_packing, $json.total_shipping, $json.total_listing, $json.gross_amount, $json.net_amount] }}"
+        }
+      },
+      "id": "insert-payment",
+      "name": "💾 支払記録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=[info][title]👷 外注報酬計算完了[/title]スタッフ: {{ $json.worker_name }}\\n期間: {{ $json.period_start }} ~ {{ $json.period_end }}\\n作業件数: {{ $json.total_tasks }}件\\n支払額: ¥{{ $json.net_amount }}[/info]"
+            }
+          ]
+        }
+      },
+      "id": "notify",
+      "name": "📢 通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const action = $node['🔐 初期化'].json.action;\nconst isScheduled = $node['🔐 初期化'].json.is_scheduled;\nlet result = { success: true, action: isScheduled ? 'calc_payment' : action };\n\nif (action === 'list_workers' && !isScheduled) {\n  const workers = $node['👷 スタッフ一覧'].json;\n  result.workers = Array.isArray(workers) ? workers : (workers?.id ? [workers] : []);\n} else if (action === 'list_tasks') {\n  const tasks = $node['📋 作業一覧'].json;\n  result.tasks = Array.isArray(tasks) ? tasks : [];\n} else if (action === 'record_task') {\n  const task = $node['💾 作業記録'].json;\n  result.task_id = task?.id;\n  result.amount = $node['💰 作業金額計算'].json.total_amount;\n} else {\n  const payments = $input.all().map(i => i.json).filter(p => !p.no_data);\n  result.payments = payments;\n  result.total_workers = payments.length;\n  result.total_amount = payments.reduce((sum, p) => sum + (p.net_amount || 0), 0);\n}\n\nreturn [{ json: result }];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: outsource-manage": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "毎月25日": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "🔀 アクション分岐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 アクション分岐": {
+      "main": [
+        [
+          {
+            "node": "👷 スタッフ一覧",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "👷 スタッフ取得",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 作業一覧",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📊 月次集計",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "👷 スタッフ一覧": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 作業一覧": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "👷 スタッフ取得": {
+      "main": [
+        [
+          {
+            "node": "💰 作業金額計算",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💰 作業金額計算": {
+      "main": [
+        [
+          {
+            "node": "💾 作業記録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 作業記録": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 月次集計": {
+      "main": [
+        [
+          {
+            "node": "📋 支払準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 支払準備": {
+      "main": [
+        [
+          {
+            "node": "💾 支払記録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 支払記録": {
+      "main": [
+        [
+          {
+            "node": "📢 通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📢 通知": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 180,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Outsource",
+      "color": "#16a085"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Worker",
+      "color": "#f39c12"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

@@ -1,0 +1,548 @@
+{
+  "name": "【システム】01_15-分析-統合ダッシュボードスナップショット_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dashboard-snapshot",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: dashboard-snapshot",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "dashboard-snapshot"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "毎日0時実行",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst apiUrl = $env.N3_API_URL || '{{$env.GATEWAY_URL}}';\nconst secret = $env.N8N_INTERNAL_SECRET;\nif (!secret) return [{ json: { error: true, message: 'N8N_INTERNAL_SECRET未設定', code: 'CONFIG_ERROR' } }];\nconst snapshotDate = body.date || new Date().toISOString().split('T')[0];\nconst isScheduled = !$input.first().json.body;\nreturn [{ json: { snapshot_date: snapshotDate, is_scheduled: isScheduled, api_url: apiUrl } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) as total_orders, SUM(total_amount) as total_revenue, COUNT(CASE WHEN status = 'shipped' THEN 1 END) as shipped_orders, COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_orders, COUNT(DISTINCT platform) as platforms_count FROM orders_unified WHERE DATE(created_at) = $1",
+        "options": {
+          "queryParams": "={{ [$json.snapshot_date] }}"
+        }
+      },
+      "id": "get-sales-stats",
+      "name": "📊 売上統計取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) as total_products, COUNT(CASE WHEN physical_quantity = 0 THEN 1 END) as out_of_stock, COUNT(CASE WHEN physical_quantity <= 3 AND physical_quantity > 0 THEN 1 END) as low_stock, SUM(physical_quantity * COALESCE(cost_price, 0)) as inventory_value FROM inventory_master",
+        "options": {}
+      },
+      "id": "get-inventory-stats",
+      "name": "📦 在庫統計取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) as total_tasks, COUNT(CASE WHEN priority = 'high' THEN 1 END) as high_priority, COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_tasks, COUNT(CASE WHEN task_type = 'inquiry' THEN 1 END) as inquiry_count FROM admin_tasks WHERE DATE(created_at) = $1",
+        "options": {
+          "queryParams": "={{ [$node['🔐 初期化'].json.snapshot_date] }}"
+        }
+      },
+      "id": "get-task-stats",
+      "name": "📋 タスク統計取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) as total_listed, COUNT(CASE WHEN status = 'active' THEN 1 END) as active_listings, AVG(CASE WHEN listing_price > 0 THEN (listing_price - COALESCE(cost_price,0)) / listing_price * 100 END) as avg_margin FROM products_master WHERE status IN ('active', 'listed')",
+        "options": {}
+      },
+      "id": "get-listing-stats",
+      "name": "🏷️ 出品統計取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $node['🔐 初期化'].json;\nconst sales = $node['📊 売上統計取得'].json || {};\nconst inventory = $node['📦 在庫統計取得'].json || {};\nconst tasks = $node['📋 タスク統計取得'].json || {};\nconst listings = $node['🏷️ 出品統計取得'].json || {};\nconst snapshot = {\n  snapshot_date: config.snapshot_date,\n  sales: {\n    total_orders: parseInt(sales.total_orders) || 0,\n    total_revenue: parseFloat(sales.total_revenue) || 0,\n    shipped_orders: parseInt(sales.shipped_orders) || 0,\n    pending_orders: parseInt(sales.pending_orders) || 0\n  },\n  inventory: {\n    total_products: parseInt(inventory.total_products) || 0,\n    out_of_stock: parseInt(inventory.out_of_stock) || 0,\n    low_stock: parseInt(inventory.low_stock) || 0,\n    inventory_value: parseFloat(inventory.inventory_value) || 0\n  },\n  tasks: {\n    total_tasks: parseInt(tasks.total_tasks) || 0,\n    high_priority: parseInt(tasks.high_priority) || 0,\n    pending_tasks: parseInt(tasks.pending_tasks) || 0,\n    inquiry_count: parseInt(tasks.inquiry_count) || 0\n  },\n  listings: {\n    total_listed: parseInt(listings.total_listed) || 0,\n    active_listings: parseInt(listings.active_listings) || 0,\n    avg_margin: parseFloat(listings.avg_margin) || 0\n  }\n};\nreturn [{ json: snapshot }];"
+      },
+      "id": "aggregate-stats",
+      "name": "📈 統計集約",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO performance_snapshots (snapshot_date, sales_data, inventory_data, tasks_data, listings_data, created_at) VALUES ($1, $2::jsonb, $3::jsonb, $4::jsonb, $5::jsonb, NOW()) ON CONFLICT (snapshot_date) DO UPDATE SET sales_data = EXCLUDED.sales_data, inventory_data = EXCLUDED.inventory_data, tasks_data = EXCLUDED.tasks_data, listings_data = EXCLUDED.listings_data, updated_at = NOW() RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.snapshot_date, JSON.stringify($json.sales), JSON.stringify($json.inventory), JSON.stringify($json.tasks), JSON.stringify($json.listings)] }}"
+        }
+      },
+      "id": "save-snapshot",
+      "name": "💾 スナップショット保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "stock-alert",
+              "leftValue": "={{ $json.inventory.out_of_stock }}",
+              "rightValue": 10,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-stock-alert",
+      "name": "在庫切れ多数？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=[info][title]⚠️ 在庫アラート[/title]在庫切れ: {{ $json.inventory.out_of_stock }}件\\n残り僅か: {{ $json.inventory.low_stock }}件\\n\\n早急な補充をご検討ください[/info]"
+            }
+          ]
+        }
+      },
+      "id": "stock-alert",
+      "name": "🚨 在庫アラート",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=[info][title]📊 日次レポート ({{ $json.snapshot_date }})[/title]【売上】\\n注文数: {{ $json.sales.total_orders }}件\\n売上: ${{ $json.sales.total_revenue }}\\n出荷済: {{ $json.sales.shipped_orders }}件\\n\\n【在庫】\\n総商品: {{ $json.inventory.total_products }}件\\n在庫切れ: {{ $json.inventory.out_of_stock }}件\\n在庫価値: ¥{{ Math.round($json.inventory.inventory_value) }}\\n\\n【タスク】\\n未処理: {{ $json.tasks.pending_tasks }}件\\n高優先: {{ $json.tasks.high_priority }}件\\n\\n【出品】\\nアクティブ: {{ $json.listings.active_listings }}件\\n平均利益率: {{ Math.round($json.listings.avg_margin) }}%[/info]"
+            }
+          ]
+        }
+      },
+      "id": "daily-report",
+      "name": "📊 日次レポート送信",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const snapshot = $input.first().json;\nreturn [{ json: { success: true, snapshot_date: snapshot.snapshot_date, summary: { orders: snapshot.sales.total_orders, revenue: snapshot.sales.total_revenue, out_of_stock: snapshot.inventory.out_of_stock, pending_tasks: snapshot.tasks.pending_tasks, active_listings: snapshot.listings.active_listings } } }];"
+      },
+      "id": "prepare-response",
+      "name": "📤 レスポンス準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: dashboard-snapshot": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "毎日0時実行": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📊 売上統計取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 売上統計取得": {
+      "main": [
+        [
+          {
+            "node": "📦 在庫統計取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 在庫統計取得": {
+      "main": [
+        [
+          {
+            "node": "📋 タスク統計取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 タスク統計取得": {
+      "main": [
+        [
+          {
+            "node": "🏷️ 出品統計取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🏷️ 出品統計取得": {
+      "main": [
+        [
+          {
+            "node": "📈 統計集約",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📈 統計集約": {
+      "main": [
+        [
+          {
+            "node": "💾 スナップショット保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 スナップショット保存": {
+      "main": [
+        [
+          {
+            "node": "在庫切れ多数？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "在庫切れ多数？": {
+      "main": [
+        [
+          {
+            "node": "🚨 在庫アラート",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📊 日次レポート送信",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚨 在庫アラート": {
+      "main": [
+        [
+          {
+            "node": "📊 日次レポート送信",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 日次レポート送信": {
+      "main": [
+        [
+          {
+            "node": "📤 レスポンス準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📤 レスポンス準備": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 300,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-System",
+      "color": "#2e8b57"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "No-Crypto",
+      "color": "#9932cc"
+    },
+    {
+      "name": "SQL-Safe",
+      "color": "#32cd32"
+    },
+    {
+      "name": "Dashboard",
+      "color": "#4682b4"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

@@ -1,0 +1,560 @@
+{
+  "name": "【帝国】03_151-帝国-マネージャー監査パネルAPI_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "empire-audit-submit",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook-submit",
+      "name": "Webhook: 監査提出",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "empire-audit-submit"
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "empire-audit-queue",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook-queue",
+      "name": "Webhook: 監査キュー取得",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "empire-audit-queue"
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "empire-manager-stats",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook-stats",
+      "name": "Webhook: マネージャー統計",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "empire-manager-stats"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 鉄の掟準拠：環境変数必須チェック\nconst apiUrl = $env.N3_API_URL || $env.API_BASE_URL;\nif (!apiUrl) {\n  return [{ json: { error: true, message: 'N3_API_URL環境変数が未設定', code: 'CONFIG_ERROR' } }];\n}\n\nconst body = $input.first().json.body || $input.first().json || {};\nconst query = $input.first().json.query || {};\n\nconst managerId = body.manager_id || query.manager_id;\nconst channelId = body.channel_id;\nconst contentId = body.content_id;\nconst auditResult = body.audit_result; // approved, rejected, flagged\nconst checklistResults = body.checklist || {};\nconst rejectionReason = body.rejection_reason;\nconst startedAt = body.started_at;\n\nconst requestType = contentId ? 'submit' : (managerId ? 'queue' : 'stats');\n\nif (requestType === 'submit' && (!managerId || !channelId || !contentId || !auditResult)) {\n  return [{ json: { error: true, message: 'manager_id, channel_id, content_id, audit_result は必須', code: 'MISSING_PARAM' } }];\n}\n\nreturn [{\n  json: {\n    request_type: requestType,\n    manager_id: managerId,\n    channel_id: channelId,\n    content_id: contentId,\n    audit_result: auditResult,\n    checklist_results: checklistResults,\n    rejection_reason: rejectionReason,\n    started_at: startedAt,\n    api_url: apiUrl\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔐 初期化（鉄の掟準拠）",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-submit",
+              "leftValue": "={{ $json.request_type }}",
+              "rightValue": "submit",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "route-request",
+      "name": "リクエスト分岐",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO empire_audit_logs (channel_id, manager_id, content_id, audit_type, audit_result, rejection_reason, checklist_results, started_at, completed_at, duration_seconds) VALUES ($1, $2, $3, 'video_review', $4, $5, $6::jsonb, $7::timestamptz, NOW(), EXTRACT(EPOCH FROM (NOW() - $7::timestamptz))::integer) RETURNING audit_id",
+        "options": {
+          "queryParams": "={{ [$json.channel_id, $json.manager_id, $json.content_id, $json.audit_result, $json.rejection_reason, JSON.stringify($json.checklist_results), $json.started_at] }}"
+        }
+      },
+      "id": "save-audit",
+      "name": "💾 監査結果保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE empire_managers SET total_audits = total_audits + 1, approved_videos = approved_videos + CASE WHEN $2 = 'approved' THEN 1 ELSE 0 END, rejected_videos = rejected_videos + CASE WHEN $2 = 'rejected' THEN 1 ELSE 0 END, last_audit_at = NOW(), avg_audit_time_seconds = COALESCE((avg_audit_time_seconds * total_audits + $3) / (total_audits + 1), $3) WHERE manager_id = $1",
+        "options": {
+          "queryParams": "={{ [$json.manager_id, $json.audit_result, $input.first().json.duration_seconds || 60] }}"
+        }
+      },
+      "id": "update-manager-stats",
+      "name": "📊 マネージャー統計更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-approved",
+              "leftValue": "={{ $node['🔐 初期化（鉄の掟準拠）'].json.audit_result }}",
+              "rightValue": "approved",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-approved",
+      "name": "承認された？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.N8N_URL || '{{$env.N8N_BASE_URL}}' }}/webhook/video-publish",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "content_id",
+              "value": "={{ $node['🔐 初期化（鉄の掟準拠）'].json.content_id }}"
+            },
+            {
+              "name": "channel_id",
+              "value": "={{ $node['🔐 初期化（鉄の掟準拠）'].json.channel_id }}"
+            },
+            {
+              "name": "approved_by",
+              "value": "={{ $node['🔐 初期化（鉄の掟準拠）'].json.manager_id }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "trigger-publish",
+      "name": "🚀 投稿トリガー",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { skipped: true, reason: 'rejected_or_flagged' } }];"
+      },
+      "id": "skip-publish",
+      "name": "スキップ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT mc.content_id, mc.title, mc.thumbnail_url, mc.video_url, mc.duration_seconds, mc.channel_id, ch.channel_name FROM media_content mc JOIN media_channels ch ON mc.channel_id = ch.channel_id WHERE ch.manager_id = $1 AND mc.status = 'pending_review' ORDER BY mc.created_at ASC LIMIT 10",
+        "options": {
+          "queryParams": "={{ [$json.manager_id] }}"
+        }
+      },
+      "id": "get-queue",
+      "name": "📋 監査キュー取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const initData = $node['🔐 初期化（鉄の掟準拠）'].json;\nconst queueItems = $input.all().map(item => item.json).filter(q => q && q.content_id);\n\nreturn [{\n  json: {\n    success: true,\n    manager_id: initData.manager_id,\n    queue_count: queueItems.length,\n    items: queueItems.map(item => ({\n      content_id: item.content_id,\n      title: item.title,\n      thumbnail_url: item.thumbnail_url,\n      video_url: item.video_url,\n      duration_seconds: item.duration_seconds,\n      channel_id: item.channel_id,\n      channel_name: item.channel_name\n    }))\n  }\n}];"
+      },
+      "id": "format-queue",
+      "name": "📋 キューフォーマット",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "jsCode": "const initData = $node['🔐 初期化（鉄の掟準拠）'].json;\nconst auditId = $node['💾 監査結果保存']?.json?.audit_id;\n\nreturn [{\n  json: {\n    success: true,\n    action: 'audit_submitted',\n    audit_id: auditId,\n    content_id: initData.content_id,\n    result: initData.audit_result\n  }\n}];"
+      },
+      "id": "format-submit-response",
+      "name": "📋 提出レスポンス",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: 監査提出": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook: 監査キュー取得": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook: マネージャー統計": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化（鉄の掟準拠）": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "リクエスト分岐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "リクエスト分岐": {
+      "main": [
+        [
+          {
+            "node": "💾 監査結果保存",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 監査キュー取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 監査結果保存": {
+      "main": [
+        [
+          {
+            "node": "📊 マネージャー統計更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 マネージャー統計更新": {
+      "main": [
+        [
+          {
+            "node": "承認された？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "承認された？": {
+      "main": [
+        [
+          {
+            "node": "🚀 投稿トリガー",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "スキップ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚀 投稿トリガー": {
+      "main": [
+        [
+          {
+            "node": "📋 提出レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "スキップ": {
+      "main": [
+        [
+          {
+            "node": "📋 提出レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 監査キュー取得": {
+      "main": [
+        [
+          {
+            "node": "📋 キューフォーマット",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 キューフォーマット": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 提出レスポンス": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化（鉄の掟準拠）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 120,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Empire",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Audit",
+      "color": "#3498db"
+    },
+    {
+      "name": "IronRule",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false,
+  "meta": {
+    "description": "N3-151 マネージャー監査パネルAPI V5-PRODUCTION - スマホ完結監査システム",
+    "version": "5.0",
+    "changelog": "2026-01-20: 鉄の掟準拠 - 監査提出/キュー取得/統計API、承認時自動投稿トリガー",
+    "iron_rules_compliant": [
+      "no_hardcoded_urls",
+      "query_params_only",
+      "no_crypto_require"
+    ]
+  }
+}

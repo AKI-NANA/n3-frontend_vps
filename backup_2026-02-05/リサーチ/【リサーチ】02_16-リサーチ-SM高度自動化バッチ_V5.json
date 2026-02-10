@@ -1,0 +1,519 @@
+{
+  "name": "【リサーチ】02_16-リサーチ-SM高度自動化バッチ_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sm-extractor",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: sm-extractor",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "sm-extractor"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst apiUrl = $env.N3_API_URL || '{{$env.GATEWAY_URL}}';\nconst secret = $env.N8N_INTERNAL_SECRET;\nif (!secret) return [{ json: { error: true, message: 'N8N_INTERNAL_SECRET未設定', code: 'CONFIG_ERROR' } }];\nconst targetUrls = body.target_urls || [];\nconst sellerId = body.seller_id || '';\nconst minSoldCount = body.min_sold_count || 5;\nconst maxDaysListed = body.max_days_listed || 30;\nconst maxItems = body.max_items || 100;\nif (targetUrls.length === 0 && !sellerId) return [{ json: { error: true, message: 'target_urls または seller_id が必要', code: 'MISSING_PARAM' } }];\nreturn [{ json: { target_urls: targetUrls, seller_id: sellerId, min_sold_count: minSoldCount, max_days_listed: maxDaysListed, max_items: maxItems, api_url: apiUrl } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.api_url }}/api/research/seller-mirror",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ seller_id: $json.seller_id, target_urls: $json.target_urls, limit: $json.max_items }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "fetch-sm-data",
+      "name": "🔍 SM データ取得",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst config = $node['🔐 初期化'].json;\nconst items = response.items || response.data || response.listings || [];\nif (items.length === 0) return [{ json: { no_results: true, message: 'SM データなし' } }];\nconst now = new Date();\nconst filtered = items.filter(item => {\n  const soldCount = parseInt(item.sold_count || item.soldCount || 0);\n  const listDate = new Date(item.list_date || item.listDate || now);\n  const daysListed = Math.floor((now - listDate) / (1000 * 60 * 60 * 24));\n  return soldCount >= config.min_sold_count && daysListed <= config.max_days_listed;\n}).slice(0, config.max_items);\nif (filtered.length === 0) return [{ json: { no_results: true, message: '条件に合う商品なし' } }];\nreturn filtered.map(item => ({ json: { item_id: item.item_id || item.itemId || item.id, title: item.title || '', ebay_price: parseFloat(item.price || item.ebayPrice || 0), sold_count: parseInt(item.sold_count || item.soldCount || 0), seller_id: item.seller_id || config.seller_id, image_url: item.image_url || item.imageUrl || '', asin: item.asin || null, config: config } }));"
+      },
+      "id": "filter-items",
+      "name": "🔎 売れ筋フィルタ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "no-results",
+              "leftValue": "={{ $json.no_results }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-results",
+      "name": "結果あり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { success: true, message: $json.message, extracted_count: 0, saved_count: 0 } }];"
+      },
+      "id": "no-results",
+      "name": "結果なし",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.config.api_url }}/api/research/find-source",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ title: $json.title, asin: $json.asin, image_url: $json.image_url }) }}",
+        "options": {
+          "timeout": 45000
+        }
+      },
+      "id": "find-source",
+      "name": "🔎 仕入れ元特定",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const src = $input.first().json;\nconst item = $node['🔎 売れ筋フィルタ'].json;\nconst sourceCost = parseFloat(src.price || 0);\nconst sourceUrl = src.url || '';\nconst exchangeRate = 150;\nconst ebayFee = 0.13;\nconst paypalFee = 0.04;\nconst shippingCost = 15;\nconst totalCost = (sourceCost / exchangeRate) + shippingCost;\nconst netProfit = item.ebay_price * (1 - ebayFee - paypalFee) - totalCost;\nconst profitMargin = item.ebay_price > 0 ? netProfit / item.ebay_price : 0;\nconst isProfitable = profitMargin >= 0.15;\nconst scoreProfit = Math.min(100, Math.max(0, Math.round(profitMargin * 200)));\nconst scoreVolume = Math.min(100, item.sold_count * 5);\nconst scoreTotal = Math.round((scoreProfit * 0.6) + (scoreVolume * 0.4));\nlet recommendation = 'skip';\nif (scoreTotal >= 70) recommendation = 'highly_recommended';\nelse if (scoreTotal >= 50) recommendation = 'recommended';\nelse if (scoreTotal >= 30) recommendation = 'consider';\nreturn [{ json: { ...item, source_cost_jpy: sourceCost, source_url: sourceUrl, net_profit: Math.round(netProfit * 100) / 100, profit_margin: Math.round(profitMargin * 1000) / 10, is_profitable: isProfitable, score_profit: scoreProfit, score_volume: scoreVolume, score_total: scoreTotal, recommendation: recommendation } }];"
+      },
+      "id": "calc-profit",
+      "name": "💰 利益計算",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-profitable",
+              "leftValue": "={{ $json.is_profitable }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-profitable",
+      "name": "利益あり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO research_results (item_id, seller_id, title, sold_count, price, currency, image_url, score_total, score_profit, score_volume, recommendation, created_at) VALUES ($1, $2, $3, $4, $5, 'USD', $6, $7, $8, $9, $10, NOW()) ON CONFLICT (item_id, user_id) DO UPDATE SET sold_count = EXCLUDED.sold_count, price = EXCLUDED.price, score_total = EXCLUDED.score_total, recommendation = EXCLUDED.recommendation, updated_at = NOW() RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.item_id, $json.seller_id, ($json.title || '').substring(0, 200), $json.sold_count, $json.ebay_price, $json.image_url, $json.score_total, $json.score_profit, $json.score_volume, $json.recommendation] }}"
+        }
+      },
+      "id": "save-result",
+      "name": "💾 結果保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, saved: false } }];"
+      },
+      "id": "skip-save",
+      "name": "保存スキップ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all().map(i => i.json);\nconst extractedCount = results.length;\nconst savedCount = results.filter(r => r.saved !== false && r.is_profitable).length;\nconst highlyRec = results.filter(r => r.recommendation === 'highly_recommended').length;\nreturn [{ json: { success: true, extracted_count: extractedCount, saved_count: savedCount, highly_recommended: highlyRec } }];"
+      },
+      "id": "aggregate",
+      "name": "📊 結果集計",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=[info][title]🔍 SM高度自動化完了[/title]抽出数: {{ $json.extracted_count }}件\\n保存数: {{ $json.saved_count }}件\\n超推奨: {{ $json.highly_recommended }}件[/info]"
+            }
+          ]
+        }
+      },
+      "id": "notify",
+      "name": "📢 完了通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: sm-extractor": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🔍 SM データ取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 SM データ取得": {
+      "main": [
+        [
+          {
+            "node": "🔎 売れ筋フィルタ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔎 売れ筋フィルタ": {
+      "main": [
+        [
+          {
+            "node": "結果あり？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "結果あり？": {
+      "main": [
+        [
+          {
+            "node": "結果なし",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🔎 仕入れ元特定",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "結果なし": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔎 仕入れ元特定": {
+      "main": [
+        [
+          {
+            "node": "💰 利益計算",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💰 利益計算": {
+      "main": [
+        [
+          {
+            "node": "利益あり？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "利益あり？": {
+      "main": [
+        [
+          {
+            "node": "💾 結果保存",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "保存スキップ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 結果保存": {
+      "main": [
+        [
+          {
+            "node": "📊 結果集計",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "保存スキップ": {
+      "main": [
+        [
+          {
+            "node": "📊 結果集計",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 結果集計": {
+      "main": [
+        [
+          {
+            "node": "📢 完了通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📢 完了通知": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 900,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Intel",
+      "color": "#9400d3"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "SM-Advanced",
+      "color": "#ff6347"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

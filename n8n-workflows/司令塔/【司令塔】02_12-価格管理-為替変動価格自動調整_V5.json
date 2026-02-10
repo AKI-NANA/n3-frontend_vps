@@ -1,0 +1,448 @@
+{
+  "name": "【司令塔】02_12-価格管理-為替変動価格自動調整_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 4
+            }
+          ]
+        }
+      },
+      "id": "cron-4h",
+      "name": "4時間ごと実行",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "url": "https://api.exchangerate-api.com/v4/latest/JPY",
+        "options": {
+          "timeout": 10000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "fetch-rates",
+      "name": "為替レート取得",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT gs.user_id, gs.key, gs.value FROM global_settings gs WHERE gs.key LIKE 'exchange_rate_%' AND gs.user_id IS NOT NULL",
+        "options": {}
+      },
+      "id": "get-saved-rates",
+      "name": "保存レート取得（user_id別）",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================\n// V4-PRODUCTION: マルチテナント為替変動チェック\n// ========================================\nconst newRates = $node['為替レート取得'].json.rates || {};\nconst savedRatesRaw = $input.all().map(i => i.json);\n\nif (!newRates.USD) {\n  return [{ json: { error: true, message: '為替API取得失敗' } }];\n}\n\n// ユーザー別にグループ化\nconst userRates = {};\nsavedRatesRaw.forEach(r => {\n  if (!r.user_id) return;\n  if (!userRates[r.user_id]) userRates[r.user_id] = {};\n  const currency = r.key.replace('exchange_rate_', '').toUpperCase().replace('_JPY', '');\n  userRates[r.user_id][currency] = parseFloat(r.value);\n});\n\nconst currencies = ['USD', 'EUR', 'GBP', 'AUD'];\nconst threshold = 0.02; // 2%以上の変動で調整\n\nconst results = [];\n\nObject.entries(userRates).forEach(([userId, savedRateMap]) => {\n  const rateChanges = [];\n  \n  currencies.forEach(currency => {\n    const newRate = 1 / (newRates[currency] || 1);\n    const savedRate = savedRateMap[currency] || 0;\n    \n    if (savedRate > 0) {\n      const change = (newRate - savedRate) / savedRate;\n      const changePercent = Math.round(change * 10000) / 100;\n      \n      if (Math.abs(change) >= threshold) {\n        rateChanges.push({\n          currency: currency,\n          old_rate: savedRate,\n          new_rate: newRate,\n          change_percent: changePercent,\n          direction: change > 0 ? 'up' : 'down'\n        });\n      }\n    }\n  });\n  \n  if (rateChanges.length > 0) {\n    results.push({ json: {\n      user_id: userId,\n      has_significant_change: true,\n      rate_changes: rateChanges,\n      timestamp: new Date().toISOString()\n    } });\n  }\n});\n\nif (results.length === 0) {\n  return [{ json: { no_changes: true, message: '有意な為替変動なし', timestamp: new Date().toISOString() } }];\n}\n\nreturn results;"
+      },
+      "id": "check-changes",
+      "name": "変動チェック（user_id別）",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.no_changes || $json.error }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "has-changes",
+      "name": "変動あり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { message: $input.first().json.message || '処理スキップ' } }];"
+      },
+      "id": "no-changes",
+      "name": "変動なし",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=[info][title]💱 為替変動検知[/title]User: {{ $json.user_id }}\\n\\n{{ $json.rate_changes.map(r => r.currency + ': ' + r.change_percent + '%' + (r.direction === 'up' ? '↑円安' : '↓円高')).join('\\n') }}\\n\\n価格調整処理を開始します。[/info]"
+            }
+          ]
+        },
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "alert-change",
+      "name": "ChatWork 変動通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N3_API_URL || '{{$env.GATEWAY_URL}}' }}/api/pricing/exchange-adjustment",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ user_id: $json.user_id, rate_changes: $json.rate_changes, timestamp: $json.timestamp }) }}",
+        "options": {
+          "timeout": 300000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "trigger-adjustment",
+      "name": "価格調整API呼出",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst request = $node['ChatWork 変動通知'].json;\n\nreturn [{ json: {\n  user_id: request.user_id,\n  adjusted_count: response.adjusted_count || 0,\n  warning_count: response.warning_count || 0,\n  error: response.error || null,\n  timestamp: new Date().toISOString()\n} }];"
+      },
+      "id": "parse-result",
+      "name": "結果解析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=[info][title]✅ 価格調整完了[/title]User: {{ $json.user_id }}\\n調整件数: {{ $json.adjusted_count }}件\\n警告件数: {{ $json.warning_count }}件\\n\\n{{ $json.warning_count > 0 ? '⚠️ 利益率5%以下の商品があります。手動確認してください。' : '全商品の利益率を確保しました。' }}[/info]"
+            }
+          ]
+        },
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "notify-result",
+      "name": "ChatWork 結果通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all().map(i => i.json);\nreturn [{ json: {\n  total_users: results.length,\n  total_adjusted: results.reduce((s, r) => s + (r.adjusted_count || 0), 0),\n  total_warnings: results.reduce((s, r) => s + (r.warning_count || 0), 0),\n  timestamp: new Date().toISOString()\n} }];"
+      },
+      "id": "aggregate",
+      "name": "結果集約",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM stock_sync_logs WHERE created_at < NOW() - INTERVAL '7 days'; DELETE FROM listing_history WHERE created_at < NOW() - INTERVAL '7 days';",
+        "options": {}
+      },
+      "id": "purge-history",
+      "name": "🗑️ 履歴パージ（7日超）",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "4時間ごと実行": {
+      "main": [
+        [
+          {
+            "node": "為替レート取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "為替レート取得": {
+      "main": [
+        [
+          {
+            "node": "保存レート取得（user_id別）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "保存レート取得（user_id別）": {
+      "main": [
+        [
+          {
+            "node": "変動チェック（user_id別）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "変動チェック（user_id別）": {
+      "main": [
+        [
+          {
+            "node": "変動あり？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "変動あり？": {
+      "main": [
+        [
+          {
+            "node": "変動なし",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "ChatWork 変動通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ChatWork 変動通知": {
+      "main": [
+        [
+          {
+            "node": "価格調整API呼出",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "価格調整API呼出": {
+      "main": [
+        [
+          {
+            "node": "結果解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "結果解析": {
+      "main": [
+        [
+          {
+            "node": "ChatWork 結果通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ChatWork 結果通知": {
+      "main": [
+        [
+          {
+            "node": "結果集約",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "結果集約": {
+      "main": [
+        [
+          {
+            "node": "🗑️ 履歴パージ（7日超）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🗑️ 履歴パージ（7日超）": {
+      "main": [
+        [
+          {
+            "node": "📊 実行ログ送信 (成功)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "変動なし": {
+      "main": [
+        [
+          {
+            "node": "📊 実行ログ送信 (成功)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 600,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none"
+  },
+  "tags": [
+    {
+      "name": "N3-Pricing",
+      "color": "#32cd32"
+    },
+    {
+      "name": "V4-PRODUCTION",
+      "color": "#ff0000"
+    },
+    {
+      "name": "Exchange",
+      "color": "#ffd700"
+    },
+    {
+      "name": "Multi-Tenant",
+      "color": "#00bfff"
+    },
+    {
+      "name": "500MB-Safe",
+      "color": "#32cd32"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

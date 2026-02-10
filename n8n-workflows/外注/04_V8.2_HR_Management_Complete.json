@@ -1,0 +1,272 @@
+{
+  "name": "【V8.2】HR Management - 外注統治・RBAC・報酬計算エンジン",
+  "description": "N3 Empire OS V8.2: 外注スタッフの権限制限、作業量に応じた報酬自動計算、燃焼上限管理",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "hr-management",
+        "options": { "responseMode": "responseNode" }
+      },
+      "id": "webhook-entry",
+      "name": "🚪 Webhook Entry",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst body = $input.first().json.body || $input.first().json || {};\nconst headers = $input.first().json.headers || {};\nconst tenantId = body.tenant_id || headers['x-tenant-id'] || 'default';\nconst staffId = body.staff_id || headers['x-staff-id'];\nconst signature = headers['x-n3-signature'];\nconst timestamp = headers['x-n3-timestamp'];\nconst hmacSecret = $env.N8N_HMAC_SECRET;\n\nif (hmacSecret && signature && timestamp) {\n  const tsAge = Date.now() - parseInt(timestamp);\n  if (tsAge > 300000) return [{ json: { _auth_error: true, code: 'TIMESTAMP_EXPIRED' } }];\n  const expectedHmac = crypto.createHmac('sha256', hmacSecret).update(timestamp + '.' + JSON.stringify(body)).digest('hex');\n  if (signature !== expectedHmac) return [{ json: { _auth_error: true, code: 'HMAC_INVALID' } }];\n}\n\nreturn [{ json: { _auth_passed: true, _tenant_id: tenantId, _staff_id: staffId, _request_id: `hr-${Date.now()}-${Math.random().toString(36).substr(2,9)}`, _timestamp: new Date().toISOString(), payload: body } }];"
+      },
+      "id": "auth-gate",
+      "name": "🔐 Auth-Gate+RBAC",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "conditions": { "conditions": [{ "leftValue": "={{ $json._auth_error }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }] }
+      },
+      "id": "auth-check",
+      "name": "認証チェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: 'Auth failed' }) }}",
+        "options": { "responseCode": 401 }
+      },
+      "id": "auth-error",
+      "name": "❌ 認証エラー",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst action = data.payload?.action || 'check_permission';\nconst validActions = ['check_permission', 'log_work', 'calculate_payment', 'approve_payment', 'get_summary'];\nif (!validActions.includes(action)) return [{ json: { ...data, _action: 'error' } }];\nreturn [{ json: { ...data, _action: action } }];"
+      },
+      "id": "action-router",
+      "name": "📋 アクション分岐",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 400]
+    },
+    {
+      "parameters": {
+        "rules": { "values": [{ "outputKey": "check_permission" }, { "outputKey": "log_work" }, { "outputKey": "calculate_payment" }, { "outputKey": "approve_payment" }, { "outputKey": "get_summary" }] },
+        "dataType": "string",
+        "value1": "={{ $json._action }}"
+      },
+      "id": "switch",
+      "name": "🔀 Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [1100, 400]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT hs.*, hr.role_code, hr.role_name, hr.permissions, hr.allowed_workflow_nodes, hr.blocked_workflow_nodes FROM hr_staff hs JOIN hr_staff_roles hsr ON hs.id = hsr.staff_id JOIN hr_roles hr ON hsr.role_id = hr.id WHERE hs.tenant_id = $1 AND hs.id = $2::uuid AND hs.status = 'active' AND (hsr.valid_until IS NULL OR hsr.valid_until >= CURRENT_DATE)",
+        "options": { "queryParams": "={{ [$json._tenant_id, $json._staff_id || $json.payload.staff_id] }}" }
+      },
+      "id": "get-permissions",
+      "name": "📊 権限取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" } },
+      "position": [1320, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// RBAC権限チェック\nconst data = $input.first().json;\nconst staffData = $input.all().slice(1)[0]?.json;\nconst payload = data.payload || {};\n\nif (!staffData) return [{ json: { ...data, _permission: { allowed: false, reason: 'スタッフ未登録' } } }];\n\nconst permissions = staffData.permissions || {};\nconst allowedWorkflows = permissions.workflows || [];\nconst maxBatchSize = permissions.max_batch_size || 50;\nconst approvalThreshold = permissions.require_approval_above || 10000;\nconst prohibitedActions = permissions.prohibited_actions || [];\n\nlet allowed = true, reasons = [], requiresApproval = false;\nconst requestedWorkflow = payload.requested_workflow || '';\nconst batchSize = payload.batch_size || 1;\nconst amount = payload.amount || 0;\n\nif (requestedWorkflow && !allowedWorkflows.includes('*') && !allowedWorkflows.includes(requestedWorkflow)) {\n  allowed = false; reasons.push(`WF「${requestedWorkflow}」権限なし`);\n}\nif (batchSize > maxBatchSize) { allowed = false; reasons.push(`バッチ${batchSize}>${maxBatchSize}超過`); }\nif (prohibitedActions.includes(payload.requested_action)) { allowed = false; reasons.push('禁止アクション'); }\nif (amount > approvalThreshold) { requiresApproval = true; reasons.push(`¥${amount}>閾値`); }\n\nreturn [{ json: { ...data, _staff_data: staffData, _permission: { allowed, requires_approval: requiresApproval, reasons, role: staffData.role_name, limits: { max_batch_size: maxBatchSize, approval_threshold: approvalThreshold, daily_task_limit: staffData.daily_task_limit, monthly_payment_cap: staffData.monthly_payment_cap } } } }];"
+      },
+      "id": "check-permission",
+      "name": "🛡️ 権限チェック",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1540, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 作業記録設定\nconst data = $input.first().json;\nconst p = data.payload || {};\nreturn [{ json: { ...data, _work_log: { staff_id: p.staff_id || data._staff_id, task_code: p.task_code, work_date: p.work_date || new Date().toISOString().split('T')[0], start_time: p.start_time, end_time: p.end_time, duration_minutes: p.duration_minutes, items_processed: p.items_processed || 0, batches_completed: p.batches_completed || 0, quality_score: p.quality_score, error_count: p.error_count || 0, task_description: p.task_description } } }];"
+      },
+      "id": "log-work-config",
+      "name": "📝 作業記録設定",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 400]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT htd.*, hs.daily_task_limit, hs.monthly_hours_limit, hs.monthly_payment_cap, COALESCE((SELECT COUNT(*) FROM hr_work_logs WHERE staff_id = hs.id AND work_date = CURRENT_DATE), 0) as today_tasks, COALESCE((SELECT SUM(duration_minutes)/60.0 FROM hr_work_logs WHERE staff_id = hs.id AND work_date >= DATE_TRUNC('month', CURRENT_DATE)), 0) as month_hours, COALESCE((SELECT SUM(total_amount) FROM hr_work_logs WHERE staff_id = hs.id AND work_date >= DATE_TRUNC('month', CURRENT_DATE) AND approval_status IN ('approved','paid')), 0) as month_payment FROM hr_task_definitions htd CROSS JOIN hr_staff hs WHERE htd.tenant_id = $1 AND htd.task_code = $2 AND hs.id = $3::uuid",
+        "options": { "queryParams": "={{ [$json._tenant_id, $json._work_log.task_code, $json._work_log.staff_id] }}" }
+      },
+      "id": "get-task-limits",
+      "name": "📊 タスク上限取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" } },
+      "position": [1540, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 燃焼上限チェック（次元22）\nconst data = $input.first().json;\nconst wl = data._work_log;\nconst td = $input.all().slice(1)[0]?.json;\nif (!td) return [{ json: { ...data, _limit_check: { allowed: false, reason: 'タスク未定義' } } }];\n\nlet blocked = false, blockReason = '', warnings = [];\nif (td.today_tasks >= td.daily_task_limit) { blocked = true; blockReason = `日次上限${td.daily_task_limit}件到達`; }\nconst addHours = (wl.duration_minutes || 0) / 60;\nif (Number(td.month_hours) + addHours > td.monthly_hours_limit) { blocked = true; blockReason = `月次時間${td.monthly_hours_limit}h到達`; }\n\n// 報酬計算\nlet base = 0;\nswitch (td.unit_type) {\n  case 'per_item': base = td.base_unit_price * wl.items_processed; break;\n  case 'per_hour': base = td.base_unit_price * addHours; break;\n  case 'per_batch': base = td.base_unit_price * wl.batches_completed; break;\n  case 'per_completion': base = td.base_unit_price; break;\n}\nlet bonus = (td.quality_bonus_enabled && wl.quality_score >= td.quality_threshold) ? base * (td.quality_bonus_rate / 100) : 0;\nlet total = base + bonus;\n\nif (td.monthly_payment_cap && Number(td.month_payment) + total > td.monthly_payment_cap) {\n  const capped = Math.max(0, td.monthly_payment_cap - Number(td.month_payment));\n  if (capped < total) { warnings.push(`報酬¥${(total-capped).toLocaleString()}カット`); total = capped; }\n}\n\nreturn [{ json: { ...data, _task_data: td, _limit_check: { allowed: !blocked, blocked, block_reason: blockReason, warnings, usage: { today: td.today_tasks, month_hours: td.month_hours, month_pay: td.month_payment }, payment: { base, bonus, total } } } }];"
+      },
+      "id": "check-limits",
+      "name": "🔥 燃焼上限チェック",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1760, 400]
+    },
+    {
+      "parameters": {
+        "conditions": { "conditions": [{ "leftValue": "={{ $json._limit_check.blocked }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }] }
+      },
+      "id": "limit-check",
+      "name": "上限超過?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1980, 400]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO hr_work_logs (tenant_id, staff_id, task_definition_id, work_date, duration_minutes, items_processed, batches_completed, quality_score, error_count, task_description, calculated_amount, bonus_amount, total_amount, approval_status) VALUES ($1, $2::uuid, $3::uuid, $4::date, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'pending') RETURNING id",
+        "options": { "queryParams": "={{ [$json._tenant_id, $json._work_log.staff_id, $json._task_data.id, $json._work_log.work_date, $json._work_log.duration_minutes, $json._work_log.items_processed, $json._work_log.batches_completed, $json._work_log.quality_score, $json._work_log.error_count, $json._work_log.task_description, $json._limit_check.payment.base, $json._limit_check.payment.bonus, $json._limit_check.payment.total] }}" }
+      },
+      "id": "insert-work-log",
+      "name": "💾 作業記録登録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" } },
+      "position": [2200, 500],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// 報酬計算バッチ\nconst data = $input.first().json;\nconst p = data.payload || {};\nreturn [{ json: { ...data, _calc_params: { staff_ids: p.staff_ids || [], period_start: p.period_start || new Date(Date.now() - 30*24*60*60*1000).toISOString().split('T')[0], period_end: p.period_end || new Date().toISOString().split('T')[0] } } }];"
+      },
+      "id": "calc-payment-config",
+      "name": "💰 報酬計算設定",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 600]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT hwl.staff_id, hs.display_name, hs.staff_code, SUM(hwl.total_amount) as total_payment, COUNT(*) as work_count, SUM(hwl.items_processed) as total_items, SUM(hwl.duration_minutes) as total_minutes FROM hr_work_logs hwl JOIN hr_staff hs ON hwl.staff_id = hs.id WHERE hwl.tenant_id = $1 AND hwl.work_date BETWEEN $2 AND $3 AND hwl.approval_status = 'pending' GROUP BY hwl.staff_id, hs.display_name, hs.staff_code ORDER BY total_payment DESC",
+        "options": { "queryParams": "={{ [$json._tenant_id, $json._calc_params.period_start, $json._calc_params.period_end] }}" }
+      },
+      "id": "calc-payment",
+      "name": "📊 報酬集計",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" } },
+      "position": [1540, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 承認処理\nconst data = $input.first().json;\nconst p = data.payload || {};\nreturn [{ json: { ...data, _approve_params: { work_log_ids: p.work_log_ids || [], staff_ids: p.staff_ids || [], action: p.approval_action || 'approve', approver: p.approver || 'system' } } }];"
+      },
+      "id": "approve-config",
+      "name": "✅ 承認設定",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 800]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE hr_work_logs SET approval_status = CASE WHEN $2 = 'approve' THEN 'approved' WHEN $2 = 'reject' THEN 'rejected' ELSE approval_status END, approved_by = $3, approved_at = NOW() WHERE tenant_id = $1 AND (id = ANY($4::uuid[]) OR staff_id = ANY($5::uuid[])) AND approval_status = 'pending' RETURNING id, staff_id, total_amount, approval_status",
+        "options": { "queryParams": "={{ [$json._tenant_id, $json._approve_params.action, $json._approve_params.approver, $json._approve_params.work_log_ids, $json._approve_params.staff_ids] }}" }
+      },
+      "id": "approve-work",
+      "name": "💾 承認更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" } },
+      "position": [1540, 800]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT hs.id, hs.staff_code, hs.display_name, hs.contract_type, hs.status, hr.role_name, COALESCE(pending.cnt, 0) as pending_approvals, COALESCE(pending.amt, 0) as pending_amount, COALESCE(approved.cnt, 0) as month_approved, COALESCE(approved.amt, 0) as month_amount FROM hr_staff hs JOIN hr_staff_roles hsr ON hs.id = hsr.staff_id JOIN hr_roles hr ON hsr.role_id = hr.id LEFT JOIN (SELECT staff_id, COUNT(*) cnt, SUM(total_amount) amt FROM hr_work_logs WHERE approval_status='pending' GROUP BY staff_id) pending ON pending.staff_id = hs.id LEFT JOIN (SELECT staff_id, COUNT(*) cnt, SUM(total_amount) amt FROM hr_work_logs WHERE approval_status IN ('approved','paid') AND work_date >= DATE_TRUNC('month', CURRENT_DATE) GROUP BY staff_id) approved ON approved.staff_id = hs.id WHERE hs.tenant_id = $1 AND hs.status = 'active' ORDER BY hs.display_name",
+        "options": { "queryParams": "={{ [$json._tenant_id] }}" }
+      },
+      "id": "get-summary",
+      "name": "📊 サマリー取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" } },
+      "position": [1320, 1000]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO audit_logs (tenant_id, workflow_name, request_id, action, payload_masked, status, executed_at) VALUES ($1, 'hr-management', $2, $3, $4::jsonb, 'success', NOW())",
+        "options": { "queryParams": "={{ [$json._tenant_id, $json._request_id, $json._action, JSON.stringify({action: $json._action})] }}" }
+      },
+      "id": "audit-log",
+      "name": "📝 監査ログ",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" } },
+      "position": [2420, 600],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// 最終レスポンス\nconst data = $input.first().json;\nconst action = data._action;\nlet result = { success: true, tenant_id: data._tenant_id, request_id: data._request_id, action, timestamp: new Date().toISOString() };\n\nswitch (action) {\n  case 'check_permission': result.permission = data._permission; break;\n  case 'log_work': result.limit_check = data._limit_check; result.work_logged = !data._limit_check?.blocked; break;\n  case 'calculate_payment': result.payment_summary = $input.all().slice(1).map(i => i.json); break;\n  case 'approve_payment': result.approved = $input.all().slice(1).map(i => i.json); break;\n  case 'get_summary': result.staff_summary = $input.all().slice(1).map(i => i.json); break;\n}\n\nreturn [{ json: result }];"
+      },
+      "id": "final-response",
+      "name": "📊 最終応答",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2640, 600]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "respond",
+      "name": "✅ 応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2860, 600]
+    }
+  ],
+  "connections": {
+    "🚪 Webhook Entry": { "main": [[{ "node": "🔐 Auth-Gate+RBAC", "type": "main", "index": 0 }]] },
+    "🔐 Auth-Gate+RBAC": { "main": [[{ "node": "認証チェック", "type": "main", "index": 0 }]] },
+    "認証チェック": { "main": [[{ "node": "❌ 認証エラー", "type": "main", "index": 0 }], [{ "node": "📋 アクション分岐", "type": "main", "index": 0 }]] },
+    "📋 アクション分岐": { "main": [[{ "node": "🔀 Switch", "type": "main", "index": 0 }]] },
+    "🔀 Switch": { "main": [[{ "node": "📊 権限取得", "type": "main", "index": 0 }], [{ "node": "📝 作業記録設定", "type": "main", "index": 0 }], [{ "node": "💰 報酬計算設定", "type": "main", "index": 0 }], [{ "node": "✅ 承認設定", "type": "main", "index": 0 }], [{ "node": "📊 サマリー取得", "type": "main", "index": 0 }]] },
+    "📊 権限取得": { "main": [[{ "node": "🛡️ 権限チェック", "type": "main", "index": 0 }]] },
+    "🛡️ 権限チェック": { "main": [[{ "node": "📝 監査ログ", "type": "main", "index": 0 }]] },
+    "📝 作業記録設定": { "main": [[{ "node": "📊 タスク上限取得", "type": "main", "index": 0 }]] },
+    "📊 タスク上限取得": { "main": [[{ "node": "🔥 燃焼上限チェック", "type": "main", "index": 0 }]] },
+    "🔥 燃焼上限チェック": { "main": [[{ "node": "上限超過?", "type": "main", "index": 0 }]] },
+    "上限超過?": { "main": [[{ "node": "📝 監査ログ", "type": "main", "index": 0 }], [{ "node": "💾 作業記録登録", "type": "main", "index": 0 }]] },
+    "💾 作業記録登録": { "main": [[{ "node": "📝 監査ログ", "type": "main", "index": 0 }]] },
+    "💰 報酬計算設定": { "main": [[{ "node": "📊 報酬集計", "type": "main", "index": 0 }]] },
+    "📊 報酬集計": { "main": [[{ "node": "📝 監査ログ", "type": "main", "index": 0 }]] },
+    "✅ 承認設定": { "main": [[{ "node": "💾 承認更新", "type": "main", "index": 0 }]] },
+    "💾 承認更新": { "main": [[{ "node": "📝 監査ログ", "type": "main", "index": 0 }]] },
+    "📊 サマリー取得": { "main": [[{ "node": "📝 監査ログ", "type": "main", "index": 0 }]] },
+    "📝 監査ログ": { "main": [[{ "node": "📊 最終応答", "type": "main", "index": 0 }]] },
+    "📊 最終応答": { "main": [[{ "node": "✅ 応答", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionTimeout": 300, "saveDataErrorExecution": "all" },
+  "tags": [{ "name": "V8.2-UNSINKABLE" }, { "name": "HR" }, { "name": "RBAC" }, { "name": "Payment" }],
+  "active": false,
+  "_v8_version": "8.2.0"
+}

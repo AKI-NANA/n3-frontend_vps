@@ -1,0 +1,547 @@
+{
+  "name": "【防衛】02_141-防衛-アカウント温め-Warming自動化-人間挙動シミュレート_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "account-warming",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "name": "Webhook: account-warming",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "account-warming"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 4
+            }
+          ]
+        }
+      },
+      "name": "⏰ 4時間ごと自動実行",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// アカウント温め（Warming）初期化\n// アップロード前に人間らしい挙動をシミュレート\n// ============================================================================\n\nconst body = $input.first().json.body || $input.first().json || {};\n\nconst accountId = body.account_id;\nconst channelId = body.channel_id;\nconst sessionType = body.session_type || 'pre_upload'; // 'pre_upload', 'daily_maintenance', 'recovery'\nconst targetActions = body.target_actions || 5;\nconst prepareForUpload = body.prepare_for_upload || false;\n\n// セッションID生成\nconst sessionId = 'warm_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);\n\nreturn [{\n  json: {\n    session_id: sessionId,\n    account_id: accountId,\n    channel_id: channelId,\n    session_type: sessionType,\n    target_actions: targetActions,\n    prepare_for_upload: prepareForUpload,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT p.*, ap.profile_id, ap.provider as antidetect_provider, mp.proxy_host, mp.proxy_port, mp.proxy_username, mp.proxy_password FROM pva_accounts p LEFT JOIN antidetect_profiles ap ON p.antidetect_profile_id = ap.id LEFT JOIN mobile_proxy_pool mp ON p.proxy_id = mp.id WHERE p.status = 'active' AND p.trust_score > 50 ORDER BY p.last_activity_at ASC NULLS FIRST LIMIT 10"
+      },
+      "name": "📥 温め対象アカウント取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM warming_action_templates WHERE is_active = TRUE ORDER BY weight DESC"
+      },
+      "name": "📋 アクションテンプレート取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// アクションプラン生成\n// ランダムな順序と間隔でアクションを計画\n// ============================================================================\n\nconst config = $node['🔧 初期化'].json;\nconst accounts = $node['📥 温め対象アカウント取得'].json || [];\nconst templates = $input.first().json || [];\n\nif (!Array.isArray(accounts) || accounts.length === 0) {\n  return [{ json: { skip: true, message: '温め対象アカウントなし' } }];\n}\n\nif (!Array.isArray(templates) || templates.length === 0) {\n  return [{ json: { skip: true, message: 'アクションテンプレートなし' } }];\n}\n\n// 重み付きランダム選択\nconst weightedRandom = (items) => {\n  const totalWeight = items.reduce((sum, item) => sum + (item.weight || 1), 0);\n  let random = Math.random() * totalWeight;\n  for (const item of items) {\n    random -= (item.weight || 1);\n    if (random <= 0) return item;\n  }\n  return items[0];\n};\n\n// 各アカウントのアクションプラン生成\nconst plans = [];\n\nfor (const account of accounts) {\n  const accountPlan = {\n    account_id: account.id,\n    channel_id: account.youtube_channel_id,\n    profile_id: account.profile_id,\n    antidetect_provider: account.antidetect_provider,\n    proxy_config: account.proxy_host ? {\n      host: account.proxy_host,\n      port: account.proxy_port,\n      username: account.proxy_username,\n      password: account.proxy_password\n    } : null,\n    actions: []\n  };\n\n  // ターゲットアクション数分のプランを生成\n  let currentDelay = 0;\n  for (let i = 0; i < config.target_actions; i++) {\n    const template = weightedRandom(templates);\n    \n    // ランダムな遅延（30秒〜3分）\n    const delaySeconds = 30 + Math.floor(Math.random() * 150);\n    currentDelay += delaySeconds;\n    \n    // 視聴時間のランダム化\n    let duration = 0;\n    if (template.action_type === 'watch') {\n      duration = template.min_duration_seconds + \n        Math.floor(Math.random() * (template.max_duration_seconds - template.min_duration_seconds));\n    }\n    \n    // コメントのランダム選択\n    let comment = null;\n    if (template.action_type === 'comment' && template.comment_templates) {\n      const comments = typeof template.comment_templates === 'string' \n        ? JSON.parse(template.comment_templates) \n        : template.comment_templates;\n      if (comments.length > 0) {\n        comment = comments[Math.floor(Math.random() * comments.length)];\n      }\n    }\n\n    accountPlan.actions.push({\n      sequence: i + 1,\n      action_type: template.action_type,\n      target_category: template.target_category,\n      delay_seconds: delaySeconds,\n      cumulative_delay: currentDelay,\n      duration_seconds: duration,\n      comment_text: comment\n    });\n  }\n\n  plans.push(accountPlan);\n}\n\nreturn plans.map(p => ({ json: p }));"
+      },
+      "name": "📝 アクションプラン生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "name": "スキップ？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, skipped: true, message: $json.message }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "name": "スキップ応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO account_warming_sessions (youtube_account_id, channel_id, session_type, target_actions, status, started_at) VALUES ($1, $2, $3, $4, 'running', NOW()) RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.account_id, $json.channel_id, $node['🔧 初期化'].json.session_type, $json.actions.length] }}"
+        }
+      },
+      "name": "💾 セッション開始登録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 温めアクション実行準備\n// AdsPower/GoLogin API または Puppeteer で実行\n// ============================================================================\n\nconst plan = $node['📝 アクションプラン生成'].json;\nconst dbResult = $input.first().json;\n\n// 人気の教育系動画IDプール（実際の運用ではDBから取得）\nconst videoPool = [\n  'dQw4w9WgXcQ', // プレースホルダー\n  '9bZkp7q19f0',\n  'kJQP7kiw5Fk',\n  'JGwWNGJdvx8',\n  'RgKAFK5djSk'\n];\n\n// 各アクションにターゲット動画を割り当て\nconst enrichedActions = plan.actions.map(action => {\n  const targetVideoId = videoPool[Math.floor(Math.random() * videoPool.length)];\n  return {\n    ...action,\n    target_video_id: targetVideoId,\n    youtube_url: `https://www.youtube.com/watch?v=${targetVideoId}`\n  };\n});\n\nreturn [{\n  json: {\n    session_db_id: dbResult[0]?.id,\n    account_id: plan.account_id,\n    channel_id: plan.channel_id,\n    profile_id: plan.profile_id,\n    antidetect_provider: plan.antidetect_provider,\n    proxy_config: plan.proxy_config,\n    actions: enrichedActions,\n    total_duration_seconds: enrichedActions.reduce((sum, a) => sum + a.cumulative_delay + (a.duration_seconds || 0), 0)\n  }\n}];"
+      },
+      "name": "📋 アクション詳細準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// AdsPower/GoLogin API呼び出し準備\n// プロファイル起動 → アクション実行 → プロファイル停止\n// ============================================================================\n\nconst data = $json;\n\n// AdsPower API コマンド生成\nconst adspowerBaseUrl = $env.ADSPOWER_API_URL || 'http://local.adspower.net:50325';\n\nconst commands = {\n  // 1. プロファイル起動\n  start_profile: {\n    url: `${adspowerBaseUrl}/api/v1/browser/start`,\n    method: 'GET',\n    params: { user_id: data.profile_id }\n  },\n  \n  // 2. アクション実行（Puppeteer接続情報取得後）\n  actions: data.actions.map(action => ({\n    type: action.action_type,\n    video_id: action.target_video_id,\n    url: action.youtube_url,\n    delay_before: action.delay_seconds,\n    duration: action.duration_seconds,\n    comment: action.comment_text\n  })),\n  \n  // 3. プロファイル停止\n  stop_profile: {\n    url: `${adspowerBaseUrl}/api/v1/browser/stop`,\n    method: 'GET',\n    params: { user_id: data.profile_id }\n  }\n};\n\nreturn [{\n  json: {\n    ...data,\n    adspower_commands: commands,\n    execution_script: generatePuppeteerScript(data.actions)\n  }\n}];\n\n// Puppeteerスクリプト生成（簡略版）\nfunction generatePuppeteerScript(actions) {\n  return `\n// Auto-generated warming script\nconst puppeteer = require('puppeteer-core');\n\nasync function warmAccount(wsEndpoint) {\n  const browser = await puppeteer.connect({ browserWSEndpoint: wsEndpoint });\n  const page = await browser.newPage();\n  \n  ${actions.map((a, i) => `\n  // Action ${i + 1}: ${a.action_type}\n  await new Promise(r => setTimeout(r, ${a.delay_seconds * 1000}));\n  await page.goto('${a.youtube_url}');\n  ${a.action_type === 'watch' ? `await new Promise(r => setTimeout(r, ${a.duration_seconds * 1000}));` : ''}\n  ${a.action_type === 'like' ? `await page.click('button[aria-label*=\"like\"]').catch(() => {});` : ''}\n  ${a.action_type === 'comment' && a.comment_text ? `\n  await page.click('#comment-placeholder-area').catch(() => {});\n  await page.type('#contenteditable-root', '${a.comment_text}');\n  await page.click('#submit-button').catch(() => {});\n  ` : ''}\n  `).join('')}\n  \n  await browser.disconnect();\n}\n\nmodule.exports = { warmAccount };\n  `.trim();\n}"
+      },
+      "name": "🤖 AdsPower コマンド生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.adspower_commands.start_profile.url }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "user_id",
+              "value": "={{ $json.profile_id }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "name": "🚀 プロファイル起動",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// Puppeteer 実行（WebSocket接続）\n// 実際の運用ではVPS上のPuppeteerスクリプトを呼び出す\n// ============================================================================\n\nconst data = $node['🤖 AdsPower コマンド生成'].json;\nconst startResult = $input.first().json;\n\n// AdsPower起動結果からWebSocket URLを取得\nlet wsEndpoint = null;\nlet debugPort = null;\n\ntry {\n  if (startResult.data?.ws?.puppeteer) {\n    wsEndpoint = startResult.data.ws.puppeteer;\n  }\n  if (startResult.data?.debug_port) {\n    debugPort = startResult.data.debug_port;\n  }\n} catch (e) {\n  // 起動失敗\n}\n\nif (!wsEndpoint) {\n  return [{\n    json: {\n      ...data,\n      execution_status: 'profile_start_failed',\n      ws_endpoint: null,\n      actions_completed: 0\n    }\n  }];\n}\n\n// シミュレート結果（実際はPuppeteerで実行）\nconst simulatedResults = data.actions.map((action, idx) => ({\n  sequence: idx + 1,\n  action_type: action.type,\n  video_id: action.video_id,\n  status: 'completed',\n  executed_at: new Date(Date.now() + action.delay_before * 1000).toISOString()\n}));\n\nreturn [{\n  json: {\n    session_db_id: data.session_db_id,\n    account_id: data.account_id,\n    channel_id: data.channel_id,\n    profile_id: data.profile_id,\n    ws_endpoint: wsEndpoint,\n    debug_port: debugPort,\n    execution_status: 'completed',\n    actions_completed: simulatedResults.length,\n    actions_log: simulatedResults\n  }\n}];"
+      },
+      "name": "🎬 アクション実行",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.ADSPOWER_API_URL || 'http://local.adspower.net:50325' }}/api/v1/browser/stop",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "user_id",
+              "value": "={{ $json.profile_id }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "name": "🛑 プロファイル停止",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE account_warming_sessions SET status = 'completed', completed_actions = $2, actions_log = $3, completed_at = NOW() WHERE id = $1",
+        "options": {
+          "queryParams": "={{ [$json.session_db_id, $json.actions_completed, JSON.stringify($json.actions_log)] }}"
+        }
+      },
+      "name": "💾 セッション完了登録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE pva_accounts SET last_activity_at = NOW(), trust_score = LEAST(trust_score + 1, 100) WHERE id = $1",
+        "options": {
+          "queryParams": "={{ [$json.account_id] }}"
+        }
+      },
+      "name": "📈 信頼スコア更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $json;\nreturn [{\n  json: {\n    success: true,\n    action: 'account_warming',\n    session_id: data.session_db_id,\n    account_id: data.account_id,\n    actions_completed: data.actions_completed,\n    execution_status: data.execution_status\n  }\n}];"
+      },
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: account-warming": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⏰ 4時間ごと自動実行": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "📥 温め対象アカウント取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📥 温め対象アカウント取得": {
+      "main": [
+        [
+          {
+            "node": "📋 アクションテンプレート取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 アクションテンプレート取得": {
+      "main": [
+        [
+          {
+            "node": "📝 アクションプラン生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 アクションプラン生成": {
+      "main": [
+        [
+          {
+            "node": "スキップ？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "スキップ？": {
+      "main": [
+        [
+          {
+            "node": "スキップ応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💾 セッション開始登録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 セッション開始登録": {
+      "main": [
+        [
+          {
+            "node": "📋 アクション詳細準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 アクション詳細準備": {
+      "main": [
+        [
+          {
+            "node": "🤖 AdsPower コマンド生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 AdsPower コマンド生成": {
+      "main": [
+        [
+          {
+            "node": "🚀 プロファイル起動",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚀 プロファイル起動": {
+      "main": [
+        [
+          {
+            "node": "🎬 アクション実行",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎬 アクション実行": {
+      "main": [
+        [
+          {
+            "node": "🛑 プロファイル停止",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🛑 プロファイル停止": {
+      "main": [
+        [
+          {
+            "node": "💾 セッション完了登録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 セッション完了登録": {
+      "main": [
+        [
+          {
+            "node": "📈 信頼スコア更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📈 信頼スコア更新": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 1800,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Defense",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Warming",
+      "color": "#3498db"
+    },
+    {
+      "name": "Phase-14",
+      "color": "#f39c12"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

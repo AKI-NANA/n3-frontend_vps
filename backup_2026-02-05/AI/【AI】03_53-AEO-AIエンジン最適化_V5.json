@@ -1,0 +1,331 @@
+{
+  "name": "【AI】03_53-AEO-AIエンジン最適化_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aeo-optimize",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: aeo-optimize",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "aeo-optimize"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst apiUrl = $env.N3_API_URL || '{{$env.GATEWAY_URL}}';\nconst productId = body.product_id;\nif (!productId) return [{ json: { error: true, message: 'product_id は必須', code: 'MISSING_PARAM' } }];\nreturn [{ json: { product_id: productId, api_url: apiUrl } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM products_master WHERE id = $1",
+        "options": {
+          "queryParams": "={{ [$json.product_id] }}"
+        }
+      },
+      "id": "get-product",
+      "name": "📦 商品取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $node['🔐 初期化'].json.api_url }}/api/ai/extract-entities",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ title: $json.title || $json[0]?.title, description: $json.description || $json[0]?.description, category: $json.category_primary || $json[0]?.category_primary }) }}",
+        "options": {
+          "timeout": 45000
+        }
+      },
+      "id": "extract-entities",
+      "name": "🧠 エンティティ抽出",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const productRaw = $node['📦 商品取得'].json;\nconst entitiesResult = $input.first().json;\nconst product = Array.isArray(productRaw) ? productRaw[0] : productRaw;\nif (!product) return [{ json: { error: true, message: '商品が見つかりません' } }];\n\nconst primaryEntity = entitiesResult.primary_entity || product.category_primary || 'Product';\nconst relatedEntities = entitiesResult.related_entities || [];\nconst entityKeywords = entitiesResult.keywords || [product.title];\n\n// JSON-LD Product Schema生成\nconst jsonLdProduct = {\n  '@context': 'https://schema.org',\n  '@type': 'Product',\n  name: product.title,\n  description: product.description || '',\n  sku: product.sku || '',\n  brand: { '@type': 'Brand', name: product.brand || 'Unknown' },\n  category: product.category_primary || '',\n  image: product.image_url || '',\n  offers: {\n    '@type': 'Offer',\n    price: product.ebay_price_usd || 0,\n    priceCurrency: 'USD',\n    availability: 'https://schema.org/InStock',\n    seller: { '@type': 'Organization', name: 'N3 Global' }\n  }\n};\n\n// FAQ Schema（AIショッピング対策）\nconst jsonLdFaq = {\n  '@context': 'https://schema.org',\n  '@type': 'FAQPage',\n  mainEntity: [\n    { '@type': 'Question', name: `What is ${product.title}?`, acceptedAnswer: { '@type': 'Answer', text: product.description || 'Quality product from Japan.' } },\n    { '@type': 'Question', name: 'Is international shipping available?', acceptedAnswer: { '@type': 'Answer', text: 'Yes, we ship worldwide with tracking.' } }\n  ]\n};\n\n// AEOスコア計算\nlet aeoScore = 50;\nif (primaryEntity) aeoScore += 10;\nif (relatedEntities.length > 0) aeoScore += relatedEntities.length * 5;\nif (entityKeywords.length > 3) aeoScore += 10;\nif (product.description && product.description.length > 100) aeoScore += 10;\naeoScore = Math.min(100, aeoScore);\n\nreturn [{ json: { product_id: product.id, primary_entity: primaryEntity, related_entities: relatedEntities, entity_keywords: entityKeywords, json_ld_product: jsonLdProduct, json_ld_faq: jsonLdFaq, aeo_score: aeoScore } }];"
+      },
+      "id": "generate-aeo",
+      "name": "🎯 AEO生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO aeo_optimization (product_id, primary_entity, related_entities, entity_keywords, json_ld_product, json_ld_faq, aeo_score, last_analyzed_at) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW()) ON CONFLICT (product_id) DO UPDATE SET primary_entity = $2, related_entities = $3, entity_keywords = $4, json_ld_product = $5, json_ld_faq = $6, aeo_score = $7, last_analyzed_at = NOW() RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.product_id, $json.primary_entity, $json.related_entities, $json.entity_keywords, JSON.stringify($json.json_ld_product), JSON.stringify($json.json_ld_faq), $json.aeo_score] }}"
+        }
+      },
+      "id": "save-aeo",
+      "name": "💾 AEO保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $node['🎯 AEO生成'].json;\nconst saveResult = $input.first().json;\nreturn [{ json: { success: true, aeo_id: saveResult?.id, product_id: data.product_id, aeo_score: data.aeo_score, primary_entity: data.primary_entity, entity_keywords_count: data.entity_keywords?.length || 0 } }];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: aeo-optimize": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📦 商品取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 商品取得": {
+      "main": [
+        [
+          {
+            "node": "🧠 エンティティ抽出",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧠 エンティティ抽出": {
+      "main": [
+        [
+          {
+            "node": "🎯 AEO生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎯 AEO生成": {
+      "main": [
+        [
+          {
+            "node": "💾 AEO保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 AEO保存": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 120,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-AEO",
+      "color": "#1abc9c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "AI-Search",
+      "color": "#3498db"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

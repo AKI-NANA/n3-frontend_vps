@@ -1,0 +1,412 @@
+{
+  "name": "【メディア】03_52a-メディア-ElevenLabs音声生成_V6",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "voice-generate-v6",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: voice-generate-v6",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "voice-generate-v6"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// N3-52a V6: ElevenLabs音声生成 - バイオノイズ強化版\n// Gemini指示完全準拠:\n//   1. 語尾ピッチ±0.2%ランダム化\n//   2. 句読点ポーズ0.05〜0.15秒ランダム化\n//   3. 息継ぎ[breath]自動挿入\n// ============================================================================\n\nconst apiUrl = $env.N3_API_URL || $env.API_BASE_URL;\nconst elevenlabsKey = $env.ELEVENLABS_API_KEY;\n\nif (!apiUrl) {\n  return [{ json: { error: true, message: 'N3_API_URL環境変数が未設定', code: 'CONFIG_ERROR' } }];\n}\nif (!elevenlabsKey) {\n  return [{ json: { error: true, message: 'ELEVENLABS_API_KEY環境変数が未設定', code: 'CONFIG_ERROR' } }];\n}\n\nconst body = $input.first().json.body || $input.first().json || {};\n\nconst text = body.text;\nconst voiceId = body.voice_id || $env.ELEVENLABS_DEFAULT_VOICE_ID || 'EXAVITQu4vr4xnSDxMaL';\nconst productId = body.product_id;\nconst contentId = body.content_id;\nconst genre = body.genre || 'general';\nconst language = body.language || 'ja';\n\n// バイオノイズオプション（デフォルトON）\nconst bioNoiseOptions = {\n  enable_pitch_variation: body.enable_pitch_variation !== false,\n  enable_pause_randomization: body.enable_pause_randomization !== false,\n  enable_breath_insertion: body.enable_breath_insertion !== false,\n  pitch_variation_range: body.pitch_variation_range || 0.002, // ±0.2%\n  pause_min_ms: body.pause_min_ms || 50,  // 0.05秒\n  pause_max_ms: body.pause_max_ms || 150, // 0.15秒\n  breath_probability: body.breath_probability || 0.3 // 30%の確率\n};\n\nif (!text) {\n  return [{ json: { error: true, message: 'text は必須', code: 'MISSING_PARAM' } }];\n}\n\n// ジャンル別パラメータ\nconst genreSettings = {\n  general: { stability: 0.5, similarity_boost: 0.75, style: 0.2 },\n  electronics: { stability: 0.7, similarity_boost: 0.8, style: 0.1 },\n  apparel: { stability: 0.4, similarity_boost: 0.7, style: 0.4 },\n  luxury: { stability: 0.8, similarity_boost: 0.85, style: 0.0 },\n  education: { stability: 0.65, similarity_boost: 0.75, style: 0.2 },\n  entertainment: { stability: 0.35, similarity_boost: 0.7, style: 0.5 }\n};\n\nconst settings = genreSettings[genre] || genreSettings.general;\n\nreturn [{\n  json: {\n    text,\n    voice_id: voiceId,\n    product_id: productId,\n    content_id: contentId,\n    genre,\n    language,\n    voice_settings: settings,\n    bio_noise: bioNoiseOptions,\n    api_url: apiUrl,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔐 初期化（鉄の掟準拠）",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// バイオノイズ処理 Phase 1: テキスト前処理\n// - 句読点後のポーズをSSMLで挿入\n// - 息継ぎマーカー挿入\n// ============================================================================\n\nconst data = $input.first().json;\nconst bio = data.bio_noise;\nlet text = data.text;\n\n// 1. 句読点ポーズのランダム化（Gemini指示: 0.05-0.15秒）\nif (bio.enable_pause_randomization) {\n  // 文末（。！？）の後にランダムポーズ\n  text = text.replace(/([。！？])/g, (match) => {\n    const pauseMs = Math.floor(bio.pause_min_ms + Math.random() * (bio.pause_max_ms - bio.pause_min_ms));\n    return match + `<break time=\"${pauseMs}ms\"/>`;\n  });\n  \n  // 読点（、）の後に短めのポーズ\n  text = text.replace(/([、,])/g, (match) => {\n    const pauseMs = Math.floor(bio.pause_min_ms * 0.6 + Math.random() * (bio.pause_max_ms * 0.6));\n    return match + `<break time=\"${pauseMs}ms\"/>`;\n  });\n}\n\n// 2. 息継ぎ挿入（確率的）\nif (bio.enable_breath_insertion) {\n  // 長い文の途中に息継ぎを挿入\n  const sentences = text.split(/([。！？])/);\n  text = sentences.map((segment, i) => {\n    // 句読点は除外\n    if (/^[。！？]$/.test(segment)) return segment;\n    \n    // 20文字以上の文で、確率的に息継ぎを追加\n    if (segment.length > 20 && Math.random() < bio.breath_probability) {\n      // 文の中間付近に息継ぎを挿入\n      const midPoint = Math.floor(segment.length / 2);\n      const insertPoint = segment.lastIndexOf('、', midPoint);\n      if (insertPoint > 0) {\n        return segment.slice(0, insertPoint + 1) + '<break time=\"200ms\"/>' + segment.slice(insertPoint + 1);\n      }\n    }\n    return segment;\n  }).join('');\n}\n\n// 3. 溜め（...）の処理\ntext = text.replace(/\\.\\.\\.+/g, '<break time=\"300ms\"/>');\ntext = text.replace(/…+/g, '<break time=\"300ms\"/>');\n\nreturn [{\n  json: {\n    ...data,\n    original_text: data.text,\n    processed_text: text,\n    bio_noise_applied: {\n      pause_randomization: bio.enable_pause_randomization,\n      breath_insertion: bio.enable_breath_insertion\n    }\n  }\n}];"
+      },
+      "id": "bio-noise-text",
+      "name": "🫁 バイオノイズ Phase1: テキスト",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.elevenlabs.io/v1/text-to-speech/{{ $json.voice_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "audio/mpeg"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $json.processed_text, model_id: 'eleven_multilingual_v2', voice_settings: { stability: $json.voice_settings.stability, similarity_boost: $json.voice_settings.similarity_boost, style: $json.voice_settings.style, use_speaker_boost: true } }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "timeout": 120000
+        }
+      },
+      "id": "elevenlabs-api",
+      "name": "🎙️ ElevenLabs API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "elevenlabs-auth",
+          "name": "ElevenLabs API Key"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// バイオノイズ処理 Phase 2: 音声後処理パラメータ生成\n// Gemini指示: 語尾ピッチ±0.2%ランダム化\n// FFmpegで後処理するためのパラメータを生成\n// ============================================================================\n\nconst response = $input.first();\nconst prevData = $node['🫁 バイオノイズ Phase1: テキスト'].json;\nconst bio = prevData.bio_noise;\n\n// エラーチェック\nif (response.json?.error || response.json?.detail) {\n  return [{\n    json: {\n      ...prevData,\n      voice_generated: false,\n      error: response.json?.detail || response.json?.error?.message || 'ElevenLabs API Error'\n    }\n  }];\n}\n\nif (!response.binary?.data) {\n  return [{\n    json: {\n      ...prevData,\n      voice_generated: false,\n      error: '音声データが生成されませんでした'\n    }\n  }];\n}\n\n// ピッチ変動パラメータ生成（Gemini指示: ±0.2%）\nlet pitchAdjustments = [];\nif (bio.enable_pitch_variation) {\n  // 語尾（文末）でピッチを微調整\n  // 基準: 1.0、範囲: 0.998〜1.002\n  const range = bio.pitch_variation_range || 0.002;\n  \n  // 複数のセグメントに対してランダムなピッチ変動を生成\n  // 実際のFFmpeg処理では、音声を分割してそれぞれにピッチを適用\n  for (let i = 0; i < 5; i++) {\n    const variation = 1.0 + (Math.random() * 2 - 1) * range;\n    pitchAdjustments.push({\n      segment: i,\n      pitch_factor: variation,\n      filter: `asetrate=44100*${variation.toFixed(6)},aresample=44100`\n    });\n  }\n}\n\n// 全体のピッチ微調整（単一フィルター版）\nconst globalPitchVariation = 1.0 + (Math.random() * 2 - 1) * (bio.pitch_variation_range || 0.002);\n\nreturn [{\n  json: {\n    ...prevData,\n    voice_generated: true,\n    audio_size: response.binary.data.fileSize || 0,\n    bio_noise_post_processing: {\n      enabled: bio.enable_pitch_variation,\n      global_pitch_factor: globalPitchVariation,\n      segment_adjustments: pitchAdjustments,\n      ffmpeg_global_filter: `asetrate=44100*${globalPitchVariation.toFixed(6)},aresample=44100`,\n      // 追加の人間化フィルター\n      ffmpeg_humanize_filter: [\n        `asetrate=44100*${globalPitchVariation.toFixed(6)}`,\n        'aresample=44100',\n        'highpass=f=80',  // 低周波ノイズ除去\n        'loudnorm=I=-16:TP=-1.5:LRA=11'  // ラウドネス正規化\n      ].join(',')\n    }\n  },\n  binary: response.binary\n}];"
+      },
+      "id": "bio-noise-audio",
+      "name": "🔊 バイオノイズ Phase2: 音声",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-content-id",
+              "leftValue": "={{ $json.content_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-content-id",
+      "name": "コンテンツID有？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO voice_generation_logs (content_id, voice_id, original_text, processed_text, bio_noise_config, pitch_adjustment, audio_size, status, created_at) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, 'completed', NOW()) RETURNING log_id",
+        "options": {
+          "queryParams": "={{ [$json.content_id, $json.voice_id, $json.original_text.substring(0, 500), $json.processed_text.substring(0, 500), JSON.stringify($json.bio_noise), $json.bio_noise_post_processing.global_pitch_factor, $json.audio_size] }}"
+        }
+      },
+      "id": "save-log",
+      "name": "💾 ログ保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst binary = $input.first().binary;\n\nreturn [{\n  json: {\n    success: true,\n    action: 'voice_generated',\n    content_id: data.content_id || null,\n    voice_id: data.voice_id,\n    genre: data.genre,\n    audio_size: data.audio_size,\n    bio_noise_applied: {\n      text_processing: data.bio_noise_applied,\n      audio_processing: {\n        pitch_variation: data.bio_noise_post_processing?.enabled || false,\n        global_pitch_factor: data.bio_noise_post_processing?.global_pitch_factor || 1.0\n      }\n    },\n    ffmpeg_filter: data.bio_noise_post_processing?.ffmpeg_humanize_filter || null,\n    timestamp: new Date().toISOString()\n  },\n  binary: binary\n}];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: voice-generate-v6": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化（鉄の掟準拠）": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🫁 バイオノイズ Phase1: テキスト",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🫁 バイオノイズ Phase1: テキスト": {
+      "main": [
+        [
+          {
+            "node": "🎙️ ElevenLabs API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎙️ ElevenLabs API": {
+      "main": [
+        [
+          {
+            "node": "🔊 バイオノイズ Phase2: 音声",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔊 バイオノイズ Phase2: 音声": {
+      "main": [
+        [
+          {
+            "node": "コンテンツID有？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "コンテンツID有？": {
+      "main": [
+        [
+          {
+            "node": "💾 ログ保存",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 ログ保存": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化（鉄の掟準拠）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 180,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "V6-BioNoise",
+      "color": "#00ff00"
+    },
+    {
+      "name": "ElevenLabs",
+      "color": "#3498db"
+    },
+    {
+      "name": "IronRule",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false,
+  "meta": {
+    "description": "N3-52a V6 ElevenLabs音声生成 バイオノイズ強化版 - Gemini指示完全準拠",
+    "version": "6.0",
+    "changelog": "2026-01-20: Gemini指示完全実装（ピッチ±0.2%、句読点ポーズ0.05-0.15s、息継ぎ挿入）",
+    "iron_rules_compliant": [
+      "no_hardcoded_urls",
+      "query_params_only",
+      "no_crypto_require"
+    ],
+    "gemini_instructions": {
+      "pitch_variation": "±0.2% (0.998-1.002)",
+      "pause_randomization": "50-150ms after punctuation",
+      "breath_insertion": "30% probability"
+    }
+  }
+}

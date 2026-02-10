@@ -1,0 +1,470 @@
+{
+  "name": "【決済】01_54-決済-Stripe-PayPal自動消込_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "payment-webhook",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: payment",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "payment-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst eventType = body.type || body.event_type;\nconst provider = body.provider || (body.type?.includes('stripe') || body.object ? 'stripe' : 'paypal');\n\n// Stripe\nif (provider === 'stripe') {\n  const charge = body.data?.object || {};\n  return [{ json: { provider: 'stripe', event_type: eventType, transaction_id: charge.id || charge.payment_intent, order_id: charge.metadata?.order_id, gross_amount: (charge.amount || 0) / 100, currency: (charge.currency || 'usd').toUpperCase(), fee_amount: 0, status: charge.status === 'succeeded' ? 'completed' : 'pending' } }];\n}\n\n// PayPal\nif (provider === 'paypal') {\n  const resource = body.resource || {};\n  return [{ json: { provider: 'paypal', event_type: eventType, transaction_id: resource.id, order_id: resource.custom_id || resource.invoice_id, gross_amount: parseFloat(resource.amount?.value || 0), currency: resource.amount?.currency_code || 'USD', fee_amount: parseFloat(resource.seller_receivable_breakdown?.paypal_fee?.value || 0), status: resource.status === 'COMPLETED' ? 'completed' : 'pending' } }];\n}\n\nreturn [{ json: { error: true, message: '不明な決済プロバイダ' } }];"
+      },
+      "id": "parse-payment",
+      "name": "💳 決済解析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "completed",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "completed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-completed",
+      "name": "入金完了？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, message: '入金未完了のため処理スキップ' } }];"
+      },
+      "id": "skip-pending",
+      "name": "スキップ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO payment_transactions (provider, provider_transaction_id, gross_amount, currency, fee_amount, net_amount, status, paid_at) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW()) ON CONFLICT DO NOTHING RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.provider, $json.transaction_id, $json.gross_amount, $json.currency, $json.fee_amount, $json.gross_amount - $json.fee_amount, $json.status] }}"
+        }
+      },
+      "id": "save-transaction",
+      "name": "💾 取引保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM orders_unified WHERE platform_order_id = $1 OR order_id::text = $1 LIMIT 1",
+        "options": {
+          "queryParams": "={{ [$node['💳 決済解析'].json.order_id || 'none'] }}"
+        }
+      },
+      "id": "find-order",
+      "name": "🔍 受注検索",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const payment = $node['💳 決済解析'].json;\nconst txnResult = $node['💾 取引保存'].json;\nconst orderRaw = $input.first().json;\nconst order = Array.isArray(orderRaw) ? orderRaw[0] : orderRaw;\n\nconst grossRevenue = payment.gross_amount;\nconst paymentFee = payment.fee_amount;\nconst platformFee = grossRevenue * 0.10; // 推定\nconst purchaseCost = order?.item_cost || grossRevenue * 0.4; // 推定\nconst shippingCost = order?.shipping_cost || 15;\nconst netProfit = grossRevenue - paymentFee - platformFee - purchaseCost - shippingCost;\nconst profitMargin = grossRevenue > 0 ? netProfit / grossRevenue : 0;\n\nreturn [{ json: { payment_id: txnResult?.id, order_id: order?.id, gross_revenue: grossRevenue, currency: payment.currency, payment_fee: paymentFee, platform_fee: Math.round(platformFee * 100) / 100, purchase_cost: purchaseCost, shipping_cost: shippingCost, net_profit: Math.round(netProfit * 100) / 100, profit_margin: Math.round(profitMargin * 1000) / 10 } }];"
+      },
+      "id": "calc-profit",
+      "name": "💰 利益計算",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO profit_settlements (payment_id, order_id, gross_revenue, currency, payment_fee, platform_fee, purchase_cost, shipping_cost, net_profit, profit_margin) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10) ON CONFLICT DO NOTHING RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.payment_id, $json.order_id, $json.gross_revenue, $json.currency, $json.payment_fee, $json.platform_fee, $json.purchase_cost, $json.shipping_cost, $json.net_profit, $json.profit_margin / 100] }}"
+        }
+      },
+      "id": "save-settlement",
+      "name": "💾 利益確定保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE admin_tasks SET status = 'completed', notes = notes || ' [入金確認済]' WHERE related_id::text = $1 AND task_type = 'payment_pending'",
+        "options": {
+          "queryParams": "={{ [$json.order_id || 'none'] }}"
+        }
+      },
+      "id": "update-task",
+      "name": "📋 タスク更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=[info][title]💰 入金確定[/title]金額: {{ $json.currency }} {{ $json.gross_revenue }}\\n純利益: {{ $json.currency }} {{ $json.net_profit }}\\n利益率: {{ $json.profit_margin }}%[/info]"
+            }
+          ]
+        }
+      },
+      "id": "notify",
+      "name": "📢 入金通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $node['💰 利益計算'].json;\nreturn [{ json: { success: true, payment_id: data.payment_id, gross_revenue: data.gross_revenue, net_profit: data.net_profit, profit_margin: data.profit_margin } }];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: payment": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💳 決済解析": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "入金完了？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "入金完了？": {
+      "main": [
+        [
+          {
+            "node": "スキップ",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💾 取引保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "スキップ": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 取引保存": {
+      "main": [
+        [
+          {
+            "node": "🔍 受注検索",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 受注検索": {
+      "main": [
+        [
+          {
+            "node": "💰 利益計算",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💰 利益計算": {
+      "main": [
+        [
+          {
+            "node": "💾 利益確定保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 利益確定保存": {
+      "main": [
+        [
+          {
+            "node": "📋 タスク更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 タスク更新": {
+      "main": [
+        [
+          {
+            "node": "📢 入金通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📢 入金通知": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "💳 決済解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 120,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Finance",
+      "color": "#27ae60"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Payment",
+      "color": "#3498db"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

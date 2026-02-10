@@ -1,0 +1,236 @@
+{
+  "name": "【株式】05_FIN-戦術書生成-Entry-Exit-StopLoss_V6",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "fin-tactical-plan",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: fin-tactical-plan",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "fin-tactical-plan"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// N3-FIN-05 V6: 戦術書生成（Entry/Half-Exit/Stop-Loss/Trailing）\n// 役割: 具体的な売買価格と出口戦略をセットで生成\n// ============================================================================\n\nconst body = $input.first().json.body || $input.first().json || {};\n\nconst stockCode = body.stock_code;\nconst stockName = body.stock_name || '';\nconst currentPrice = body.current_price;\nconst strategyScore = body.strategy_score || 60;\nconst consensusSignal = body.consensus_signal || 'HOLD';\nconst volatility = body.volatility || 0;\nconst atr = body.atr || currentPrice * 0.02;\n\nif (!stockCode || !currentPrice) {\n  return [{ json: { error: true, message: 'stock_code と current_price は必須', code: 'MISSING_PARAM' } }];\n}\n\nreturn [{\n  json: {\n    stock_code: stockCode,\n    stock_name: stockName,\n    current_price: currentPrice,\n    strategy_score: strategyScore,\n    consensus_signal: consensusSignal,\n    volatility: volatility,\n    atr: atr,\n    plan_id: `plan_${Date.now()}`,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT close, high, low FROM market_data WHERE code = $1 ORDER BY date DESC LIMIT 20",
+        "options": {
+          "queryParams": "={{ [$json.stock_code] }}"
+        }
+      },
+      "id": "get-recent-prices",
+      "name": "📊 直近20日データ取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [850, 400],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 戦術書生成ロジック（ATRベース損切り・多段利確）\n// ============================================================================\n\nconst initData = $node['🔐 初期化'].json;\nconst recentData = $input.first().json || [];\n\nconst currentPrice = initData.current_price;\nconst strategyScore = initData.strategy_score;\nconst consensusSignal = initData.consensus_signal;\n\n// ATR計算（True Range の平均）\nfunction calculateATR(data, period = 14) {\n  if (!Array.isArray(data) || data.length < 2) return currentPrice * 0.02;\n  \n  const trueRanges = [];\n  for (let i = 1; i < Math.min(data.length, period + 1); i++) {\n    const high = data[i].high || data[i].close;\n    const low = data[i].low || data[i].close;\n    const prevClose = data[i - 1].close;\n    const tr = Math.max(\n      high - low,\n      Math.abs(high - prevClose),\n      Math.abs(low - prevClose)\n    );\n    trueRanges.push(tr);\n  }\n  \n  return trueRanges.length > 0 \n    ? trueRanges.reduce((a, b) => a + b, 0) / trueRanges.length \n    : currentPrice * 0.02;\n}\n\nconst atr = calculateATR(recentData);\n\n// ============================================================================\n// 価格計算\n// ============================================================================\n\n// Entry: 現在価格（指値の場合は少し下）\nconst entryPrice = Math.round(currentPrice);\nconst entryLimitPrice = Math.round(currentPrice * 0.995); // 0.5%下で指値\n\n// Stop Loss: ATR × 2倍（ノイズで刈られない深さ）\nconst stopLossDistance = atr * 2;\nconst stopLossPrice = Math.round(currentPrice - stopLossDistance);\nconst stopLossPercent = ((currentPrice - stopLossPrice) / currentPrice * 100).toFixed(2);\n\n// Take Profit 1（半分利確）: リスクリワード 1:2\nconst takeProfit1Distance = stopLossDistance * 2;\nconst takeProfit1Price = Math.round(currentPrice + takeProfit1Distance);\nconst takeProfit1Percent = ((takeProfit1Price - currentPrice) / currentPrice * 100).toFixed(2);\n\n// Take Profit 2（全利確）: リスクリワード 1:3\nconst takeProfit2Distance = stopLossDistance * 3;\nconst takeProfit2Price = Math.round(currentPrice + takeProfit2Distance);\nconst takeProfit2Percent = ((takeProfit2Price - currentPrice) / currentPrice * 100).toFixed(2);\n\n// Trailing Stop: 高値から ATR × 1.5 下\nconst trailingStopDistance = atr * 1.5;\n\n// 勝率計算（スコアベース）\nconst baseWinRate = 45; // ベース勝率\nconst scoreBonus = (strategyScore - 50) * 0.5; // スコアによる補正\nconst winRate = Math.min(85, Math.max(30, baseWinRate + scoreBonus));\n\n// 期待値計算\nconst avgWin = (takeProfit1Distance + takeProfit2Distance) / 2;\nconst avgLoss = stopLossDistance;\nconst expectedValue = (winRate / 100 * avgWin) - ((100 - winRate) / 100 * avgLoss);\nconst expectedValuePercent = (expectedValue / currentPrice * 100).toFixed(2);\n\n// リスクリワード比\nconst riskRewardRatio = (avgWin / avgLoss).toFixed(2);\n\n// 推奨ポジションサイズ（リスク2%ルール）\nconst accountRisk = 0.02; // 口座の2%\nconst positionSizeRatio = accountRisk / (stopLossDistance / currentPrice);\n\n// 時間制限（塩漬け防止）\nconst timeLimitDays = strategyScore >= 70 ? 30 : strategyScore >= 50 ? 14 : 7;\n\nreturn [{\n  json: {\n    plan_id: initData.plan_id,\n    stock_code: initData.stock_code,\n    stock_name: initData.stock_name,\n    \n    // 現在の状況\n    current_price: currentPrice,\n    atr: Math.round(atr),\n    strategy_score: strategyScore,\n    consensus_signal: consensusSignal,\n    \n    // Entry戦略\n    entry: {\n      type: 'limit', // 指値推奨\n      price: entryLimitPrice,\n      market_price: entryPrice,\n      note: '指値で0.5%下を狙う。届かなければ見送り。'\n    },\n    \n    // Exit戦略（損切り）\n    stop_loss: {\n      price: stopLossPrice,\n      distance: Math.round(stopLossDistance),\n      percent: stopLossPercent,\n      type: '逆指値（成行）',\n      note: `ATR×2倍。ノイズで刈られにくい深さ。最大損失: -${stopLossPercent}%`\n    },\n    \n    // Exit戦略（利確1: 半分）\n    take_profit_1: {\n      price: takeProfit1Price,\n      percent: takeProfit1Percent,\n      action: '保有株の50%を利確',\n      note: 'リスクリワード1:2達成で半分利確'\n    },\n    \n    // Exit戦略（利確2: 残り）\n    take_profit_2: {\n      price: takeProfit2Price,\n      percent: takeProfit2Percent,\n      action: '残り50%を利確 or トレーリング継続',\n      note: 'リスクリワード1:3達成で全利確、または高値追従'\n    },\n    \n    // トレーリングストップ\n    trailing_stop: {\n      distance: Math.round(trailingStopDistance),\n      percent: (trailingStopDistance / currentPrice * 100).toFixed(2),\n      note: '高値更新時、高値からATR×1.5下に逆指値を移動'\n    },\n    \n    // 時間制限（塩漬け防止）\n    time_limit: {\n      days: timeLimitDays,\n      action: '期限到達で成行売却',\n      note: `${timeLimitDays}日間動かなければ資金効率のため撤退`\n    },\n    \n    // 期待値分析\n    analysis: {\n      win_rate: winRate,\n      risk_reward_ratio: riskRewardRatio,\n      expected_value_percent: expectedValuePercent,\n      position_size_ratio: positionSizeRatio.toFixed(2),\n      is_profitable: expectedValue > 0\n    },\n    \n    // 総合判定\n    recommendation: consensusSignal === 'BUY' && strategyScore >= 60 && expectedValue > 0\n      ? '✅ エントリー推奨'\n      : consensusSignal === 'HOLD' || (strategyScore >= 40 && strategyScore < 60)\n      ? '⏸️ 様子見推奨'\n      : '❌ 見送り推奨',\n    \n    generated_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "generate-tactical-plan",
+      "name": "📋 戦術書生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 400],
+      "notes": "[CRITICAL] ATRベース出口戦略"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO tactical_plans (plan_id, stock_code, stock_name, current_price, entry_price, stop_loss_price, take_profit_1_price, take_profit_2_price, trailing_stop_distance, time_limit_days, win_rate, risk_reward_ratio, expected_value_percent, recommendation, generated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)",
+        "options": {
+          "queryParams": "={{ [$json.plan_id, $json.stock_code, $json.stock_name, $json.current_price, $json.entry.price, $json.stop_loss.price, $json.take_profit_1.price, $json.take_profit_2.price, $json.trailing_stop.distance, $json.time_limit.days, $json.analysis.win_rate, $json.analysis.risk_reward_ratio, $json.analysis.expected_value_percent, $json.recommendation, $json.generated_at] }}"
+        }
+      },
+      "id": "save-plan",
+      "name": "💾 戦術書保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1350, 400],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, plan_id: $json.plan_id, stock_code: $json.stock_code, stock_name: $json.stock_name, entry: $json.entry, stop_loss: $json.stop_loss, take_profit_1: $json.take_profit_1, take_profit_2: $json.take_profit_2, trailing_stop: $json.trailing_stop, time_limit: $json.time_limit, analysis: $json.analysis, recommendation: $json.recommendation }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1600, 400]
+    }
+  ],
+  "connections": {
+    "Webhook: fin-tactical-plan": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📊 直近20日データ取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 直近20日データ取得": {
+      "main": [
+        [
+          {
+            "node": "📋 戦術書生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 戦術書生成": {
+      "main": [
+        [
+          {
+            "node": "💾 戦術書保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 戦術書保存": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "n3-empire-os"
+  },
+  "pinData": {},
+  "versionId": "v6-fin-05",
+  "tags": [
+    {
+      "name": "株式",
+      "id": "fin"
+    },
+    {
+      "name": "V6",
+      "id": "v6"
+    },
+    {
+      "name": "戦術書",
+      "id": "tactical"
+    }
+  ]
+}

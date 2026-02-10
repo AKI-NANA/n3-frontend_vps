@@ -1,0 +1,403 @@
+{
+  "name": "【メディア】18_71-LMS-弱点検出-再解説自動トリガー_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 12
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "⏰ 12時間ごと",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lms-analyze",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: 手動トリガー",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "lms-analyze"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 弱点検出の閾値設定\nconst config = {\n  accuracy_threshold: 0.4,  // 40%以下で再解説対象\n  min_attempts: 10,          // 最低試行回数\n  max_queue_items: 20,       // 1回あたりの最大キュー数\n  analysis_period_days: 30   // 分析対象期間\n};\n\nreturn [{ json: config }];"
+      },
+      "id": "init",
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  q.id,\n  q.question_code,\n  q.category,\n  q.subcategory,\n  q.difficulty,\n  q.global_accuracy_rate,\n  q.total_attempts,\n  q.keywords,\n  ae.id as explanation_id,\n  ae.media_type,\n  ae.video_timestamps\nFROM questions q\nLEFT JOIN atomic_explanations ae ON q.id = ae.question_id AND ae.media_type = 'video_casual'\nWHERE \n  q.is_active = TRUE\n  AND q.needs_improvement = FALSE\n  AND q.global_accuracy_rate < $1\n  AND q.total_attempts >= $2\n  AND NOT EXISTS (\n    SELECT 1 FROM priority_render_queue prq \n    WHERE prq.question_id = q.id AND prq.status IN ('pending', 'processing')\n  )\nORDER BY q.global_accuracy_rate ASC\nLIMIT $3",
+        "options": {
+          "queryParams": "={{ [$json.accuracy_threshold, $json.min_attempts, $json.max_queue_items] }}"
+        }
+      },
+      "id": "fetch-low-accuracy",
+      "name": "📊 低正答率問題を取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-data",
+              "leftValue": "={{ $json.length || 0 }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-data",
+      "name": "データあり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const questions = $input.all().map(item => item.json);\nconst results = [];\n\nfor (const q of questions) {\n  const rate = (q.global_accuracy_rate * 100).toFixed(1);\n  const priority = q.global_accuracy_rate < 0.25 ? 'critical' : \n                   q.global_accuracy_rate < 0.35 ? 'high' : 'normal';\n  \n  // 特別指示を生成\n  const specialInstructions = `\n【再解説動画生成指示】\n対象問題: ${q.question_code}\nカテゴリ: ${q.category}${q.subcategory ? '/' + q.subcategory : ''}\n現在の正答率: ${rate}% (${q.total_attempts}回試行)\n難易度: ${q.difficulty}/5\n\n【特別対応】\n1. より噛み砕いた説明に書き換える\n2. 図解を追加する（フロー図または比較表）\n3. よくある誤解パターンを明示的に説明\n4. 具体例を2つ以上追加\n5. 「ここがポイント！」マーカーを強調\n\n【キーワード】\n${(q.keywords || []).join(', ')}\n\n【トーン】\n- 「難しく感じる人が多い」と共感から入る\n- 「実は簡単です」と安心させる\n- ステップバイステップで解説\n  `.trim();\n  \n  results.push({\n    question_id: q.id,\n    question_code: q.question_code,\n    category: q.category,\n    priority: priority,\n    trigger_reason: 'low_accuracy',\n    trigger_data: {\n      accuracy_rate: q.global_accuracy_rate,\n      total_attempts: q.total_attempts,\n      difficulty: q.difficulty,\n      has_existing_video: !!q.video_timestamps && q.video_timestamps.length > 0\n    },\n    target_media: 'video',\n    target_languages: ['ja'],\n    special_instructions: specialInstructions\n  });\n}\n\nreturn results.map(r => ({ json: r }));"
+      },
+      "id": "prepare-queue",
+      "name": "📋 キューデータ準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO priority_render_queue (\n  question_id,\n  category,\n  priority,\n  trigger_reason,\n  trigger_data,\n  target_media,\n  target_languages,\n  special_instructions,\n  status,\n  queued_at\n) VALUES (\n  $1, $2, $3, $4, $5::jsonb, $6, $7::text[], $8, 'pending', NOW()\n) RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.question_id, $json.category, $json.priority, $json.trigger_reason, JSON.stringify($json.trigger_data), $json.target_media, $json.target_languages, $json.special_instructions] }}"
+        }
+      },
+      "id": "insert-queue",
+      "name": "💾 キュー登録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE questions SET \n  needs_improvement = TRUE,\n  improvement_reason = $2,\n  updated_at = NOW()\nWHERE id = $1",
+        "options": {
+          "queryParams": "={{ [$node['📋 キューデータ準備'].json.question_id, '正答率' + ($node['📋 キューデータ準備'].json.trigger_data.accuracy_rate * 100).toFixed(1) + '%のため再解説を予約'] }}"
+        }
+      },
+      "id": "update-question-flag",
+      "name": "🚩 問題フラグ更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 処理結果を集計\nconst items = $input.all();\nconst results = {\n  total_queued: items.length,\n  critical_count: items.filter(i => i.json.priority === 'critical').length,\n  high_count: items.filter(i => i.json.priority === 'high').length,\n  normal_count: items.filter(i => i.json.priority === 'normal').length,\n  categories: [...new Set(items.map(i => i.json.category))],\n  timestamp: new Date().toISOString()\n};\n\nreturn [{ json: results }];"
+      },
+      "id": "summarize",
+      "name": "📊 結果集計",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "=[info][title]📚 LMS弱点検出 - 再解説キュー登録完了[/title]登録数: {{ $json.total_queued }}件\n\n🔴 Critical: {{ $json.critical_count }}件\n🟠 High: {{ $json.high_count }}件\n🟢 Normal: {{ $json.normal_count }}件\n\nカテゴリ:\n{{ $json.categories.join('\\n') }}\n\n次回のレンダリングバッチで自動生成されます。[/info]",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "notify",
+      "name": "📢 ChatWork通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "chatwork-api",
+          "name": "ChatWork API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, ...$json }) }}",
+        "options": {}
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, message: '対象問題なし', timestamp: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "respond-empty",
+      "name": "📭 対象なし応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "⏰ 12時間ごと": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook: 手動トリガー": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "📊 低正答率問題を取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 低正答率問題を取得": {
+      "main": [
+        [
+          {
+            "node": "データあり？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "データあり？": {
+      "main": [
+        [
+          {
+            "node": "📋 キューデータ準備",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📭 対象なし応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 キューデータ準備": {
+      "main": [
+        [
+          {
+            "node": "💾 キュー登録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 キュー登録": {
+      "main": [
+        [
+          {
+            "node": "🚩 問題フラグ更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚩 問題フラグ更新": {
+      "main": [
+        [
+          {
+            "node": "📊 結果集計",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 結果集計": {
+      "main": [
+        [
+          {
+            "node": "📢 ChatWork通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📢 ChatWork通知": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": "n3-empire-os"
+  },
+  "tags": [
+    {
+      "id": "lms",
+      "name": "LMS"
+    },
+    {
+      "id": "media",
+      "name": "メディア"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ]
+}

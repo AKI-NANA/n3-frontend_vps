@@ -1,0 +1,419 @@
+{
+  "name": "【同期】02_専用-心臓部-為替設定自動同期_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 24
+            }
+          ]
+        }
+      },
+      "id": "gs-trigger",
+      "name": "毎日AM9時に実行",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "url": "https://open.er-api.com/v6/latest/USD",
+        "options": {
+          "timeout": 15000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "fetch-rates",
+      "name": "API: 最新為替レート取得",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================\n// V4-PRODUCTION: マルチテナント為替同期\n// ========================================\nconst response = $input.first().json;\n\nif (!response.rates || !response.rates.JPY) {\n  return [{ json: { error: true, message: '為替API取得失敗' } }];\n}\n\nconst usdJpy = response.rates.JPY;\nconst eurJpy = response.rates.JPY / response.rates.EUR;\nconst gbpJpy = response.rates.JPY / response.rates.GBP;\nconst audJpy = response.rates.JPY / response.rates.AUD;\n\nreturn [{ json: {\n  usd_jpy: Math.round(usdJpy * 100) / 100,\n  eur_jpy: Math.round(eurJpy * 100) / 100,\n  gbp_jpy: Math.round(gbpJpy * 100) / 100,\n  aud_jpy: Math.round(audJpy * 100) / 100,\n  timestamp: new Date().toISOString(),\n  source: 'open.er-api.com'\n} }];"
+      },
+      "id": "parse-rates",
+      "name": "為替レート解析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.error }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=[info][title]❌ 為替API取得失敗[/title]為替レートの自動同期に失敗しました。手動で確認してください。[/info]"
+            }
+          ]
+        },
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "alert-error",
+      "name": "エラー通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT DISTINCT user_id FROM products_master WHERE user_id IS NOT NULL AND workflow_status IN ('approved', 'listed')",
+        "options": {}
+      },
+      "id": "get-active-users",
+      "name": "アクティブユーザー取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ユーザーごとに為替設定を展開\nconst rates = $node['為替レート解析'].json;\nconst users = $input.all().map(i => i.json);\n\nif (!users || users.length === 0) {\n  // ユーザーがいない場合はデフォルトユーザーで処理\n  return [{ json: { user_id: 'default', ...rates } }];\n}\n\nreturn users.map(u => ({ json: {\n  user_id: u.user_id || 'default',\n  usd_jpy: rates.usd_jpy,\n  eur_jpy: rates.eur_jpy,\n  gbp_jpy: rates.gbp_jpy,\n  aud_jpy: rates.aud_jpy,\n  timestamp: rates.timestamp\n} }));"
+      },
+      "id": "expand-users",
+      "name": "ユーザー別展開",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO global_settings (user_id, key, value, updated_at) VALUES ($1, 'exchange_rate_usd_jpy', $2, NOW()) ON CONFLICT (user_id, key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW(); INSERT INTO global_settings (user_id, key, value, updated_at) VALUES ($3, 'exchange_rate_eur_jpy', $4, NOW()) ON CONFLICT (user_id, key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW(); INSERT INTO global_settings (user_id, key, value, updated_at) VALUES ($5, 'exchange_rate_gbp_jpy', $6, NOW()) ON CONFLICT (user_id, key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW(); INSERT INTO global_settings (user_id, key, value, updated_at) VALUES ($7, 'exchange_rate_aud_jpy', $8, NOW()) ON CONFLICT (user_id, key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW();",
+        "options": {
+          "queryParams": "={{ [{{ $json.user_id }}, {{ $json.usd_jpy }}, {{ $json.user_id }}, {{ $json.eur_jpy }}, {{ $json.user_id }}, {{ $json.gbp_jpy }}, {{ $json.user_id }}, {{ $json.aud_jpy }}] }}"
+        }
+      },
+      "id": "upsert-rates",
+      "name": "為替レート保存（UPSERT）",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all().map(i => i.json);\nconst rates = $node['為替レート解析'].json;\n\nreturn [{ json: {\n  success: true,\n  updated_users: results.length,\n  rates: {\n    usd_jpy: rates.usd_jpy,\n    eur_jpy: rates.eur_jpy,\n    gbp_jpy: rates.gbp_jpy,\n    aud_jpy: rates.aud_jpy\n  },\n  timestamp: new Date().toISOString()\n} }];"
+      },
+      "id": "aggregate",
+      "name": "結果集約",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM stock_sync_logs WHERE created_at < NOW() - INTERVAL '7 days'; DELETE FROM listing_history WHERE created_at < NOW() - INTERVAL '7 days'; DELETE FROM performance_snapshots WHERE snapshot_time < NOW() - INTERVAL '7 days';",
+        "options": {}
+      },
+      "id": "purge-history",
+      "name": "🗑️ 履歴パージ（7日超）",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=[info][title]💱 為替レート自動更新完了[/title]USD/JPY: {{ $node['結果集約'].json.rates.usd_jpy }}円\\nEUR/JPY: {{ $node['結果集約'].json.rates.eur_jpy }}円\\nGBP/JPY: {{ $node['結果集約'].json.rates.gbp_jpy }}円\\nAUD/JPY: {{ $node['結果集約'].json.rates.aud_jpy }}円\\n\\n更新ユーザー数: {{ $node['結果集約'].json.updated_users }}[/info]"
+            }
+          ]
+        },
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "notify-success",
+      "name": "完了通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "毎日AM9時に実行": {
+      "main": [
+        [
+          {
+            "node": "API: 最新為替レート取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API: 最新為替レート取得": {
+      "main": [
+        [
+          {
+            "node": "為替レート解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "為替レート解析": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー通知",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "アクティブユーザー取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "アクティブユーザー取得": {
+      "main": [
+        [
+          {
+            "node": "ユーザー別展開",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ユーザー別展開": {
+      "main": [
+        [
+          {
+            "node": "為替レート保存（UPSERT）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "為替レート保存（UPSERT）": {
+      "main": [
+        [
+          {
+            "node": "結果集約",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "結果集約": {
+      "main": [
+        [
+          {
+            "node": "🗑️ 履歴パージ（7日超）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🗑️ 履歴パージ（7日超）": {
+      "main": [
+        [
+          {
+            "node": "完了通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラー通知": {
+      "main": [
+        [
+          {
+            "node": "📊 実行ログ送信 (成功)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "完了通知": {
+      "main": [
+        [
+          {
+            "node": "📊 実行ログ送信 (成功)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 180,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none"
+  },
+  "tags": [
+    {
+      "name": "N3-Core",
+      "color": "#ff0000"
+    },
+    {
+      "name": "V4-PRODUCTION",
+      "color": "#ff0000"
+    },
+    {
+      "name": "Exchange",
+      "color": "#ffd700"
+    },
+    {
+      "name": "Multi-Tenant",
+      "color": "#00bfff"
+    },
+    {
+      "name": "500MB-Safe",
+      "color": "#32cd32"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

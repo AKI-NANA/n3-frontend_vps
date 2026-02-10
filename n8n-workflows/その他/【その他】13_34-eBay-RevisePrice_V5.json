@@ -1,0 +1,657 @@
+{
+  "name": "【その他】13_34-eBay-RevisePrice_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ebay-revise-price",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: ebay-revise-price",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "ebay-revise-price"
+    },
+    {
+      "parameters": {
+        "jsCode": "// V5: crypto依存排除版\nconst body = $input.first().json.body || $input.first().json;\nconst headers = $input.first().json.headers || {};\nconst apiUrl = $env.N3_API_URL;\nconst secret = $env.N8N_INTERNAL_SECRET;\nif (!apiUrl) return [{ json: { error: true, message: 'N3_API_URL未設定', code: 'CONFIG_ERROR' } }];\nif (!secret) return [{ json: { error: true, message: 'N8N_INTERNAL_SECRET未設定', code: 'CONFIG_ERROR' } }];\nconst internalToken = headers['x-n3-signature'] || headers['X-N3-Signature'];\nconst tokenTimestamp = headers['x-n3-token-timestamp'] || headers['X-N3-Token-Timestamp'];\nconst userId = body.user_id || 'default';\nif (internalToken && tokenTimestamp) {\n  try {\n    const r = await fetch(`${apiUrl}/api/n8n-auth/verify-internal-token`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, timestamp: tokenTimestamp, token: internalToken }) });\n    if (!(await r.json()).valid) return [{ json: { error: true, message: '内部トークン無効', code: 'INVALID_TOKEN' } }];\n  } catch (e) { return [{ json: { error: true, message: 'トークン検証APIエラー', code: 'VERIFY_API_ERROR' } }]; }\n}\nconst itemId = body.itemId || body.item_id;\nconst price = body.price;\nconst currency = body.currency || 'USD';\nconst marketplace = body.marketplace || 'ebay_us';\nif (!itemId) return [{ json: { error: true, message: 'itemId必須', code: 'MISSING_PARAM' } }];\nif (!price || price <= 0) return [{ json: { error: true, message: '有効なprice必須', code: 'INVALID_PARAM' } }];\nif (!userId || userId === 'undefined') return [{ json: { error: true, message: 'user_id必須', code: 'MISSING_PARAM' } }];\nconst SITE_MAP = { 'ebay_us': 0, 'ebay_uk': 3, 'ebay_de': 77, 'ebay_au': 15, 'ebay_ca': 2, 'ebay_fr': 71, 'ebay_it': 101, 'ebay_es': 186 };\nconst siteId = SITE_MAP[marketplace.toLowerCase()] ?? 0;\nreturn [{ json: { item_id: itemId, price, currency, marketplace, user_id: userId, site_id: siteId, product_updated_at: body.product_updated_at || null, request_timestamp: new Date().toISOString() } }];"
+      },
+      "id": "validate",
+      "name": "🔐 内部トークン検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": "={{ $json.code === 'INVALID_TOKEN' ? 403 : ($json.code === 'CONFIG_ERROR' ? 500 : 400) }}"
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT ma.account_name, ma.api_key_encrypted FROM marketplace_accounts ma WHERE ma.user_id = $1 AND (ma.marketplace_id = $2 OR ma.marketplace_id LIKE 'ebay_%') AND ma.status = 'active' ORDER BY CASE WHEN ma.marketplace_id = $2 THEN 0 ELSE 1 END LIMIT 1",
+        "options": {
+          "queryParams": "={{ [$json.user_id, $json.marketplace] }}"
+        }
+      },
+      "id": "get-account",
+      "name": "📦 アカウント取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// V5: crypto依存排除版\nconst request = $node['🔐 内部トークン検証'].json;\nconst account = Array.isArray($input.first().json) ? $input.first().json[0] : $input.first().json;\nif (!account || !account.api_key_encrypted) return [{ json: { ...request, need_legacy_token: true } }];\nconst apiUrl = $env.N3_API_URL;\nconst secret = $env.N8N_INTERNAL_SECRET;\nif (!apiUrl || !secret) return [{ json: { ...request, need_legacy_token: true } }];\ntry {\n  const r = await fetch(`${apiUrl}/api/n8n-auth/decrypt-key`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-N8N-Secret': secret }, body: JSON.stringify({ encryptedValue: account.api_key_encrypted, userId: request.user_id }) });\n  if (!r.ok) return [{ json: { ...request, need_legacy_token: true } }];\n  const { decrypted } = await r.json();\n  if (!decrypted) return [{ json: { ...request, need_legacy_token: true } }];\n  return [{ json: { ...request, access_token: decrypted, need_legacy_token: false } }];\n} catch (e) { return [{ json: { ...request, need_legacy_token: true } }]; }"
+      },
+      "id": "decrypt-token",
+      "name": "🔓 APIキー復号",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "legacy-check",
+              "leftValue": "={{ $json.need_legacy_token }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-legacy",
+      "name": "レガシートークン要否",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT access_token FROM ebay_tokens WHERE environment = 'production' AND user_id = $1 ORDER BY expires_at DESC LIMIT 1",
+        "options": {
+          "queryParams": "={{ [$node['🔐 内部トークン検証'].json.user_id] }}"
+        }
+      },
+      "id": "get-legacy-token",
+      "name": "レガシートークン取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const request = $node['🔓 APIキー復号'].json;\nconst token = Array.isArray($input.first().json) ? $input.first().json[0] : $input.first().json;\nif (!token || !token.access_token) return [{ json: { error: true, message: 'eBayトークン未検出', code: 'TOKEN_NOT_FOUND' } }];\nreturn [{ json: { ...request, access_token: token.access_token, need_legacy_token: false } }];"
+      },
+      "id": "merge-legacy",
+      "name": "レガシートークンマージ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "token-error",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-token-error",
+      "name": "トークンエラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-token-error",
+      "name": "トークンエラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.ebay.com/ws/api.dll",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-EBAY-API-SITEID",
+              "value": "={{ $json.site_id }}"
+            },
+            {
+              "name": "X-EBAY-API-COMPATIBILITY-LEVEL",
+              "value": "1225"
+            },
+            {
+              "name": "X-EBAY-API-CALL-NAME",
+              "value": "ReviseInventoryStatus"
+            },
+            {
+              "name": "X-EBAY-API-IAF-TOKEN",
+              "value": "={{ $json.access_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "text/xml"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "=<?xml version=\"1.0\" encoding=\"utf-8\"?><ReviseInventoryStatusRequest xmlns=\"urn:ebay:apis:eBLBaseComponents\"><RequesterCredentials><eBayAuthToken>{{ $json.access_token }}</eBayAuthToken></RequesterCredentials><InventoryStatus><ItemID>{{ $json.item_id }}</ItemID><StartPrice currencyID=\"{{ $json.currency }}\">{{ $json.price }}</StartPrice></InventoryStatus></ReviseInventoryStatusRequest>",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "ebay-revise",
+      "name": "🛒 eBay RevisePrice",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nlet req; try { req = $node['レガシートークンマージ'].json; } catch (e) { req = $node['🔓 APIキー復号'].json; }\nconst str = typeof response === 'string' ? response : JSON.stringify(response);\nconst ack = (str.match(/<Ack>([^<]+)<\\/Ack>/) || [])[1] || 'Unknown';\nconst errMsg = (str.match(/<LongMessage>([^<]+)<\\/LongMessage>/) || [])[1] || 'eBay APIエラー';\nconst success = ack === 'Success' || ack === 'Warning';\nreturn [{ json: { success, item_id: req.item_id, price: req.price, currency: req.currency, marketplace: req.marketplace, site_id: req.site_id, user_id: req.user_id, ack, error: success ? null : errMsg, product_updated_at: req.product_updated_at } }];"
+      },
+      "id": "parse-response",
+      "name": "📊 レスポンス解析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "success-check",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-success",
+      "name": "成功チェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE marketplace_listings SET last_price_updated_at = NOW(), updated_at = NOW() WHERE item_id = $1 AND marketplace_id = $2 AND user_id = $3 AND ($4::timestamp IS NULL OR updated_at <= $4::timestamp)",
+        "options": {
+          "queryParams": "={{ [$json.item_id, $json.marketplace, $json.user_id, $json.product_updated_at || null] }}"
+        }
+      },
+      "id": "record-update",
+      "name": "📝 更新記録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO stock_sync_logs (product_master_id, platform, action, old_quantity, new_quantity, success, user_id, created_at) SELECT ml.product_master_id, $1, 'revise_price', 0, 0, true, $2, NOW() FROM marketplace_listings ml WHERE ml.item_id = $3 AND ml.user_id = $2 LIMIT 1",
+        "options": {
+          "queryParams": "={{ [$json.marketplace, $json.user_id, $json.item_id] }}"
+        }
+      },
+      "id": "log-sync",
+      "name": "📜 同期ログ",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($node['📊 レスポンス解析'].json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-failure",
+      "name": "❌ 失敗応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM stock_sync_logs WHERE created_at < NOW() - INTERVAL '7 days' AND user_id = $1",
+        "options": {
+          "queryParams": "={{ [$node['📊 レスポンス解析'].json.user_id] }}"
+        }
+      },
+      "id": "purge-history",
+      "name": "🗑️ 履歴パージ",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: ebay-revise-price": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 内部トークン検証": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📦 アカウント取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 アカウント取得": {
+      "main": [
+        [
+          {
+            "node": "🔓 APIキー復号",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔓 APIキー復号": {
+      "main": [
+        [
+          {
+            "node": "レガシートークン要否",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "レガシートークン要否": {
+      "main": [
+        [
+          {
+            "node": "レガシートークン取得",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "トークンエラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "レガシートークン取得": {
+      "main": [
+        [
+          {
+            "node": "レガシートークンマージ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "レガシートークンマージ": {
+      "main": [
+        [
+          {
+            "node": "トークンエラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "トークンエラーチェック": {
+      "main": [
+        [
+          {
+            "node": "トークンエラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🛒 eBay RevisePrice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🛒 eBay RevisePrice": {
+      "main": [
+        [
+          {
+            "node": "📊 レスポンス解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 レスポンス解析": {
+      "main": [
+        [
+          {
+            "node": "成功チェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "成功チェック": {
+      "main": [
+        [
+          {
+            "node": "📝 更新記録",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "❌ 失敗応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 更新記録": {
+      "main": [
+        [
+          {
+            "node": "📜 同期ログ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📜 同期ログ": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ 成功応答": {
+      "main": [
+        [
+          {
+            "node": "🗑️ 履歴パージ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 内部トークン検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🗑️ 履歴パージ": {
+      "main": [
+        [
+          {
+            "node": "📊 実行ログ送信 (成功)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 60,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-eBay",
+      "color": "#0064d2"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "No-Crypto",
+      "color": "#9932cc"
+    },
+    {
+      "name": "SQL-Safe",
+      "color": "#32cd32"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

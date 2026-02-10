@@ -1,0 +1,246 @@
+{
+  "timestamp": "2026-02-06T07:55:32.193Z",
+  "status": "STRAYS_FOUND",
+  "stray_count": 34,
+  "moved_count": 0,
+  "strays": [
+    {
+      "path": ".env",
+      "type": "directory",
+      "location": "root",
+      "reason": "ルート直下に未登録ディレクトリ",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/Makefile",
+      "type": "file",
+      "location": "dev_lab",
+      "reason": "DEV_LAB直下にファイル（サブディレクトリに配置すべき）",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/README.md",
+      "type": "file",
+      "location": "dev_lab",
+      "reason": "DEV_LAB直下にファイル（サブディレクトリに配置すべき）",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/Workspace",
+      "type": "directory",
+      "location": "dev_lab",
+      "reason": "DEV_LAB内に未登録サブディレクトリ",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/__pycache__",
+      "type": "directory",
+      "location": "dev_lab",
+      "reason": "DEV_LAB内に未登録サブディレクトリ",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/credentials.json",
+      "type": "file",
+      "location": "dev_lab",
+      "reason": "DEV_LAB直下にファイル（サブディレクトリに配置すべき）",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/data",
+      "type": "directory",
+      "location": "dev_lab",
+      "reason": "DEV_LAB内に未登録サブディレクトリ",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/docker-compose.n8n.yml",
+      "type": "file",
+      "location": "dev_lab",
+      "reason": "DEV_LAB直下にファイル（サブディレクトリに配置すべき）",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/docs",
+      "type": "directory",
+      "location": "dev_lab",
+      "reason": "DEV_LAB内に未登録サブディレクトリ",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/ecosystem.config.js",
+      "type": "file",
+      "location": "dev_lab",
+      "reason": "DEV_LAB直下にファイル（サブディレクトリに配置すべき）",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/eslint.config.mjs",
+      "type": "file",
+      "location": "dev_lab",
+      "reason": "DEV_LAB直下にファイル（サブディレクトリに配置すべき）",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/google-service-account.json",
+      "type": "file",
+      "location": "dev_lab",
+      "reason": "DEV_LAB直下にファイル（サブディレクトリに配置すべき）",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/n8n-mcp-server",
+      "type": "directory",
+      "location": "dev_lab",
+      "reason": "DEV_LAB内に未登録サブディレクトリ",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/n8n-mcp-serverのエイリアス",
+      "type": "file",
+      "location": "dev_lab",
+      "reason": "DEV_LAB直下にファイル（サブディレクトリに配置すべき）",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/next-env.d.ts",
+      "type": "file",
+      "location": "dev_lab",
+      "reason": "DEV_LAB直下にファイル（サブディレクトリに配置すべき）",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/next.config.ts",
+      "type": "file",
+      "location": "dev_lab",
+      "reason": "DEV_LAB直下にファイル（サブディレクトリに配置すべき）",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/node_modules",
+      "type": "directory",
+      "location": "dev_lab",
+      "reason": "DEV_LAB内に未登録サブディレクトリ",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/package-lock.json",
+      "type": "file",
+      "location": "dev_lab",
+      "reason": "DEV_LAB直下にファイル（サブディレクトリに配置すべき）",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/package.json",
+      "type": "file",
+      "location": "dev_lab",
+      "reason": "DEV_LAB直下にファイル（サブディレクトリに配置すべき）",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/piano",
+      "type": "directory",
+      "location": "dev_lab",
+      "reason": "DEV_LAB内に未登録サブディレクトリ",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/postcss.config.mjs",
+      "type": "file",
+      "location": "dev_lab",
+      "reason": "DEV_LAB直下にファイル（サブディレクトリに配置すべき）",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/prototypes",
+      "type": "directory",
+      "location": "dev_lab",
+      "reason": "DEV_LAB内に未登録サブディレクトリ",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/proxy.ts",
+      "type": "file",
+      "location": "dev_lab",
+      "reason": "DEV_LAB直下にファイル（サブディレクトリに配置すべき）",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/public",
+      "type": "directory",
+      "location": "dev_lab",
+      "reason": "DEV_LAB内に未登録サブディレクトリ",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/remotion",
+      "type": "directory",
+      "location": "dev_lab",
+      "reason": "DEV_LAB内に未登録サブディレクトリ",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/rename_map.json",
+      "type": "file",
+      "location": "dev_lab",
+      "reason": "DEV_LAB直下にファイル（サブディレクトリに配置すべき）",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/scripts",
+      "type": "directory",
+      "location": "dev_lab",
+      "reason": "DEV_LAB内に未登録サブディレクトリ",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/tailwind.config.ts",
+      "type": "file",
+      "location": "dev_lab",
+      "reason": "DEV_LAB直下にファイル（サブディレクトリに配置すべき）",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/temp_auth_debug.patch",
+      "type": "file",
+      "location": "dev_lab",
+      "reason": "DEV_LAB直下にファイル（サブディレクトリに配置すべき）",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/token.json",
+      "type": "file",
+      "location": "dev_lab",
+      "reason": "DEV_LAB直下にファイル（サブディレクトリに配置すべき）",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/tsconfig.json",
+      "type": "file",
+      "location": "dev_lab",
+      "reason": "DEV_LAB直下にファイル（サブディレクトリに配置すべき）",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/tsconfig.tsbuildinfo",
+      "type": "file",
+      "location": "dev_lab",
+      "reason": "DEV_LAB直下にファイル（サブディレクトリに配置すべき）",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/vercel.json",
+      "type": "file",
+      "location": "dev_lab",
+      "reason": "DEV_LAB直下にファイル（サブディレクトリに配置すべき）",
+      "action": "DRY_RUN"
+    },
+    {
+      "path": "02_DEV_LAB/テスト",
+      "type": "file",
+      "location": "dev_lab",
+      "reason": "DEV_LAB直下にファイル（サブディレクトリに配置すべき）",
+      "action": "DRY_RUN"
+    }
+  ]
+}

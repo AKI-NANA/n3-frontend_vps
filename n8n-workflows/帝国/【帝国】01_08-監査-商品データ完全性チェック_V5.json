@@ -1,0 +1,653 @@
+{
+  "name": "【帝国】01_08-監査-商品データ完全性チェック_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "audit-check",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: audit-check",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "audit-check"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "6時間ごと定期実行",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// V5-PRODUCTION: 内部トークン検証（crypto依存排除版）\nconst body = $input.first().json.body || $input.first().json || {};\nconst headers = $input.first().json.headers || {};\n\nconst apiUrl = $env.N3_API_URL;\nconst secret = $env.N8N_INTERNAL_SECRET;\nif (!apiUrl) return [{ json: { error: true, message: 'N3_API_URL環境変数が未設定です', code: 'CONFIG_ERROR' } }];\nif (!secret) return [{ json: { error: true, message: 'N8N_INTERNAL_SECRET環境変数が未設定です', code: 'CONFIG_ERROR' } }];\n\nconst internalToken = headers['x-n3-signature'] || headers['X-N3-Signature'];\nconst tokenTimestamp = headers['x-n3-token-timestamp'] || headers['X-N3-Token-Timestamp'];\nconst userId = body.user_id || 'default';\n\nif (internalToken && tokenTimestamp) {\n  try {\n    const r = await fetch(`${apiUrl}/api/n8n-auth/verify-internal-token`, {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json' },\n      body: JSON.stringify({ userId, timestamp: tokenTimestamp, token: internalToken })\n    });\n    if (!(await r.json()).valid) return [{ json: { error: true, message: '内部トークンが無効または期限切れです', code: 'INVALID_TOKEN' } }];\n  } catch (e) {\n    return [{ json: { error: true, message: 'トークン検証APIエラー: ' + e.message, code: 'VERIFY_API_ERROR' } }];\n  }\n}\n\nconst productIds = body.product_ids || [];\nconst batchMode = body.batch_mode || false;\nconst limit = body.limit || 50;\nconst isScheduled = !$input.first().json.body;\n\nreturn [{ json: {\n  user_id: userId,\n  product_ids: productIds,\n  batch_mode: batchMode,\n  limit: limit,\n  is_scheduled: isScheduled,\n  request_timestamp: new Date().toISOString()\n} }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化 + 内部トークン検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": "={{ $json.code === 'INVALID_TOKEN' ? 403 : ($json.code === 'CONFIG_ERROR' ? 500 : 400) }}"
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT p.id, p.sku, p.product_name, p.english_title, p.supplier_url, p.listing_price, p.total_cost, p.profit_margin, p.profit_usd, p.images, p.image_url, p.weight_g, p.hts_code, p.origin_country, p.ai_confidence_score, p.workflow_status, p.audit_status, p.user_id, i.physical_quantity FROM products_master p LEFT JOIN inventory_master i ON i.product_master_id = p.id AND i.user_id = p.user_id WHERE p.user_id = $1 AND (p.workflow_status IN ('draft', 'ready', 'approved')) AND ($2::text[] IS NULL OR $2::text[] = '{}' OR p.id::text = ANY($2::text[])) ORDER BY p.updated_at DESC LIMIT $3",
+        "options": {
+          "queryParams": "={{ [$json.user_id, $json.product_ids.length > 0 ? '{' + $json.product_ids.join(',') + '}' : '{}', $json.limit] }}"
+        }
+      },
+      "id": "get-products",
+      "name": "📦 監査対象商品取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "no-items",
+              "leftValue": "={{ Array.isArray($json) ? $json.length : ($json && $json.id ? 1 : 0) }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-items",
+      "name": "対象有無",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { success: true, message: '監査対象商品なし', checked_count: 0, user_id: $node['🔐 初期化 + 内部トークン検証'].json.user_id } }];"
+      },
+      "id": "no-items",
+      "name": "対象なし",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const products = $input.all().map(item => item.json);\nconst flatProducts = products.flat().filter(p => p && p.id);\nconst config = $node['🔐 初期化 + 内部トークン検証'].json;\n\nreturn flatProducts.map(p => ({ json: {\n  product_id: p.id,\n  sku: p.sku,\n  product_name: p.product_name || p.english_title,\n  supplier_url: p.supplier_url,\n  listing_price: p.listing_price,\n  total_cost: p.total_cost,\n  profit_margin: p.profit_margin,\n  profit_usd: p.profit_usd,\n  images: p.images || (p.image_url ? [p.image_url] : []),\n  weight_g: p.weight_g,\n  hts_code: p.hts_code,\n  origin_country: p.origin_country,\n  ai_confidence_score: p.ai_confidence_score,\n  physical_quantity: p.physical_quantity,\n  user_id: p.user_id || config.user_id\n} }));"
+      },
+      "id": "expand",
+      "name": "📋 商品展開",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "jsCode": "// V5-PRODUCTION: 商品データ完全性チェック\nconst product = $input.first().json;\nconst issues = [];\nlet severity = 'ok';\n\n// 1. 画像チェック（3枚以上必須）\nconst images = product.images || [];\nif (images.length === 0) {\n  issues.push({ field: 'images', issue: '画像なし', severity: 'critical' });\n  severity = 'critical';\n} else if (images.length < 3) {\n  issues.push({ field: 'images', issue: `画像不足: ${images.length}枚 (3枚以上推奨)`, severity: 'warning' });\n  if (severity !== 'critical') severity = 'warning';\n}\n\n// 2. 仕入れ元URLチェック\nif (!product.supplier_url || product.supplier_url.trim() === '') {\n  issues.push({ field: 'supplier_url', issue: '仕入れ元URL未設定', severity: 'critical' });\n  severity = 'critical';\n}\n\n// 3. 利益計算チェック（赤字チェック）\nconst listingPrice = parseFloat(product.listing_price) || 0;\nconst totalCost = parseFloat(product.total_cost) || 0;\nconst profitMargin = parseFloat(product.profit_margin) || 0;\nconst profitUsd = parseFloat(product.profit_usd) || 0;\n\nif (listingPrice > 0 && totalCost > 0 && listingPrice < totalCost) {\n  issues.push({ field: 'profit', issue: `赤字: 売価$${listingPrice} < 原価$${totalCost}`, severity: 'critical' });\n  severity = 'critical';\n} else if (profitMargin < 5 && profitMargin !== 0) {\n  issues.push({ field: 'profit_margin', issue: `利益率低: ${profitMargin.toFixed(1)}% (5%未満)`, severity: 'warning' });\n  if (severity !== 'critical') severity = 'warning';\n}\n\n// 4. 重量チェック\nif (!product.weight_g || product.weight_g <= 0) {\n  issues.push({ field: 'weight_g', issue: '重量未設定', severity: 'warning' });\n  if (severity !== 'critical') severity = 'warning';\n}\n\n// 5. HTSコードチェック\nif (!product.hts_code || product.hts_code.trim() === '') {\n  issues.push({ field: 'hts_code', issue: 'HTSコード未設定', severity: 'warning' });\n  if (severity !== 'critical') severity = 'warning';\n}\n\n// 6. 原産国チェック\nif (!product.origin_country || product.origin_country.trim() === '') {\n  issues.push({ field: 'origin_country', issue: '原産国未設定', severity: 'warning' });\n  if (severity !== 'critical') severity = 'warning';\n}\n\n// 7. AI信頼度チェック\nconst confidence = product.ai_confidence_score || 0;\nif (confidence < 80 && confidence > 0) {\n  issues.push({ field: 'ai_confidence_score', issue: `AI信頼度低: ${confidence}点 (80点未満)`, severity: 'warning' });\n  if (severity !== 'critical') severity = 'warning';\n}\n\n// 8. 在庫チェック\nconst stock = product.physical_quantity || 0;\nif (stock === 0) {\n  issues.push({ field: 'physical_quantity', issue: '在庫ゼロ', severity: 'warning' });\n  if (severity !== 'critical') severity = 'warning';\n}\n\nconst auditResult = {\n  status: severity === 'ok' ? 'OK' : (severity === 'critical' ? 'NG' : 'WARNING'),\n  severity: severity,\n  issues: issues,\n  checked_at: new Date().toISOString()\n};\n\nreturn [{ json: {\n  ...product,\n  audit_result: auditResult\n} }];"
+      },
+      "id": "validate-product",
+      "name": "🔍 完全性チェック",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-critical",
+              "leftValue": "={{ $json.audit_result.severity }}",
+              "rightValue": "critical",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-critical",
+      "name": "重大エラー？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N3_API_URL || '{{$env.GATEWAY_URL}}' }}/api/ai/analyze",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'gemini-1.5-flash', prompt: '以下の商品タイトルを分析して、eBay出品時の問題点をJSONで返してください。\\n1. has_trademark: 商標侵害の可能性があるか (true/false)\\n2. has_prohibited: 禁止ワードが含まれるか (true/false)\\n3. is_natural: 自然な英語か (true/false)\\n4. suggestions: 改善提案 (配列)\\n形式: {\"has_trademark\":false,\"has_prohibited\":false,\"is_natural\":true,\"suggestions\":[]}\\n\\nタイトル: ' + ($json.product_name || '').substring(0, 200) }) }}",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "ai-title-check",
+      "name": "🤖 Gemini: タイトル監査",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// AI結果をパースしてaudit_resultに追加\nconst product = $node['🔍 完全性チェック'].json;\nlet aiResult = { has_trademark: false, has_prohibited: false, is_natural: true, suggestions: [] };\n\ntry {\n  const text = $input.first().json.text || $input.first().json.response || '{}';\n  aiResult = JSON.parse(text.replace(/```json\\n?|```/g, ''));\n} catch (e) { /* パース失敗時はデフォルト値使用 */ }\n\nconst auditResult = product.audit_result;\n\n// AI検出結果を監査に追加\nif (aiResult.has_trademark) {\n  auditResult.issues.push({ field: 'title', issue: '商標侵害の可能性あり', severity: 'critical' });\n  auditResult.severity = 'critical';\n  auditResult.status = 'NG';\n}\nif (aiResult.has_prohibited) {\n  auditResult.issues.push({ field: 'title', issue: '禁止ワード含む可能性', severity: 'warning' });\n  if (auditResult.severity !== 'critical') auditResult.severity = 'warning';\n}\nif (!aiResult.is_natural) {\n  auditResult.issues.push({ field: 'title', issue: '不自然な英語表現', severity: 'info' });\n}\n\nauditResult.ai_suggestions = aiResult.suggestions || [];\n\nreturn [{ json: { ...product, audit_result: auditResult } }];"
+      },
+      "id": "merge-ai-result",
+      "name": "AI結果マージ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "jsCode": "// criticalの場合はそのまま通過\nreturn items;"
+      },
+      "id": "pass-critical",
+      "name": "重大エラー通過",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE products_master SET audit_status = $1::jsonb, updated_at = NOW() WHERE id = $2 AND user_id = $3",
+        "options": {
+          "queryParams": "={{ [JSON.stringify($json.audit_result), $json.product_id, $json.user_id] }}"
+        }
+      },
+      "id": "save-audit",
+      "name": "📝 監査結果保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all().map(i => i.json);\nconst config = $node['🔐 初期化 + 内部トークン検証'].json;\n\nconst okCount = results.filter(r => r.audit_result?.status === 'OK').length;\nconst warningCount = results.filter(r => r.audit_result?.status === 'WARNING').length;\nconst ngCount = results.filter(r => r.audit_result?.status === 'NG').length;\n\nconst criticalIssues = results\n  .filter(r => r.audit_result?.severity === 'critical')\n  .map(r => ({ sku: r.sku, issues: r.audit_result.issues.filter(i => i.severity === 'critical') }))\n  .filter(r => r.issues.length > 0);\n\nreturn [{ json: {\n  success: true,\n  checked_count: results.length,\n  ok_count: okCount,\n  warning_count: warningCount,\n  ng_count: ngCount,\n  critical_issues: criticalIssues.slice(0, 10),\n  user_id: config.user_id,\n  checked_at: new Date().toISOString()\n} }];"
+      },
+      "id": "aggregate",
+      "name": "📊 結果集計",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-ng",
+              "leftValue": "={{ $json.ng_count }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "larger"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-notify",
+      "name": "NG商品あり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=[info][title]🔍 N3-08 商品監査完了[/title]✅OK: {{ $json.ok_count }}件\\n⚠️警告: {{ $json.warning_count }}件\\n❌NG: {{ $json.ng_count }}件\\n\\n重大エラー商品:\\n{{ $json.critical_issues.map(i => '・' + i.sku + ': ' + i.issues.map(is => is.issue).join(', ')).join('\\n') || 'なし' }}[/info]"
+            }
+          ]
+        },
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "notify",
+      "name": "ChatWork通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: audit-check": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6時間ごと定期実行": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化 + 内部トークン検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化 + 内部トークン検証": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📦 監査対象商品取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 監査対象商品取得": {
+      "main": [
+        [
+          {
+            "node": "対象有無",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "対象有無": {
+      "main": [
+        [
+          {
+            "node": "対象なし",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 商品展開",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "対象なし": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 商品展開": {
+      "main": [
+        [
+          {
+            "node": "🔍 完全性チェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 完全性チェック": {
+      "main": [
+        [
+          {
+            "node": "重大エラー？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "重大エラー？": {
+      "main": [
+        [
+          {
+            "node": "🤖 Gemini: タイトル監査",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "重大エラー通過",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 Gemini: タイトル監査": {
+      "main": [
+        [
+          {
+            "node": "AI結果マージ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI結果マージ": {
+      "main": [
+        [
+          {
+            "node": "📝 監査結果保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "重大エラー通過": {
+      "main": [
+        [
+          {
+            "node": "📝 監査結果保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 監査結果保存": {
+      "main": [
+        [
+          {
+            "node": "📊 結果集計",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 結果集計": {
+      "main": [
+        [
+          {
+            "node": "NG商品あり？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "NG商品あり？": {
+      "main": [
+        [
+          {
+            "node": "ChatWork通知",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ChatWork通知": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化 + 内部トークン検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 600,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Audit",
+      "color": "#ff6600"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "No-Crypto",
+      "color": "#9932cc"
+    },
+    {
+      "name": "SQL-Safe",
+      "color": "#32cd32"
+    },
+    {
+      "name": "AI-Powered",
+      "color": "#ff1493"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

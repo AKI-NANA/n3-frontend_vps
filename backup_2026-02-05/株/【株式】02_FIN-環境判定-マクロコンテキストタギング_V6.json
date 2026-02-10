@@ -1,0 +1,238 @@
+{
+  "name": "【株式】02_FIN-環境判定-マクロコンテキストタギング_V6",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "fin-context-judge",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: fin-context-judge",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "fin-context-judge"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// N3-FIN-02 V6: マクロ環境判定（コンテキスト・タギング）\n// 役割: 為替・金利・指数から「今日の相場モード」を判定\n// ============================================================================\n\nconst apiUrl = $env.N3_API_URL || $env.API_BASE_URL;\n\nconst body = $input.first().json.body || $input.first().json || {};\nconst targetDate = body.date || new Date().toISOString().split('T')[0];\n\nreturn [{\n  json: {\n    target_date: targetDate,\n    api_url: apiUrl,\n    timestamp: new Date().toISOString(),\n    analysis_id: `ctx_${Date.now()}`\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT code, close, per, pbr, roe, margin_ratio, date FROM market_data WHERE date >= $1::date - INTERVAL '30 days' ORDER BY date DESC",
+        "options": {
+          "queryParams": "={{ [$json.target_date] }}"
+        }
+      },
+      "id": "get-market-data",
+      "name": "📊 直近30日データ取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [650, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.exchangerate-api.com/v4/latest/USD",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "get-fx-rate",
+      "name": "💱 為替データ取得（USD/JPY）",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [650, 450],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.stlouisfed.org/fred/series/observations?series_id=DGS10&api_key={{ $env.FRED_API_KEY }}&file_type=json&limit=5&sort_order=desc",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "get-us-yield",
+      "name": "📈 米10年債利回り取得",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [650, 600],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// マクロデータ統合＆環境タグ生成\n// ============================================================================\n\nconst initData = $node['🔐 初期化'].json;\nconst marketData = $node['📊 直近30日データ取得'].json || [];\nconst fxData = $node['💱 為替データ取得（USD/JPY）'].json || {};\nconst yieldData = $node['📈 米10年債利回り取得'].json || {};\n\n// 為替判定\nconst usdJpy = fxData.rates?.JPY || 150;\nconst fxTag = usdJpy > 155 ? '超円安' : usdJpy > 145 ? '円安進行' : usdJpy > 135 ? '円安' : usdJpy > 125 ? '中立' : '円高';\n\n// 金利判定\nconst us10y = parseFloat(yieldData.observations?.[0]?.value || '4.5');\nconst yieldTag = us10y > 5.0 ? '高金利継続' : us10y > 4.0 ? '金利高止まり' : us10y > 3.0 ? '中立金利' : '低金利環境';\n\n// 需給判定（信用倍率の平均）\nconst marginRatios = Array.isArray(marketData) ? marketData.filter(d => d.margin_ratio).map(d => d.margin_ratio) : [];\nconst avgMarginRatio = marginRatios.length > 0 ? marginRatios.reduce((a, b) => a + b, 0) / marginRatios.length : 2.0;\nconst marginTag = avgMarginRatio > 4.0 ? '過熱（信用買い過多）' : avgMarginRatio > 2.5 ? '強気' : avgMarginRatio > 1.5 ? '中立' : '売り枯れ';\n\n// 季節性アノマリー\nconst month = new Date(initData.target_date).getMonth() + 1;\nconst anomalyTags = [];\nif (month === 1) anomalyTags.push('新春相場');\nif (month === 2) anomalyTags.push('節分天井警戒');\nif (month === 3) anomalyTags.push('彼岸底期待');\nif (month === 5) anomalyTags.push('セルインメイ警戒');\nif (month === 10) anomalyTags.push('秋の底拾い');\nif (month === 12) anomalyTags.push('年末ラリー期待');\n\n// 総合タグ生成\nconst contextTags = [\n  `[${fxTag}]`,\n  `[${yieldTag}]`,\n  `[需給:${marginTag}]`,\n  ...anomalyTags.map(a => `[${a}]`)\n];\n\n// 相場モード判定\nlet marketMode = 'NEUTRAL';\nlet modeScore = 50;\n\nif (fxTag.includes('円安') && yieldTag.includes('高金利') && marginTag.includes('過熱')) {\n  marketMode = 'CAUTION';\n  modeScore = 30;\n} else if (fxTag.includes('円高') || marginTag.includes('売り枯れ')) {\n  marketMode = 'OPPORTUNITY';\n  modeScore = 70;\n} else if (marginTag.includes('強気') && !yieldTag.includes('高金利')) {\n  marketMode = 'BULLISH';\n  modeScore = 65;\n}\n\nreturn [{\n  json: {\n    analysis_id: initData.analysis_id,\n    target_date: initData.target_date,\n    \n    // マクロ指標\n    usd_jpy: usdJpy,\n    us_10y_yield: us10y,\n    avg_margin_ratio: Math.round(avgMarginRatio * 100) / 100,\n    \n    // タグ\n    context_tags: contextTags,\n    fx_tag: fxTag,\n    yield_tag: yieldTag,\n    margin_tag: marginTag,\n    anomaly_tags: anomalyTags,\n    \n    // 判定結果\n    market_mode: marketMode,\n    mode_score: modeScore,\n    mode_description: {\n      'CAUTION': '⚠️ 警戒モード：過熱感あり、新規買いは慎重に',\n      'OPPORTUNITY': '🎯 機会モード：反発狙いの好機',\n      'BULLISH': '📈 強気モード：トレンドフォロー有効',\n      'NEUTRAL': '➖ 中立モード：選別投資'\n    }[marketMode],\n    \n    analyzed_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "generate-context-tags",
+      "name": "🏷️ コンテキストタグ生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 450],
+      "notes": "[PYTHON_MIGRATION_CANDIDATE] 複雑な条件分岐"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO macro_context (analysis_id, target_date, usd_jpy, us_10y_yield, avg_margin_ratio, context_tags, market_mode, mode_score, analyzed_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (target_date) DO UPDATE SET analysis_id = EXCLUDED.analysis_id, usd_jpy = EXCLUDED.usd_jpy, us_10y_yield = EXCLUDED.us_10y_yield, avg_margin_ratio = EXCLUDED.avg_margin_ratio, context_tags = EXCLUDED.context_tags, market_mode = EXCLUDED.market_mode, mode_score = EXCLUDED.mode_score, analyzed_at = EXCLUDED.analyzed_at",
+        "options": {
+          "queryParams": "={{ [$json.analysis_id, $json.target_date, $json.usd_jpy, $json.us_10y_yield, $json.avg_margin_ratio, JSON.stringify($json.context_tags), $json.market_mode, $json.mode_score, $json.analyzed_at] }}"
+        }
+      },
+      "id": "save-context",
+      "name": "💾 macro_context 保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1150, 450],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, market_mode: $json.market_mode, mode_score: $json.mode_score, context_tags: $json.context_tags, description: $json.mode_description }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1400, 450]
+    }
+  ],
+  "connections": {
+    "Webhook: fin-context-judge": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "📊 直近30日データ取得",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "💱 為替データ取得（USD/JPY）",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📈 米10年債利回り取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 直近30日データ取得": {
+      "main": [
+        [
+          {
+            "node": "🏷️ コンテキストタグ生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💱 為替データ取得（USD/JPY）": {
+      "main": [
+        [
+          {
+            "node": "🏷️ コンテキストタグ生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📈 米10年債利回り取得": {
+      "main": [
+        [
+          {
+            "node": "🏷️ コンテキストタグ生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🏷️ コンテキストタグ生成": {
+      "main": [
+        [
+          {
+            "node": "💾 macro_context 保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 macro_context 保存": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "n3-empire-os"
+  },
+  "pinData": {},
+  "versionId": "v6-fin-02",
+  "tags": [
+    {
+      "name": "株式",
+      "id": "fin"
+    },
+    {
+      "name": "V6",
+      "id": "v6"
+    },
+    {
+      "name": "環境判定",
+      "id": "context"
+    }
+  ]
+}

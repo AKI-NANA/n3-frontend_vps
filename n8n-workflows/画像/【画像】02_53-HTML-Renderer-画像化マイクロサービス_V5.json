@@ -1,0 +1,524 @@
+{
+  "name": "【画像】02_53-HTML-Renderer-画像化マイクロサービス_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "html-render",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: html-render",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "html-render"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\n\nconst html = body.html;\nconst productId = body.product_id;\nconst mode = body.mode || 'video-slide';\nconst outputFormat = body.output_format || 'png';\nconst resolution = body.resolution || '1920x1080';\n\nconst resolutionPresets = {\n  '1920x1080': { width: 1920, height: 1080 },\n  '1080x1920': { width: 1080, height: 1920 },\n  '1080x1080': { width: 1080, height: 1080 },\n  '1200x628':  { width: 1200, height: 628 },\n  '1600x900':  { width: 1600, height: 900 },\n  'a4':        { width: 794, height: 1123 },\n  'a5':        { width: 559, height: 794 }\n};\n\nif (!html && !productId) {\n  return [{ json: { error: true, message: 'html または product_id が必要です', code: 'MISSING_PARAM' } }];\n}\n\nconst size = resolutionPresets[resolution] || { width: 1920, height: 1080 };\n\nreturn [{ json: { html, product_id: productId, mode, output_format: outputFormat, resolution, width: size.width, height: size.height, api_url: $env.N3_API_URL || '{{$env.GATEWAY_URL}}' } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-html",
+              "leftValue": "={{ !!$json.html }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-html",
+      "name": "HTML直接？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.api_url }}/api/media/generate-html?product_id={{ $json.product_id }}&mode={{ $json.mode }}&language=ja",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "fetch-html",
+      "name": "📄 HTML取得",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $node['🔐 初期化'].json;\nconst fetchResult = $input.first().json;\nconst html = fetchResult.html || fetchResult.data?.html;\nif (!html) return [{ json: { error: true, message: 'HTMLの取得に失敗しました' } }];\nreturn [{ json: { ...config, html } }];"
+      },
+      "id": "merge-html",
+      "name": "📋 HTMLマージ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nreturn [{ json: data }];"
+      },
+      "id": "pass-html",
+      "name": "HTMLパススルー",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.PUPPETEER_SERVICE_URL || 'http://localhost:3200' }}/render",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ html: $json.html, width: $json.width, height: $json.height, format: $json.output_format, quality: 90, fullPage: false }) }}",
+        "options": {
+          "timeout": 120000,
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "puppeteer-render",
+      "name": "🖼️ Puppeteer レンダリング",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first();\nconst config = $node['🔐 初期化'].json;\n\nif (response.json?.error || !response.binary?.data) {\n  return [{ json: { error: true, message: 'Puppeteerレンダリング失敗', details: response.json?.error } }];\n}\n\nreturn [{ json: { ...config, render_success: true, file_size: response.binary.data.fileSize || 0 }, binary: response.binary }];"
+      },
+      "id": "check-render",
+      "name": "📋 レンダー確認",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "render-error",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-render-error",
+      "name": "レンダーエラー？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, details: $json.details }) }}",
+        "options": {
+          "responseCode": 500
+        }
+      },
+      "id": "respond-render-error",
+      "name": "レンダーエラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "media-assets",
+        "fileName": "=rendered/{{ $json.product_id || 'general' }}/{{ $json.resolution }}/{{ Date.now() }}.{{ $json.output_format }}",
+        "binaryPropertyName": "data"
+      },
+      "id": "upload-storage",
+      "name": "📤 Supabase Storage",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-api",
+          "name": "Supabase API"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $node['📋 レンダー確認'].json;\nconst uploadResult = $input.first().json;\n\nconst supabaseUrl = $env.SUPABASE_URL || '{{$env.SUPABASE_URL}}';\nconst bucketName = 'media-assets';\nconst filePath = uploadResult.Key || uploadResult.path || `rendered/${config.product_id || 'general'}/${config.resolution}/${Date.now()}.${config.output_format}`;\nconst publicUrl = `${supabaseUrl}/storage/v1/object/public/${bucketName}/${filePath}`;\n\nreturn [{ json: { success: true, image_url: publicUrl, product_id: config.product_id, resolution: config.resolution, output_format: config.output_format, file_size: config.file_size, mode: config.mode } }];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO rendered_assets (product_id, template_type, asset_type, resolution, file_url, file_size_bytes) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.product_id, $json.mode, $json.output_format, $json.resolution, $json.image_url, $json.file_size] }}"
+        }
+      },
+      "id": "save-asset",
+      "name": "💾 アセット保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($node['📋 レスポンス生成'].json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: html-render": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTML直接？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML直接？": {
+      "main": [
+        [
+          {
+            "node": "HTMLパススルー",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📄 HTML取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📄 HTML取得": {
+      "main": [
+        [
+          {
+            "node": "📋 HTMLマージ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 HTMLマージ": {
+      "main": [
+        [
+          {
+            "node": "🖼️ Puppeteer レンダリング",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTMLパススルー": {
+      "main": [
+        [
+          {
+            "node": "🖼️ Puppeteer レンダリング",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🖼️ Puppeteer レンダリング": {
+      "main": [
+        [
+          {
+            "node": "📋 レンダー確認",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レンダー確認": {
+      "main": [
+        [
+          {
+            "node": "レンダーエラー？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "レンダーエラー？": {
+      "main": [
+        [
+          {
+            "node": "レンダーエラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📤 Supabase Storage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📤 Supabase Storage": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "💾 アセット保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 アセット保存": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 180,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "HTML-Renderer",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "Puppeteer",
+      "color": "#3498db"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

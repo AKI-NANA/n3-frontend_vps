@@ -1,0 +1,468 @@
+{
+  "name": "【司令塔】09_72-Sentinel-パフォーマンス監視-自動改善_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 4
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "⏰ 4時間ごと",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Sentinel 監視設定\nconst config = {\n  min_views_for_evaluation: 100,\n  time_window_hours: 72,\n  max_tasks_per_run: 20,\n  auto_approve_threshold: 0.90,\n  human_review_threshold: 0.65\n};\n\nreturn [{ json: config }];"
+      },
+      "id": "init",
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM performance_rules WHERE is_active = TRUE ORDER BY id",
+        "options": {}
+      },
+      "id": "get-rules",
+      "name": "📋 ルール取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  rm.render_id as video_id,\n  rm.channel_id,\n  ya.ctr,\n  ya.retention_rate,\n  (ya.likes + ya.comments * 2) / NULLIF(ya.views, 0) as engagement_rate,\n  ya.views,\n  rm.created_at as published_at\nFROM render_metadata rm\nJOIN youtube_analytics ya ON rm.youtube_video_id = ya.video_id\nWHERE ya.recorded_at > NOW() - INTERVAL '{{ $node[\"🔧 初期化\"].json.time_window_hours }} hours'\n  AND ya.views >= {{ $node[\"🔧 初期化\"].json.min_views_for_evaluation }}\n  AND NOT EXISTS (\n    SELECT 1 FROM sentinel_tasks st \n    WHERE st.video_id = rm.render_id \n    AND st.status IN ('pending', 'processing')\n    AND st.created_at > NOW() - INTERVAL '24 hours'\n  )\nORDER BY ya.ctr ASC\nLIMIT 100",
+        "options": {}
+      },
+      "id": "get-videos",
+      "name": "📊 動画パフォーマンス取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "notes": "\n[PATCHER] WARNING: このクエリはqueryParams方式への移行が必要です。手動で修正してください。"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT channel_id, AVG(ctr) as ctr, AVG(retention_rate) as retention_rate, AVG((likes + comments * 2) / NULLIF(views, 0)) as engagement_rate FROM youtube_analytics WHERE recorded_at > NOW() - INTERVAL '30 days' GROUP BY channel_id",
+        "options": {}
+      },
+      "id": "get-channel-averages",
+      "name": "📈 チャンネル平均取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $node['🔧 初期化'].json;\nconst rules = $node['📋 ルール取得'].json || [];\nconst videos = $node['📊 動画パフォーマンス取得'].json || [];\nconst channelAvgsRaw = $node['📈 チャンネル平均取得'].json || [];\n\nif (!Array.isArray(videos) || videos.length === 0) {\n  return [{ json: { skip: true, reason: '評価対象の動画なし' } }];\n}\n\n// チャンネル平均をMapに変換\nconst channelAvgs = new Map();\nfor (const avg of (Array.isArray(channelAvgsRaw) ? channelAvgsRaw : [channelAvgsRaw])) {\n  if (avg?.channel_id) {\n    channelAvgs.set(avg.channel_id, avg);\n  }\n}\n\n// デフォルト平均\nconst defaultAvg = { ctr: 0.05, retention_rate: 0.4, engagement_rate: 0.05 };\n\n// ルールに基づいて評価\nconst tasks = [];\nconst rulesArray = Array.isArray(rules) ? rules : [rules];\nconst videosArray = Array.isArray(videos) ? videos : [videos];\n\nfor (const video of videosArray) {\n  const chAvg = channelAvgs.get(video.channel_id) || defaultAvg;\n  \n  for (const rule of rulesArray) {\n    if (!rule?.conditions) continue;\n    \n    const conditions = typeof rule.conditions === 'string' ? JSON.parse(rule.conditions) : rule.conditions;\n    const metric = video[conditions.metric];\n    if (metric === undefined || metric === null) continue;\n    \n    // 閾値計算\n    let threshold = conditions.threshold;\n    if (conditions.comparison === 'channel_average') {\n      threshold = (chAvg[conditions.metric] || defaultAvg[conditions.metric]) * conditions.threshold;\n    }\n    \n    // 条件チェック\n    let triggered = false;\n    if (conditions.operator === 'lt' && metric < threshold) triggered = true;\n    if (conditions.operator === 'gt' && metric > threshold) triggered = true;\n    \n    if (triggered && video.views >= conditions.min_views) {\n      // 自信度計算\n      const diff = Math.abs(metric - threshold);\n      const confidence = Math.min(0.5 + (diff / Math.max(threshold, 0.01)) * 2, 0.99);\n      \n      tasks.push({\n        task_type: rule.action_type,\n        channel_id: video.channel_id,\n        video_id: video.video_id,\n        task_data: {\n          rule_id: rule.id,\n          rule_name: rule.rule_name,\n          metric_name: conditions.metric,\n          metric_value: metric,\n          threshold: threshold\n        },\n        ai_decision: {\n          action: rule.action_type,\n          confidence: confidence,\n          reasoning: `${conditions.metric}が${(metric * 100).toFixed(2)}%で閾値${(threshold * 100).toFixed(2)}%を下回り`,\n          parameters: typeof rule.action_params === 'string' ? JSON.parse(rule.action_params) : rule.action_params\n        },\n        priority: confidence > 0.85 ? 3 : confidence > 0.7 ? 5 : 7,\n        requires_human_review: confidence < config.human_review_threshold\n      });\n    }\n  }\n}\n\n// 優先度順にソートして上限まで\ntasks.sort((a, b) => a.priority - b.priority);\nconst selectedTasks = tasks.slice(0, config.max_tasks_per_run);\n\nreturn selectedTasks.length > 0 \n  ? selectedTasks.map(t => ({ json: t }))\n  : [{ json: { skip: true, reason: '対象タスクなし' } }];"
+      },
+      "id": "evaluate",
+      "name": "🧠 パフォーマンス評価",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "skip-check",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-skip",
+      "name": "タスクあり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO sentinel_tasks (\n  task_type,\n  channel_id,\n  video_id,\n  task_data,\n  ai_decision,\n  priority,\n  status,\n  requires_human_review,\n  created_at\n) VALUES (\n  $1, $2, $3, $4::jsonb, $5::jsonb, $6,\n  CASE WHEN $7 THEN 'human_review' ELSE 'pending' END,\n  $7, NOW()\n) RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.task_type, $json.channel_id, $json.video_id, JSON.stringify($json.task_data), JSON.stringify($json.ai_decision), $json.priority, $json.requires_human_review] }}"
+        }
+      },
+      "id": "create-task",
+      "name": "💾 タスク作成",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "auto-approve",
+              "leftValue": "={{ !$node['🧠 パフォーマンス評価'].json.requires_human_review }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-auto-approve",
+      "name": "自動承認？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_URL }}/webhook/execute-sentinel-task",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ task_id: $node['💾 タスク作成'].json[0]?.id || $node['💾 タスク作成'].json.id, action: $node['🧠 パフォーマンス評価'].json.ai_decision.action, parameters: $node['🧠 パフォーマンス評価'].json.ai_decision.parameters }) }}",
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "execute-task",
+      "name": "🚀 タスク実行",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// 人間レビュー待ちの通知\nconst task = $node['🧠 パフォーマンス評価'].json;\nreturn [{ json: { ...task, status: 'awaiting_human_review' } }];"
+      },
+      "id": "await-human",
+      "name": "⏳ 人間レビュー待ち",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst summary = {\n  total_tasks: items.length,\n  auto_approved: items.filter(i => !i.json.requires_human_review && !i.json.skip).length,\n  human_review: items.filter(i => i.json.requires_human_review).length,\n  skipped: items.filter(i => i.json.skip).length,\n  timestamp: new Date().toISOString()\n};\n\nreturn [{ json: summary }];"
+      },
+      "id": "summarize",
+      "name": "📊 結果集計",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "=[info][title]🤖 Sentinel AI 監視レポート[/title]検出タスク: {{ $json.total_tasks }}件\n\n✅ 自動実行: {{ $json.auto_approved }}件\n👤 人間レビュー待ち: {{ $json.human_review }}件\n⏭️ スキップ: {{ $json.skipped }}件\n\n次回実行: 4時間後[/info]",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "notify",
+      "name": "📢 ChatWork通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "chatwork-api",
+          "name": "ChatWork API"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "⏰ 4時間ごと": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "📋 ルール取得",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📊 動画パフォーマンス取得",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📈 チャンネル平均取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 ルール取得": {
+      "main": [
+        [
+          {
+            "node": "🧠 パフォーマンス評価",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 動画パフォーマンス取得": {
+      "main": [
+        [
+          {
+            "node": "🧠 パフォーマンス評価",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📈 チャンネル平均取得": {
+      "main": [
+        [
+          {
+            "node": "🧠 パフォーマンス評価",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧠 パフォーマンス評価": {
+      "main": [
+        [
+          {
+            "node": "タスクあり？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "タスクあり？": {
+      "main": [
+        [
+          {
+            "node": "💾 タスク作成",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📊 結果集計",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 タスク作成": {
+      "main": [
+        [
+          {
+            "node": "自動承認？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "自動承認？": {
+      "main": [
+        [
+          {
+            "node": "🚀 タスク実行",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "⏳ 人間レビュー待ち",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚀 タスク実行": {
+      "main": [
+        [
+          {
+            "node": "📊 結果集計",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⏳ 人間レビュー待ち": {
+      "main": [
+        [
+          {
+            "node": "📊 結果集計",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 結果集計": {
+      "main": [
+        [
+          {
+            "node": "📢 ChatWork通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📢 ChatWork通知": {
+      "main": [
+        [
+          {
+            "node": "📊 実行ログ送信 (成功)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": "n3-empire-os"
+  },
+  "tags": [
+    {
+      "id": "sentinel",
+      "name": "Sentinel AI"
+    },
+    {
+      "id": "media",
+      "name": "メディア"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ]
+}

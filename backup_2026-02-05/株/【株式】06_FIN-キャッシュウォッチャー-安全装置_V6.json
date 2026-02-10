@@ -1,0 +1,266 @@
+{
+  "name": "【株式】06_FIN-キャッシュウォッチャー-安全装置_V6",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "fin-cash-watcher",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: fin-cash-watcher",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "fin-cash-watcher"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// N3-FIN-06 V6: キャッシュウォッチャー（安全装置）\n// 役割: 投資可能額を算出し、生存資金・納税リザーブを確保\n// 鉄の掟: このロジックを通さない限り1円も投資に回さない\n// ============================================================================\n\nconst body = $input.first().json.body || $input.first().json || {};\n\n// 銀行残高（手動入力 or API）\nconst totalBalanceJpy = body.total_balance_jpy || 0;\nconst totalBalanceUsd = body.total_balance_usd || 0;\n\n// 設定値（DB or デフォルト）\nconst survivalFund = body.survival_fund || 2000000; // 聖域資金: 200万円\nconst monthlyOpCost = body.monthly_op_cost || 500000; // 月間運営コスト: 50万円\nconst taxReserveRate = body.tax_reserve_rate || 0.3; // 納税リザーブ率: 30%\nconst maxSingleInvestRatio = body.max_single_invest_ratio || 0.1; // 1銘柄最大10%\n\n// 今期の利益（概算）\nconst currentProfitYtd = body.current_profit_ytd || 0;\n\nreturn [{\n  json: {\n    total_balance_jpy: totalBalanceJpy,\n    total_balance_usd: totalBalanceUsd,\n    survival_fund: survivalFund,\n    monthly_op_cost: monthlyOpCost,\n    tax_reserve_rate: taxReserveRate,\n    max_single_invest_ratio: maxSingleInvestRatio,\n    current_profit_ytd: currentProfitYtd,\n    check_id: `cash_${Date.now()}`,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT survival_fund_jpy, tax_reserve_rate, max_investment_ratio, usd_reserve FROM safety_settings WHERE id = 1",
+        "options": {}
+      },
+      "id": "get-safety-settings",
+      "name": "⚙️ 安全設定取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [650, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 投資可能額の算出（鉄の掟）\n// ============================================================================\n\nconst initData = $node['🔐 初期化'].json;\nconst dbSettings = $input.first().json || {};\n\n// DB設定を優先、なければデフォルト\nconst survivalFund = dbSettings.survival_fund_jpy || initData.survival_fund;\nconst taxReserveRate = dbSettings.tax_reserve_rate || initData.tax_reserve_rate;\nconst maxInvestRatio = dbSettings.max_investment_ratio || initData.max_single_invest_ratio;\n\nconst totalBalanceJpy = initData.total_balance_jpy;\nconst totalBalanceUsd = initData.total_balance_usd;\nconst monthlyOpCost = initData.monthly_op_cost;\nconst currentProfitYtd = initData.current_profit_ytd;\n\n// ============================================================================\n// 計算ロジック\n// ============================================================================\n\n// 1. 運転資金リザーブ（3ヶ月分）\nconst operatingReserve = monthlyOpCost * 3;\n\n// 2. 納税リザーブ（今期利益の30%）\nconst taxReserve = Math.max(0, currentProfitYtd * taxReserveRate);\n\n// 3. 総リザーブ（絶対に触らない金額）\nconst totalReserve = survivalFund + operatingReserve + taxReserve;\n\n// 4. 投資可能額（JPY）\nlet investableJpy = totalBalanceJpy - totalReserve;\nif (investableJpy < 0) investableJpy = 0;\n\n// 5. 1銘柄あたり最大投資額\nconst maxPerStock = Math.round(investableJpy * maxInvestRatio);\n\n// 6. ステータス判定\nlet status = 'DEFENSE';\nlet statusMessage = '';\n\nif (investableJpy <= 0) {\n  status = 'LOCKDOWN';\n  statusMessage = '🔒 投資禁止: 生存資金を下回っています。新規投資は一切不可。';\n} else if (investableJpy < 500000) {\n  status = 'DEFENSE';\n  statusMessage = '🛡️ 防御モード: 余裕資金が少ない。慎重な投資のみ。';\n} else if (investableJpy < 2000000) {\n  status = 'CAUTIOUS';\n  statusMessage = '⚠️ 慎重モード: 投資可能だが、分散を徹底。';\n} else {\n  status = 'ATTACK';\n  statusMessage = '⚔️ 攻撃モード: 余裕あり。積極的な投資可能。';\n}\n\n// 7. USD投資可能額（日本株以外用）\nconst investableUsd = totalBalanceUsd * 0.7; // USDは70%まで\n\nreturn [{\n  json: {\n    check_id: initData.check_id,\n    \n    // 入力値\n    input: {\n      total_balance_jpy: totalBalanceJpy,\n      total_balance_usd: totalBalanceUsd,\n      current_profit_ytd: currentProfitYtd\n    },\n    \n    // リザーブ内訳\n    reserves: {\n      survival_fund: survivalFund,\n      operating_reserve: operatingReserve,\n      tax_reserve: Math.round(taxReserve),\n      total_reserve: Math.round(totalReserve)\n    },\n    \n    // 投資可能額\n    investable: {\n      jpy: Math.round(investableJpy),\n      usd: Math.round(investableUsd * 100) / 100,\n      max_per_stock_jpy: maxPerStock,\n      max_invest_ratio: maxInvestRatio\n    },\n    \n    // ステータス\n    status: status,\n    status_message: statusMessage,\n    can_invest: investableJpy > 0,\n    \n    // 推奨アクション\n    recommendations: investableJpy <= 0 \n      ? ['新規投資を停止してください', '生活費の見直しを検討してください']\n      : investableJpy < 500000\n      ? ['分散投資を徹底してください', '損切りラインを厳格に設定してください']\n      : ['通常の投資ルールに従ってください'],\n    \n    checked_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "calculate-investable",
+      "name": "🧮 投資可能額算出",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300],
+      "notes": "[CRITICAL] 鉄の掟 - 安全装置"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "lockdown-check",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "LOCKDOWN",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-lockdown",
+      "name": "LOCKDOWN?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1150, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CHATWORK_WEBHOOK_URL || 'https://api.chatwork.com/v2/rooms/' + $env.CHATWORK_ROOM_ID + '/messages' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=🚨【N3 Finance 緊急警告】\n\nステータス: {{ $json.status }}\n{{ $json.status_message }}\n\n💰 残高: ¥{{ $json.input.total_balance_jpy.toLocaleString() }}\n🔒 必要リザーブ: ¥{{ $json.reserves.total_reserve.toLocaleString() }}\n📉 投資可能額: ¥{{ $json.investable.jpy.toLocaleString() }}\n\n⚠️ 新規投資を直ちに停止してください。"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "alert-lockdown",
+      "name": "🚨 緊急アラート",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1400, 200],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO cash_checks (check_id, total_balance_jpy, total_balance_usd, survival_fund, operating_reserve, tax_reserve, total_reserve, investable_jpy, investable_usd, max_per_stock, status, checked_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
+        "options": {
+          "queryParams": "={{ [$json.check_id, $json.input.total_balance_jpy, $json.input.total_balance_usd, $json.reserves.survival_fund, $json.reserves.operating_reserve, $json.reserves.tax_reserve, $json.reserves.total_reserve, $json.investable.jpy, $json.investable.usd, $json.investable.max_per_stock_jpy, $json.status, $json.checked_at] }}"
+        }
+      },
+      "id": "save-check",
+      "name": "💾 チェック結果保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1400, 400],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, check_id: $json.check_id, status: $json.status, status_message: $json.status_message, can_invest: $json.can_invest, investable: $json.investable, reserves: $json.reserves, recommendations: $json.recommendations }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1650, 300]
+    }
+  ],
+  "connections": {
+    "Webhook: fin-cash-watcher": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "⚙️ 安全設定取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚙️ 安全設定取得": {
+      "main": [
+        [
+          {
+            "node": "🧮 投資可能額算出",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧮 投資可能額算出": {
+      "main": [
+        [
+          {
+            "node": "LOCKDOWN?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LOCKDOWN?": {
+      "main": [
+        [
+          {
+            "node": "🚨 緊急アラート",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💾 チェック結果保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚨 緊急アラート": {
+      "main": [
+        [
+          {
+            "node": "💾 チェック結果保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 チェック結果保存": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "n3-empire-os"
+  },
+  "pinData": {},
+  "versionId": "v6-fin-06",
+  "tags": [
+    {
+      "name": "株式",
+      "id": "fin"
+    },
+    {
+      "name": "V6",
+      "id": "v6"
+    },
+    {
+      "name": "安全装置",
+      "id": "safety"
+    }
+  ]
+}

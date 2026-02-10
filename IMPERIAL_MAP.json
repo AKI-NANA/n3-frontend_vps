@@ -1,0 +1,153 @@
+{
+  "_meta": {
+    "version": "2.0",
+    "description": "帝国地図 v2.0 — CONSTITUTION.md 全30条 + DIRECTORY_MAP.md 全8条に完全準拠。AIコード生成時にシステムプロンプトへ注入し、正しい配置を強制する。",
+    "source": "governance/DIRECTORY_MAP.md, governance/CONSTITUTION.md",
+    "updated_at": "2026-02-06T16:20:00+09:00",
+    "enforcement": "auto-clean.js, nora-file-enforcer.js, imperial-nightly-engine.js v4.0 が本マップを参照",
+    "constitution_articles": {
+      "art4_3": "PROTECTED_FILES の定義",
+      "art6": "夜間に許される行為",
+      "art12": "self-healing管轄",
+      "art14": "auto-clean管轄"
+    }
+  },
+  "root_allowed": {
+    "directories": [
+      "01_PRODUCT",
+      "02_DEV_LAB",
+      "03_ARCHIVE_STORAGE",
+      "src",
+      "public",
+      "governance",
+      "docs",
+      "scripts"
+    ],
+    "system_directories": [".next", "node_modules", ".git", ".github", ".swc", ".mcp-venv", ".n3-docs"],
+    "nextjs_directories_in_src": ["app", "lib", "components", "contexts", "hooks", "types", "services", "layouts", "store", "core", "config"],
+    "nextjs_directories_in_01_product": ["app", "lib", "components", "contexts", "hooks", "types", "services", "layouts", "store", "core", "config", "n8n-workflows", "python-scripts", "scripts", "vps-workers"],
+    "allowed_root_files": [
+      "package.json",
+      "package-lock.json",
+      "tsconfig.json",
+      "next.config.ts",
+      "next.config.mjs",
+      "tailwind.config.ts",
+      "postcss.config.mjs",
+      "eslint.config.mjs",
+      ".env.local",
+      ".env",
+      ".gitignore",
+      ".cursorrules",
+      ".cursorignore",
+      ".n3-empire-root",
+      "CLAUDE_RULES.md",
+      "README.md",
+      "ecosystem.config.js",
+      "components.json",
+      "middleware.ts",
+      "next-env.d.ts"
+    ]
+  },
+  "dev_lab_structure": {
+    "01_N8N_HUB": {
+      "purpose": "n8nワークフローJSON専用倉庫",
+      "allowed_extensions": [".json"],
+      "subdirs": ["json", "PRODUCTION"]
+    },
+    "02_SCRAPYARD": {
+      "purpose": "Pythonスクレイピングスクリプト",
+      "allowed_extensions": [".py", ".txt", ".csv"]
+    },
+    "03_BACKENDS": {
+      "purpose": "ビジネスロジック・API・ユーティリティ",
+      "allowed_extensions": [".py", ".js", ".ts", ".sh"]
+    },
+    "04_INFRA_CONFIG": {
+      "purpose": "Docker・Nginx・インフラ設定",
+      "allowed_extensions": [".yml", ".yaml", ".conf", ".sh", ".env"],
+      "subdirs": ["secrets"]
+    },
+    "05_SKELETONS": {
+      "purpose": "プロトタイプ・実験コード・未分類の一時収容所",
+      "note": "野良ファイルはここに強制移送される。定期的にOllamaがGHOST/ASSET判定を行う。"
+    },
+    "06_ARCHIVES": {
+      "purpose": "バックアップ・旧バージョン",
+      "subdirs": ["bak"]
+    },
+    "nightly-staging": {
+      "purpose": "夜間自律開発のステージング領域（日付別）",
+      "auto_managed": true,
+      "managed_by": "imperial-nightly-engine.js v4.0"
+    }
+  },
+  "governance_structure": {
+    "missions": {
+      "00_queue": "未実行ミッション。.mdを配置するとファイル名辞書順で直列処理",
+      "01_running": "実行中ミッション（常に1ファイルのみ、憲法第18条第4項: 排他制御）",
+      "02_done": "成功ミッション保管庫",
+      "03_failed": "失敗ミッション保管庫"
+    },
+    "logs": {
+      "nightly-engine": "imperial-nightly-engine.js v4.0 のジョブログ",
+      "auto-clean": "自動清掃ログ",
+      "self-healing": "自己修復ログ",
+      "inspect": "Ollama検品ログ"
+    },
+    "snapshots": "ミッション実行前のファイルスナップショット（憲法第18条第5項）",
+    "key_files": {
+      "CONSTITUTION.md": "帝国憲法（全30条）。全スクリプトの起動時に検証。不在時は即停止（第18条第1項）。",
+      "MASTER_LAW.md": "帝国法典（人間が管理）。ハッシュ変更検知付き（第18条第2項）。",
+      "IMPERIAL_MAP.json": "このファイル。ディレクトリ構造の機械可読版。",
+      "DIRECTORY_MAP.md": "帝国地図の人間可読版（全8条）。",
+      "imperial-nightly-engine.js": "統合版夜間開発エンジン v4.0（正式版）。",
+      "NIGHTLY_ACTIVE.lock": "夜間開発中の物理ロック。AIは絶対に削除不可（憲法第4条第1項）。",
+      "audit-rules.json": "監査ルール定義（JSON化）",
+      "registry.json": "監査結果レジストリ",
+      "self-healing-scope.json": "self-healing が触れる/触れない領域定義（憲法第12-13条）",
+      "api_usage_daily.json": "API日次使用量記録（憲法第24-26条）",
+      "confidence_history.json": "confidence推移記録（C-2慢心検知用）",
+      "nightly_result.json": "最新ミッション結果 + 履歴"
+    }
+  },
+  "protected_files": {
+    "description": "憲法第4条第3項: AIが1文字でも変更してはならないファイル",
+    "files": [
+      "lib/actions/imperial-fetch.ts",
+      "lib/shared/security.ts",
+      "governance/MASTER_LAW.md",
+      "governance/CONSTITUTION.md",
+      "governance/IMPERIAL_MAP.json",
+      "governance/imperial-nightly-engine.js",
+      "package.json",
+      "tsconfig.json",
+      ".env.local",
+      ".env"
+    ]
+  },
+  "file_routing_rules": {
+    "description": "DIRECTORY_MAP.md 第四条: ファイル生成の掟",
+    "*.json (n8n workflow)": "02_DEV_LAB/01_N8N_HUB/",
+    "*.py (scraping)": "02_DEV_LAB/02_SCRAPYARD/",
+    "*.py (utility)": "02_DEV_LAB/03_BACKENDS/",
+    "*.ts/*.js (backend)": "02_DEV_LAB/03_BACKENDS/",
+    "*.sh": "scripts/ or 02_DEV_LAB/04_INFRA_CONFIG/",
+    "*.yml, *.yaml": "02_DEV_LAB/04_INFRA_CONFIG/",
+    "*.bak, *.old": "02_DEV_LAB/06_ARCHIVES/bak/",
+    "prototype/experiment": "02_DEV_LAB/05_SKELETONS/",
+    "unknown": "02_DEV_LAB/05_SKELETONS/"
+  },
+  "task_index_locations": {
+    "description": "task_index.json の検索順序",
+    "candidates": [
+      "01_PRODUCT/lib/data/task_index.json",
+      "src/lib/data/task_index.json",
+      "lib/data/task_index.json"
+    ]
+  },
+  "ai_system_prompt_injection": {
+    "description": "以下のテキストをAIコード生成時のシステムプロンプトに必ず含めること",
+    "prompt_fragment": "## ファイル配置ルール（帝国地図 v2.0・憲法準拠・厳守）\n1. Next.js関連: src/app/, src/lib/, src/components/ 配下のみ\n   または 01_PRODUCT/app/, 01_PRODUCT/lib/ 配下\n2. API: src/app/api/ または 01_PRODUCT/app/api/ 配下のみ\n3. Python: 02_DEV_LAB/02_SCRAPYARD/ または 02_DEV_LAB/03_BACKENDS/\n4. n8n JSON: 02_DEV_LAB/01_N8N_HUB/\n5. 設定: 02_DEV_LAB/04_INFRA_CONFIG/\n6. ルート直下にファイルを作成してはならない\n7. governance/ 配下のファイルは指示なく変更しない\n8. PROTECTED_FILES は絶対に変更しない（憲法第4条第3項）\n9. task_index.json に未登録のファイルへの操作は禁止（憲法第7条第1項）"
+  }
+}

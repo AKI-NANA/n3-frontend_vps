@@ -1,0 +1,412 @@
+{
+  "name": "N3 Empire - Nightly Auto Executor (Steel Edition)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 1 * * *"
+            }
+          ]
+        }
+      },
+      "id": "trigger-cron",
+      "name": "01:00 Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "cd /home/ubuntu/n3-frontend-vps && git fetch origin && git checkout main && git pull origin main"
+      },
+      "id": "git-pull-main",
+      "name": "1. Git Pull (main)",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        300,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "cd /home/ubuntu/n3-frontend-vps && git branch -D nightly-ai 2>/dev/null || true && git checkout -b nightly-ai"
+      },
+      "id": "create-branch",
+      "name": "2. Create Branch (nightly-ai)",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "cd /home/ubuntu/n3-frontend-vps && node governance/snapshot_generator.js && node governance/governance_compiler.js"
+      },
+      "id": "compile",
+      "name": "3. Compile Instructions",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        700,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "filePath": "/home/ubuntu/n3-frontend-vps/governance/CLAUDE_INPUT.md",
+        "options": {}
+      },
+      "id": "read-input",
+      "name": "4. Read CLAUDE_INPUT.md",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "model": "claude-sonnet-4-20250514",
+        "messages": {
+          "values": [
+            {
+              "role": "user",
+              "content": "={{ $json.data }}"
+            }
+          ]
+        },
+        "options": {
+          "maxTokens": 32000,
+          "temperature": 0.1
+        }
+      },
+      "id": "claude-api",
+      "name": "5. Claude API (Sonnet 3.5)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.2,
+      "position": [
+        1100,
+        300
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "YOUR_ANTHROPIC_CREDENTIAL_ID",
+          "name": "Anthropic API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "filePath": "/home/ubuntu/n3-frontend-vps/governance/AI_OUTPUT.txt",
+        "fileContent": "={{ $json.message.content }}",
+        "options": {}
+      },
+      "id": "write-output",
+      "name": "6. Write AI_OUTPUT.txt",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1300,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "cd /home/ubuntu/n3-frontend-vps && node governance/apply_ai_patch.js"
+      },
+      "id": "apply-patch",
+      "name": "7. Apply Patch",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "cd /home/ubuntu/n3-frontend-vps && node governance/guard.js"
+      },
+      "id": "guard-check",
+      "name": "8. Guard Check",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1700,
+        300
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "command": "cd /home/ubuntu/n3-frontend-vps && git add . && git commit -m 'Nightly AI: Security Enhancement [$(date +%Y%m%d)]' && git push origin nightly-ai --force"
+      },
+      "id": "git-push",
+      "name": "9. Git Push (nightly-ai)",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/396363863/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "622be56f0b1a42a2425a09130cf72347"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "[info][title]✅ N3 Nightly Build SUCCESS[/title]📌 Branch: nightly-ai\n⏰ Time: {{ $now.format('yyyy-MM-dd HH:mm:ss') }}\n\n👉 Review: https://github.com/AKI-NANA/n3-frontend_new/compare/main...nightly-ai[/info]"
+            }
+          ]
+        },
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "notify-success",
+      "name": "10. Chatwork Success",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "cd /home/ubuntu/n3-frontend-vps && git checkout main && git branch -D nightly-ai 2>/dev/null || true"
+      },
+      "id": "rollback",
+      "name": "Rollback (on Guard Fail)",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1900,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/396363863/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "622be56f0b1a42a2425a09130cf72347"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "[info][title]🚨 N3 Nightly Build FAILED[/title]⏰ Time: {{ $now.format('yyyy-MM-dd HH:mm:ss') }}\n❌ Guard check failed - branch discarded\n\n📋 Check: /home/ubuntu/n3-frontend-vps/governance/guard.log[/info]"
+            }
+          ]
+        },
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "notify-failure",
+      "name": "Chatwork Failure",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2100,
+        500
+      ]
+    }
+  ],
+  "connections": {
+    "01:00 Trigger": {
+      "main": [
+        [
+          {
+            "node": "1. Git Pull (main)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "1. Git Pull (main)": {
+      "main": [
+        [
+          {
+            "node": "2. Create Branch (nightly-ai)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Create Branch (nightly-ai)": {
+      "main": [
+        [
+          {
+            "node": "3. Compile Instructions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. Compile Instructions": {
+      "main": [
+        [
+          {
+            "node": "4. Read CLAUDE_INPUT.md",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4. Read CLAUDE_INPUT.md": {
+      "main": [
+        [
+          {
+            "node": "5. Claude API (Sonnet 3.5)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5. Claude API (Sonnet 3.5)": {
+      "main": [
+        [
+          {
+            "node": "6. Write AI_OUTPUT.txt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6. Write AI_OUTPUT.txt": {
+      "main": [
+        [
+          {
+            "node": "7. Apply Patch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "7. Apply Patch": {
+      "main": [
+        [
+          {
+            "node": "8. Guard Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "8. Guard Check": {
+      "main": [
+        [
+          {
+            "node": "9. Git Push (nightly-ai)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rollback (on Guard Fail)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "9. Git Push (nightly-ai)": {
+      "main": [
+        [
+          {
+            "node": "10. Chatwork Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rollback (on Guard Fail)": {
+      "main": [
+        [
+          {
+            "node": "Chatwork Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "governance"
+    },
+    {
+      "name": "nightly"
+    },
+    {
+      "name": "steel-edition"
+    }
+  ],
+  "triggerCount": 0,
+  "versionId": "2.1.0-chatwork"
+}

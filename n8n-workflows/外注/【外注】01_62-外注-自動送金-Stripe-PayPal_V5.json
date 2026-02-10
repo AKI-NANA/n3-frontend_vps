@@ -1,0 +1,704 @@
+{
+  "name": "【外注】01_62-外注-自動送金-Stripe-PayPal_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "outsource-payout",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: outsource-payout",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "outsource-payout"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst action = body.action || 'list_pending'; // list_pending, execute_payout, check_status\nconst paymentIds = body.payment_ids || [];\nconst payoutId = body.payout_id;\nreturn [{ json: { action, payment_ids: paymentIds, payout_id: payoutId } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "rules": [
+            {
+              "outputKey": "list",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "list_pending",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "execute",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "execute_payout",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "status",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "check_status",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "fallbackOutput": "list"
+        }
+      },
+      "id": "switch-action",
+      "name": "🔀 アクション分岐",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT op.*, ow.worker_name, ow.payout_provider, ow.stripe_connect_id, ow.paypal_email, ow.bank_name, ow.bank_account_number FROM outsource_payments op JOIN outsource_workers ow ON op.worker_id = ow.id WHERE op.payment_status = 'approved' AND op.net_amount > 0 ORDER BY op.period_end DESC",
+        "options": {}
+      },
+      "id": "list-pending",
+      "name": "📋 未送金一覧",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT op.*, ow.worker_name, ow.payout_provider, ow.stripe_connect_id, ow.paypal_email FROM outsource_payments op JOIN outsource_workers ow ON op.worker_id = ow.id WHERE op.id = ANY($1::uuid[])",
+        "options": {
+          "queryParams": "={{ [$node['🔐 初期化'].json.payment_ids] }}"
+        }
+      },
+      "id": "get-payments",
+      "name": "📋 対象取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const payments = $input.first().json;\nconst paymentList = Array.isArray(payments) ? payments : (payments?.id ? [payments] : []);\nif (paymentList.length === 0) return [{ json: { error: true, message: '送金対象なし' } }];\nreturn paymentList.map(p => ({ json: p }));"
+      },
+      "id": "prepare-payouts",
+      "name": "📋 送金準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラー？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "rules": {
+          "rules": [
+            {
+              "outputKey": "stripe",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.payout_provider }}",
+                    "rightValue": "stripe_connect",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "paypal",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.payout_provider }}",
+                    "rightValue": "paypal_payouts",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "fallbackOutput": "manual"
+        }
+      },
+      "id": "switch-provider",
+      "name": "🔀 プロバイダ分岐",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/transfers",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.STRIPE_SECRET_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "amount",
+              "value": "={{ Math.round($json.net_amount) }}"
+            },
+            {
+              "name": "currency",
+              "value": "jpy"
+            },
+            {
+              "name": "destination",
+              "value": "={{ $json.stripe_connect_id }}"
+            },
+            {
+              "name": "description",
+              "value": "外注報酬 {{ $json.period_start }} - {{ $json.period_end }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "stripe-transfer",
+      "name": "💳 Stripe送金",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api-m.paypal.com/v1/payments/payouts",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.PAYPAL_ACCESS_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ sender_batch_header: { sender_batch_id: 'N3-' + Date.now(), email_subject: '外注報酬のお支払い' }, items: [{ recipient_type: 'EMAIL', amount: { value: ($json.net_amount / 150).toFixed(2), currency: 'USD' }, receiver: $json.paypal_email, note: '外注報酬 ' + $json.period_start + ' - ' + $json.period_end }] }) }}",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "paypal-payout",
+      "name": "💳 PayPal送金",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const payment = $node['📋 送金準備'].json;\nreturn [{ json: { payment_id: payment.id, worker_id: payment.worker_id, payout_provider: 'bank_transfer', payout_amount: payment.net_amount, payout_status: 'pending', provider_payout_id: 'MANUAL-' + Date.now(), message: '銀行振込：手動処理が必要です', bank_info: `${payment.bank_name} ${payment.bank_account_number}` } }];"
+      },
+      "id": "manual-payout",
+      "name": "🏦 手動振込",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const payment = $node['📋 送金準備'].json;\nconst apiResult = $input.first().json;\nconst provider = payment.payout_provider;\n\nlet providerPayoutId = null;\nlet status = 'completed';\nlet failureReason = null;\n\nif (provider === 'stripe_connect') {\n  providerPayoutId = apiResult.id || null;\n  if (apiResult.error) {\n    status = 'failed';\n    failureReason = apiResult.error.message || 'Stripe error';\n  }\n} else if (provider === 'paypal_payouts') {\n  providerPayoutId = apiResult.batch_header?.payout_batch_id || null;\n  if (apiResult.name === 'VALIDATION_ERROR' || apiResult.error) {\n    status = 'failed';\n    failureReason = apiResult.message || 'PayPal error';\n  }\n} else {\n  providerPayoutId = apiResult.provider_payout_id;\n  status = 'pending';\n}\n\nreturn [{ json: { payment_id: payment.id, worker_id: payment.worker_id, payout_provider: provider, payout_amount: payment.net_amount, provider_payout_id: providerPayoutId, payout_status: status, failure_reason: failureReason } }];"
+      },
+      "id": "process-result",
+      "name": "📋 結果処理",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO outsource_payouts (payment_id, worker_id, payout_provider, payout_amount, provider_payout_id, payout_status, failure_reason, completed_at, failed_at) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, CASE WHEN $6 = 'completed' THEN NOW() ELSE NULL END, CASE WHEN $6 = 'failed' THEN NOW() ELSE NULL END) RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.payment_id, $json.worker_id, $json.payout_provider, $json.payout_amount, $json.provider_payout_id, $json.payout_status, $json.failure_reason] }}"
+        }
+      },
+      "id": "save-payout",
+      "name": "💾 送金記録保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE outsource_payments SET payment_status = CASE WHEN $1 = 'completed' THEN 'paid' WHEN $1 = 'failed' THEN 'approved' ELSE payment_status END, payment_date = CASE WHEN $1 = 'completed' THEN CURRENT_DATE ELSE NULL END WHERE id = $2::uuid",
+        "options": {
+          "queryParams": "={{ [$json.payout_status, $json.payment_id] }}"
+        }
+      },
+      "id": "update-payment",
+      "name": "📝 支払ステータス更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT op.*, ow.worker_name FROM outsource_payouts op JOIN outsource_workers ow ON op.worker_id = ow.id WHERE op.id = $1::uuid",
+        "options": {
+          "queryParams": "={{ [$node['🔐 初期化'].json.payout_id] }}"
+        }
+      },
+      "id": "get-payout-status",
+      "name": "📋 送金状態取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const action = $node['🔐 初期化'].json.action;\nlet result = { success: true, action };\n\nif (action === 'list_pending') {\n  const pending = $node['📋 未送金一覧'].json;\n  result.pending = Array.isArray(pending) ? pending : (pending?.id ? [pending] : []);\n  result.total_amount = result.pending.reduce((sum, p) => sum + (parseFloat(p.net_amount) || 0), 0);\n} else if (action === 'execute_payout') {\n  const results = $input.all().map(i => i.json);\n  result.payouts = results;\n  result.completed = results.filter(r => r.payout_status === 'completed').length;\n  result.failed = results.filter(r => r.payout_status === 'failed').length;\n  result.pending = results.filter(r => r.payout_status === 'pending').length;\n} else if (action === 'check_status') {\n  const status = $node['📋 送金状態取得'].json;\n  result.payout = Array.isArray(status) ? status[0] : status;\n}\n\nreturn [{ json: result }];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: outsource-payout": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "🔀 アクション分岐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 アクション分岐": {
+      "main": [
+        [
+          {
+            "node": "📋 未送金一覧",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 対象取得",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 送金状態取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 未送金一覧": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 対象取得": {
+      "main": [
+        [
+          {
+            "node": "📋 送金準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 送金準備": {
+      "main": [
+        [
+          {
+            "node": "エラー？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラー？": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🔀 プロバイダ分岐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 プロバイダ分岐": {
+      "main": [
+        [
+          {
+            "node": "💳 Stripe送金",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💳 PayPal送金",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🏦 手動振込",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💳 Stripe送金": {
+      "main": [
+        [
+          {
+            "node": "📋 結果処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💳 PayPal送金": {
+      "main": [
+        [
+          {
+            "node": "📋 結果処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🏦 手動振込": {
+      "main": [
+        [
+          {
+            "node": "📋 結果処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 結果処理": {
+      "main": [
+        [
+          {
+            "node": "💾 送金記録保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 送金記録保存": {
+      "main": [
+        [
+          {
+            "node": "📝 支払ステータス更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 支払ステータス更新": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 送金状態取得": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 180,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Outsource",
+      "color": "#16a085"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Payout",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

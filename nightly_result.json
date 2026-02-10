@@ -1,0 +1,93 @@
+{
+  "last_updated": "2026-02-05T03:15:42.000Z",
+  "latest": {
+    "timestamp": "2026-02-05T03:00:00.000Z",
+    "task_key": "demo_task",
+    "task_description": "【デモ】夜間自律開発テスト",
+    "status": "dry_run",
+    "retry_count": 1,
+    "final_score": 100,
+    "promoted_files": [],
+    "ai_interactions": [
+      {
+        "attempt": 1,
+        "prompt_preview": "## タスク: 【デモ】夜間自律開発テスト\n\n## 対象ファイル\napp/api/demo/route.ts\n\n## 追加コンテキスト\nなし\n\n## 指示\n上記タスクを実装してください...",
+        "response": "[DRY-RUN]",
+        "dry_run": true
+      }
+    ],
+    "errors": [],
+    "duration_ms": 1234,
+    "duration_readable": "1秒"
+  },
+  "history": [
+    {
+      "timestamp": "2026-02-05T03:00:00.000Z",
+      "task_key": "demo_task",
+      "task_description": "【デモ】夜間自律開発テスト",
+      "status": "dry_run",
+      "retry_count": 1,
+      "final_score": 100,
+      "promoted_files": [],
+      "ai_interactions": [
+        {
+          "attempt": 1,
+          "prompt_preview": "## タスク: 【デモ】夜間自律開発テスト...",
+          "response": "[DRY-RUN]",
+          "dry_run": true
+        }
+      ],
+      "errors": [],
+      "duration_ms": 1234,
+      "duration_readable": "1秒"
+    },
+    {
+      "timestamp": "2026-02-04T03:00:00.000Z",
+      "task_key": null,
+      "task_description": null,
+      "status": "no_task",
+      "retry_count": 0,
+      "final_score": 0,
+      "promoted_files": [],
+      "ai_interactions": [],
+      "errors": [],
+      "duration_ms": 523,
+      "duration_readable": "0秒"
+    },
+    {
+      "timestamp": "2026-02-03T03:00:00.000Z",
+      "task_key": "inventory_sync_v2",
+      "task_description": "在庫同期API改善",
+      "status": "success",
+      "retry_count": 2,
+      "final_score": 100,
+      "promoted_files": [
+        "app/api/inventory/sync/route.ts",
+        "lib/services/inventory-service.ts"
+      ],
+      "ai_interactions": [
+        {
+          "attempt": 1,
+          "generated_files": ["app/api/inventory/sync/route.ts", "lib/services/inventory-service.ts"],
+          "audit_score": 85,
+          "violations": [
+            {
+              "file": "app/api/inventory/sync/route.ts",
+              "score": 85,
+              "violations": ["console.log() 使用検出", "try-catch 空 catch"]
+            }
+          ]
+        },
+        {
+          "attempt": 2,
+          "generated_files": ["app/api/inventory/sync/route.ts", "lib/services/inventory-service.ts"],
+          "audit_score": 100,
+          "violations": []
+        }
+      ],
+      "errors": [],
+      "duration_ms": 45678,
+      "duration_readable": "45秒"
+    }
+  ]
+}

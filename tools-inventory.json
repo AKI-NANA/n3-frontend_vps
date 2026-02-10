@@ -1,0 +1,1712 @@
+[
+  {
+    "id": "dashboard",
+    "name": "ダッシュボード",
+    "link": "/",
+    "category": "ダッシュボード",
+    "status": "ready",
+    "icon": "home",
+    "priority": 1,
+    "ui_status": "🟡 基本"
+  },
+  {
+    "id": "tool_1",
+    "name": "配送ポリシー管理",
+    "link": "/shipping-policy-manager",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "settings",
+    "priority": 1,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_2",
+    "name": "精神と睡眠管理",
+    "link": "/tools/mental-sleep",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "moon",
+    "priority": 2,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_3",
+    "name": "受注一覧",
+    "link": "/juchu",
+    "category": "受注管理",
+    "status": "pending",
+    "icon": "list",
+    "priority": 3,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_4",
+    "name": "送料計算（簡易版）",
+    "link": "/shipping-calc",
+    "category": "その他ツール",
+    "status": "new",
+    "icon": "truck",
+    "priority": 4,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_5",
+    "name": "eBay 重量範囲テスト",
+    "link": "/ebay/weight-ranges-test",
+    "category": "外部連携",
+    "status": "new",
+    "icon": "weight",
+    "priority": 5,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_6",
+    "name": "配送管理",
+    "link": "/shipping-management",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "truck",
+    "priority": 6,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_7",
+    "name": "eBay APIテスト",
+    "link": "/ebay-api-test",
+    "category": "外部連携",
+    "status": "new",
+    "icon": "test-tube",
+    "priority": 7,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_8",
+    "name": "システムテスト",
+    "link": "/system-test",
+    "category": "システム管理",
+    "status": "new",
+    "icon": "flask",
+    "priority": 8,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_9",
+    "name": "29_HTS小見出し",
+    "link": "/tools/hts-classification/subheading/[code]",
+    "category": "統合ツール",
+    "status": "new",
+    "icon": "list",
+    "priority": 9,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_10",
+    "name": "🔧 全14ツール構成",
+    "link": "/docs/index.html#tools",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "cog",
+    "priority": 10,
+    "ui_status": "🔗 外部"
+  },
+  {
+    "id": "tool_11",
+    "name": "DDP行列生成",
+    "link": "/tools/ddp-matrix-generator",
+    "category": "出品ツール",
+    "status": "new",
+    "icon": "grid",
+    "priority": 11,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_12",
+    "name": "Amazon 刈り取り",
+    "link": "/tools/amazon-arbitrage",
+    "category": "仕入れ・買取",
+    "status": "ready",
+    "icon": "zap",
+    "priority": 12,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_13",
+    "name": "API設定",
+    "link": "/settings/api",
+    "category": "設定",
+    "status": "pending",
+    "icon": "database",
+    "priority": 13,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_14",
+    "name": "価格最適化",
+    "link": "/ai/pricing",
+    "category": "AI制御",
+    "status": "pending",
+    "icon": "dollar-sign",
+    "priority": 14,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_15",
+    "name": "在庫監視システム",
+    "link": "/inventory-monitoring",
+    "category": "在庫管理",
+    "status": "ready",
+    "icon": "bar-chart",
+    "priority": 15,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_16",
+    "name": "💻 開発方針・修正方法",
+    "link": "/docs/index.html#development",
+    "category": "開発ガイド",
+    "status": "ready",
+    "icon": "code",
+    "priority": 16,
+    "ui_status": "🔗 外部"
+  },
+  {
+    "id": "tool_17",
+    "name": "売上分析",
+    "link": "/analytics/sales",
+    "category": "分析",
+    "status": "ready",
+    "icon": "dollar-sign",
+    "priority": 17,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_18",
+    "name": "15_HTS分類自動化",
+    "link": "/tools/hts-classification",
+    "category": "統合ツール",
+    "status": "ready",
+    "icon": "package",
+    "priority": 18,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_19",
+    "name": "古物買取査定ツール",
+    "link": "/tools/kobutsu-assessment",
+    "category": "仕入れ・買取",
+    "status": "ready",
+    "icon": "clipboard",
+    "priority": 19,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_20",
+    "name": "楽天せどりツール",
+    "link": "/tools/rakuten-arbitrage",
+    "category": "仕入れ・買取",
+    "status": "ready",
+    "icon": "shopping-cart",
+    "priority": 20,
+    "ui_status": "🟡 基本"
+  },
+  {
+    "id": "tool_21",
+    "name": "eBay",
+    "link": "/ebay",
+    "category": "外部連携",
+    "status": "ready",
+    "icon": "globe",
+    "priority": 21,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_22",
+    "name": "統合ダッシュボード",
+    "link": "/management/dashboard",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "layout-dashboard",
+    "priority": 22,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_23",
+    "name": "料金データベース",
+    "link": "/fees-db",
+    "category": "その他ツール",
+    "status": "pending",
+    "icon": "database",
+    "priority": 23,
+    "ui_status": "⚠️ 最小"
+  },
+  {
+    "id": "tool_24",
+    "name": "26_HTS章詳細",
+    "link": "/tools/hts-classification/chapter/[code]",
+    "category": "統合ツール",
+    "status": "new",
+    "icon": "book",
+    "priority": 24,
+    "ui_status": "🟡 基本"
+  },
+  {
+    "id": "tool_25",
+    "name": "07_データ編集",
+    "link": "/tools/editing",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "edit",
+    "priority": 25,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_26",
+    "name": "製品主導型仕入れ",
+    "link": "/management/product-sourcing",
+    "category": "仕入れ・買取",
+    "status": "ready",
+    "icon": "package",
+    "priority": 26,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_27",
+    "name": "外注管理",
+    "link": "/admin/outsourcer-management",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "users",
+    "priority": 27,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_28",
+    "name": "🧪 テストページ",
+    "link": "/test",
+    "category": "その他ツール",
+    "status": "pending",
+    "icon": "flask",
+    "priority": 28,
+    "ui_status": "⚠️ 最小"
+  },
+  {
+    "id": "tool_29",
+    "name": "🧪 ツールスラグ",
+    "link": "/tools/[slug]",
+    "category": "その他ツール",
+    "status": "pending",
+    "icon": "code",
+    "priority": 29,
+    "ui_status": "⚠️ 最小"
+  },
+  {
+    "id": "tool_30",
+    "name": "製品主導型仕入れ",
+    "link": "/tools/product-sourcing",
+    "category": "仕入れ・買取",
+    "status": "ready",
+    "icon": "package",
+    "priority": 30,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_31",
+    "name": "eBay SEO管理",
+    "link": "/tools/ebay-seo",
+    "category": "外部連携",
+    "status": "ready",
+    "icon": "search",
+    "priority": 31,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_32",
+    "name": "栄養・献立管理",
+    "link": "/tools/nutrition-menu",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "utensils",
+    "priority": 32,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_33",
+    "name": "08_出品管理",
+    "link": "/management/listing",
+    "category": "出品ツール",
+    "status": "ready",
+    "icon": "upload",
+    "priority": 33,
+    "ui_status": "⚠️ 最小"
+  },
+  {
+    "id": "tool_34",
+    "name": "バックアップ",
+    "link": "/settings/backup",
+    "category": "設定",
+    "status": "pending",
+    "icon": "database",
+    "priority": 34,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_35",
+    "name": "バリエーション作成",
+    "link": "/tools/variation-creator",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "layers",
+    "priority": 35,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_36",
+    "name": "統合コンテンツ生成",
+    "link": "/tools/integrated-content",
+    "category": "コンテンツ制作",
+    "status": "ready",
+    "icon": "file-text",
+    "priority": 36,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_37",
+    "name": "経費分類管理",
+    "link": "/tools/expense-classification",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "file-text",
+    "priority": 37,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_38",
+    "name": "eBay カテゴリ同期",
+    "link": "/tools/ebay-category-sync",
+    "category": "外部連携",
+    "status": "new",
+    "icon": "refresh-cw",
+    "priority": 38,
+    "ui_status": "🟡 基本"
+  },
+  {
+    "id": "tool_39",
+    "name": "翻訳・翻案モジュール",
+    "link": "/tools/translation-module",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "globe",
+    "priority": 39,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_40",
+    "name": "14_API連携",
+    "link": "/api",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "zap",
+    "priority": 40,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_41",
+    "name": "eBay リサーチ",
+    "link": "/research/ebay-research",
+    "category": "リサーチ",
+    "status": "ready",
+    "icon": "globe",
+    "priority": 41,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_42",
+    "name": "ポリシー分析",
+    "link": "/analyze-policies",
+    "category": "分析",
+    "status": "ready",
+    "icon": "shield",
+    "priority": 42,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_43",
+    "name": "重量帯設定",
+    "link": "/weight-bands",
+    "category": "設定",
+    "status": "pending",
+    "icon": "weight",
+    "priority": 43,
+    "ui_status": "⚠️ 最小"
+  },
+  {
+    "id": "tool_44",
+    "name": "出庫管理",
+    "link": "/zaiko/shukko",
+    "category": "在庫管理",
+    "status": "pending",
+    "icon": "archive",
+    "priority": 44,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_45",
+    "name": "プレミアム価格分析",
+    "link": "/tools/premium-price-analysis",
+    "category": "分析",
+    "status": "ready",
+    "icon": "trending-up",
+    "priority": 45,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_46",
+    "name": "28_HTS見出し",
+    "link": "/tools/hts-classification/heading/[code]",
+    "category": "統合ツール",
+    "status": "new",
+    "icon": "heading",
+    "priority": 46,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_47",
+    "name": "20_フィルター管理（詳細）",
+    "link": "/filter-management",
+    "category": "その他ツール",
+    "status": "new",
+    "icon": "shield",
+    "priority": 47,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_48",
+    "name": "21_フィルター設定",
+    "link": "/management/filters",
+    "category": "設定",
+    "status": "pending",
+    "icon": "shield-check",
+    "priority": 48,
+    "ui_status": "⚠️ 最小"
+  },
+  {
+    "id": "tool_49",
+    "name": "eBay DDP料金行列",
+    "link": "/ebay/ddp-surcharge-matrix",
+    "category": "出品ツール",
+    "status": "ready",
+    "icon": "grid",
+    "priority": 49,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_50",
+    "name": "13_統合分析",
+    "link": "/analytics/inventory",
+    "category": "在庫管理",
+    "status": "ready",
+    "icon": "trending-up",
+    "priority": 50,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_51",
+    "name": "18_開発ナレッジ事典",
+    "link": "/tools/wisdom-core",
+    "category": "開発ガイド",
+    "status": "ready",
+    "icon": "file-text",
+    "priority": 51,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_52",
+    "name": "出荷管理",
+    "link": "/shukka",
+    "category": "その他ツール",
+    "status": "pending",
+    "icon": "truck",
+    "priority": 52,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_53",
+    "name": "財務レポート",
+    "link": "/zaimu",
+    "category": "その他ツール",
+    "status": "pending",
+    "icon": "bar-chart",
+    "priority": 53,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_54",
+    "name": "コンテンツ自動化パネル",
+    "link": "/tools/content-automation",
+    "category": "コンテンツ制作",
+    "status": "ready",
+    "icon": "cog",
+    "priority": 54,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_55",
+    "name": "22_編集デバッグデータ",
+    "link": "/tools/editing/debug-data",
+    "category": "その他ツール",
+    "status": "new",
+    "icon": "bug",
+    "priority": 55,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_56",
+    "name": "出品ツール",
+    "link": "/listing-tool",
+    "category": "出品ツール",
+    "status": "ready",
+    "icon": "shopping-cart",
+    "priority": 56,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_57",
+    "name": "棚卸し分類",
+    "link": "/zaiko/tanaoroshi/classification",
+    "category": "在庫管理",
+    "status": "new",
+    "icon": "tags",
+    "priority": 57,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_58",
+    "name": "03_商品承認",
+    "link": "/approval",
+    "category": "商品管理",
+    "status": "ready",
+    "icon": "check-circle",
+    "priority": 58,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_59",
+    "name": "ユーザー管理",
+    "link": "/users",
+    "category": "その他ツール",
+    "status": "pending",
+    "icon": "users",
+    "priority": 59,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_60",
+    "name": "APIテストドキュメント",
+    "link": "/tools/api-test/docs",
+    "category": "その他ツール",
+    "status": "new",
+    "icon": "book-open",
+    "priority": 60,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_61",
+    "name": "📝 開発指示書管理",
+    "link": "/dev-instructions",
+    "category": "開発ガイド",
+    "status": "ready",
+    "icon": "file-text",
+    "priority": 61,
+    "ui_status": "⚠️ 最小"
+  },
+  {
+    "id": "tool_62",
+    "name": "ユーザー管理",
+    "link": "/settings/users",
+    "category": "設定",
+    "status": "pending",
+    "icon": "users",
+    "priority": 62,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_63",
+    "name": "Yahoo!オークション",
+    "link": "/yahoo-auction-dashboard",
+    "category": "外部連携",
+    "status": "ready",
+    "icon": "shopping-cart",
+    "priority": 63,
+    "ui_status": "⚠️ 最小"
+  },
+  {
+    "id": "tool_64",
+    "name": "01_ダッシュボード",
+    "link": "/dashboard",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "home",
+    "priority": 64,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_65",
+    "name": "02_データ取得",
+    "link": "/data-collection",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "database",
+    "priority": 65,
+    "ui_status": "⚠️ 最小"
+  },
+  {
+    "id": "tool_66",
+    "name": "出品ツールハブ",
+    "link": "/tools",
+    "category": "出品ツール",
+    "status": "ready",
+    "icon": "upload",
+    "priority": 66,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_67",
+    "name": "27_HTSコード検索",
+    "link": "/tools/hts-classification/code/[code]",
+    "category": "統合ツール",
+    "status": "new",
+    "icon": "search",
+    "priority": 67,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_68",
+    "name": "健康生活サポート",
+    "link": "/tools/health-support",
+    "category": "健康・ライフ",
+    "status": "ready",
+    "icon": "activity",
+    "priority": 68,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_69",
+    "name": "BUYMA仕入れシミュレーター",
+    "link": "/tools/buyma-simulator",
+    "category": "仕入れ・買取",
+    "status": "ready",
+    "icon": "globe",
+    "priority": 69,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_70",
+    "name": "商品一覧",
+    "link": "/shohin",
+    "category": "商品管理",
+    "status": "pending",
+    "icon": "list",
+    "priority": 70,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_71",
+    "name": "問い合わせ管理",
+    "link": "/inquiry-management",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "message-circle",
+    "priority": 71,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_72",
+    "name": "返品管理",
+    "link": "/henpin",
+    "category": "その他ツール",
+    "status": "pending",
+    "icon": "alert-circle",
+    "priority": 72,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_73",
+    "name": "ツールハブ",
+    "link": "/tools-hub",
+    "category": "その他ツール",
+    "status": "new",
+    "icon": "grid",
+    "priority": 73,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_74",
+    "name": "🧪 モーダルテスト",
+    "link": "/test-modal",
+    "category": "その他ツール",
+    "status": "pending",
+    "icon": "square",
+    "priority": 74,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_75",
+    "name": "売上管理",
+    "link": "/uriage",
+    "category": "その他ツール",
+    "status": "pending",
+    "icon": "dollar-sign",
+    "priority": 75,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_76",
+    "name": "09_送料計算",
+    "link": "/shipping-calculator",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "truck",
+    "priority": 76,
+    "ui_status": "⚠️ 最小"
+  },
+  {
+    "id": "tool_77",
+    "name": "API管理",
+    "link": "/api",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "database",
+    "priority": 77,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_78",
+    "name": "注文管理",
+    "link": "/order-management",
+    "category": "受注管理",
+    "status": "ready",
+    "icon": "package",
+    "priority": 78,
+    "ui_status": "🟡 基本"
+  },
+  {
+    "id": "tool_79",
+    "name": "🚀 リアルタイム開発ダッシュボード",
+    "link": "/dev-guide",
+    "category": "開発ガイド",
+    "status": "ready",
+    "icon": "zap",
+    "priority": 79,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_80",
+    "name": "バックアップ",
+    "link": "/backup",
+    "category": "その他ツール",
+    "status": "pending",
+    "icon": "database",
+    "priority": 80,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_81",
+    "name": "🧪 ツールテストページ",
+    "link": "/tools/test-page",
+    "category": "その他ツール",
+    "status": "pending",
+    "icon": "test-tube",
+    "priority": 81,
+    "ui_status": "🟡 基本"
+  },
+  {
+    "id": "tool_82",
+    "name": "商品承認",
+    "link": "/tools/approval",
+    "category": "商品管理",
+    "status": "ready",
+    "icon": "check-circle",
+    "priority": 82,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_83",
+    "name": "🧪 送料テストV2",
+    "link": "/test-shipping-v2",
+    "category": "その他ツール",
+    "status": "pending",
+    "icon": "truck",
+    "priority": 83,
+    "ui_status": "⚠️ 最小"
+  },
+  {
+    "id": "tool_84",
+    "name": "🔄 ワークフロー説明",
+    "link": "/docs/index.html#workflow",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "trending-up",
+    "priority": 84,
+    "ui_status": "🔗 外部"
+  },
+  {
+    "id": "tool_85",
+    "name": "在庫一覧",
+    "link": "/zaiko",
+    "category": "在庫管理",
+    "status": "pending",
+    "icon": "bar-chart",
+    "priority": 85,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_86",
+    "name": "料金テーブル",
+    "link": "/rate-tables",
+    "category": "その他ツール",
+    "status": "pending",
+    "icon": "table",
+    "priority": 86,
+    "ui_status": "⚠️ 最小"
+  },
+  {
+    "id": "tool_87",
+    "name": "スコア評価",
+    "link": "/score-management",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "target",
+    "priority": 87,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_88",
+    "name": "利益計算ツール",
+    "link": "/tools/profit-calculator",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "calculator",
+    "priority": 88,
+    "ui_status": "⚠️ 最小"
+  },
+  {
+    "id": "tool_89",
+    "name": "棚卸し在庫登録",
+    "link": "/zaiko/tanaoroshi/inventory/register",
+    "category": "在庫管理",
+    "status": "pending",
+    "icon": "clipboard-list",
+    "priority": 89,
+    "ui_status": "⚠️ 最小"
+  },
+  {
+    "id": "tool_90",
+    "name": "キャッシュフロー予測",
+    "link": "/tools/cash-flow-forecast",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "trending-up",
+    "priority": 90,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_91",
+    "name": "タスク管理V4",
+    "link": "/management/tasks",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "check-square",
+    "priority": 91,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_92",
+    "name": "04_データ分析",
+    "link": "/analytics/sales",
+    "category": "分析",
+    "status": "ready",
+    "icon": "bar-chart",
+    "priority": 92,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_93",
+    "name": "トークン効率化",
+    "link": "/tools/token-optimizer",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "zap",
+    "priority": 93,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_94",
+    "name": "23_HTSツール集",
+    "link": "/tools/hts-tools",
+    "category": "統合ツール",
+    "status": "new",
+    "icon": "package-2",
+    "priority": 94,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_95",
+    "name": "カテゴリ管理",
+    "link": "/shohin/category",
+    "category": "商品管理",
+    "status": "pending",
+    "icon": "tags",
+    "priority": 95,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_96",
+    "name": "在庫価格設定",
+    "link": "/inventory-pricing",
+    "category": "在庫管理",
+    "status": "ready",
+    "icon": "dollar-sign",
+    "priority": 96,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_97",
+    "name": "価格トレンド",
+    "link": "/analytics/price-trends",
+    "category": "分析",
+    "status": "pending",
+    "icon": "bar-chart",
+    "priority": 97,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_98",
+    "name": "古物台帳",
+    "link": "/kobutsu-ledger",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "book",
+    "priority": 98,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_99",
+    "name": "10_在庫管理",
+    "link": "/inventory",
+    "category": "在庫管理",
+    "status": "ready",
+    "icon": "warehouse",
+    "priority": 99,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_100",
+    "name": "🧪 モーダルテスト2",
+    "link": "/test/modal",
+    "category": "その他ツール",
+    "status": "pending",
+    "icon": "layout",
+    "priority": 100,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_101",
+    "name": "入庫管理",
+    "link": "/zaiko/nyuko",
+    "category": "在庫管理",
+    "status": "pending",
+    "icon": "trending-up",
+    "priority": 101,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_102",
+    "name": "仕入管理",
+    "link": "/shiire",
+    "category": "その他ツール",
+    "status": "pending",
+    "icon": "file-text",
+    "priority": 102,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_103",
+    "name": "権限設定",
+    "link": "/permissions",
+    "category": "設定",
+    "status": "pending",
+    "icon": "shield",
+    "priority": 103,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_104",
+    "name": "05_利益計算",
+    "link": "/ebay-pricing",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "dollar-sign",
+    "priority": 104,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_105",
+    "name": "Amazon連携",
+    "link": "/amazon",
+    "category": "外部連携",
+    "status": "pending",
+    "icon": "globe",
+    "priority": 105,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_106",
+    "name": "API テストツール",
+    "link": "/tools/api-test",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "zap",
+    "priority": 106,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_107",
+    "name": "商品登録",
+    "link": "/shohin/add",
+    "category": "商品管理",
+    "status": "pending",
+    "icon": "plus",
+    "priority": 107,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_108",
+    "name": "eBay 料金テーブル",
+    "link": "/ebay/rate-tables",
+    "category": "外部連携",
+    "status": "ready",
+    "icon": "table",
+    "priority": 108,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_109",
+    "name": "25_HTS章一覧",
+    "link": "/tools/hts-classification/chapters",
+    "category": "統合ツール",
+    "status": "new",
+    "icon": "book-open",
+    "priority": 109,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_110",
+    "name": "17_HTS管理ツール",
+    "link": "/tools/hts-tools",
+    "category": "統合ツール",
+    "status": "ready",
+    "icon": "cog",
+    "priority": 110,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_111",
+    "name": "出品最適化",
+    "link": "/tools/listing-optimization",
+    "category": "出品ツール",
+    "status": "ready",
+    "icon": "target",
+    "priority": 111,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_112",
+    "name": "🗄️ データベース設計",
+    "link": "/docs/index.html#database",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "database",
+    "priority": 112,
+    "ui_status": "🔗 外部"
+  },
+  {
+    "id": "tool_113",
+    "name": "12_HTMLエディタ",
+    "link": "/tools/html-editor",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "code",
+    "priority": 113,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_114",
+    "name": "Amazon リサーチ",
+    "link": "/tools/amazon-research",
+    "category": "リサーチ",
+    "status": "ready",
+    "icon": "shopping-cart",
+    "priority": 114,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_115",
+    "name": "AI分析",
+    "link": "/ai/analysis",
+    "category": "分析",
+    "status": "pending",
+    "icon": "zap",
+    "priority": 115,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_116",
+    "name": "eBay認証",
+    "link": "/ebay-auth",
+    "category": "外部連携",
+    "status": "new",
+    "icon": "key",
+    "priority": 116,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_117",
+    "name": "eBay価格計算",
+    "link": "/ebay-pricing",
+    "category": "外部連携",
+    "status": "ready",
+    "icon": "calculator",
+    "priority": 117,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_118",
+    "name": "健康管理システム",
+    "link": "/tools/health-management",
+    "category": "健康・ライフ",
+    "status": "ready",
+    "icon": "clipboard",
+    "priority": 118,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_119",
+    "name": "通知設定",
+    "link": "/settings/notifications",
+    "category": "設定",
+    "status": "pending",
+    "icon": "alert-circle",
+    "priority": 119,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_120",
+    "name": "Git & デプロイ",
+    "link": "/tools/git-deploy",
+    "category": "システム管理",
+    "status": "ready",
+    "icon": "git-branch",
+    "priority": 120,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_121",
+    "name": "配送追跡",
+    "link": "/haisou",
+    "category": "その他ツール",
+    "status": "pending",
+    "icon": "truck",
+    "priority": 121,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_122",
+    "name": "スコアリング",
+    "link": "/research/scoring",
+    "category": "リサーチ",
+    "status": "ready",
+    "icon": "bar-chart",
+    "priority": 122,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_123",
+    "name": "顧客分析",
+    "link": "/analytics/customers",
+    "category": "分析",
+    "status": "pending",
+    "icon": "users",
+    "priority": 123,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_124",
+    "name": "ユーザー登録",
+    "link": "/register",
+    "category": "その他ツール",
+    "status": "new",
+    "icon": "user-plus",
+    "priority": 124,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_125",
+    "name": "パーソナル予防医療",
+    "link": "/tools/preventive-health",
+    "category": "健康・ライフ",
+    "status": "ready",
+    "icon": "heart",
+    "priority": 125,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_126",
+    "name": "外注支払い管理",
+    "link": "/tools/contractor-payment",
+    "category": "その他ツール",
+    "status": "new",
+    "icon": "credit-card",
+    "priority": 126,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_127",
+    "name": "Supabase接続",
+    "link": "/tools/supabase-connection",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "database",
+    "priority": 127,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_128",
+    "name": "ワークフローエンジン",
+    "link": "/tools/workflow-engine",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "cog",
+    "priority": 128,
+    "ui_status": "⚠️ 最小"
+  },
+  {
+    "id": "tool_129",
+    "name": "DDPデータ設定",
+    "link": "/tools/setup-ddp-data",
+    "category": "出品ツール",
+    "status": "new",
+    "icon": "database",
+    "priority": 129,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_130",
+    "name": "11_カテゴリ管理",
+    "link": "/category-management",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "tags",
+    "priority": 130,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_131",
+    "name": "06_フィルター管理",
+    "link": "/management/filter",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "shield",
+    "priority": 131,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_132",
+    "name": "Yahoo連携",
+    "link": "/yahoo",
+    "category": "外部連携",
+    "status": "pending",
+    "icon": "globe",
+    "priority": 132,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_133",
+    "name": "出品スケジューラー",
+    "link": "/listing-management",
+    "category": "出品ツール",
+    "status": "ready",
+    "icon": "calendar",
+    "priority": 133,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_134",
+    "name": "🧪 料金テスト",
+    "link": "/test-fees",
+    "category": "その他ツール",
+    "status": "pending",
+    "icon": "dollar-sign",
+    "priority": 134,
+    "ui_status": "⚠️ 最小"
+  },
+  {
+    "id": "tool_135",
+    "name": "YouTubeチェックリスト",
+    "link": "/tools/youtube-checklist",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "video",
+    "priority": 135,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_136",
+    "name": "eBay Token取得",
+    "link": "/api/ebay/auth/authorize",
+    "category": "外部連携",
+    "status": "ready",
+    "icon": "cog",
+    "priority": 136,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_137",
+    "name": "マスター一覧表示",
+    "link": "/master-view",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "table",
+    "priority": 137,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_138",
+    "name": "古物買取管理",
+    "link": "/tools/kobutsu-management",
+    "category": "仕入れ・買取",
+    "status": "ready",
+    "icon": "archive",
+    "priority": 138,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_139",
+    "name": "データ収集補助",
+    "link": "/data-collection-helper",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "database",
+    "priority": 139,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_140",
+    "name": "16_HTS階層構造ツール",
+    "link": "/tools/hts-hierarchy",
+    "category": "統合ツール",
+    "status": "ready",
+    "icon": "layers",
+    "priority": 140,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_141",
+    "name": "🏥 システムヘルスチェック",
+    "link": "/system-health",
+    "category": "健康・ライフ",
+    "status": "ready",
+    "icon": "check-circle",
+    "priority": 141,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_142",
+    "name": "🧪 ポリシーテスト",
+    "link": "/test-policy",
+    "category": "その他ツール",
+    "status": "pending",
+    "icon": "file-text",
+    "priority": 142,
+    "ui_status": "⚠️ 最小"
+  },
+  {
+    "id": "tool_143",
+    "name": "レコメンド",
+    "link": "/ai/recommend",
+    "category": "AI制御",
+    "status": "pending",
+    "icon": "robot",
+    "priority": 143,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_144",
+    "name": "需要予測",
+    "link": "/ai/demand",
+    "category": "AI制御",
+    "status": "pending",
+    "icon": "target",
+    "priority": 144,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_145",
+    "name": "スクレイピング",
+    "link": "/tools/scraping",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "database",
+    "priority": 145,
+    "ui_status": "⚠️ 最小"
+  },
+  {
+    "id": "tool_146",
+    "name": "配送ポリシー管理（旧）",
+    "link": "/shipping-policy-manager-original",
+    "category": "その他ツール",
+    "status": "new",
+    "icon": "settings",
+    "priority": 146,
+    "ui_status": "🟡 基本"
+  },
+  {
+    "id": "tool_147",
+    "name": "ログイン",
+    "link": "/login",
+    "category": "その他ツール",
+    "status": "new",
+    "icon": "log-in",
+    "priority": 147,
+    "ui_status": "🟡 基本"
+  },
+  {
+    "id": "tool_148",
+    "name": "在庫調整",
+    "link": "/zaiko/chosei",
+    "category": "在庫管理",
+    "status": "pending",
+    "icon": "settings",
+    "priority": 148,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_149",
+    "name": "AIラジオ生成",
+    "link": "/tools/ai-radio-generator",
+    "category": "AI制御",
+    "status": "ready",
+    "icon": "radio",
+    "priority": 149,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_150",
+    "name": "19_データ編集（旧）",
+    "link": "/editing",
+    "category": "その他ツール",
+    "status": "new",
+    "icon": "edit",
+    "priority": 150,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_151",
+    "name": "統合パーソナル管理",
+    "link": "/tools/personal-management",
+    "category": "その他ツール",
+    "status": "ready",
+    "icon": "user",
+    "priority": 151,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_152",
+    "name": "24_HTS検証ツール",
+    "link": "/tools/hts-verification",
+    "category": "統合ツール",
+    "status": "new",
+    "icon": "check-square",
+    "priority": 152,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_153",
+    "name": "棚卸しツール",
+    "link": "/zaiko/tanaoroshi",
+    "category": "在庫管理",
+    "status": "ready",
+    "icon": "package-check",
+    "priority": 153,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_154",
+    "name": "DDPテーブル検索",
+    "link": "/tools/find-ddp-table",
+    "category": "出品ツール",
+    "status": "new",
+    "icon": "search",
+    "priority": 154,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_155",
+    "name": "一括出品",
+    "link": "/bulk-listing",
+    "category": "出品ツール",
+    "status": "ready",
+    "icon": "list",
+    "priority": 155,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_156",
+    "name": "刈り取り自動選定",
+    "link": "/tools/arbitrage-selector",
+    "category": "仕入れ・買取",
+    "status": "ready",
+    "icon": "zap",
+    "priority": 156,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_157",
+    "name": "eBay 料金テーブル詳細",
+    "link": "/ebay/rate-tables-detail",
+    "category": "外部連携",
+    "status": "new",
+    "icon": "file-text",
+    "priority": 157,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_158",
+    "name": "ログ管理",
+    "link": "/logs",
+    "category": "その他ツール",
+    "status": "pending",
+    "icon": "file-text",
+    "priority": 158,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_159",
+    "name": "統合管理",
+    "link": "/management",
+    "category": "その他ツール",
+    "status": "new",
+    "icon": "layout-grid",
+    "priority": 159,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_160",
+    "name": "Amazon商品登録",
+    "link": "/asin-upload",
+    "category": "商品管理",
+    "status": "pending",
+    "icon": "globe",
+    "priority": 160,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_161",
+    "name": "市場リサーチ",
+    "link": "/research/market-research",
+    "category": "リサーチ",
+    "status": "ready",
+    "icon": "trending-up",
+    "priority": 161,
+    "ui_status": "🟡 基本"
+  },
+  {
+    "id": "tool_162",
+    "name": "リサーチ分析",
+    "link": "/tools/research-analytics",
+    "category": "リサーチ",
+    "status": "ready",
+    "icon": "bar-chart",
+    "priority": 162,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_163",
+    "name": "メルカリ",
+    "link": "/mercari",
+    "category": "外部連携",
+    "status": "ready",
+    "icon": "shopping-cart",
+    "priority": 163,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_164",
+    "name": "在庫回転率",
+    "link": "/analytics/inventory",
+    "category": "在庫管理",
+    "status": "ready",
+    "icon": "trending-up",
+    "priority": 164,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_165",
+    "name": "出荷管理システム",
+    "link": "/management/shipping",
+    "category": "システム管理",
+    "status": "ready",
+    "icon": "truck",
+    "priority": 165,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_166",
+    "name": "受注管理（統合版）",
+    "link": "/management/orders/v2",
+    "category": "受注管理",
+    "status": "ready",
+    "icon": "shopping-cart",
+    "priority": 166,
+    "ui_status": "❌ なし"
+  },
+  {
+    "id": "tool_167",
+    "name": "予防医療プラットフォーム",
+    "link": "/tools/preventive-health-platform",
+    "category": "健康・ライフ",
+    "status": "ready",
+    "icon": "activity",
+    "priority": 167,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_168",
+    "name": "📋 システム開発ガイド (旧)",
+    "link": "/docs/index.html",
+    "category": "システム管理",
+    "status": "ready",
+    "icon": "file-text",
+    "priority": 168,
+    "ui_status": "🔗 外部"
+  },
+  {
+    "id": "tool_169",
+    "name": "注文管理システムV2",
+    "link": "/tools/order-management-v2",
+    "category": "受注管理",
+    "status": "ready",
+    "icon": "shopping-cart",
+    "priority": 169,
+    "ui_status": "✅ 完成"
+  },
+  {
+    "id": "tool_170",
+    "name": "楽天連携",
+    "link": "/rakuten",
+    "category": "その他ツール",
+    "status": "pending",
+    "icon": "globe",
+    "priority": 170,
+    "ui_status": "❌ なし"
+  }
+]

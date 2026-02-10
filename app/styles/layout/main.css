@@ -1,0 +1,165 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Main Layout
+   ============================================================ */
+
+/* 🔥 v6: N3ページ共通レイアウト */
+/* 基本スタイル（workspace/直接アクセス共通） */
+.n3-page-root {
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 100% !important;
+  overflow: hidden !important;
+  background: var(--bg);
+  /* 🔥 重要: workspace内ではマージン不要 */
+  margin-left: 0 !important;
+}
+
+/* 🔥 v6: workspaceページ内のツールコンテナ */
+.workspace-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  /* 🔥 workspaceは左端から始まる（マージンはlayout-wrapperが担当） */
+}
+
+/* 🔥 v6: workspace内のツールラッパー */
+.workspace-tool-wrapper {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* 🔥 v6: workspace内のツールコンテナ */
+.workspace-tool-container {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* 🔥 v6: workspaceから埋め込まれた時のツール */
+.workspace-tool-wrapper .n3-page-root {
+  margin-left: 0 !important;
+  height: 100% !important;
+  min-height: auto !important;
+}
+
+.n3-main {
+  margin-left: var(--sidebar-width);
+  margin-top: var(--header-height);
+  height: calc(100vh - var(--header-height) - var(--footer-height, 40px));
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0;
+  padding-bottom: calc(var(--footer-height) + 16px);
+  background: transparent;
+  max-width: 100%;
+}
+
+/* 透明モード切り替え */
+:root[data-transparent="true"] .n3-main,
+:root[data-transparent="true"] #main-scroll-container {
+  background: rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(8px);
+}
+
+:root[data-transparent="false"] .n3-main,
+:root[data-transparent="false"] #main-scroll-container {
+  background: var(--bg-solid, var(--panel));
+  backdrop-filter: none;
+}
+
+/* ダークモードでの透明モード */
+:root[data-theme="dark"][data-transparent="true"] .n3-main,
+:root[data-theme="dark"][data-transparent="true"] #main-scroll-container {
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+}
+
+:root[data-theme="dark"][data-transparent="false"] .n3-main,
+:root[data-theme="dark"][data-transparent="false"] #main-scroll-container {
+  background: var(--bg-solid, var(--panel));
+  backdrop-filter: none;
+}
+
+/* ピン留めパネルがある時はmargin-topを削除 */
+.n3-main--with-panel {
+  margin-top: 0;
+  height: auto;
+  min-height: calc(100vh - var(--header-height) - var(--footer-height, 40px));
+}
+
+/* メインコンテナ */
+.n3-main-wrapper {
+  margin-left: var(--sidebar-width);
+  margin-top: 0;
+  min-height: 100vh;
+  display: flex;
+  justify-content: flex-start;
+  background: transparent;
+}
+
+.n3-main-inner {
+  width: fit-content;
+  min-width: 100%;
+  padding: 0;
+}
+
+/* TOPバー */
+.n3-topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--topbar-height);
+  background: var(--glass);
+  border-bottom: 1px solid var(--glass-border);
+  backdrop-filter: blur(12px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+}
+
+/* Page Content */
+.n3-page-content {
+  padding: 6px;
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+/* パネル間の余白統一 */
+.n3-page-content > * + * {
+  margin-top: 2px;
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 1024px) {
+  .n3-header-layout {
+    flex-direction: column;
+  }
+  
+  .n3-header-layout__divider {
+    width: 100%;
+    height: 1px;
+    margin: 4px 0;
+  }
+  
+  .n3-header-layout__nav {
+    max-width: none;
+    width: 100%;
+  }
+  
+  .n3-page-nav__list {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  
+  .n3-toolbar-selector {
+    flex-wrap: wrap;
+  }
+}

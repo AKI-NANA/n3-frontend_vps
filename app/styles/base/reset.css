@@ -1,0 +1,38 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Base Reset & Scrollbar
+   ============================================================ */
+
+@layer base {
+  * { 
+    margin: 0; 
+    padding: 0; 
+    box-sizing: border-box; 
+    border-color: var(--border); 
+  }
+  
+  html {
+    scroll-behavior: smooth;
+    overscroll-behavior: none;
+  }
+  
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1.5;
+    overscroll-behavior: none;
+    overflow-x: hidden;
+    overflow-y: auto;
+    min-height: 100vh;
+  }
+  
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--text-subtle); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+  
+  .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+}

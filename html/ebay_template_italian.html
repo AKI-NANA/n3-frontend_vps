@@ -1,0 +1,1280 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dettagli Prodotto - eBay Listing Template</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.8;
+            color: #2C3E50;
+            background: #F6F1F1;
+        }
+
+        :root {
+            --bg-light: #F6F1F1;
+            --blue-primary: #19A7CE;
+            --blue-dark: #146C94;
+            --green-primary: #27AE60;
+            --green-dark: #1E8449;
+            --orange-primary: #E67E22;
+            --red-primary: #C62828;
+            --text: #2C3E50;
+            --text-light: #5A6C7D;
+            --border: #D4D9DF;
+        }
+
+        .container {
+            max-width: 960px;
+            margin: 0 auto;
+            background: white;
+        }
+
+        .sku { display: none; }
+
+        .back-to-top {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: linear-gradient(135deg, var(--blue-primary), var(--blue-dark));
+            color: white;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            font-size: 24px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+        }
+
+        .back-to-top:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--blue-primary), var(--blue-dark));
+            color: white;
+            padding: 32px 24px;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .usa-buyer-notice {
+            background: linear-gradient(135deg, #E8F5E9, #C8E6C9);
+            padding: 30px 24px;
+            border-left: 5px solid var(--green-primary);
+        }
+
+        .usa-notice-title {
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            color: var(--green-dark);
+        }
+
+        .usa-notice-content {
+            font-size: 16px;
+            color: #1B5E20;
+            line-height: 1.8;
+        }
+
+        .usa-notice-highlight {
+            background: white;
+            padding: 16px;
+            margin-top: 12px;
+            border-radius: 6px;
+            border-left: 4px solid var(--green-primary);
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--green-dark);
+        }
+
+        .non-usa-buyer-notice {
+            background: linear-gradient(135deg, #FFF3E0, #FFE0B2);
+            padding: 25px 24px;
+            border-left: 5px solid var(--orange-primary);
+        }
+
+        .non-usa-notice-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            color: #BF360C;
+        }
+
+        .non-usa-notice-content {
+            font-size: 15px;
+            color: #C65100;
+            line-height: 1.8;
+        }
+
+        .scroll-link {
+            display: inline-block;
+            margin-top: 12px;
+            padding: 12px 24px;
+            background: linear-gradient(135deg, var(--orange-primary), #D35400);
+            color: white;
+            text-decoration: none;
+            border-radius: 25px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .scroll-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .notice {
+            padding: 16px 24px;
+            border-left: 4px solid;
+            font-size: 14px;
+            line-height: 1.8;
+        }
+
+        .notice.danger {
+            background: #FFEBEE;
+            border-color: #E53935;
+            color: var(--red-primary);
+        }
+
+        .notice strong {
+            font-weight: 600;
+        }
+
+        .nav {
+            display: flex;
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            overflow-x: auto;
+        }
+
+        .nav a {
+            flex: 1;
+            padding: 14px 12px;
+            text-align: center;
+            text-decoration: none;
+            color: var(--text);
+            font-size: 13px;
+            font-weight: 500;
+            border-right: 1px solid var(--border);
+            min-width: 90px;
+        }
+
+        .nav a:last-child { border-right: none; }
+        .nav a:hover {
+            background: #AFD3E2;
+            color: var(--blue-dark);
+            transition: all 0.2s;
+        }
+
+        .content {
+            padding: 32px 24px;
+        }
+
+        .section {
+            margin-bottom: 40px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--blue-primary);
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 16px;
+        }
+
+        .card {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 20px;
+        }
+
+        .card:hover {
+            border-color: var(--blue-primary);
+            box-shadow: 0 2px 8px rgba(25, 167, 206, 0.15);
+            transition: all 0.2s;
+        }
+
+        .card-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 8px;
+        }
+
+        .card-text {
+            font-size: 13px;
+            color: var(--text-light);
+            line-height: 1.6;
+        }
+
+        .details {
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .detail-row {
+            display: grid;
+            grid-template-columns: 200px 1fr;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .detail-row:last-child { border-bottom: none; }
+
+        .detail-label {
+            padding: 14px 16px;
+            background: var(--bg-light);
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--text);
+            border-right: 1px solid var(--border);
+        }
+
+        .detail-value {
+            padding: 14px 16px;
+            font-size: 13px;
+            color: var(--text-light);
+        }
+
+        .policy-box {
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .policy-header {
+            background: linear-gradient(to right, var(--blue-primary), var(--blue-dark));
+            color: white;
+            padding: 14px 20px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .policy-header.red {
+            background: linear-gradient(to right, #E53935, var(--red-primary));
+        }
+
+        .policy-body {
+            padding: 20px;
+        }
+
+        .policy-item {
+            margin-bottom: 20px;
+        }
+
+        .policy-item:last-child { margin-bottom: 0; }
+
+        .policy-subtitle {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 8px;
+        }
+
+        .policy-text {
+            font-size: 13px;
+            color: var(--text-light);
+            line-height: 1.8;
+        }
+
+        .policy-text.warning {
+            color: #C65100;
+            font-weight: 500;
+        }
+
+        .policy-text.danger {
+            color: var(--red-primary);
+            font-weight: 500;
+        }
+
+        .policy-text strong {
+            color: var(--text);
+        }
+
+        .list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .list li {
+            padding-left: 16px;
+            position: relative;
+            margin-bottom: 6px;
+            font-size: 13px;
+            color: var(--text-light);
+            line-height: 1.6;
+        }
+
+        .list li::before {
+            content: '•';
+            position: absolute;
+            left: 0;
+            color: var(--blue-primary);
+        }
+
+        .customs-calculator {
+            background: linear-gradient(135deg, #F3E5F5, #E1BEE7);
+            padding: 40px 24px;
+            margin: 40px 0;
+            border-radius: 6px;
+            border: 3px solid #9C27B0;
+        }
+
+        .calc-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #4A148C;
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 3px solid #9C27B0;
+            padding-bottom: 12px;
+        }
+
+        .calc-disclaimer {
+            background: #FFEBEE;
+            padding: 20px;
+            border-radius: 6px;
+            margin-bottom: 25px;
+            border-left: 5px solid #D32F2F;
+            font-size: 14px;
+            line-height: 1.8;
+        }
+
+        .calc-disclaimer strong {
+            color: var(--red-primary);
+        }
+
+        .country-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 25px 0;
+        }
+
+        .country-card {
+            background: white;
+            border-radius: 6px;
+            padding: 20px;
+            border: 2px solid #E0E0E0;
+        }
+
+        .country-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            border-color: var(--blue-primary);
+            transition: all 0.3s ease;
+        }
+
+        .country-flag {
+            font-size: 40px;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .country-name {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text);
+            text-align: center;
+            margin-bottom: 16px;
+            border-bottom: 2px solid var(--blue-primary);
+            padding-bottom: 8px;
+        }
+
+        .calc-step {
+            background: #F8F9FA;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            border-left: 4px solid var(--blue-primary);
+        }
+
+        .calc-step-title {
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 6px;
+            font-size: 13px;
+        }
+
+        .calc-formula {
+            background: #FFFFFF;
+            padding: 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            margin: 6px 0;
+            border: 1px solid #E0E0E0;
+        }
+
+        .calc-example {
+            color: var(--text-light);
+            font-size: 12px;
+            font-style: italic;
+            margin-top: 4px;
+        }
+
+        .calc-note {
+            background: #E3F2FD;
+            padding: 10px;
+            border-radius: 4px;
+            color: #1565C0;
+            font-size: 12px;
+            margin-top: 8px;
+            border-left: 3px solid #2196F3;
+        }
+
+        .calc-warning {
+            background: #FFEBEE;
+            padding: 10px;
+            border-radius: 4px;
+            color: var(--red-primary);
+            font-size: 12px;
+            margin-top: 8px;
+            border-left: 3px solid #F44336;
+            font-weight: 500;
+        }
+
+        .footer {
+            background: var(--bg-light);
+            padding: 24px;
+            text-align: center;
+            border-top: 1px solid var(--border);
+            font-size: 12px;
+            color: var(--text-light);
+            line-height: 1.6;
+        }
+
+        @media (max-width: 768px) {
+            .header { padding: 24px 16px; }
+            .content { padding: 24px 16px; }
+            .notice { padding: 14px 16px; }
+            .nav a { font-size: 12px; padding: 12px 8px; }
+            .cards { grid-template-columns: 1fr; }
+            .detail-row { grid-template-columns: 1fr; }
+            .detail-label { border-right: none; border-bottom: 1px solid var(--border); }
+            .country-cards { grid-template-columns: 1fr; }
+            .back-to-top { width: 50px; height: 50px; font-size: 20px; bottom: 20px; right: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <p class="sku">{{SKU}}</p>
+
+        <a href="#top" class="back-to-top" title="Torna su">↑</a>
+
+        <div class="header" id="top">
+            <h1>{{TITLE}}</h1>
+            <p>Spedizione Internazionale • Prodotti Autentici • Venditore Affidabile</p>
+        </div>
+
+        <div class="usa-buyer-notice">
+            <div class="usa-notice-title">
+                🇺🇸 Per Acquirenti USA - Nessun Calcolo Doganale Necessario
+            </div>
+            <div class="usa-notice-content">
+                <strong>eBay calcola e visualizza automaticamente tutti i dazi d'importazione al checkout.</strong><br>
+                Il prezzo mostrato al checkout è il vostro importo totale finale.<br>
+                NON vi verranno addebitate spese aggiuntive alla consegna.
+            </div>
+            <div class="usa-notice-highlight">
+                ✅ Prezzo Visualizzato = Importo Finale di Pagamento (inclusi tutti i dazi doganali e le tasse)
+            </div>
+        </div>
+
+        <div class="non-usa-buyer-notice">
+            <div class="non-usa-notice-title">
+                ⚠️ Per Acquirenti Non-USA - Pagamento Doganale Richiesto
+            </div>
+            <div class="non-usa-notice-content">
+                <strong>Dovete calcolare e pagare i dazi/tasse doganali quando arriva il pacco.</strong><br>
+                Le spese d'importazione NON sono incluse nel prezzo dell'articolo o nei costi di spedizione.<br>
+                <strong style="font-size: 16px; color: #BF360C;">Il pagamento dei dazi d'importazione è al 100% VOSTRA responsabilità.</strong><br><br>
+                
+                <a href="#customs-calculator" class="scroll-link">
+                    📊 CLICCA QUI - Guida al Calcolo Doganale (Scorri in Fondo)
+                </a>
+            </div>
+        </div>
+
+        <div class="notice danger">
+            <strong>【IMPORTANTE】Per Acquirenti Non-USA:</strong>
+            I dazi doganali e le tasse d'importazione NON sono inclusi nel prezzo dell'articolo o nei costi di spedizione. A seconda del vostro paese di destinazione, potreste dover pagare dazi doganali e tasse d'importazione all'arrivo del pacco. Questi costi sono di <strong>VOSTRA responsabilità</strong>. <strong>Se non potete o non volete pagare la dogana, NON ordinate.</strong>
+        </div>
+
+        <nav class="nav">
+            <a href="#">Home</a>
+            <a href="#">Offerte</a>
+            <a href="#">Chi Siamo</a>
+            <a href="#">Recensioni</a>
+            <a href="#">Contatti</a>
+        </nav>
+
+        <div class="content">
+            
+            <section class="section">
+                <h2 class="section-title">Informazioni Negozio</h2>
+                <div class="cards">
+                    <div class="card">
+                        <div class="card-title">Vendite Regolari</div>
+                        <div class="card-text">Segui il nostro negozio per offerte esclusive e notifiche di vendita.</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">Richieste Prodotti</div>
+                        <div class="card-text">Contattaci con nome o numero prodotto per risposta rapida.</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">Articoli in Pre-ordine</div>
+                        <div class="card-text">Ci impegniamo a offrire prezzi competitivi per i pre-ordini.</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">Magazzino & Prenotazioni</div>
+                        <div class="card-text">Gli articoli esauriti possono essere prenotati. Sentiti libero di chiedere.</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">Acquisto all'Ingrosso</div>
+                        <div class="card-text">Gli acquisti all'ingrosso di carte collezionabili offrono grandi risparmi. Contattaci.</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">Prezzi</div>
+                        <div class="card-text">Prezzi competitivi. Si prega di evitare contrattazioni eccessive.</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section">
+                <h2 class="section-title">Dettagli Prodotto</h2>
+                <div class="details">
+                    <div class="detail-row">
+                        <div class="detail-label">Titolo Prodotto</div>
+                        <div class="detail-value">{{TITLE}}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Prezzo</div>
+                        <div class="detail-value">${{PRICE}}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Condizione</div>
+                        <div class="detail-value">{{CONDITION}}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Marca</div>
+                        <div class="detail-value">{{BRAND}}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Descrizione</div>
+                        <div class="detail-value">{{DESCRIPTION}}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Caratteristiche Principali</div>
+                        <div class="detail-value">{{FEATURES}}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Specifiche</div>
+                        <div class="detail-value">{{SPECIFICATIONS}}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Note</div>
+                        <div class="detail-value">{{NOTES}}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Identificativo Unico/Numero di Serie</div>
+                        <div class="detail-value">{{SERIAL_NUMBER}}</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section">
+                <div class="policy-box">
+                    <div class="policy-header red">🚫 Politica di Reso per Articoli Aperti (Importante)</div>
+                    <div class="policy-body">
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Conferma Pre-Acquisto per Minimizzare i Resi</div>
+                            <p class="policy-text danger">
+                                <strong>Per evitare resi, si prega di leggere la descrizione completa del prodotto prima dell'acquisto.</strong><br><br>
+                                • Questa è una transazione di importazione internazionale, non un acquisto nazionale<br>
+                                • NON giudicare solo dal titolo o dalle immagini - <strong>LEGGI la descrizione completa del prodotto</strong><br>
+                                • Set di articoli, blind box, edizioni limitate possono contenere elementi casuali<br>
+                                • <strong>Contattaci prima dell'acquisto se hai QUALSIASI domanda</strong><br><br>
+                                <strong>Acquistando, riconosci di aver letto la descrizione completa del prodotto.</strong>
+                            </p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Tariffa di Riassortimento per Articoli Non in Condizione Originale</div>
+                            <p class="policy-text danger">
+                                <strong>Se gli articoli restituiti non sono in condizione originale, può essere applicata una tariffa di riassortimento fino al 50%.</strong><br><br>
+                                
+                                <strong>【Casi in cui si Applicano Tariffe di Riassortimento】</strong><br>
+                                • Elettronica e giochi aperti/usati: <strong>Fino al 20%</strong> tariffa di riassortimento<br>
+                                • Ordini speciali/articoli personalizzati: <strong>Fino al 50%</strong> tariffa di riassortimento<br>
+                                • Articoli senza confezione/accessori originali o con confezione danneggiata: <strong>Fino al 50%</strong> tariffa di riassortimento<br>
+                                • Articoli sensibili all'igiene (biancheria intima, cosmetici, ecc.): Non restituibili (tranne articoli difettosi)<br><br>
+                                
+                                <strong>【Casi in cui NON si Applicano Tariffe di Riassortimento】</strong><br>
+                                • <strong>Articoli difettosi o articoli significativamente diversi dalla descrizione dettagliata:</strong> Nessuna tariffa (rimborso completo del prezzo dell'articolo + spese di reso pagate da noi)<br>
+                                  <strong>※ Tuttavia, se l'articolo corrisponde alla descrizione dettagliata del prodotto, è considerato "come descritto". NON giudicare solo dal titolo - LEGGI la descrizione completa.</strong><br>
+                                • Articoli non aperti restituiti in condizione originale: Nessuna tariffa (prezzo dell'articolo rimborsato - <strong>spedizione e dogana sono responsabilità dell'acquirente</strong>)<br><br>
+                                
+                                <strong>Per ricevere un rimborso completo, restituisci l'articolo nella confezione originale, non aperto e in condizione non utilizzata.</strong>
+                            </p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Responsabilità dei Costi per i Resi (Importante)</div>
+                            <p class="policy-text danger">
+                                <strong>【Principio Base】Se non c'è colpa da parte nostra, tutti i costi di reso sono responsabilità dell'acquirente.</strong><br><br>
+                                
+                                <strong>◆ Articoli Difettosi o Articoli Significativamente Diversi dalla Descrizione:</strong><br>
+                                • Prezzo dell'articolo: Rimborso completo<br>
+                                • Spese di reso: Pagate da noi<br>
+                                • <strong>Dazi doganali/tasse d'importazione: Responsabilità dell'acquirente</strong> (non parte del prezzo dell'articolo, non rimborsabili)<br>
+                                • Spedizione in uscita: Rimborsata<br><br>
+                                
+                                <strong>◆ Resi per Ripensamento/Cambio Idea dell'Acquirente:</strong><br>
+                                • Prezzo dell'articolo: Rimborsato (meno tariffa di riassortimento se applicabile)<br>
+                                • Spese di reso: <strong>Responsabilità dell'acquirente</strong><br>
+                                • Dazi doganali/tasse d'importazione: <strong>Responsabilità dell'acquirente</strong><br>
+                                • Spedizione in uscita: <strong>Non rimborsabile</strong><br><br>
+                                
+                                <strong>◆ Avviso Importante per Acquirenti USA:</strong><br>
+                                Per le spedizioni negli USA, i dazi doganali sono inclusi nei costi di spedizione. Pertanto, <strong>una parte dei costi di spedizione equivalente ai dazi doganali sarà non rimborsabile</strong> in caso di reso. I resi sono calcolati solo in base al prezzo dell'articolo.
+                            </p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Comunicazione Pre-Acquisto (Per Evitare Resi)</div>
+                            <p class="policy-text">
+                                <strong>A causa della spedizione internazionale, i resi comportano costi e tempi elevati.</strong><br><br>
+                                Per evitare resi, <strong>si prega di controllare quanto segue prima dell'acquisto:</strong><br>
+                                • Leggere la descrizione completa del prodotto accuratamente (NON giudicare solo dal titolo)<br>
+                                • Verificare il contenuto del set, accessori, compatibilità, taglia, colore, ecc.<br>
+                                • <strong>Contattaci SEMPRE prima dell'acquisto se hai QUALSIASI domanda</strong><br>
+                                • Il contenuto di blind box/articoli casuali non può essere selezionato<br><br>
+                                La comunicazione pre-acquisto può ridurre significativamente la necessità di resi.
+                            </p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Condizioni Non Restituibili/Non Rimborsabili</div>
+                            <ul class="list">
+                                <li>Articoli danneggiati per negligenza dell'acquirente</li>
+                                <li>Articoli con sigilli di autenticità o etichette rimossi</li>
+                                <li>Articoli su ordinazione o personalizzati (tranne se difettosi)</li>
+                                <li>Articoli utilizzati oltre il periodo di ispezione ragionevole</li>
+                                <li>Articoli senza confezione o accessori originali</li>
+                                <li><strong>Articoli restituiti in condizione diversa non sono rimborsabili</strong></li>
+                            </ul>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Documentazione Foto/Video Prima della Spedizione</div>
+                            <p class="policy-text">
+                                Per la protezione del prodotto e la prevenzione delle controversie, <strong>potremmo fotografare/filmare articoli prima della spedizione e registrare identificativi unici.</strong> Grazie per la comprensione.
+                            </p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Imballaggio Sicuro</div>
+                            <p class="policy-text">
+                                Garantiamo i seguenti standard di imballaggio:<br>
+                                • Protezione impermeabile implementata<br>
+                                • Protezione con pluriball<br>
+                                • Articoli in scatola di valore: Rinforzo degli angoli con cartone per prevenire schiacciamenti<br>
+                                • Attraverso un imballaggio attento e sicuro, <strong>manteniamo ZERO reclami per danni da spedizione.</strong>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="policy-box">
+                    <div class="policy-header">Politica di Pagamento e Reso</div>
+                    <div class="policy-body">
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Dazi Doganali & Tasse d'Importazione</div>
+                            <p class="policy-text warning">
+                                <strong>【IMPORTANTE】</strong>I dazi doganali e le tasse d'importazione NON sono inclusi nel prezzo dell'articolo. Il pagamento alla dogana o al corriere è richiesto all'arrivo del pacco. Questi costi sono di <strong>VOSTRA responsabilità</strong>. Se rifiutate la consegna, rimanete responsabili dei dazi doganali e perderete la copertura del programma di protezione acquirenti.
+                            </p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Politica di Reso</div>
+                            <p class="policy-text">
+                                Resi accettati entro 30 giorni dalla consegna. Gli articoli devono essere restituiti in condizione originale.<br><br>
+                                <strong>【Responsabilità dei Costi di Spedizione del Reso】</strong><br>
+                                • Articoli difettosi o articoli significativamente diversi dalla descrizione dettagliata: Spese di reso pagate da noi<br>
+                                • Resi per ripensamento: <strong>Spese di reso pagate dall'acquirente</strong><br>
+                                • Resi senza colpa da parte nostra: <strong>Tutti i costi di reso pagati dall'acquirente</strong><br><br>
+                                Tutti i resi sono videoregistrati durante l'ispezione.
+                            </p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">【IMPORTANTE】Divieto di Controversie di Pagamento Dirette - Contattare prima tramite Messaggio eBay</div>
+                            <p class="policy-text danger">
+                                <strong>Se apri una controversia direttamente con la tua società di carte di credito o PayPal, eBay chiuderà automaticamente qualsiasi caso eBay e rischi di perdere la protezione acquirenti.</strong><br><br>
+                                L'uso simultaneo sia del processo di risoluzione eBay che di controversie esterne (storni di addebito) è <strong>severamente vietato dalla politica ufficiale eBay.</strong><br><br>
+                                Contattaci prima tramite messaggio eBay (solitamente risolto entro 30 giorni vs. 90+ giorni per controversie con carte).
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section">
+                <div class="policy-box">
+                    <div class="policy-header">Informazioni sulla Spedizione</div>
+                    <div class="policy-body">
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Metodo di Spedizione</div>
+                            <p class="policy-text">{{SHIPPING_INFO}}</p>
+                            <p class="policy-text">Tutti gli ordini includono tracciamento. Numero di tracciamento caricato entro 1 giorno lavorativo dopo la spedizione.</p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Conferma Firma (Ordini $750+)</div>
+                            <p class="policy-text danger">
+                                <strong>Gli ordini per un totale di $750 o più richiedono la conferma della firma</strong> (Politica eBay).<br>
+                                <strong>Se non siete disponibili, dovete contattare voi stessi il corriere per organizzare la riconsegna o l'orario di ritiro.</strong><br><br>
+                                Questo protegge sia venditori che acquirenti. Non si applica alcun costo aggiuntivo.
+                            </p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Responsabilità di Consegna</div>
+                            <p class="policy-text warning">
+                                <strong>La responsabilità del venditore termina quando il corriere registra "CONSEGNATO".</strong>
+                            </p>
+                            <ul class="list">
+                                <li>Traccia il tuo pacco utilizzando il numero di tracciamento</li>
+                                <li>Contatta il corriere se devi modificare data/ora di consegna</li>
+                                <li>Potrebbe essere richiesta la firma - sii disponibile a ricevere (richiesto per ordini $750+)</li>
+                                <li>Furto dopo la consegna: Responsabilità dell'acquirente. Contattare polizia e assicurazione</li>
+                                <li>Indirizzo errato: Spese di rispedizione pagate dall'acquirente</li>
+                                <li>Pacchi non ritirati: Si applicano spese di rispedizione</li>
+                            </ul>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Costi di Spedizione del Reso</div>
+                            <p class="policy-text warning">
+                                <strong>Tutti i costi di spedizione del reso sono responsabilità dell'acquirente</strong> (tranne articoli difettosi o articoli significativamente diversi dalla descrizione - in questi casi, i costi sono nostri). I resi dovuti al rifiuto doganale comportano anche spese di reso pagate dall'acquirente.
+                            </p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Rifiuto di Consegna & Cancellazione Dopo la Spedizione</div>
+                            <p class="policy-text danger">
+                                <strong>Si prega di assicurarsi di poter ricevere gli articoli ordinati.</strong><br>
+                                Le cancellazioni prima della spedizione sono accettate, ma <strong>le cancellazioni dopo la spedizione NON sono possibili indipendentemente dal motivo.</strong><br><br>
+                                
+                                <strong>【Rifiuto di Consegna per QUALSIASI Motivo Inclusa la Dogana】</strong><br>
+                                Se rifiutate la consegna per qualsiasi motivo e il pacco viene restituito, i seguenti costi sono di VOSTRA responsabilità e i rimborsi dedurranno questi importi:<br>
+                                (1) Dazi doganali e tasse d'importazione sostenuti (addebitati dal corriere/dogana)<br>
+                                (2) Costi e spese di spedizione di andata e ritorno<br>
+                                (3) Spedizione in uscita (non rimborsabile)<br><br>
+                                <strong>Il rifiuto di consegna comporta la perdita della copertura del programma di protezione acquirenti eBay.</strong><br><br>
+                                <strong>【Riguardo alla Fatturazione Doganale Successiva】</strong><br>
+                                Se rifiutate richieste successive di pagamento doganale dai corrieri, potrebbero essere inviate fatture separate al vostro indirizzo o fornito avviso scritto. Si prega di notare.
+                            </p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Servizi di Inoltro Pacchi</div>
+                            <p class="policy-text danger">
+                                <strong>L'uso di servizi di inoltro (MyUS, Shipito, ecc.) ANNULLA il programma di protezione acquirenti eBay.</strong> Uso a proprio rischio.<br><br>
+                                <strong>【IMPORTANTE】Riguardo alla Consegna a Indirizzo Diverso:</strong><br>
+                                Secondo la politica eBay, non possiamo spedire a nessun indirizzo diverso da quello registrato al checkout. Se è necessario un cambio di indirizzo, si prega di registrare l'indirizzo corretto prima di ordinare.
+                            </p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Tempo di Elaborazione</div>
+                            <p class="policy-text">Spedizione entro <strong>3-10 giorni lavorativi</strong> dopo la conferma del pagamento. Se urgente, si prega di informarsi sulla data di spedizione stimata prima dell'acquisto. Rispondiamo prontamente.</p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Instradamento tramite Ufficio Postale Locale</div>
+                            <p class="policy-text">
+                                Le spedizioni internazionali possono essere instradate tramite il servizio postale del vostro paese di destinazione. <strong>Se il pacco non arriva, raccomandiamo di contattare prima il vostro ufficio postale locale.</strong> Gli uffici postali locali possono spesso rispondere più velocemente di noi. Si prega di contattarci dopo per supporto.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section">
+                <div class="policy-box">
+                    <div class="policy-header red">🛡️ Protezione Venditore & Misure Anti-Frode (Applicazione Rigorosa)</div>
+                    <div class="policy-body">
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Documentazione Probatoria & Anti-Frode</div>
+                            <ul class="list">
+                                <li>Tutti gli articoli fotografati in dettaglio prima della spedizione</li>
+                                <li>Numeri di serie/identificativi unici registrati (quando applicabile, tutte le unità)</li>
+                                <li><strong>I resi sono videoregistrati durante l'ispezione</strong> (per prevenire lo scambio di articoli)</li>
+                                <li>Confezione originale richiesta per controversie sulle condizioni</li>
+                            </ul>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Risposta Rigorosa allo Scambio di Articoli & Atti Fraudolenti</div>
+                            <p class="policy-text danger">
+                                <strong>Gli articoli restituiti devono corrispondere perfettamente ai numeri di serie/identificativi originali registrati prima della spedizione.</strong><br><br>
+                                • Se si conferma lo scambio di articoli o false dichiarazioni, <strong>segnaleremo immediatamente a eBay e alle autorità di polizia locali e perseguiremo la responsabilità civile e penale.</strong><br>
+                                • Gli articoli restituiti in condizione diversa riceveranno rimborso parziale o rifiuto del rimborso.
+                            </p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Obblighi dell'Acquirente</div>
+                            <p class="policy-text warning">
+                                <strong>L'accettazione del pacco è obbligatoria.</strong> Se rifiutate la consegna: Perdita del programma di protezione acquirenti, tutti i costi di reso sono vostri, l'obbligo di pagamento doganale rimane, rimborso meno tutti i costi.
+                            </p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Conferma Tracciamento & Requisiti di Consegna</div>
+                            <ul class="list">
+                                <li>Tutte le spedizioni includono tracciamento per la protezione del venditore</li>
+                                <li>Gli ordini $750+ richiedono conferma della firma (Politica eBay)</li>
+                                <li>L'indirizzo di consegna deve corrispondere perfettamente all'indirizzo checkout eBay</li>
+                                <li>L'uso di servizi di inoltro pacchi annulla la protezione acquirenti</li>
+                            </ul>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Risposta Servizio Clienti</div>
+                            <p class="policy-text"><strong>Rispondiamo entro 24 ore (giorni lavorativi).</strong> Tutte le comunicazioni solo tramite messaggi eBay. Ci impegniamo per un servizio rapido e cortese.</p>
+                        </div>
+
+                        <div class="policy-item">
+                            <div class="policy-subtitle">Conformità alle Politiche</div>
+                            <p class="policy-text">Questa inserzione è conforme agli standard dei venditori eBay e alle normative commerciali internazionali.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section" id="customs-calculator">
+                <div class="customs-calculator">
+                    <div class="calc-title">
+                        🧮 Guida al Calcolo Dazi Doganali (Solo per Acquirenti Non-USA)
+                    </div>
+
+                    <div class="calc-disclaimer">
+                        <strong>⚠️ DISCLAIMER CRITICO - LEGGERE PRIMA DI USARE QUESTE FORMULE:</strong><br><br>
+                        
+                        • Queste formule sono basate su informazioni del 2025 e sono SOLO di RIFERIMENTO<br>
+                        • <strong>NON CI ASSUMIAMO ALCUNA RESPONSABILITÀ PER L'ACCURATEZZA</strong> - Le tariffe doganali cambiano frequentemente<br>
+                        • I costi effettivi variano in base alla classificazione del prodotto, paese di origine e normative attuali<br>
+                        • <strong>DOVETE VERIFICARE LE TARIFFE CON IL VOSTRO UFFICIO DOGANALE LOCALE</strong> prima dell'acquisto<br>
+                        • Utilizzate strumenti AI (ChatGPT, Claude), siti web doganali ufficiali o contattate direttamente la dogana<br>
+                        • <strong>Rifiuto di consegna = Perdita protezione acquirenti + obbligo pagamento doganale rimane</strong><br>
+                        • Non potete permettervi la dogana? <strong>NON ORDINATE!</strong><br><br>
+                        
+                        <strong style="font-size: 15px;">Utilizzando queste formule, riconoscete:</strong><br>
+                        1. Le spese doganali sono al 100% VOSTRA responsabilità<br>
+                        2. Il venditore ha ZERO responsabilità per le spese doganali o l'accuratezza del calcolo<br>
+                        3. Pagherete tutti i dazi/tasse all'arrivo del pacco<br>
+                        4. NON rifiuterete la consegna o contesterete a causa delle spese doganali
+                    </div>
+
+                    <div class="country-cards">
+                        
+                        <div class="country-card">
+                            <div class="country-flag">🇨🇦</div>
+                            <div class="country-name">CANADA</div>
+                            
+                            <div class="calc-step">
+                                <div class="calc-step-title">PASSO 1: Calcolare il Valore Totale</div>
+                                <div class="calc-formula">
+                                    Valore Totale = Prezzo Prodotto + Costi di Spedizione
+                                </div>
+                                <div class="calc-example">
+                                    Esempio: $100 + $30 = $130 CAD
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">PASSO 2: Calcolare il Dazio (se applicabile)</div>
+                                <div class="calc-formula">
+                                    Dazio = Valore Totale × 0% a 18%
+                                </div>
+                                <div class="calc-example">
+                                    Media 8%: $130 × 0,08 = $10,40 CAD
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">PASSO 3: Calcolare GST/HST</div>
+                                <div class="calc-formula">
+                                    GST/HST = (Valore Totale + Dazio) × Aliquota Fiscale<br>
+                                    GST 5% | HST 13-15% (per provincia)
+                                </div>
+                                <div class="calc-example">
+                                    HST 13%: ($130 + $10,40) × 0,13 = $18,25 CAD
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">PASSO 4: Il Vostro Costo Totale</div>
+                                <div class="calc-formula">
+                                    TOTALE = Prodotto + Spedizione + Dazio + GST/HST
+                                </div>
+                                <div class="calc-example">
+                                    Esempio: $100 + $30 + $10,40 + $18,25 = <strong>$158,65 CAD</strong>
+                                </div>
+                            </div>
+
+                            <div class="calc-note">
+                                ℹ️ Gli articoli sotto CAD $20 possono essere esenti da dazi/tasse<br>
+                                <strong style="color: #C62828;">⚠️ VERIFICARE le soglie attuali - le tariffe cambiano frequentemente!</strong>
+                            </div>
+                            
+                            <div class="calc-warning">
+                                ⚠️ <strong>SOLO RIFERIMENTO 2025 - NON GARANTITO</strong><br>
+                                Questi calcoli sono stime. Le spese effettive possono differire.<br>
+                                <strong>VOI dovete verificare con la dogana canadese prima dell'acquisto!</strong>
+                            </div>
+                        </div>
+
+                        <div class="country-card">
+                            <div class="country-flag">🇬🇧</div>
+                            <div class="country-name">REGNO UNITO</div>
+                            
+                            <div class="calc-step">
+                                <div class="calc-step-title">PASSO 1: Calcolare il Valore Totale</div>
+                                <div class="calc-formula">
+                                    Valore Totale = Prezzo Prodotto + Costi di Spedizione
+                                </div>
+                                <div class="calc-example">
+                                    Esempio: £80 + £25 = £105 GBP
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">PASSO 2: Calcolare il Dazio d'Importazione (se oltre £135)</div>
+                                <div class="calc-formula">
+                                    Dazio = Valore Totale × 0% a 12%
+                                </div>
+                                <div class="calc-example">
+                                    Media 6%: £105 × 0,06 = £6,30 GBP
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">PASSO 3: Calcolare IVA (20%)</div>
+                                <div class="calc-formula">
+                                    IVA = (Valore Totale + Dazio) × 0,20
+                                </div>
+                                <div class="calc-example">
+                                    (£105 + £6,30) × 0,20 = £22,26 GBP
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">PASSO 4: Il Vostro Costo Totale</div>
+                                <div class="calc-formula">
+                                    TOTALE = Prodotto + Spedizione + Dazio + IVA
+                                </div>
+                                <div class="calc-example">
+                                    Esempio: €90 + €30 + €9,60 + €24,62 = <strong>€154,22 EUR</strong>
+                                </div>
+                            </div>
+
+                            <div class="calc-warning">
+                                ⚠️ IVA (19%) si applica a TUTTE le importazioni + possono applicarsi spese di sdoganamento
+                            </div>
+                            
+                            <div class="calc-warning">
+                                ⚠️ <strong>SOLO RIFERIMENTO 2025 - NON GARANTITO</strong><br>
+                                Questi calcoli sono stime. Le spese effettive possono differire.<br>
+                                <strong>VOI dovete verificare con la dogana tedesca (Zoll) prima dell'acquisto!</strong>
+                            </div>
+                        </div>
+
+                        <div class="country-card">
+                            <div class="country-flag">🇫🇷</div>
+                            <div class="country-name">FRANCIA</div>
+                            
+                            <div class="calc-step">
+                                <div class="calc-step-title">PASSO 1: Calcolare il Valore Totale</div>
+                                <div class="calc-formula">
+                                    Valore Totale = Prezzo Prodotto + Costi di Spedizione
+                                </div>
+                                <div class="calc-example">
+                                    Esempio: €85 + €28 = €113 EUR
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">PASSO 2: Calcolare il Dazio d'Importazione (se oltre €150)</div>
+                                <div class="calc-formula">
+                                    Dazio = Valore Totale × 0% a 17%
+                                </div>
+                                <div class="calc-example">
+                                    Media 8%: €113 × 0,08 = €9,04 EUR
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">PASSO 3: Calcolare IVA (20%)</div>
+                                <div class="calc-formula">
+                                    IVA = (Valore Totale + Dazio) × 0,20
+                                </div>
+                                <div class="calc-example">
+                                    (€113 + €9,04) × 0,20 = €24,41 EUR
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">PASSO 4: Il Vostro Costo Totale</div>
+                                <div class="calc-formula">
+                                    TOTALE = Prodotto + Spedizione + Dazio + IVA
+                                </div>
+                                <div class="calc-example">
+                                    Esempio: €85 + €28 + €9,04 + €24,41 = <strong>€146,45 EUR</strong>
+                                </div>
+                            </div>
+
+                            <div class="calc-warning">
+                                ⚠️ IVA (20%) si applica a TUTTE le importazioni + possono applicarsi spese di gestione postale
+                            </div>
+                            
+                            <div class="calc-warning">
+                                ⚠️ <strong>SOLO RIFERIMENTO 2025 - NON GARANTITO</strong><br>
+                                Questi calcoli sono stime. Le spese effettive possono differire.<br>
+                                <strong>VOI dovete verificare con la dogana francese (Douane) prima dell'acquisto!</strong>
+                            </div>
+                        </div>
+
+                        <div class="country-card">
+                            <div class="country-flag">🇦🇺</div>
+                            <div class="country-name">AUSTRALIA</div>
+                            
+                            <div class="calc-step">
+                                <div class="calc-step-title">PASSO 1: Calcolare il Valore Totale</div>
+                                <div class="calc-formula">
+                                    Valore Totale = Prezzo Prodotto + Costi di Spedizione
+                                </div>
+                                <div class="calc-example">
+                                    Esempio: AUD $150 + $40 = AUD $190
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">PASSO 2: Calcolare il Dazio d'Importazione (se oltre AUD $1000)</div>
+                                <div class="calc-formula">
+                                    Dazio = Valore Totale × 5% a 10%
+                                </div>
+                                <div class="calc-example">
+                                    Se oltre $1000: AUD $1200 × 0,05 = $60 AUD
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">PASSO 3: Calcolare GST (10%)</div>
+                                <div class="calc-formula">
+                                    GST = (Valore Totale + Dazio) × 0,10
+                                </div>
+                                <div class="calc-example">
+                                    (AUD $190 + $0) × 0,10 = $19 AUD
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">PASSO 4: Il Vostro Costo Totale</div>
+                                <div class="calc-formula">
+                                    TOTALE = Prodotto + Spedizione + Dazio + GST
+                                </div>
+                                <div class="calc-example">
+                                    Esempio: AUD $150 + $40 + $0 + $19 = <strong>AUD $209</strong>
+                                </div>
+                            </div>
+
+                            <div class="calc-note">
+                                ℹ️ Il dazio si applica solo se oltre AUD $1000, ma il 10% GST si applica a TUTTE le importazioni
+                            </div>
+                            
+                            <div class="calc-warning">
+                                ⚠️ <strong>SOLO RIFERIMENTO 2025 - NON GARANTITO</strong><br>
+                                Questi calcoli sono stime. Le spese effettive possono differire.<br>
+                                <strong>VOI dovete verificare con la Australian Border Force prima dell'acquisto!</strong>
+                            </div>
+                        </div>
+
+                        <div class="country-card">
+                            <div class="country-flag">🇮🇱</div>
+                            <div class="country-name">ISRAELE</div>
+                            
+                            <div class="calc-step">
+                                <div class="calc-step-title">PASSO 1: Calcolare il Valore Totale</div>
+                                <div class="calc-formula">
+                                    Valore Totale = Prezzo Prodotto + Costi di Spedizione
+                                </div>
+                                <div class="calc-example">
+                                    Esempio: $95 + $35 = $130 USD
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">PASSO 2: Calcolare il Dazio d'Importazione (se oltre $75)</div>
+                                <div class="calc-formula">
+                                    Dazio = Valore Totale × 0% a 12%
+                                </div>
+                                <div class="calc-example">
+                                    Media 10%: $130 × 0,10 = $13 USD
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">PASSO 3: Calcolare IVA (17%)</div>
+                                <div class="calc-formula">
+                                    IVA = (Valore Totale + Dazio) × 0,17
+                                </div>
+                                <div class="calc-example">
+                                    ($130 + $13) × 0,17 = $24,31 USD
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">PASSO 4: Il Vostro Costo Totale</div>
+                                <div class="calc-formula">
+                                    TOTALE = Prodotto + Spedizione + Dazio + IVA + Spese di Sdoganamento
+                                </div>
+                                <div class="calc-example">
+                                    Esempio: $95 + $35 + $13 + $24,31 + $15 = <strong>$182,31 USD</strong>
+                                </div>
+                            </div>
+
+                            <div class="calc-warning">
+                                ⚠️ Le spese di sdoganamento (~$15-$30) si applicano in aggiunta a dazio e IVA
+                            </div>
+                            
+                            <div class="calc-warning">
+                                ⚠️ <strong>SOLO RIFERIMENTO 2025 - NON GARANTITO</strong><br>
+                                Questi calcoli sono stime. Le spese effettive possono differire.<br>
+                                <strong>VOI dovete verificare con la dogana israeliana prima dell'acquisto!</strong>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <div class="calc-disclaimer" style="margin-top: 30px;">
+                        <strong style="font-size: 18px; color: #B71C1C;">🚫 AVVISO FINALE - NON ORDINATE SE NON POTETE PAGARE LA DOGANA</strong><br><br>
+                        
+                        <strong>SE RIFIUTATE DI PAGARE LE SPESE DOGANALI:</strong><br>
+                        • Il pacco torna in Giappone - Spese di reso pagate da voi<br>
+                        • L'obbligo di pagamento doganale governativo rimane<br>
+                        • Perdete la copertura del programma di protezione acquirenti eBay<br>
+                        • Il pacco può essere distrutto/abbandonato in dogana (perdita totale)<br>
+                        • Causa controversie, feedback negativi e restrizioni dell'account<br><br>
+                        
+                        <strong style="font-size: 16px;">✅ GLI ACQUIRENTI INTELLIGENTI FANNO QUESTO PRIMA DI ORDINARE:</strong><br>
+                        1. Calcolare: Prodotto + Spedizione + Dogana Stimata<br>
+                        2. Verificare: Controllare il sito web doganale o contattare l'ufficio doganale<br>
+                        3. Confermare: Posso permettermi il costo TOTALE?<br>
+                        4. Decidere: Se SÌ → Ordinare con fiducia | Se NO → Non ordinare<br>
+                        5. Pagare: Quando arriva il pacco, pagare la dogana senza lamentele
+                    </div>
+                </div>
+            </section>
+
+        </div>
+
+        <div class="footer">
+            Grazie per il vostro acquisto. Per richieste, contattateci tramite messaggi eBay.<br>
+            Ci impegniamo a fornire il miglior servizio e prodotti autentici.
+        </div>
+    </div>
+</body>
+</html>
+                                    Esempio: £80 + £25 + £6,30 + £22,26 = <strong>£133,56 GBP</strong>
+                                </div>
+                            </div>
+
+                            <div class="calc-warning">
+                                ⚠️ IVA (20%) si applica a TUTTE le importazioni indipendentemente dal valore
+                            </div>
+                            
+                            <div class="calc-warning">
+                                ⚠️ <strong>SOLO RIFERIMENTO 2025 - NON GARANTITO</strong><br>
+                                Questi calcoli sono stime. Le spese effettive possono differire.<br>
+                                <strong>VOI dovete verificare con la dogana UK (HMRC) prima dell'acquisto!</strong>
+                            </div>
+                        </div>
+
+                        <div class="country-card">
+                            <div class="country-flag">🇩🇪</div>
+                            <div class="country-name">GERMANIA</div>
+                            
+                            <div class="calc-step">
+                                <div class="calc-step-title">PASSO 1: Calcolare il Valore Totale</div>
+                                <div class="calc-formula">
+                                    Valore Totale = Prezzo Prodotto + Costi di Spedizione
+                                </div>
+                                <div class="calc-example">
+                                    Esempio: €90 + €30 = €120 EUR
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">PASSO 2: Calcolare il Dazio d'Importazione (se oltre €150)</div>
+                                <div class="calc-formula">
+                                    Dazio = Valore Totale × 0% a 17%
+                                </div>
+                                <div class="calc-example">
+                                    Media 8%: €120 × 0,08 = €9,60 EUR
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">PASSO 3: Calcolare IVA (19%)</div>
+                                <div class="calc-formula">
+                                    IVA = (Valore Totale + Dazio) × 0,19
+                                </div>
+                                <div class="calc-example">
+                                    (€120 + €9,60) × 0,19 = €24,62 EUR
+                                </div>
+                            </div>
+
+                            <div class="calc-step">
+                                <div class="calc-step-title">PASSO 4: Il Vostro Costo Totale</div>
+                                <div class="calc-formula">
+                                    TOTALE = Prodotto + Spedizione + Dazio + IVA
+                                </div>
+                                <div class="calc-example">

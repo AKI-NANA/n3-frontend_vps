@@ -1,0 +1,349 @@
+{
+  "name": "【メディア】12_111-LMS-問題形式コンバート-多形式自動変換_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "question-format-convert",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: question-format-convert",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "question-format-convert"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 問題形式コンバート 初期化\nconst body = $input.first().json.body || $input.first().json || {};\n\nconst questionIds = body.question_ids || [];\nconst targetFormats = body.target_formats || ['true_false', 'fill_blank', 'short_answer'];\nconst domain = body.domain;\nconst batchSize = body.batch_size || 10;\n\nconst validFormats = ['true_false', 'fill_blank', 'short_answer', 'matching'];\nconst invalidFormats = targetFormats.filter(f => !validFormats.includes(f));\n\nif (invalidFormats.length > 0) {\n  return [{ json: { error: true, message: `無効なフォーマット: ${invalidFormats.join(', ')}` } }];\n}\n\nif (questionIds.length === 0 && !domain) {\n  return [{ json: { error: true, message: 'question_ids または domain が必須です' } }];\n}\n\nconst batchId = 'fmt_' + Date.now();\n\nreturn [{\n  json: {\n    batch_id: batchId,\n    question_ids: questionIds,\n    target_formats: targetFormats,\n    domain: domain,\n    batch_size: Math.min(batchSize, 50)\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM atomic_questions WHERE domain = COALESCE($1, domain) LIMIT $2",
+        "options": {
+          "queryParams": "={{ [$json.domain, $json.batch_size] }}"
+        }
+      },
+      "id": "fetch-questions",
+      "name": "📥 問題取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Geminiで形式変換\nconst config = $node['🔧 初期化'].json;\nconst questions = $input.first().json || [];\n\nconst formatTemplates = {\n  true_false: '○×問題（正誤問題）に変換。各選択肢を独立した正誤文に。',\n  fill_blank: '穴埋め問題に変換。重要語句を（　　）に。',\n  short_answer: '一問一答形式に変換。端的な質問と簡潔な回答に。'\n};\n\nconst prompt = `以下の4択問題を${config.target_formats.map(f => formatTemplates[f]).join('、')}に変換してください。\n\n【問題】\n${questions.slice(0, 5).map((q, i) => `${i+1}. ${q.question_text}`).join('\\n')}\n\n【出力形式】JSON配列で出力`;\n\nreturn [{ json: { ...config, questions, gemini_prompt: prompt } }];"
+      },
+      "id": "build-prompt",
+      "name": "📝 プロンプト生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: $json.gemini_prompt }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 4096 } }) }}",
+        "options": {
+          "timeout": 120000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "call-gemini",
+      "name": "🤖 Gemini 変換",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "gemini-api",
+          "name": "Gemini API"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// 結果解析\nconst prevData = $node['📝 プロンプト生成'].json;\nconst geminiResult = $input.first().json;\n\nlet convertedQuestions = [];\ntry {\n  if (geminiResult.candidates && geminiResult.candidates[0]) {\n    const text = geminiResult.candidates[0].content.parts[0].text;\n    const jsonMatch = text.match(/\\[\\s*\\{[\\s\\S]*\\}\\s*\\]/g);\n    if (jsonMatch) convertedQuestions = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  return [{ json: { error: true, message: 'JSON解析エラー: ' + e.message } }];\n}\n\nreturn [{ json: { batch_id: prevData.batch_id, converted: convertedQuestions, count: convertedQuestions.length } }];"
+      },
+      "id": "parse-result",
+      "name": "📋 結果解析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO converted_questions (id, batch_id, format_type, question_data, created_at) SELECT gen_random_uuid(), $1, data->>'type', data, NOW() FROM jsonb_array_elements($2::jsonb) AS data RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.batch_id, JSON.stringify($json.converted)] }}"
+        }
+      },
+      "id": "save-converted",
+      "name": "💾 変換問題保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, batch_id: $node['🔧 初期化'].json.batch_id }) }}",
+        "options": {
+          "responseCode": 202
+        }
+      },
+      "id": "respond-accepted",
+      "name": "受付応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: question-format-convert": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📥 問題取得",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "受付応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📥 問題取得": {
+      "main": [
+        [
+          {
+            "node": "📝 プロンプト生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 プロンプト生成": {
+      "main": [
+        [
+          {
+            "node": "🤖 Gemini 変換",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 Gemini 変換": {
+      "main": [
+        [
+          {
+            "node": "📋 結果解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 結果解析": {
+      "main": [
+        [
+          {
+            "node": "💾 変換問題保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 変換問題保存": {
+      "main": [
+        [
+          {
+            "node": "📊 実行ログ送信 (成功)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "LMS"
+    },
+    {
+      "name": "V5"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ]
+}

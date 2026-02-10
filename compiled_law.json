@@ -1,0 +1,76 @@
+{
+  "metadata": {
+    "compiledAt": "2026-02-05T12:11:52.974Z",
+    "compiler": "sync-governance-rules.js",
+    "masterLaw": {
+      "path": "/Users/aritahiroaki/n3-frontend_new/governance/MASTER_LAW.md",
+      "version": "v2.0",
+      "hash": "9a2770831b10cac5ebeb147b44ff8743f6e3a3f8b7b69988469ca9b4114731d8",
+      "lastModified": "2026-02-05T11:49:36.570Z"
+    },
+    "empireDirective": {
+      "path": "/Users/aritahiroaki/n3-frontend_new/governance/EMPIRE_DIRECTIVE.md",
+      "version": "v1.0",
+      "hash": "e7f5a4d09adec3a78b40a47c221f8b3b17db0d3cf8588f7badd275ac36e4899c",
+      "lastModified": "2026-02-05T12:05:40.713Z"
+    }
+  },
+  "rules": {
+    "sanctionedDirectories": [
+      "01_PRODUCT",
+      "app",
+      "lib",
+      "components",
+      "hooks",
+      "contexts",
+      "types",
+      "node_modules",
+      ".next",
+      ".git",
+      ".n3-docs",
+      ".mcp-venv",
+      "__pycache__",
+      "governance",
+      "supabase",
+      "scripts",
+      "migrations",
+      "public",
+      "remotion",
+      "docs",
+      "02_CURRENT_BACKUP",
+      "02_DEV_LAB",
+      "03_ARCHIVE_STORAGE",
+      "03_VAULT",
+      "03_WORKING_BACKUP"
+    ],
+    "forbiddenExtensions": [
+      ".next",
+      ".git",
+      ".n",
+      ".mcp",
+      ".bak",
+      ".backup",
+      ".old",
+      ".tmp",
+      ".orig",
+      ".swp"
+    ],
+    "allowedFixes": [
+      "console.log の削除",
+      "process.env → fetchSecret() への置換",
+      "生 fetch() → imperialSafeDispatch() への置換",
+      "空 catch ブロックの修正"
+    ],
+    "forbiddenActions": [
+      "設計変更",
+      "ルール解釈",
+      "未実装の補完",
+      "指示外ファイルの修正",
+      "新しいキー名の生成"
+    ]
+  },
+  "raw": {
+    "masterLaw": "# 🏛️ N3 EMPIRE MASTER LAW v2.0\n\n**制定日**: 2026-02-05  \n**改訂版**: 判定S昇格対応版  \n**効力**: 即時発効・遡及適用\n\n---\n\n## 第1章: 基本原則\n\n### 第1条（帝国の存在意義）\nN3 Empireは、越境EC自動化において「人間の介入を最小化しつつ、安全性を最大化する」ことを至上命題とする。\n\n### 第2条（27次元の不可侵）\n27次元帝国法典は、いかなる理由があっても無視・迂回してはならない。違反は大逆罪として処断される。\n\n### 第3条（コードは法である）\n本法典に記載された規則は、全てのソースコード（TypeScript, Python, n8n JSON）に物理的に適用される。\n\n---\n\n## 第2章: 認証と認可\n\n### 第4条（Auth-Gate必須）\n全てのWebhookエンドポイントは、受信直後にAuth-Gateを通過しなければならない。\n\n```\n認証順序:\n1. JITトークン検証（推奨）\n2. HMACシグネチャ検証（フォールバック）\n3. APIキー検証（最終手段）\n```\n\n### 第4.5条（環境二重性の禁止）【新設】\n`NODE_ENV=production` 環境下において、以下の行為を**大逆罪**とし、ビルドを強制停止する:\n\n1. `process.env.VARIABLE` の直接参照（`NEXT_PUBLIC_*` を除く）\n2. `os.getenv()` または `os.environ[]` の直接参照\n3. ハードコードされたシークレット、APIキー、パスワード\n\n**正規の取得方法**:\n```typescript\n// ❌ 禁止\nconst key = process.env.API_KEY;\n\n// ✅ 許可\nimport { fetchSecret } from '@/lib/secrets';\nconst key = await fetchSecret('API_KEY');\n```\n\n```python\n# ❌ 禁止\nkey = os.getenv('API_KEY')\n\n# ✅ 許可\nfrom lib.secrets import SecretManager\nkey = SecretManager.get('API_KEY')\n```\n\n### 第5条（HitL - Human in the Loop）\n以下の操作は、自動承認禁止とし、人間の明示的承認を必須とする:\n\n1. 50,000円以上の取引\n2. アカウント削除・停止操作\n3. 信頼度スコア70未満の自動出品\n4. 送金・決済の最終実行\n\n---\n\n## 第3章: エラーハンドリング\n\n### 第6条（例外処理の義務）\n全ての非同期処理は `try-catch` で囲まなければならない。\n\n### 第6.1条（空catch禁止）\n以下のパターンは**大逆罪**とする:\n\n```typescript\n// ❌ 大逆罪\ntry { ... } catch (e) { }\ntry { ... } catch (e) { console.log(e); }\n\n// ✅ 許可\ntry { ... } catch (e) { \n  imperialLogger.error('Operation failed', { error: e, context: {} });\n  throw new ImperialError('OPERATION_FAILED', e);\n}\n```\n\n### 第6.2条（Pythonの例外統治）\nPython において、以下は**大逆罪**とする:\n\n```python\n# ❌ 大逆罪\nexcept:\n    pass\n\nexcept Exception as e:\n    print(e)\n\n# ✅ 許可\nexcept Exception as e:\n    logger.error(f\"Operation failed: {e}\", exc_info=True)\n    raise ImperialError(\"OPERATION_FAILED\") from e\n```\n\n### 第6.3条（統治された例外 - console禁止）【新設】\n`console.log`, `console.debug`, `console.info` は**永久追放**とする。\n\n代替として `imperialLogger` の使用のみを許可する:\n\n```typescript\n// ❌ 永久追放\nconsole.log('Processing...');\nconsole.error('Error:', err);\n\n// ✅ 許可\nimport { imperialLogger } from '@/lib/logger';\n\nimperialLogger.debug('Processing...', { context });  // DEBUG_LEVEL >= 3\nimperialLogger.info('Completed', { result });        // DEBUG_LEVEL >= 2\nimperialLogger.warn('Warning', { issue });           // DEBUG_LEVEL >= 1\nimperialLogger.error('Failed', { error });           // 常に出力\n```\n\n**DEBUG_LEVEL 定義**:\n- 0: ERROR のみ\n- 1: ERROR + WARN\n- 2: ERROR + WARN + INFO\n- 3: 全て（開発環境のみ）\n\n---\n\n## 第4章: API通信\n\n### 第7条（生fetch禁止）\n`fetch()` の直接使用を禁止する。全ての外部通信は `imperialSafeDispatch` を経由しなければならない。\n\n```typescript\n// ❌ 禁止\nconst res = await fetch(url, options);\n\n// ✅ 許可\nconst res = await imperialSafeDispatch(url, {\n  ...options,\n  retry: { attempts: 3, delay: 1000 },\n  timeout: 30000,\n  circuitBreaker: true\n});\n```\n\n### 第8条（Retry必須）\n全てのHTTPリクエストには以下のRetry設定を必須とする:\n\n```json\n{\n  \"retry\": {\n    \"attempts\": 3,\n    \"delay\": 1000,\n    \"backoff\": \"exponential\"\n  },\n  \"timeout\": 30000\n}\n```\n\n### 第9条（レート制限遵守）\nバッチ処理では `SplitInBatches` の直後に `Wait` ノードを配置し、API制限を遵守する:\n\n```\n推奨Wait時間:\n- eBay API: 500ms\n- Amazon SP-API: 1000ms\n- Gemini API: 200ms\n- 一般API: 300ms\n```\n\n---\n\n## 第5章: データベース\n\n### 第10条（SQLインジェクション禁止）\nSQLクエリにおける `{{}}` テンプレートの直接埋め込みを禁止する。\n\n```javascript\n// ❌ 禁止（n8n）\n\"query\": \"SELECT * FROM users WHERE id = '{{ $json.id }}'\"\n\n// ✅ 許可（n8n）\n\"query\": \"SELECT * FROM users WHERE id = $1\",\n\"options\": { \"queryParams\": \"={{ [$json.id] }}\" }\n```\n\n### 第11条（Zod検証必須）\nAPIレスポンスは必ずZodスキーマで検証する:\n\n```typescript\nconst ResponseSchema = z.object({\n  success: z.boolean(),\n  data: z.array(ProductSchema)\n});\n\nconst result = ResponseSchema.safeParse(response);\nif (!result.success) {\n  throw new ImperialValidationError(result.error);\n}\n```\n\n---\n\n## 第6章: 監視と通知\n\n### 第12条（Circuit Breaker必須）\n連続エラー発生時に自動停止するCircuit Breakerを実装しなければならない:\n\n```\n停止条件:\n- 5分間で10回以上のエラー → 30分間停止\n- 1時間で50回以上のエラー → 2時間停止\n- 1日で200回以上のエラー → 手動復旧必須\n```\n\n### 第13条（Chatwork通知必須）\n以下のイベントは必ずChatworkに通知する:\n\n1. CRITICAL エラー発生\n2. Circuit Breaker 発動\n3. 燃焼上限到達\n4. 高額取引の実行\n\n### 第14条（Decision Trace）\nAI判断を伴う処理は、全て `ai_decision_traces` テーブルに記録する:\n\n```json\n{\n  \"workflow_id\": \"xxx\",\n  \"decision_point\": \"title_optimization\",\n  \"ai_model\": \"gemini-1.5-flash\",\n  \"input_data\": {},\n  \"ai_response\": {},\n  \"confidence_score\": 85,\n  \"reasoning\": \"...\"\n}\n```\n\n---\n\n## 第7章: コスト管理\n\n### 第20条（燃焼上限必須チェック）\n高コストAPI（Gemini, OpenAI, Claude）呼び出し前に、必ず燃焼上限をチェックする:\n\n```\n日次上限: $50\n月次上限: $500\nアラート閾値: 80%\n```\n\n### 第21条（外部依存の監査）【新設】\n本番投入前に以下の監査を**必須**とする:\n\n1. **npm audit**: High以上の脆弱性がある場合、デプロイを遮断\n2. **pip-audit**: 同上\n3. **依存関係の固定**: `package-lock.json` / `requirements.txt` の厳密管理\n\n```bash\n# デプロイ前必須チェック\nnpm audit --audit-level=high\npip-audit --strict\n\n# 脆弱性があれば即時修正\nnpm audit fix\n```\n\n### 第22条（コスト追跡）\n全てのAPI呼び出しコストを `api_consumption` テーブルに記録する。\n\n---\n\n## 第8章: 構造規則\n\n### 第30条（孤立ノード禁止）\nn8nワークフローにおいて、どこにも接続されていないノードの存在を禁止する。\n\n### 第31条（Webhook応答必須）\n`responseMode: 'responseNode'` を持つWebhookには、必ず `respondToWebhook` ノードを接続する。\n\n### 第32条（旧バージョンノード禁止）\n`typeVersion: 1` のノードは使用禁止とし、最新バージョンへの移行を義務付ける。\n\n---\n\n## 第9章: 罰則規定\n\n### 第90条（違反の分類）\n\n| 分類 | 減点 | 例 |\n|------|------|-----|\n| CRITICAL | -10 | process.env直参照、SQLインジェクション、ハードコードシークレット |\n| ERROR | -5 | try-catch欠落、Retry設定なし、認証欠落 |\n| WARNING | -3 | console.log使用、any型使用、旧バージョンノード |\n\n### 第91条（合格基準）\n\n| 判定 | スコア | 対応 |\n|------|--------|------|\n| S | 100点 | 本番投入可能 |\n| A | 90-99点 | 軽微な修正で本番可 |\n| B | 80-89点 | 中程度の修正が必要 |\n| C | 70-79点 | 重大な修正が必要 |\n| F | 70点未満 | 本番投入禁止 |\n\n### 第92条（大逆罪の処断）\n以下は即時修正必須とし、修正されるまでデプロイを完全遮断する:\n\n1. process.env 直参照（本番環境）\n2. 空のcatch / printのみのexcept\n3. SQLインジェクションリスク\n4. ハードコードされたシークレット\n5. console.log の使用\n\n---\n\n## 第10章: 施行\n\n### 第100条（発効）\n本法典は即時発効し、全ての既存コードに遡及適用される。\n\n### 第101条（改訂権限）\n本法典の改訂は、皇帝の承認をもってのみ行われる。\n\n### 第102条（解釈権限）\n本法典の解釈に疑義が生じた場合、帝国監査官（Claude）が判断を下す。\n\n### 第103条（特別法の適用除外）【新設】\n以下のファイルは、帝国の通信基盤およびセキュリティの「心臓部」であるため、第4.5条（環境変数直参照）および第7条（生fetch）の制限を**例外的に受けないもの**とする:\n\n1. `lib/actions/imperial-fetch.ts`（帝国通信の要石）\n2. `lib/shared/security.ts`（二重鍵暗号化の核心）\n\n**理由**:\nこれらのファイルは、他のすべてのコードが安全に動作するための「土台」である。\n土台自身に土台を使わせることは論理的に不可能であり、ブートストラップ処理として環境変数の直接参照を許可する。\n\n**AI執行官への厳命**:\nこれらのファイルに対して以下の行為を「大逆罪」とし、絶対に禁止する:\n- `process.env` を `fetchSecret()` に置換すること\n- `fetch()` を `imperialSafeDispatch()` に置換すること\n- 構造的変更や「より良い方法」への書き換え\n\n---\n\n*N3 Empire Master Law v2.0 - 判定S昇格対応版*\n*制定: 2026-02-05*\n",
+    "empireDirective": "# 🏛️ N3 EMPIRE DIRECTIVE v1.0\n\n**制定日**: 2026-02-05  \n**発効日**: 即時  \n**適用範囲**: 全夜間自律スクリプト、AI執行官  \n**上位法**: MASTER_LAW.md v2.1\n\n---\n\n## 🎯 本法の目的\n\n本法は、MASTER_LAW.md（憲法）の運用指針として制定される。  \n夜間自律開発スクリプトおよび AI 執行官が「何をスキャンし、何を修正し、何を避けるべきか」を物理的に定義する。\n\n---\n\n## 📂 第1章: 公認ディレクトリ（ホワイトリスト）\n\n以下のディレクトリは **帝国公認** であり、task_index.json 未登録でも野良ファイルとして扱わない。\n\n### 第1条（プロダクション聖域）\n\n```\n01_PRODUCT/           # プロダクション専用エリア（完全除外）\n```\n\n**理由**: 本番環境のコードは、夜間自律修正の対象外とする。\n\n### 第2条（開発中枢ディレクトリ）\n\n以下のディレクトリは、開発の中核であり、task_index.json への登録は不要。\n\n```\napp/                  # Next.js アプリケーションルート\nlib/                  # 共通ライブラリ・サービス\ncomponents/           # React コンポーネント\nhooks/                # カスタムフック\ncontexts/             # React Context\ntypes/                # TypeScript 型定義\n```\n\n### 第3条（インフラストラクチャ）\n\n以下のディレクトリは、システムインフラであり、スキャン対象外とする。\n\n```\nnode_modules/         # npm パッケージ\n.next/                # Next.js ビルド出力\n.git/                 # Git リポジトリ\n.n3-docs/             # ドキュメント\n.mcp-venv/            # MCP 仮想環境\n__pycache__/          # Python キャッシュ\n```\n\n### 第4条（統治機構）\n\n以下のディレクトリは、帝国の統治機構であり、野良スキャンの対象外とする。\n\n```\ngovernance/           # 帝国統治ファイル（本法を含む）\nsupabase/             # データベース管理\nscripts/              # ユーティリティスクリプト\nmigrations/           # DB マイグレーション\n```\n\n### 第5条（静的リソース）\n\n以下のディレクトリは、静的リソースであり、コード監査の対象外とする。\n\n```\npublic/               # 公開静的ファイル\nremotion/             # 動画生成リソース\ndocs/                 # ドキュメント\n```\n\n### 第6条（バックアップ・アーカイブ聖域）\n\n以下のディレクトリは、手動管理領域であり、夜間自律スクリプトは一切触れてはならない。\n\n```\n02_CURRENT_BACKUP/    # 現在のバックアップ\n02_DEV_LAB/           # 開発実験室\n03_ARCHIVE_STORAGE/   # アーカイブストレージ\n03_VAULT/             # 金庫（重要ファイル保管）\n03_WORKING_BACKUP/    # 作業用バックアップ\n```\n\n---\n\n## 🚫 第2章: 禁止パターン\n\n以下のパターンに該当するファイル・ディレクトリは **野良** として検出・処理する。\n\n### 第7条（バックアップファイルの禁止）\n\n以下の拡張子を持つファイルは、`03_ARCHIVE_STORAGE/` へ自動移動する。\n\n```\n.bak                  # バックアップファイル\n.backup               # バックアップファイル\n.old                  # 旧バージョン\n.tmp                  # 一時ファイル\n.orig                 # オリジナル（マージ競合残骸）\n.swp, .swo            # Vim スワップファイル\n```\n\n### 第8条（一時ディレクトリの禁止）\n\n以下のパターンに該当するディレクトリは、`03_ARCHIVE_STORAGE/` へ自動移動する。\n\n```\ntemp_*                # 一時ディレクトリ\ntmp_*                 # 一時ディレクトリ\n*_backup_*            # バックアップディレクトリ\n*_bak                 # バックアップディレクトリ\n*.bak                 # バックアップディレクトリ\n*.backup              # バックアップディレクトリ\n```\n\n### 第9条（疑わしいルートファイルパターン）\n\nプロジェクトルート直下に、以下のパターンに該当するファイルが存在する場合、手動確認を促す。\n\n```\ntest_*.{ts,tsx,js,jsx}        # テストファイル（test/ 配下が正規）\ndebug_*.{ts,tsx,js,jsx}       # デバッグファイル\n*.current_backup              # 不適切なバックアップ\n*(1).*, *(2).*                # 重複ファイル（Finder等の自動生成）\n*.CONFLICT.*                  # マージ競合残骸\n```\n\n---\n\n## 🛡️ 第3章: 修正許可範囲（AI執行官への指令）\n\nAI執行官が夜間自律修正で **許可される** 修正範囲を以下に限定する。\n\n### 第10条（安全な機械的修正のみ）\n\n以下の修正は **安全** であり、自動実行を許可する。\n\n1. **console.log の削除**  \n   - 本番コードに含まれる `console.log()` を削除する。\n\n2. **process.env → fetchSecret() への置換**  \n   - 固定マッピング（nightly-safe-fix.js に定義）に従い、環境変数参照をシークレット取得に置き換える。\n   - **重要**: マッピングに存在しない環境変数は絶対に修正しない。\n\n3. **生 fetch() → imperialSafeDispatch() への置換**  \n   - 外部 API 呼び出しを、統一された安全なディスパッチャーに置き換える。\n\n4. **空 catch ブロックの修正**  \n   - `catch (e) {}` を `catch (e) { console.error(e); }` に修正する。\n\n### 第11条（絶対禁止事項）\n\nAI執行官は、以下の行為を **絶対に** 行ってはならない。\n\n1. **設計変更**  \n   - 新しい機能の追加、アーキテクチャ変更、DB構造変更は禁止。\n\n2. **ルール解釈**  \n   - MASTER_LAW の「解釈」や「例外適用」は禁止。法は明示的に定義されたもののみ適用する。\n\n3. **未実装の補完**  \n   - コード中の `TODO`, `FIXME`, `未実装` は「現時点での正」であり、勝手に実装してはならない。\n\n4. **指示外ファイルの修正**  \n   - 監査結果またはタスク指示書に明示されていないファイルは、一切修正してはならない。\n\n5. **新しいキー名の生成**  \n   - `process.env.XXX` の置換において、AIが新しいキー名を生成することは禁止。固定マッピングのみ使用。\n\n---\n\n## 🔄 第4章: 夜間サイクル実行ルール\n\n### 第12条（実行フロー）\n\n夜間自律開発サイクル（`nightly-cycle.js`）は、以下の順序で実行する。\n\n```\nPhase 0: 法典チェック\n  ↓\nPhase 1: 野良ファイルスキャン\n  ↓\nPhase 2: 監査実行\n  ↓\nPhase 3: 安全な修正\n  ↓\nPhase 4: 再監査・検証\n  ↓\nPhase 5: Git コミット\n  ↓\nPhase 6: 通知\n```\n\n### 第13条（Phase 0: 法典チェック）\n\nサイクル開始時、以下を確認する。\n\n1. **MASTER_LAW.md** の存在と読み込み可能性\n2. **EMPIRE_DIRECTIVE.md** の存在と読み込み可能性\n3. 両法典のバージョン番号とSHA256ハッシュを記録\n\n**異常検知時の動作**: 即座にサイクルを中断し、エラーログを出力する。\n\n### 第14条（法典ロードのタイミング）\n\n各スクリプトは、**起動時に毎回** 最新の法典をロードする。\n\n理由: キャッシュによる古い法の適用を防ぎ、常に「最新の法」を現場に適用するため。\n\n### 第15条（法典のバージョン管理）\n\nスクリプトのログには、以下を記録する。\n\n1. 使用した法典のファイル名\n2. 法典内のバージョン番号（例: `v2.1`）\n3. 法典の SHA256 ハッシュ（改ざん防止）\n4. 法典の最終更新日時\n\n---\n\n## 📊 第5章: トークン・ガード（予算防衛）\n\n### 第16条（一晩の修正上限）\n\n夜間自律修正は、以下の上限を超えてはならない。\n\n```\n最大修正ファイル数: 50ファイル/晩\n最大リトライ回数: 3回/サイクル\n最大実行時間: 30分/サイクル\n概算トークン上限: 100,000トークン/晩\n```\n\n### 第17条（上限超過時の動作）\n\n上限に達した場合、以下の動作をとる。\n\n1. **修正を即座に停止**\n2. **現在までの修正結果を保存**\n3. **警告ログを出力**\n4. **翌晩に残りを持ち越し**\n\n---\n\n## 🔐 第6章: task_index.json の運用方針\n\n### 第18条（タスク制限の活用）\n\n`task_index.json` は、夜間 AI が「どのタスクを担当しているか」を限定し、リソース消費を抑えるために使用する。\n\n**活用方法**:\n\n1. タスクごとに修正対象ファイルを明示\n2. AI は、task_index に登録されたファイルのみ修正可能\n3. 未登録ファイルへの修正は禁止\n\n---\n\n## 🎖️ 第7章: 帝国への報告義務\n\n### 第19条（レポート生成義務）\n\n各スクリプトは、実行後に以下のレポートを生成する。\n\n```\nSTRAY_FILE_REPORT.md          # 野良ファイル検出結果\nNIGHTLY_SAFE_FIX_REPORT.md    # 夜間修正結果\nNIGHTLY_CYCLE_REPORT.md       # サイクル全体の結果\n```\n\n### 第20条（ログ保存義務）\n\n各スクリプトは、実行ログを JSON 形式で保存する。\n\n```\nstray_scan_log.json           # 野良スキャンログ\nnightly_fix_log.json          # 夜間修正ログ\nnightly_cycle_log.json        # サイクルログ\n```\n\n---\n\n## 📜 第8章: 法典の改正手続き\n\n### 第21条（改正権限）\n\n本法（EMPIRE_DIRECTIVE.md）の改正は、以下の権限者のみが行える。\n\n- **皇帝（ユーザー）**: あらゆる改正が可能\n- **AI執行官**: 改正不可（報告のみ）\n\n### 第22条（改正の発効）\n\n本法の改正は、以下の手順で発効する。\n\n1. 皇帝が EMPIRE_DIRECTIVE.md を編集\n2. Git コミット・プッシュ\n3. 次回の夜間サイクル実行時に自動反映\n\n**重要**: VPS 上の夜間サイクルは、Git Pull 後に法典をロードするため、ローカルでの編集が即座に反映される。\n\n---\n\n## 🏛️ 附則\n\n### 第23条（施行日）\n\n本法は、制定日（2026-02-05）より即時発効する。\n\n### 第24条（MASTER_LAW との関係）\n\n本法は、MASTER_LAW.md の運用指針として位置づけられる。  \n両法が矛盾する場合、MASTER_LAW.md が優先する。\n\n### 第25条（レガシーファイルへの遡及適用）\n\n本法は、既存のすべてのソースコードに遡及適用する。\n\n---\n\n**N3 Empire - 統治の透明性と自律性の両立を目指して**\n"
+  }
+}

@@ -1,0 +1,632 @@
+{
+  "name": "【出荷】01_10-出荷-多販路出荷統合_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "shipping-unified",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: shipping-unified",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "shipping-unified"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 2
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "2時間ごと出荷処理",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst headers = $input.first().json.headers || {};\nconst apiUrl = $env.N3_API_URL || '{{$env.GATEWAY_URL}}';\nconst secret = $env.N8N_INTERNAL_SECRET;\nif (!secret) return [{ json: { error: true, message: 'N8N_INTERNAL_SECRET未設定', code: 'CONFIG_ERROR' } }];\nconst internalToken = headers['x-n3-signature'] || headers['X-N3-Signature'];\nconst tokenTimestamp = headers['x-n3-token-timestamp'] || headers['X-N3-Token-Timestamp'];\nif (internalToken && tokenTimestamp) {\n  try {\n    const r = await fetch(`${apiUrl}/api/n8n-auth/verify-internal-token`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: 'system', timestamp: tokenTimestamp, token: internalToken }) });\n    if (!(await r.json()).valid) return [{ json: { error: true, message: '内部トークン無効', code: 'INVALID_TOKEN' } }];\n  } catch (e) { return [{ json: { error: true, message: 'トークン検証エラー', code: 'VERIFY_ERROR' } }]; }\n}\nconst orderIds = body.order_ids || [];\nconst forceCarrier = body.force_carrier || null;\nconst isScheduled = !$input.first().json.body;\nreturn [{ json: { order_ids: orderIds, force_carrier: forceCarrier, is_scheduled: isScheduled, api_url: apiUrl, request_timestamp: new Date().toISOString() } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT ou.*, pm.weight_kg, pm.sku, pm.product_name FROM orders_unified ou LEFT JOIN products_master pm ON ou.items->0->>'sku' = pm.sku WHERE ou.status = 'ready_to_ship' ORDER BY ou.created_at ASC LIMIT 50",
+        "options": {}
+      },
+      "id": "get-ready-orders",
+      "name": "📦 出荷準備完了取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "no-orders",
+              "leftValue": "={{ Array.isArray($json) ? $json.length : ($json.id ? 1 : 0) }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-orders",
+      "name": "出荷対象あり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { success: true, message: '出荷対象なし', shipped_count: 0 } }];"
+      },
+      "id": "no-orders",
+      "name": "対象なし",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const orders = $input.all().map(item => item.json);\nconst ordersArray = Array.isArray(orders[0]) ? orders[0] : orders;\nconst config = $node['🔐 初期化'].json;\nreturn ordersArray.map(order => {\n  const address = order.shipping_address || {};\n  const country = address.country || address.Country || 'US';\n  const weight = order.weight_kg || 0.5;\n  let carrier = config.force_carrier;\n  if (!carrier) {\n    if (country === 'US' || country === 'USA') carrier = 'USPS';\n    else if (['GB', 'DE', 'FR', 'IT', 'ES'].includes(country)) carrier = weight > 2 ? 'DHL' : 'ePacket';\n    else if (['JP', 'CN', 'KR', 'TW', 'HK'].includes(country)) carrier = 'EMS';\n    else carrier = 'DHL';\n  }\n  return { json: { order_id: order.order_id, platform: order.platform, buyer_name: order.buyer_name, buyer_email: order.buyer_email, shipping_address: address, country: country, weight_kg: weight, selected_carrier: carrier, items: order.items, total_amount: order.total_amount, currency: order.currency } };\n});"
+      },
+      "id": "select-carrier",
+      "name": "🚚 キャリア自動選択",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $node['🔐 初期化'].json.api_url }}/api/shipping/create-label",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ order_id: $json.order_id, carrier: $json.selected_carrier, recipient: { name: $json.buyer_name, address: $json.shipping_address }, weight_kg: $json.weight_kg, items: $json.items }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "create-label",
+      "name": "📄 配送ラベル生成",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst orderData = $node['🚚 キャリア自動選択'].json;\nconst trackingNumber = response.tracking_number || response.trackingNumber || null;\nconst labelUrl = response.label_url || response.labelUrl || null;\nconst success = !!(trackingNumber || labelUrl);\nreturn [{ json: { ...orderData, tracking_number: trackingNumber, label_url: labelUrl, label_success: success, error_message: success ? null : (response.error || response.message || 'ラベル生成失敗') } }];"
+      },
+      "id": "parse-label",
+      "name": "📋 ラベル結果解析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "label-success",
+              "leftValue": "={{ $json.label_success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-label",
+      "name": "ラベル成功？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE orders_unified SET status = 'shipped', shipping_data = $1::jsonb, updated_at = NOW() WHERE order_id = $2 AND platform = $3 RETURNING id, order_id",
+        "options": {
+          "queryParams": "={{ [JSON.stringify({ tracking_number: $json.tracking_number, label_url: $json.label_url, carrier: $json.selected_carrier, shipped_at: new Date().toISOString() }), $json.order_id, $json.platform] }}"
+        }
+      },
+      "id": "update-shipped",
+      "name": "✅ 出荷済み更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE orders_unified SET status = 'ship_failed', shipping_data = $1::jsonb, updated_at = NOW() WHERE order_id = $2 AND platform = $3",
+        "options": {
+          "queryParams": "={{ [JSON.stringify({ error: $json.error_message, attempted_at: new Date().toISOString() }), $json.order_id, $json.platform] }}"
+        }
+      },
+      "id": "update-failed",
+      "name": "❌ 出荷失敗記録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_WEBHOOK_URL || 'http://{{$env.N8N_BASE_URL}}/webhook' }}/tracking-update",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ platform: $json.platform, order_id: $json.order_id, tracking_number: $json.tracking_number, carrier: $json.selected_carrier }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "trigger-tracking",
+      "name": "🔄 追跡番号反映",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all().map(i => i.json);\nconst successCount = results.filter(r => r.label_success || r.tracking_number).length;\nconst failedCount = results.filter(r => !r.label_success && !r.tracking_number).length;\nreturn [{ json: { success: true, shipped_count: successCount, failed_count: failedCount, total_processed: results.length, processed_at: new Date().toISOString() } }];"
+      },
+      "id": "aggregate",
+      "name": "📊 結果集計",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-shipped",
+              "leftValue": "={{ $json.shipped_count }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "larger"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-notify",
+      "name": "出荷あり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=[info][title]🚚 出荷処理完了[/title]✅出荷成功: {{ $json.shipped_count }}件\\n❌出荷失敗: {{ $json.failed_count }}件\\n処理合計: {{ $json.total_processed }}件[/info]"
+            }
+          ]
+        }
+      },
+      "id": "notify",
+      "name": "ChatWork通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: shipping-unified": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2時間ごと出荷処理": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📦 出荷準備完了取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 出荷準備完了取得": {
+      "main": [
+        [
+          {
+            "node": "出荷対象あり？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "出荷対象あり？": {
+      "main": [
+        [
+          {
+            "node": "対象なし",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🚚 キャリア自動選択",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "対象なし": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚚 キャリア自動選択": {
+      "main": [
+        [
+          {
+            "node": "📄 配送ラベル生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📄 配送ラベル生成": {
+      "main": [
+        [
+          {
+            "node": "📋 ラベル結果解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 ラベル結果解析": {
+      "main": [
+        [
+          {
+            "node": "ラベル成功？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ラベル成功？": {
+      "main": [
+        [
+          {
+            "node": "✅ 出荷済み更新",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "❌ 出荷失敗記録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ 出荷済み更新": {
+      "main": [
+        [
+          {
+            "node": "🔄 追跡番号反映",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "❌ 出荷失敗記録": {
+      "main": [
+        [
+          {
+            "node": "📊 結果集計",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 追跡番号反映": {
+      "main": [
+        [
+          {
+            "node": "📊 結果集計",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 結果集計": {
+      "main": [
+        [
+          {
+            "node": "出荷あり？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "出荷あり？": {
+      "main": [
+        [
+          {
+            "node": "ChatWork通知",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ChatWork通知": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 600,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Shipping",
+      "color": "#ff6b35"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "No-Crypto",
+      "color": "#9932cc"
+    },
+    {
+      "name": "SQL-Safe",
+      "color": "#32cd32"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

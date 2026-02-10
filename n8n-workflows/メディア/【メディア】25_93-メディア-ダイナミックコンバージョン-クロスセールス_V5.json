@@ -1,0 +1,559 @@
+{
+  "name": "【メディア】25_93-メディア-ダイナミックコンバージョン-クロスセールス_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dynamic-conversion",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: dynamic-conversion",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "dynamic-conversion"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "track-behavior",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook-track",
+      "name": "Webhook: track-behavior",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "track-behavior"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst action = body.action || 'get_optimal_link';\nconst userUid = body.user_uid;\nconst contentId = body.content_id;\nconst contentType = body.content_type || 'video';\nconst eventType = body.event_type;\nconst eventData = body.event_data || {};\n\nreturn [{ json: { action, user_uid: userUid, content_id: contentId, content_type: contentType, event_type: eventType, event_data: eventData, timestamp: new Date().toISOString() } }];"
+      },
+      "id": "init",
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "track",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "track"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "get_optimal_link",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "get_link"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "get_profile",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "get_profile"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "route-action",
+      "name": "アクション分岐",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO user_behavior_tracking (user_uid, session_id, event_type, event_source, content_id, content_type, event_data, event_date) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, CURRENT_DATE) RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.user_uid, $json.event_data.session_id || null, $json.event_type, $json.event_data.source || 'unknown', $json.content_id, $json.content_type, JSON.stringify($json.event_data)] }}"
+        }
+      },
+      "id": "save-behavior",
+      "name": "💾 行動記録保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const initData = $node['🔧 初期化'].json;\nconst userUid = initData.user_uid;\n\nif (!userUid) {\n  return [{ json: { success: false, error: 'user_uid is required' } }];\n}\n\n// プロファイル更新ロジック（簡易版）\nconst eventType = initData.event_type;\nconst updates = {};\n\nif (eventType === 'video_view') updates.total_video_views = 'total_video_views + 1';\nif (eventType === 'product_click') updates.total_product_clicks = 'total_product_clicks + 1';\nif (eventType === 'purchase') updates.total_purchases = 'total_purchases + 1';\n\nreturn [{ json: { user_uid: userUid, event_type: eventType, profile_updated: Object.keys(updates).length > 0 } }];"
+      },
+      "id": "update-profile-logic",
+      "name": "📊 プロファイル更新ロジック",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO user_conversion_profiles (user_uid, total_video_views, first_seen_at, last_seen_at) VALUES ($1, 1, NOW(), NOW()) ON CONFLICT (user_uid) DO UPDATE SET total_video_views = user_conversion_profiles.total_video_views + 1, last_seen_at = NOW() RETURNING id, user_segment",
+        "options": {
+          "queryParams": "={{ [$json.user_uid] }}"
+        }
+      },
+      "id": "upsert-profile",
+      "name": "💾 プロファイル更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { success: true, action: 'track', message: '行動記録完了' } }];"
+      },
+      "id": "format-track-response",
+      "name": "📋 トラック応答",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM user_conversion_profiles WHERE user_uid = $1",
+        "options": {
+          "queryParams": "={{ [$node['🔧 初期化'].json.user_uid] }}"
+        }
+      },
+      "id": "get-user-profile",
+      "name": "👤 ユーザープロファイル取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM dynamic_conversion_rules WHERE is_active = TRUE AND $1 = ANY(source_content_types) ORDER BY priority ASC LIMIT 5",
+        "options": {
+          "queryParams": "={{ [$node['🔧 初期化'].json.content_type] }}"
+        }
+      },
+      "id": "get-conversion-rules",
+      "name": "📋 変換ルール取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const initData = $node['🔧 初期化'].json;\nconst profileData = $node['👤 ユーザープロファイル取得'].json;\nconst rulesData = $input.first().json;\n\nconst profile = Array.isArray(profileData) ? profileData[0] : profileData;\nconst rules = Array.isArray(rulesData) ? rulesData : [rulesData].filter(r => r && r.id);\n\n// ユーザーセグメント判定\nlet userSegment = 'casual';\nif (profile) {\n  if (profile.total_purchases > 3 || profile.total_revenue > 10000) {\n    userSegment = 'high_value';\n  } else if (profile.total_video_views > 20 || profile.total_product_clicks > 5) {\n    userSegment = 'engaged';\n  }\n}\n\n// 最適なルールを選択\nlet optimalRule = null;\nlet optimalLink = null;\nlet optimalCta = null;\n\nfor (const rule of rules) {\n  if (!rule.target_segments || rule.target_segments.includes(userSegment)) {\n    optimalRule = rule;\n    try {\n      const dynamicRules = typeof rule.dynamic_rules === 'string' ? JSON.parse(rule.dynamic_rules) : rule.dynamic_rules;\n      const segmentConfig = dynamicRules[userSegment] || dynamicRules['casual'] || {};\n      optimalLink = segmentConfig.link_template || rule.default_link;\n      optimalCta = segmentConfig.cta_text || '詳細を見る';\n    } catch (e) {\n      optimalLink = rule.default_link;\n      optimalCta = '詳細を見る';\n    }\n    break;\n  }\n}\n\nreturn [{\n  json: {\n    user_uid: initData.user_uid,\n    user_segment: userSegment,\n    content_id: initData.content_id,\n    content_type: initData.content_type,\n    optimal_link: optimalLink || 'https://example.com/default',\n    optimal_cta: optimalCta,\n    rule_id: optimalRule?.id,\n    rule_name: optimalRule?.rule_name,\n    personalization_applied: !!optimalRule\n  }\n}];"
+      },
+      "id": "calculate-optimal",
+      "name": "🎯 最適リンク計算",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE dynamic_conversion_rules SET impressions = impressions + 1 WHERE id = $1",
+        "options": {
+          "queryParams": "={{ [$json.rule_id] }}"
+        }
+      },
+      "id": "update-impressions",
+      "name": "📊 インプレッション更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $node['🎯 最適リンク計算'].json;\nreturn [{ json: { success: true, action: 'get_optimal_link', user_segment: data.user_segment, optimal_link: data.optimal_link, optimal_cta: data.optimal_cta, personalization_applied: data.personalization_applied } }];"
+      },
+      "id": "format-link-response",
+      "name": "📋 リンク応答",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT ucp.*, (SELECT COUNT(*) FROM user_behavior_tracking WHERE user_uid = ucp.user_uid AND event_date > CURRENT_DATE - 30) as recent_events FROM user_conversion_profiles ucp WHERE ucp.user_uid = $1",
+        "options": {
+          "queryParams": "={{ [$node['🔧 初期化'].json.user_uid] }}"
+        }
+      },
+      "id": "get-full-profile",
+      "name": "👤 フルプロファイル取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const profileData = $input.first().json;\nconst profile = Array.isArray(profileData) ? profileData[0] : profileData;\n\nif (!profile || !profile.id) {\n  return [{ json: { success: false, error: 'プロファイルが見つかりません' } }];\n}\n\nreturn [{ json: { success: true, action: 'get_profile', profile: { user_uid: profile.user_uid, segment: profile.user_segment || 'casual', total_video_views: profile.total_video_views, total_purchases: profile.total_purchases, total_revenue: profile.total_revenue, conversion_rate: profile.conversion_rate, recent_events: profile.recent_events, primary_categories: profile.primary_categories, first_seen_at: profile.first_seen_at, last_seen_at: profile.last_seen_at } } }];"
+      },
+      "id": "format-profile-response",
+      "name": "📋 プロファイル応答",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: dynamic-conversion": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook: track-behavior": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "アクション分岐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "アクション分岐": {
+      "main": [
+        [
+          {
+            "node": "💾 行動記録保存",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "👤 ユーザープロファイル取得",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "👤 フルプロファイル取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 行動記録保存": {
+      "main": [
+        [
+          {
+            "node": "📊 プロファイル更新ロジック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 プロファイル更新ロジック": {
+      "main": [
+        [
+          {
+            "node": "💾 プロファイル更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 プロファイル更新": {
+      "main": [
+        [
+          {
+            "node": "📋 トラック応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 トラック応答": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "👤 ユーザープロファイル取得": {
+      "main": [
+        [
+          {
+            "node": "📋 変換ルール取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 変換ルール取得": {
+      "main": [
+        [
+          {
+            "node": "🎯 最適リンク計算",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎯 最適リンク計算": {
+      "main": [
+        [
+          {
+            "node": "📊 インプレッション更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 インプレッション更新": {
+      "main": [
+        [
+          {
+            "node": "📋 リンク応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 リンク応答": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "👤 フルプロファイル取得": {
+      "main": [
+        [
+          {
+            "node": "📋 プロファイル応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 プロファイル応答": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 60,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Conversion",
+      "color": "#f39c12"
+    },
+    {
+      "name": "CrossSales",
+      "color": "#1abc9c"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

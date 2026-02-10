@@ -1,0 +1,405 @@
+{
+  "name": "N3-RESEARCH-AUTO-CRON",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 2
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "2時間毎トリガー",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 1,
+        "unit": "seconds"
+      },
+      "id": "rate-limit-sleep",
+      "name": "Rate Limit (1s)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        320,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000' }}/api/cron/research-auto",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.CRON_SECRET }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "auto_approve",
+              "value": "={{ $env.RESEARCH_AUTO_APPROVE === 'true' }}"
+            },
+            {
+              "name": "limit",
+              "value": "50"
+            },
+            {
+              "name": "source",
+              "value": "n8n_cron"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "research-auto-api",
+      "name": "Research Auto API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        300
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-success",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-success",
+      "name": "成功?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-has-data",
+              "leftValue": "={{ $json.processed }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-has-data",
+      "name": "処理あり?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        880,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/={{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "=body=[info][title]【N3 Empire 自動処理 完了】[/title]日時: {{ $now.format('yyyy-MM-dd HH:mm:ss') }}\nWorkflow: N3-RESEARCH-AUTO-CRON\n\n■ 実行結果\n処理件数: {{ $('Research Auto API').item.json.processed }}件\nPending送信: {{ $('Research Auto API').item.json.pending }}件\n承認: {{ $('Research Auto API').item.json.approved }}件\nスキップ: {{ $('Research Auto API').item.json.skipped }}件\nエラー: {{ $('Research Auto API').item.json.errors }}件\n\n処理時間: {{ Math.round($('Research Auto API').item.json.duration_ms / 1000 * 10) / 10 }}秒\nDRY_RUN: {{ $('Research Auto API').item.json.dry_run }}\n\n管理画面:\n{{ $env.NEXT_PUBLIC_APP_URL }}/tools/editing-n3[/info]",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "chatwork-success",
+      "name": "ChatWork通知（成功）",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        100
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "no-op-empty",
+      "name": "処理なし（通知スキップ）",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/={{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "=body=[info][title]【⚠ 自動処理エラー】[/title]Workflow: N3-RESEARCH-AUTO-CRON\n日時: {{ $now.format('yyyy-MM-dd HH:mm:ss') }}\n\nError:\n{{ $('Research Auto API').item.json.error || 'Unknown error' }}\n\n処理済み: {{ $('Research Auto API').item.json.processed || 0 }}件\nエラー数: {{ $('Research Auto API').item.json.errors || 1 }}件\n\n即確認推奨[/info]",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "chatwork-error",
+      "name": "ChatWork通知（エラー）",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-emergency",
+              "leftValue": "={{ $json.emergency_stop }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-emergency",
+      "name": "緊急停止?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/={{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "=body=[info][title]⚠️ N3 EMERGENCY STOP[/title]緊急停止中のため処理がスキップされました。\n解除するには GLOBAL_STOP=false / EMERGENCY_STOP=false に設定してください。[/info]",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "chatwork-emergency",
+      "name": "ChatWork通知（緊急停止）",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        650
+      ]
+    }
+  ],
+  "connections": {
+    "2時間毎トリガー": {
+      "main": [
+        [
+          {
+            "node": "Rate Limit (1s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rate Limit (1s)": {
+      "main": [
+        [
+          {
+            "node": "Research Auto API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research Auto API": {
+      "main": [
+        [
+          {
+            "node": "成功?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "緊急停止?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "成功?": {
+      "main": [
+        [
+          {
+            "node": "処理あり?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "ChatWork通知（エラー）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "処理あり?": {
+      "main": [
+        [
+          {
+            "node": "ChatWork通知（成功）",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "処理なし（通知スキップ）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "緊急停止?": {
+      "main": [
+        [
+          {
+            "node": "ChatWork通知（緊急停止）",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "N3"
+    },
+    {
+      "name": "Research"
+    },
+    {
+      "name": "Cron"
+    }
+  ],
+  "pinData": {}
+}

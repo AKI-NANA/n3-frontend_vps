@@ -1,0 +1,453 @@
+{
+  "name": "【在庫】05_21-在庫同期-stock-sync_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "stock-sync-v5",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: stock-sync-v5",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "stock-sync-v5"
+    },
+    {
+      "parameters": {
+        "jsCode": "// N3-21 V5: 在庫同期 - 鉄の掟準拠\nconst apiUrl = $env.N3_API_URL || $env.API_BASE_URL;\nif (!apiUrl) return [{ json: { error: true, message: 'N3_API_URL未設定', code: 'CONFIG_ERROR' } }];\n\nconst body = $input.first().json.body || $input.first().json || {};\n\nconst productId = body.product_id || body.product_master_id;\nconst eventType = body.event_type || 'sale'; // sale, return, cancel, adjustment\nconst quantityChange = body.quantity_change || -1;\nconst orderNumber = body.order_number;\nconst sourceMarketplace = body.source_marketplace || 'unknown';\nconst targetMarketplaces = body.target_marketplaces; // nullなら全販路\n\nif (!productId) return [{ json: { error: true, message: 'product_id必須', code: 'MISSING_PARAM' } }];\n\n// イベントタイプによる数量変更の方向を確認\nlet actualChange = quantityChange;\nif (eventType === 'sale' && quantityChange > 0) actualChange = -Math.abs(quantityChange);\nelse if ((eventType === 'return' || eventType === 'cancel') && quantityChange < 0) actualChange = Math.abs(quantityChange);\n\nreturn [{ json: { product_id: productId, event_type: eventType, quantity_change: actualChange, order_number: orderNumber, source_marketplace: sourceMarketplace, target_marketplaces: targetMarketplaces, api_url: apiUrl, timestamp: new Date().toISOString() } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化（鉄の掟）",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT im.id, im.product_id, im.quantity, im.status, pm.sku, pm.title FROM inventory_master im JOIN products_master pm ON im.product_id = pm.id WHERE im.product_id = $1",
+        "options": {
+          "queryParams": "={{ [$json.product_id] }}"
+        }
+      },
+      "id": "get-inventory",
+      "name": "📦 在庫取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const init = $node['🔐 初期化（鉄の掟）'].json;\nconst inv = $input.first().json;\n\nif (!inv || !inv.id) return [{ json: { ...init, error: true, message: '在庫データが見つかりません' } }];\n\nconst currentQty = inv.quantity || 0;\nconst newQty = Math.max(0, currentQty + init.quantity_change);\nconst wasInStock = currentQty > 0;\nconst isNowOutOfStock = newQty === 0;\n\nreturn [{ json: { ...init, inventory_id: inv.id, sku: inv.sku, title: inv.title, current_quantity: currentQty, new_quantity: newQty, became_out_of_stock: wasInStock && isNowOutOfStock, need_marketplace_sync: true } }];"
+      },
+      "id": "calc-inventory",
+      "name": "📊 在庫計算",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE inventory_master SET quantity = $1, status = CASE WHEN $1 = 0 THEN 'out_of_stock' ELSE 'in_stock' END, updated_at = NOW() WHERE id = $2 RETURNING id, quantity, status",
+        "options": {
+          "queryParams": "={{ [$json.new_quantity, $json.inventory_id] }}"
+        }
+      },
+      "id": "update-inventory",
+      "name": "💾 在庫更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO inventory_sync_logs (product_id, event_type, quantity_change, old_quantity, new_quantity, order_number, source_marketplace, synced_at) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW()) RETURNING log_id",
+        "options": {
+          "queryParams": "={{ [$json.product_id, $json.event_type, $json.quantity_change, $json.current_quantity, $json.new_quantity, $json.order_number, $json.source_marketplace] }}"
+        }
+      },
+      "id": "log-sync",
+      "name": "📝 同期ログ",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "out-of-stock",
+              "leftValue": "={{ $json.became_out_of_stock }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-oos",
+      "name": "在庫切れ？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $node['🔐 初期化（鉄の掟）'].json.api_url }}/webhook/global-stock-killer",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ product_id: $json.product_id, action: 'zero_all', reason: 'auto_stock_sync', source: $json.source_marketplace }) }}",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "trigger-killer",
+      "name": "🔪 GlobalStockKiller",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "output": "single"
+      },
+      "id": "merge",
+      "name": "🔀 統合",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $input.first().json;\nreturn [{ json: { success: true, action: 'stock_synced', product_id: d.product_id, sku: d.sku, event_type: d.event_type, quantity_change: d.quantity_change, old_quantity: d.current_quantity, new_quantity: d.new_quantity, became_out_of_stock: d.became_out_of_stock, global_killer_triggered: d.became_out_of_stock, timestamp: new Date().toISOString() } }];"
+      },
+      "id": "response",
+      "name": "📋 レスポンス",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-ok",
+      "name": "✅ 成功",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: stock-sync-v5": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化（鉄の掟）": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📦 在庫取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 在庫取得": {
+      "main": [
+        [
+          {
+            "node": "📊 在庫計算",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 在庫計算": {
+      "main": [
+        [
+          {
+            "node": "💾 在庫更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 在庫更新": {
+      "main": [
+        [
+          {
+            "node": "📝 同期ログ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 同期ログ": {
+      "main": [
+        [
+          {
+            "node": "在庫切れ？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "在庫切れ？": {
+      "main": [
+        [
+          {
+            "node": "🔪 GlobalStockKiller",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🔀 統合",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "🔪 GlobalStockKiller": {
+      "main": [
+        [
+          {
+            "node": "🔀 統合",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 統合": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化（鉄の掟）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 120,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Commerce",
+      "color": "#3498db"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Inventory",
+      "color": "#e67e22"
+    },
+    {
+      "name": "IronRule",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false,
+  "meta": {
+    "description": "N3-21 V5 在庫同期 - 鉄の掟準拠、GlobalStockKiller連携",
+    "version": "5.0",
+    "iron_rules_compliant": [
+      "no_hardcoded_urls",
+      "query_params_only",
+      "no_crypto_require"
+    ]
+  }
+}

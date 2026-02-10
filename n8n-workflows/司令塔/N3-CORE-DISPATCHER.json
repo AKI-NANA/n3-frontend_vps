@@ -1,0 +1,639 @@
+{
+  "name": "N3-CORE-DISPATCHER",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "core-dispatcher",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "n3_core_webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        250,
+        300
+      ],
+      "webhookId": "n3-core-dispatcher"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ===== AUTH-GATE (同期) =====\nconst input = $input.all()[0].json;\nconst crypto = require('crypto');\n\n// API Key検証\nconst validApiKeys = ($env.N3_API_KEYS || '').split(',');\nif (input.auth?.api_key && !validApiKeys.includes(input.auth.api_key)) {\n  return [{ json: { auth_ok: false, error: 'Invalid API Key', code: 401 } }];\n}\n\n// User ID必須チェック\nif (!input.auth?.user_id) {\n  return [{ json: { auth_ok: false, error: 'user_id is required', code: 400 } }];\n}\n\n// IP制限（オプション）\nconst allowedIps = ($env.N3_ALLOWED_IPS || '').split(',').filter(x => x);\nconst clientIp = $('Webhook').item.json.headers?.['x-forwarded-for'] || 'unknown';\nif (allowedIps.length > 0 && !allowedIps.includes(clientIp)) {\n  return [{ json: { auth_ok: false, error: 'IP not allowed', code: 403, client_ip: clientIp } }];\n}\n\nreturn [{\n  json: {\n    auth_ok: true,\n    tenant_id: input.tenant_id || 'default',\n    user_id: input.auth.user_id,\n    risk_level: 'low',\n    validated_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "n3_core_auth_gate",
+      "name": "Auth-Gate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "auth_check",
+              "leftValue": "={{ $json.auth_ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "n3_core_auth_check",
+      "name": "Auth OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        650,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT api_name, status, fail_count, blocked_until,\n  CASE WHEN blocked_until IS NOT NULL AND blocked_until > NOW() THEN true ELSE false END as is_blocked\nFROM n3_api_health\nWHERE api_name = ANY(ARRAY['ebay_trading', 'amazon_sp', 'openai', 'gemini'])\nAND (blocked_until IS NULL OR blocked_until > NOW());",
+        "options": {}
+      },
+      "id": "n3_core_circuit_breaker",
+      "name": "Circuit-Breaker Check",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        850,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "n3-supabase-postgres",
+          "name": "N3 Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Circuit-Breaker評価\nconst healthData = $input.all().map(i => i.json);\nconst blockedApis = healthData.filter(h => h.is_blocked);\n\nif (blockedApis.length > 0) {\n  const blockedNames = blockedApis.map(a => a.api_name).join(', ');\n  return [{\n    json: {\n      cb_ok: false,\n      blocked: true,\n      blocked_apis: blockedNames,\n      message: `APIs blocked: ${blockedNames}`,\n      blocked_until: blockedApis[0].blocked_until\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    cb_ok: true,\n    blocked: false,\n    healthy_apis: healthData.map(h => h.api_name)\n  }\n}];"
+      },
+      "id": "n3_core_cb_eval",
+      "name": "CB Evaluate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1050,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cb_check",
+              "leftValue": "={{ $json.cb_ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "n3_core_cb_check",
+      "name": "CB OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH usage AS (\n  SELECT \n    COALESCE(SUM(cost), 0) as daily_used\n  FROM n3_budget_tracker\n  WHERE user_id = '{{ $('Auth-Gate').item.json.user_id }}'\n  AND date = CURRENT_DATE\n),\nlimits AS (\n  SELECT daily_limit, monthly_limit, alert_threshold_percent\n  FROM n3_burn_limits\n  WHERE user_id = '{{ $('Auth-Gate').item.json.user_id }}'\n  UNION ALL\n  SELECT 100.00, 1000.00, 80 WHERE NOT EXISTS (\n    SELECT 1 FROM n3_burn_limits WHERE user_id = '{{ $('Auth-Gate').item.json.user_id }}'\n  )\n  LIMIT 1\n)\nSELECT \n  u.daily_used,\n  l.daily_limit,\n  l.monthly_limit,\n  l.alert_threshold_percent,\n  CASE WHEN u.daily_used >= l.daily_limit THEN false ELSE true END as burn_ok\nFROM usage u, limits l;",
+        "options": {}
+      },
+      "id": "n3_core_burn_limit",
+      "name": "Burn-Limit Check",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        1450,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "n3-supabase-postgres",
+          "name": "N3 Supabase Postgres"
+        }
+      },
+      "notes": "\n[PATCHER] WARNING: このクエリはqueryParams方式への移行が必要です。手動で修正してください。",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "burn_check",
+              "leftValue": "={{ $json.burn_ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "n3_core_burn_check",
+      "name": "Burn OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1650,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO n3_job_queue (\n  workflow_name, \n  action,\n  status, \n  priority, \n  payload, \n  created_by,\n  tenant_id,\n  timeout_ms\n) VALUES (\n  '{{ $('Webhook').item.json.body.workflow_name }}',\n  '{{ $('Webhook').item.json.body.action || \"execute\" }}',\n  'waiting',\n  {{ $('Webhook').item.json.body.priority || 5 }},\n  '{{ JSON.stringify($('Webhook').item.json.body.payload || {}) }}'::jsonb,\n  '{{ $('Auth-Gate').item.json.user_id }}',\n  '{{ $('Auth-Gate').item.json.tenant_id }}',\n  {{ $('Webhook').item.json.body.options?.timeout_ms || 300000 }}\n)\nRETURNING id, workflow_name, status, priority, created_at;",
+        "options": {}
+      },
+      "id": "n3_core_queue_insert",
+      "name": "Queue Job",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        1850,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "n3-supabase-postgres",
+          "name": "N3 Supabase Postgres"
+        }
+      },
+      "notes": "\n[PATCHER] WARNING: このクエリはqueryParams方式への移行が必要です。手動で修正してください。"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) as running_count FROM n3_job_queue WHERE status = 'running';",
+        "options": {}
+      },
+      "id": "n3_core_slot_check",
+      "name": "Check Slots",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        2050,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "n3-supabase-postgres",
+          "name": "N3 Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "slot_check",
+              "leftValue": "={{ $json.running_count }}",
+              "rightValue": 10,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "n3_core_slot_available",
+      "name": "Slot Available?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE n3_job_queue \nSET status = 'running', started_at = NOW() \nWHERE id = '{{ $('Queue Job').item.json.id }}'\nRETURNING *;",
+        "options": {}
+      },
+      "id": "n3_core_update_running",
+      "name": "Update Running",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        2450,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "n3-supabase-postgres",
+          "name": "N3 Supabase Postgres"
+        }
+      },
+      "notes": "\n[PATCHER] WARNING: このクエリはqueryParams方式への移行が必要です。手動で修正してください。"
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "value": "={{ $('Webhook').item.json.body.workflow_name }}",
+          "mode": "id"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "n3_core_execute",
+      "name": "Execute Workflow",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        2650,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE n3_job_queue \nSET \n  status = 'done', \n  finished_at = NOW(),\n  execution_time_ms = EXTRACT(EPOCH FROM (NOW() - started_at)) * 1000,\n  result = '{{ JSON.stringify($json || {}) }}'::jsonb\nWHERE id = '{{ $('Queue Job').item.json.id }}';",
+        "options": {}
+      },
+      "id": "n3_core_update_done",
+      "name": "Update Done",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        2850,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "n3-supabase-postgres",
+          "name": "N3 Supabase Postgres"
+        }
+      },
+      "notes": "\n[PATCHER] WARNING: このクエリはqueryParams方式への移行が必要です。手動で修正してください。"
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": "={{ $vars.SUB_DECISION_TRACE_ID }}",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "id": "n3_core_audit",
+      "name": "Decision-Trace (Async)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        3050,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, job_id: $('Queue Job').item.json.id, status: 'completed', result: $('Execute Workflow').item.json }) }}",
+        "options": {}
+      },
+      "id": "n3_core_resp_success",
+      "name": "Response Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        3250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, job_id: $('Queue Job').item.json.id, status: 'queued', message: 'Job queued. Will execute when slot available.', position: $('Check Slots').item.json.running_count }) }}",
+        "options": {}
+      },
+      "id": "n3_core_resp_queued",
+      "name": "Response Queued",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2450,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 403,
+        "responseBody": "={{ JSON.stringify({ success: false, error: 'Authentication failed', code: $('Auth-Gate').item.json.code || 403, details: $('Auth-Gate').item.json.error }) }}",
+        "options": {}
+      },
+      "id": "n3_core_resp_auth_err",
+      "name": "Response Auth Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        850,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 503,
+        "responseBody": "={{ JSON.stringify({ success: false, error: 'Service temporarily unavailable', code: 503, blocked_apis: $('CB Evaluate').item.json.blocked_apis, blocked_until: $('CB Evaluate').item.json.blocked_until }) }}",
+        "options": {}
+      },
+      "id": "n3_core_resp_cb_err",
+      "name": "Response CB Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1450,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 429,
+        "responseBody": "={{ JSON.stringify({ success: false, error: 'Budget limit exceeded', code: 429, daily_used: $('Burn-Limit Check').item.json.daily_used, daily_limit: $('Burn-Limit Check').item.json.daily_limit }) }}",
+        "options": {}
+      },
+      "id": "n3_core_resp_burn_err",
+      "name": "Response Burn Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1850,
+        500
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Auth-Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auth-Gate": {
+      "main": [
+        [
+          {
+            "node": "Auth OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auth OK?": {
+      "main": [
+        [
+          {
+            "node": "Circuit-Breaker Check",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Response Auth Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Circuit-Breaker Check": {
+      "main": [
+        [
+          {
+            "node": "CB Evaluate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CB Evaluate": {
+      "main": [
+        [
+          {
+            "node": "CB OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CB OK?": {
+      "main": [
+        [
+          {
+            "node": "Burn-Limit Check",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Response CB Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Burn-Limit Check": {
+      "main": [
+        [
+          {
+            "node": "Burn OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Burn OK?": {
+      "main": [
+        [
+          {
+            "node": "Queue Job",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Response Burn Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queue Job": {
+      "main": [
+        [
+          {
+            "node": "Check Slots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Slots": {
+      "main": [
+        [
+          {
+            "node": "Slot Available?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slot Available?": {
+      "main": [
+        [
+          {
+            "node": "Update Running",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Response Queued",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Running": {
+      "main": [
+        [
+          {
+            "node": "Execute Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Workflow": {
+      "main": [
+        [
+          {
+            "node": "Update Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Done": {
+      "main": [
+        [
+          {
+            "node": "Decision-Trace (Async)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decision-Trace (Async)": {
+      "main": [
+        [
+          {
+            "node": "Response Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "v8.3.0",
+  "meta": {
+    "n3_version": "V8.3",
+    "description": "中央司令塔 - 全140ワークフローの唯一の入口",
+    "created_at": "2026-01-25"
+  },
+  "tags": [
+    {
+      "name": "V8.3"
+    },
+    {
+      "name": "CORE"
+    },
+    {
+      "name": "司令塔"
+    }
+  ]
+}

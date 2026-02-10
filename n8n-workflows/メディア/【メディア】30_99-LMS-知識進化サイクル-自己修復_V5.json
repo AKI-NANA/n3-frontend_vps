@@ -1,0 +1,470 @@
+{
+  "name": "【メディア】30_99-LMS-知識進化サイクル-自己修復_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 12
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "⏰ 12時間ごと実行",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "knowledge-evolution",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: knowledge-evolution",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "knowledge-evolution"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nreturn [{ json: { topic_code: body.topic_code, accuracy_threshold: body.accuracy_threshold || 0.4, min_attempts: body.min_attempts || 20, timestamp: new Date().toISOString() } }];"
+      },
+      "id": "init",
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT q.id as question_id, q.question_code, q.category, q.subcategory, q.global_accuracy_rate, q.total_attempts, q.keywords, kb.id as knowledge_id, kb.core_fact, kb.detailed_explanation FROM questions q LEFT JOIN knowledge_blocks kb ON q.category = kb.category AND q.subcategory = kb.topic WHERE q.is_active = TRUE AND q.global_accuracy_rate < $1 AND q.total_attempts >= $2 AND q.needs_improvement = FALSE AND NOT EXISTS (SELECT 1 FROM knowledge_evolution_history keh WHERE keh.topic_code = q.question_code AND keh.evolution_status IN ('pending', 'processing')) AND ($3 IS NULL OR q.question_code = $3) ORDER BY q.global_accuracy_rate ASC LIMIT 10",
+        "options": {
+          "queryParams": "={{ [$json.accuracy_threshold, $json.min_attempts, $json.topic_code] }}"
+        }
+      },
+      "id": "get-low-accuracy",
+      "name": "📊 低正答率トピック取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const topics = $input.first().json || [];\nconst topicList = Array.isArray(topics) ? topics : [topics].filter(t => t && t.question_id);\nif (topicList.length === 0) return [{ json: { skip: true, reason: '進化対象なし' } }];\nreturn topicList.map(t => ({ json: { ...t, skip: false } }));"
+      },
+      "id": "filter-topics",
+      "name": "📋 トピックフィルタ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-skip",
+      "name": "処理あり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.ANTHROPIC_API_KEY }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-3-5-sonnet-20241022', max_tokens: 2048, messages: [{ role: 'user', content: `あなたは教育コンテンツの改善専門家です。以下のトピックは正答率が低く、解説の改善が必要です。\n\n【問題コード】${$json.question_code}\n【カテゴリ】${$json.category} / ${$json.subcategory || ''}\n【現在の正答率】${($json.global_accuracy_rate * 100).toFixed(1)}%（${$json.total_attempts}回試行）\n\n【現在の解説】\n${$json.detailed_explanation || '解説なし'}\n\n【改善指示】\n1. より噛み砕いた表現に書き換える\n2. 具体例を2つ以上追加\n3. よくある誤解パターンを明示\n4. 図解の提案（フロー図または比較表）\n5. 記憶に残るフレーズを追加\n\n【出力形式】JSONのみ\n{\n  \"evolved_explanation\": \"改善された解説文\",\n  \"key_examples\": [\"例1\", \"例2\"],\n  \"common_mistakes\": [\"よくある誤解1\"],\n  \"suggested_diagram\": {\"type\": \"flowchart\", \"elements\": []},\n  \"memorable_phrase\": \"覚えやすいフレーズ\",\n  \"evolution_summary\": \"改善のポイント\"\n}` }] }) }}",
+        "options": {
+          "timeout": 90000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "ai-evolve",
+      "name": "🧠 AI進化",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const topic = $node['📋 トピックフィルタ'].json;\nconst claudeResult = $input.first().json;\n\nlet evolvedData = { evolved_explanation: '', evolution_summary: 'AI生成失敗' };\n\ntry {\n  const content = claudeResult?.content?.[0]?.text || '';\n  const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) evolvedData = JSON.parse(jsonMatch[0]);\n} catch (e) {}\n\nreturn [{ json: { ...topic, ...evolvedData } }];"
+      },
+      "id": "parse-evolution",
+      "name": "📋 進化パース",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO knowledge_evolution_history (topic_code, category, trigger_type, trigger_accuracy_rate, trigger_sample_size, original_content, evolved_content, evolution_type, ai_model_used, evolution_status) VALUES ($1, $2, 'low_accuracy', $3, $4, $5, $6, 'simplify', 'claude-3.5-sonnet', 'completed') RETURNING id, evolution_id",
+        "options": {
+          "queryParams": "={{ [$json.question_code, $json.category, $json.global_accuracy_rate, $json.total_attempts, $json.detailed_explanation || '', $json.evolved_explanation] }}"
+        }
+      },
+      "id": "save-evolution",
+      "name": "💾 進化履歴保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE questions SET needs_improvement = TRUE, updated_at = NOW() WHERE question_code = $1",
+        "options": {
+          "queryParams": "={{ [$json.question_code] }}"
+        }
+      },
+      "id": "flag-question",
+      "name": "🚩 フラグ更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.CHATWORK_WEBHOOK_URL || 'https://api.chatwork.com/v2/rooms/' + $env.CHATWORK_ROOM_ID + '/messages' }}",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "📚 【知識進化完了】\n\nトピック: {{ $json.question_code }}\n元の正答率: {{ ($json.global_accuracy_rate * 100).toFixed(1) }}%\n\n改善ポイント: {{ $json.evolution_summary }}\n\n動画再生成キューに追加しました。"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "notify",
+      "name": "📢 通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { success: true, action: 'knowledge_evolution', message: '知識進化サイクル完了' } }];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "⏰ 12時間ごと実行": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook: knowledge-evolution": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "📊 低正答率トピック取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 低正答率トピック取得": {
+      "main": [
+        [
+          {
+            "node": "📋 トピックフィルタ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 トピックフィルタ": {
+      "main": [
+        [
+          {
+            "node": "処理あり？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "処理あり？": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🧠 AI進化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧠 AI進化": {
+      "main": [
+        [
+          {
+            "node": "📋 進化パース",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 進化パース": {
+      "main": [
+        [
+          {
+            "node": "💾 進化履歴保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 進化履歴保存": {
+      "main": [
+        [
+          {
+            "node": "🚩 フラグ更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚩 フラグ更新": {
+      "main": [
+        [
+          {
+            "node": "📢 通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📢 通知": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 300
+  },
+  "tags": [
+    {
+      "name": "N3-LMS",
+      "color": "#3498db"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Evolution",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

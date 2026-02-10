@@ -1,0 +1,719 @@
+{
+  "name": "【出品】08_30-Qoo10出品-qoo10-listing_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "qoo10-listing",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: qoo10-listing",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "qoo10-listing"
+    },
+    {
+      "parameters": {
+        "jsCode": "// V5-PRODUCTION: crypto依存排除版\nconst body = $input.first().json.body || $input.first().json;\nconst headers = $input.first().json.headers || {};\nconst apiUrl = $env.N3_API_URL;\nconst secret = $env.N8N_INTERNAL_SECRET;\nif (!apiUrl) return [{ json: { error: true, message: 'N3_API_URL環境変数が未設定です', code: 'CONFIG_ERROR' } }];\nif (!secret) return [{ json: { error: true, message: 'N8N_INTERNAL_SECRET環境変数が未設定です', code: 'CONFIG_ERROR' } }];\nconst internalToken = headers['x-n3-signature'] || headers['X-N3-Signature'];\nconst tokenTimestamp = headers['x-n3-token-timestamp'] || headers['X-N3-Token-Timestamp'];\nconst userId = body.user_id || 'default';\nif (internalToken && tokenTimestamp) {\n  try {\n    const r = await fetch(`${apiUrl}/api/n8n-auth/verify-internal-token`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, timestamp: tokenTimestamp, token: internalToken }) });\n    if (!(await r.json()).valid) return [{ json: { error: true, message: '内部トークンが無効または期限切れです', code: 'INVALID_TOKEN' } }];\n  } catch (e) { return [{ json: { error: true, message: 'トークン検証APIエラー: ' + e.message, code: 'VERIFY_API_ERROR' } }]; }\n}\nconst productId = body.product_id;\nif (!productId) return [{ json: { error: true, message: 'product_id が必要です', code: 'MISSING_PARAM' } }];\nif (!userId || userId === 'undefined') return [{ json: { error: true, message: 'user_id が必要です', code: 'MISSING_PARAM' } }];\nreturn [{ json: { product_id: productId, user_id: userId, request_timestamp: new Date().toISOString() } }];"
+      },
+      "id": "validate",
+      "name": "🔐 内部トークン検証 + 入力検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": "={{ $json.code === 'INVALID_TOKEN' ? 403 : ($json.code === 'CONFIG_ERROR' ? 500 : 400) }}"
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT ma.api_key_encrypted, ma.api_secret_encrypted, ma.seller_code FROM marketplace_accounts ma WHERE ma.user_id = $1 AND ma.marketplace_id = 'qoo10_jp' AND ma.status = 'active' LIMIT 1",
+        "options": {
+          "queryParams": "={{ [$json.user_id] }}"
+        }
+      },
+      "id": "get-account",
+      "name": "📦 マルチテナント: アカウント取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// V5-PRODUCTION: crypto依存排除版\nconst request = $node['🔐 内部トークン検証 + 入力検証'].json;\nconst account = Array.isArray($input.first().json) ? $input.first().json[0] : $input.first().json;\nif (!account || !account.api_key_encrypted) {\n  const envApiKey = $env.QOO10_API_KEY;\n  if (!envApiKey) return [{ json: { error: true, message: 'Qoo10 APIキーが見つかりません（user_id: ' + request.user_id + '）', code: 'KEY_NOT_FOUND' } }];\n  return [{ json: { ...request, api_key: envApiKey, use_env_key: true } }];\n}\nconst apiUrl = $env.N3_API_URL;\nconst secret = $env.N8N_INTERNAL_SECRET;\nif (!apiUrl || !secret) return [{ json: { error: true, message: '環境変数未設定', code: 'CONFIG_ERROR' } }];\ntry {\n  const r = await fetch(`${apiUrl}/api/n8n-auth/decrypt-key`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-N8N-Secret': secret }, body: JSON.stringify({ encryptedValue: account.api_key_encrypted, userId: request.user_id }) });\n  if (!r.ok) return [{ json: { error: true, message: '復号API失敗', code: 'DECRYPT_ERROR' } }];\n  const { decrypted } = await r.json();\n  if (!decrypted) return [{ json: { error: true, message: '復号結果なし', code: 'DECRYPT_ERROR' } }];\n  return [{ json: { ...request, api_key: decrypted, seller_code: account.seller_code, use_env_key: false } }];\n} catch (e) { return [{ json: { error: true, message: '復号エラー: ' + e.message, code: 'DECRYPT_ERROR' } }]; }"
+      },
+      "id": "decrypt-key",
+      "name": "🔓 APIキー復号",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "key-error",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-key-error",
+      "name": "キーエラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-key-error",
+      "name": "キーエラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT pm.id, pm.sku, pm.title_ja, pm.product_name, pm.description_ja, pm.listing_price, pm.image_urls, pm.qoo10_category_id, pm.updated_at, COALESCE(im.physical_quantity, 1) as physical_quantity FROM products_master pm LEFT JOIN inventory_master im ON im.product_master_id = pm.id AND im.user_id = pm.user_id WHERE pm.id = $1 AND pm.user_id = $2 LIMIT 1",
+        "options": {
+          "queryParams": "={{ [$node['🔐 内部トークン検証 + 入力検証'].json.product_id, $node['🔐 内部トークン検証 + 入力検証'].json.user_id] }}"
+        }
+      },
+      "id": "get-product",
+      "name": "📦 商品情報取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const product = Array.isArray($input.first().json) ? $input.first().json[0] : $input.first().json;\nconst request = $node['🔓 APIキー復号'].json;\nif (!product || !product.id) return [{ json: { error: true, message: '商品が見つかりません', code: 'PRODUCT_NOT_FOUND' } }];\nconst title = (product.title_ja || product.product_name || '').substring(0, 100);\nconst price = product.listing_price || 9999;\nconst quantity = Math.min(product.physical_quantity || 1, 99);\nreturn [{ json: { product_id: product.id, product_updated_at: product.updated_at, sku: product.sku, title, price, quantity, category_id: product.qoo10_category_id || '100000000', description: product.description_ja || '', image_url: (product.image_urls || [])[0] || '', api_key: request.api_key, user_id: request.user_id } }];"
+      },
+      "id": "prepare",
+      "name": "📝 出品データ準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "prepare-error",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-prepare-error",
+      "name": "準備エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-prepare-error",
+      "name": "準備エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.qoo10.jp/GMKT.INC.Front.QAPIService/ebayadminservice.qapi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "returnType",
+              "value": "json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "method",
+              "value": "ItemsBasic.SetNewGoods"
+            },
+            {
+              "name": "key",
+              "value": "={{ $json.api_key }}"
+            },
+            {
+              "name": "sellerCode",
+              "value": "={{ $json.sku }}"
+            },
+            {
+              "name": "goodsTitle",
+              "value": "={{ $json.title }}"
+            },
+            {
+              "name": "goodsPrice",
+              "value": "={{ $json.price }}"
+            },
+            {
+              "name": "stockQty",
+              "value": "={{ $json.quantity }}"
+            },
+            {
+              "name": "mainCatCd",
+              "value": "={{ $json.category_id }}"
+            },
+            {
+              "name": "goodsDescription",
+              "value": "={{ $json.description }}"
+            },
+            {
+              "name": "mainImage",
+              "value": "={{ $json.image_url }}"
+            },
+            {
+              "name": "shippingType",
+              "value": "1"
+            },
+            {
+              "name": "shippingFee",
+              "value": "0"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "qoo10-add",
+      "name": "🛒 Qoo10 SetNewGoods API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst prep = $node['📝 出品データ準備'].json;\nconst resultCode = response.ResultCode || response.resultCode;\nconst itemCode = response.ResultObject || response.resultObject;\nconst success = resultCode === 0 || resultCode === '0' || resultCode === 'Success';\nreturn [{ json: { success, product_id: prep.product_id, product_updated_at: prep.product_updated_at, sku: prep.sku, item_code: itemCode, result_code: resultCode, error: success ? null : (response.ResultMsg || response.resultMsg || 'Qoo10 APIエラー'), user_id: prep.user_id } }];"
+      },
+      "id": "parse-response",
+      "name": "📊 レスポンス解析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "success-check",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-success",
+      "name": "成功チェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO marketplace_listings (product_master_id, marketplace_id, item_id, status, listed_at, created_at, updated_at, user_id) VALUES ($1, 'qoo10_jp', $2, 'active', NOW(), NOW(), NOW(), $3) ON CONFLICT (product_master_id, marketplace_id) DO UPDATE SET item_id = EXCLUDED.item_id, status = 'active', listed_at = NOW(), updated_at = NOW() WHERE marketplace_listings.updated_at <= $4::timestamp OR $4 IS NULL RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.product_id, $json.item_code || $json.sku, $json.user_id, $json.product_updated_at || null] }}"
+        }
+      },
+      "id": "record-listing",
+      "name": "📝 出品記録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO listing_history (product_master_id, marketplace_id, item_id, action, details, user_id, created_at) VALUES ($1, 'qoo10_jp', $2, 'listed', jsonb_build_object('s', true, 'rc', $3), $4, NOW())",
+        "options": {
+          "queryParams": "={{ [$json.product_id, $json.item_code || $json.sku, String($json.result_code), $json.user_id] }}"
+        }
+      },
+      "id": "record-history",
+      "name": "📜 履歴記録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, product_id: $node['📊 レスポンス解析'].json.product_id, item_code: $node['📊 レスポンス解析'].json.item_code, marketplace: 'qoo10_jp' }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO listing_history (product_master_id, marketplace_id, action, details, user_id, created_at) VALUES ($1, 'qoo10_jp', 'failed', jsonb_build_object('s', false, 'e', $2, 'rc', $3), $4, NOW())",
+        "options": {
+          "queryParams": "={{ [$json.product_id, $json.error, String($json.result_code), $json.user_id] }}"
+        }
+      },
+      "id": "record-failure",
+      "name": "📜 失敗記録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, product_id: $json.product_id, error: $json.error, result_code: $json.result_code }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-failure",
+      "name": "❌ 失敗応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM listing_history WHERE created_at < NOW() - INTERVAL '7 days' AND user_id = $1",
+        "options": {
+          "queryParams": "={{ [$node['📊 レスポンス解析'].json.user_id] }}"
+        }
+      },
+      "id": "purge-history",
+      "name": "🗑️ 履歴パージ",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: qoo10-listing": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 内部トークン検証 + 入力検証": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📦 マルチテナント: アカウント取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 マルチテナント: アカウント取得": {
+      "main": [
+        [
+          {
+            "node": "🔓 APIキー復号",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔓 APIキー復号": {
+      "main": [
+        [
+          {
+            "node": "キーエラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "キーエラーチェック": {
+      "main": [
+        [
+          {
+            "node": "キーエラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📦 商品情報取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 商品情報取得": {
+      "main": [
+        [
+          {
+            "node": "📝 出品データ準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 出品データ準備": {
+      "main": [
+        [
+          {
+            "node": "準備エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "準備エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "準備エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🛒 Qoo10 SetNewGoods API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🛒 Qoo10 SetNewGoods API": {
+      "main": [
+        [
+          {
+            "node": "📊 レスポンス解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 レスポンス解析": {
+      "main": [
+        [
+          {
+            "node": "成功チェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "成功チェック": {
+      "main": [
+        [
+          {
+            "node": "📝 出品記録",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📜 失敗記録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 出品記録": {
+      "main": [
+        [
+          {
+            "node": "📜 履歴記録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📜 履歴記録": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ 成功応答": {
+      "main": [
+        [
+          {
+            "node": "🗑️ 履歴パージ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📜 失敗記録": {
+      "main": [
+        [
+          {
+            "node": "❌ 失敗応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 内部トークン検証 + 入力検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🗑️ 履歴パージ": {
+      "main": [
+        [
+          {
+            "node": "📊 実行ログ送信 (成功)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 120,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Qoo10",
+      "color": "#e60033"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "No-Crypto",
+      "color": "#9932cc"
+    },
+    {
+      "name": "SQL-Safe",
+      "color": "#32cd32"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

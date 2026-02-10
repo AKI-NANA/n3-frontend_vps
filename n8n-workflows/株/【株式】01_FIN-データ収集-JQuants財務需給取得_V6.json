@@ -1,0 +1,536 @@
+{
+  "name": "【株式】01_FIN-データ収集-JQuants財務需給取得_V6",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "fin-data-ingest",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: fin-data-ingest",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        250,
+        300
+      ],
+      "webhookId": "fin-data-ingest"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// N3-FIN-01 V6: J-Quants API データ収集イニシャライザー\n// 役割: 銘柄コードリストを受け取り、財務・需給データを取得\n// ============================================================================\n\nconst apiUrl = $env.N3_API_URL || $env.API_BASE_URL;\nconst jquantsApiKey = $env.JQUANTS_API_KEY;\nconst jquantsRefreshToken = $env.JQUANTS_REFRESH_TOKEN;\n\nif (!jquantsApiKey && !jquantsRefreshToken) {\n  return [{ json: { error: true, message: 'J-Quants認証情報が未設定', code: 'CONFIG_ERROR' } }];\n}\n\nconst body = $input.first().json.body || $input.first().json || {};\n\n// 銘柄コードリスト（デフォルト: 主要銘柄）\nconst stockCodes = body.stock_codes || ['7203', '6758', '9984', '6861', '8306', '4502', '6501', '7267', '9432', '8035'];\nconst dataTypes = body.data_types || ['price', 'financial', 'margin'];\nconst dateFrom = body.date_from || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];\nconst dateTo = body.date_to || new Date().toISOString().split('T')[0];\n\nreturn [{\n  json: {\n    stock_codes: stockCodes,\n    data_types: dataTypes,\n    date_from: dateFrom,\n    date_to: dateTo,\n    api_url: apiUrl,\n    jquants_base_url: 'https://api.jquants.com/v1',\n    timestamp: new Date().toISOString(),\n    batch_id: `fin_${Date.now()}`\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔐 初期化（J-Quants準備）",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        450,
+        300
+      ],
+      "notes": "[PYTHON_MIGRATION_CANDIDATE] J-Quants認証フロー"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        650,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        850,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.jquants.com/v1/token/auth_refresh",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ refreshtoken: $env.JQUANTS_REFRESH_TOKEN }) }}",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "jquants-auth",
+      "name": "🔑 J-Quants認証",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        850,
+        400
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// J-Quants トークン取得結果処理\n// ============================================================================\n\nconst initData = $node['🔐 初期化（J-Quants準備）'].json;\nconst authResult = $input.first().json;\n\nif (!authResult.idToken) {\n  return [{\n    json: {\n      ...initData,\n      error: true,\n      message: 'J-Quants認証失敗: ' + JSON.stringify(authResult),\n      code: 'AUTH_ERROR'\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    ...initData,\n    id_token: authResult.idToken,\n    auth_status: 'authenticated'\n  }\n}];"
+      },
+      "id": "process-auth",
+      "name": "📋 認証結果処理",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1050,
+        400
+      ],
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 銘柄ごとにループ用データ準備\n// ============================================================================\n\nconst data = $input.first().json;\nconst stockCodes = data.stock_codes;\n\nreturn stockCodes.map(code => ({\n  json: {\n    ...data,\n    current_stock_code: code\n  }\n}));"
+      },
+      "id": "split-stocks",
+      "name": "🔀 銘柄分割",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1250,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 5,
+        "options": {}
+      },
+      "id": "batch-stocks",
+      "name": "📦 バッチ処理（5銘柄）",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1450,
+        400
+      ],
+      "notes": "\n[PATCHER] WARNING: SplitInBatches直後にWaitノードがありません。API制限に注意してください。"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.jquants_base_url }}/prices/daily_quotes?code={{ $json.current_stock_code }}&from={{ $json.date_from }}&to={{ $json.date_to }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $json.id_token }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "fetch-price-data",
+      "name": "📈 株価データ取得",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1650,
+        300
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.jquants_base_url }}/fins/statements?code={{ $json.current_stock_code }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $node['📋 認証結果処理'].json.id_token }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "fetch-financial-data",
+      "name": "💰 財務データ取得",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1650,
+        450
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.jquants_base_url }}/markets/trades_spec?code={{ $json.current_stock_code }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $node['📋 認証結果処理'].json.id_token }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "fetch-margin-data",
+      "name": "📊 信用残データ取得",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1650,
+        600
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 取得データの統合＆正規化\n// ============================================================================\n\nconst initData = $node['📦 バッチ処理（5銘柄）'].json;\nconst priceData = $node['📈 株価データ取得'].json;\nconst financialData = $node['💰 財務データ取得'].json;\nconst marginData = $node['📊 信用残データ取得'].json;\n\nconst stockCode = initData.current_stock_code;\n\n// 最新の株価情報\nconst latestPrice = priceData.daily_quotes?.[priceData.daily_quotes.length - 1] || {};\n\n// 最新の財務情報\nconst latestFinancial = financialData.statements?.[0] || {};\n\n// 信用残情報\nconst latestMargin = marginData.trades_spec?.[0] || {};\n\n// PER計算（時価総額 / 純利益）\nconst per = latestPrice.Close && latestFinancial.NetIncome \n  ? (latestPrice.Close * (latestFinancial.NumberOfIssuedAndOutstandingSharesAtTheEndOfFiscalYearIncludingTreasuryStock || 1)) / latestFinancial.NetIncome \n  : null;\n\n// PBR計算（株価 / 1株純資産）\nconst pbr = latestPrice.Close && latestFinancial.BookValuePerShare \n  ? latestPrice.Close / latestFinancial.BookValuePerShare \n  : null;\n\n// ROE計算\nconst roe = latestFinancial.NetIncome && latestFinancial.Equity \n  ? (latestFinancial.NetIncome / latestFinancial.Equity) * 100 \n  : null;\n\n// 信用倍率（買い残 / 売り残）\nconst marginRatio = latestMargin.MarginBuyingNew && latestMargin.MarginSellingNew \n  ? latestMargin.MarginBuyingNew / (latestMargin.MarginSellingNew || 1) \n  : null;\n\nreturn [{\n  json: {\n    stock_code: stockCode,\n    date: latestPrice.Date || new Date().toISOString().split('T')[0],\n    \n    // 株価情報\n    open: latestPrice.Open,\n    high: latestPrice.High,\n    low: latestPrice.Low,\n    close: latestPrice.Close,\n    volume: latestPrice.Volume,\n    turnover: latestPrice.TurnoverValue,\n    \n    // 財務情報\n    per: per ? Math.round(per * 100) / 100 : null,\n    pbr: pbr ? Math.round(pbr * 100) / 100 : null,\n    roe: roe ? Math.round(roe * 100) / 100 : null,\n    eps: latestFinancial.EarningsPerShare,\n    bps: latestFinancial.BookValuePerShare,\n    dividend_yield: latestFinancial.DividendYield,\n    \n    // 需給情報\n    margin_buy: latestMargin.MarginBuyingNew,\n    margin_sell: latestMargin.MarginSellingNew,\n    margin_ratio: marginRatio ? Math.round(marginRatio * 100) / 100 : null,\n    \n    // メタ情報\n    batch_id: initData.batch_id,\n    fetched_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "normalize-data",
+      "name": "🔧 データ正規化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1900,
+        450
+      ],
+      "notes": "[PYTHON_MIGRATION_CANDIDATE] pandas使用推奨"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO market_data (code, date, open, high, low, close, volume, turnover, per, pbr, roe, eps, bps, dividend_yield, margin_buy, margin_sell, margin_ratio, batch_id, fetched_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) ON CONFLICT (code, date) DO UPDATE SET open = EXCLUDED.open, high = EXCLUDED.high, low = EXCLUDED.low, close = EXCLUDED.close, volume = EXCLUDED.volume, turnover = EXCLUDED.turnover, per = EXCLUDED.per, pbr = EXCLUDED.pbr, roe = EXCLUDED.roe, eps = EXCLUDED.eps, bps = EXCLUDED.bps, dividend_yield = EXCLUDED.dividend_yield, margin_buy = EXCLUDED.margin_buy, margin_sell = EXCLUDED.margin_sell, margin_ratio = EXCLUDED.margin_ratio, batch_id = EXCLUDED.batch_id, fetched_at = EXCLUDED.fetched_at",
+        "options": {
+          "queryParams": "={{ [$json.stock_code, $json.date, $json.open, $json.high, $json.low, $json.close, $json.volume, $json.turnover, $json.per, $json.pbr, $json.roe, $json.eps, $json.bps, $json.dividend_yield, $json.margin_buy, $json.margin_sell, $json.margin_ratio, $json.batch_id, $json.fetched_at] }}"
+        }
+      },
+      "id": "upsert-market-data",
+      "name": "💾 market_data UPSERT",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2150,
+        450
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "id": "merge-results",
+      "name": "🔀 結果統合",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        2350,
+        450
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 最終結果集計\n// ============================================================================\n\nconst allItems = $input.all();\nconst successCount = allItems.filter(item => !item.json.error).length;\nconst errorCount = allItems.filter(item => item.json.error).length;\n\nreturn [{\n  json: {\n    success: true,\n    message: `${successCount}銘柄のデータを取得・保存しました`,\n    total_processed: allItems.length,\n    success_count: successCount,\n    error_count: errorCount,\n    batch_id: allItems[0]?.json.batch_id,\n    completed_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "final-summary",
+      "name": "📊 最終集計",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2550,
+        450
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2750,
+        450
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook: fin-data-ingest": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化（J-Quants準備）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化（J-Quants準備）": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🔑 J-Quants認証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔑 J-Quants認証": {
+      "main": [
+        [
+          {
+            "node": "📋 認証結果処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 認証結果処理": {
+      "main": [
+        [
+          {
+            "node": "🔀 銘柄分割",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 銘柄分割": {
+      "main": [
+        [
+          {
+            "node": "📦 バッチ処理（5銘柄）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 バッチ処理（5銘柄）": {
+      "main": [
+        [
+          {
+            "node": "📈 株価データ取得",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "💰 財務データ取得",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📊 信用残データ取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📈 株価データ取得": {
+      "main": [
+        [
+          {
+            "node": "🔧 データ正規化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💰 財務データ取得": {
+      "main": [
+        [
+          {
+            "node": "🔧 データ正規化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 信用残データ取得": {
+      "main": [
+        [
+          {
+            "node": "🔧 データ正規化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 データ正規化": {
+      "main": [
+        [
+          {
+            "node": "💾 market_data UPSERT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 market_data UPSERT": {
+      "main": [
+        [
+          {
+            "node": "🔀 結果統合",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 結果統合": {
+      "main": [
+        [
+          {
+            "node": "📊 最終集計",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 最終集計": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "n3-empire-os"
+  },
+  "pinData": {},
+  "versionId": "v6-fin-01",
+  "tags": [
+    {
+      "name": "株式",
+      "id": "fin"
+    },
+    {
+      "name": "V6",
+      "id": "v6"
+    },
+    {
+      "name": "データ収集",
+      "id": "data-ingest"
+    }
+  ]
+}

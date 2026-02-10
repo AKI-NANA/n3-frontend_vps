@@ -1,0 +1,691 @@
+{
+  "name": "【司令塔】04_143-防衛-アンチディテクト連携-AdsPower-GoLogin-プロファイル管理_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "antidetect-manage",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "name": "Webhook: antidetect-manage",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "antidetect-manage"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// アンチディテクトブラウザ管理 初期化\n// AdsPower / GoLogin / Multilogin プロファイル統合管理\n// ============================================================================\n\nconst body = $input.first().json.body || $input.first().json || {};\n\n// action: 'list', 'create', 'start', 'stop', 'delete', 'sync'\nconst action = body.action || 'list';\nconst provider = body.provider || 'adspower'; // 'adspower', 'gologin', 'multilogin'\nconst profileId = body.profile_id;\nconst accountId = body.account_id;\n\n// プロファイル作成用パラメータ\nconst createConfig = body.create_config || {};\n// { name, proxy_id, country_code, os, browser, fingerprint_settings }\n\nreturn [{\n  json: {\n    action: action,\n    provider: provider,\n    profile_id: profileId,\n    account_id: accountId,\n    create_config: createConfig,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true
+          },
+          "conditions": [
+            {
+              "id": "action",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ]
+        }
+      },
+      "name": "アクション分岐",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "options": {
+        "fallbackOutput": "none",
+        "rules": [
+          {
+            "output": 0,
+            "value": "list"
+          },
+          {
+            "output": 1,
+            "value": "create"
+          },
+          {
+            "output": 2,
+            "value": "start"
+          },
+          {
+            "output": 3,
+            "value": "stop"
+          },
+          {
+            "output": 4,
+            "value": "sync"
+          },
+          {
+            "output": 5,
+            "value": "delete"
+          }
+        ]
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// プロバイダー別API設定\n// AdsPower / GoLogin / Multilogin のAPIエンドポイント\n// ============================================================================\n\nconst config = $input.first().json;\nconst provider = config.provider;\n\nlet apiConfig = {};\n\nswitch (provider) {\n  case 'adspower':\n    // AdsPower Local API (ポート50325がデフォルト)\n    apiConfig = {\n      baseUrl: process.env.ADSPOWER_API_URL || '{{$env.BROWSER_API_URL}}',\n      endpoints: {\n        list: '/api/v1/user/list',\n        create: '/api/v1/user/create',\n        start: '/api/v1/browser/start',\n        stop: '/api/v1/browser/stop',\n        delete: '/api/v1/user/delete',\n        check: '/api/v1/browser/active'\n      },\n      authHeader: null // AdsPower Local APIは認証不要\n    };\n    break;\n    \n  case 'gologin':\n    // GoLogin Cloud API\n    apiConfig = {\n      baseUrl: 'https://api.gologin.com/browser',\n      endpoints: {\n        list: '',\n        create: '',\n        start: '/start',\n        stop: '/stop',\n        delete: '',\n        check: '/check'\n      },\n      authHeader: { 'Authorization': `Bearer ${process.env.GOLOGIN_API_TOKEN}` }\n    };\n    break;\n    \n  case 'multilogin':\n    // Multilogin X API\n    apiConfig = {\n      baseUrl: process.env.MULTILOGIN_API_URL || 'https://api.multilogin.com',\n      endpoints: {\n        list: '/v2/profiles',\n        create: '/v2/profiles',\n        start: '/v2/profiles/start',\n        stop: '/v2/profiles/stop',\n        delete: '/v2/profiles'\n      },\n      authHeader: { 'x-api-key': process.env.MULTILOGIN_API_KEY }\n    };\n    break;\n}\n\nreturn [{\n  json: {\n    ...config,\n    api_config: apiConfig,\n    endpoint: apiConfig.endpoints[config.action] || apiConfig.endpoints.list\n  }\n}];"
+      },
+      "name": "📋 API設定取得",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT ap.*, pa.google_email, pa.youtube_channel_id, mpp.proxy_host, mpp.proxy_port FROM antidetect_profiles ap LEFT JOIN pva_accounts pa ON ap.assigned_account_id = pa.id LEFT JOIN mobile_proxy_pool mpp ON ap.proxy_id = mpp.id WHERE ($1::text IS NULL OR ap.provider = $1) AND ap.is_active = TRUE ORDER BY ap.created_at DESC",
+        "options": {
+          "queryParams": "={{ [$json.provider === 'all' ? null : $json.provider] }}"
+        }
+      },
+      "name": "📥 プロファイル一覧取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 新規プロファイル作成パラメータ生成\n// Canvas指紋、WebGL、フォントリストなどを個別生成\n// ============================================================================\n\nconst config = $input.first().json;\nconst createConfig = config.create_config;\nconst apiConfig = config.api_config;\n\n// ユニークな指紋を生成\nconst generateFingerprint = () => {\n  const osOptions = ['Windows 10', 'Windows 11', 'macOS Monterey', 'macOS Ventura'];\n  const browserOptions = ['Chrome 120', 'Chrome 121', 'Chrome 122', 'Edge 120'];\n  const screenResolutions = ['1920x1080', '2560x1440', '1366x768', '1536x864'];\n  const languages = ['en-US', 'en-GB', 'ja-JP', 'de-DE', 'fr-FR'];\n  const timezones = ['America/New_York', 'America/Los_Angeles', 'Europe/London', 'Asia/Tokyo'];\n  \n  return {\n    os: createConfig.os || osOptions[Math.floor(Math.random() * osOptions.length)],\n    browser: createConfig.browser || browserOptions[Math.floor(Math.random() * browserOptions.length)],\n    screen_resolution: screenResolutions[Math.floor(Math.random() * screenResolutions.length)],\n    language: languages[Math.floor(Math.random() * languages.length)],\n    timezone: timezones[Math.floor(Math.random() * timezones.length)],\n    webgl_vendor: 'Google Inc. (NVIDIA)',\n    webgl_renderer: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0)',\n    canvas_noise: Math.random() * 0.001, // 微細なキャンバスノイズ\n    audio_noise: Math.random() * 0.0001,\n    fonts_noise: Math.random() * 2, // フォント一覧にわずかな変動\n    hardware_concurrency: [4, 8, 12, 16][Math.floor(Math.random() * 4)],\n    device_memory: [4, 8, 16, 32][Math.floor(Math.random() * 4)]\n  };\n};\n\nconst fingerprint = generateFingerprint();\n\nlet requestBody = {};\n\n// プロバイダー別リクエストボディ\nswitch (config.provider) {\n  case 'adspower':\n    requestBody = {\n      name: createConfig.name || `N3-Profile-${Date.now()}`,\n      group_id: '0',\n      fingerprint_config: {\n        automatic_timezone: '1',\n        language: [fingerprint.language],\n        resolution: fingerprint.screen_resolution,\n        fonts: fingerprint.fonts_noise.toString(),\n        canvas: fingerprint.canvas_noise.toString(),\n        webgl: 'noise',\n        webgl_vendor: fingerprint.webgl_vendor,\n        webgl_renderer: fingerprint.webgl_renderer,\n        audio: fingerprint.audio_noise.toString(),\n        hardware_concurrency: fingerprint.hardware_concurrency.toString(),\n        device_memory: fingerprint.device_memory.toString()\n      },\n      user_proxy_config: createConfig.proxy_id ? {\n        proxy_soft: 'other',\n        proxy_type: 'http',\n        proxy_host: '{{PROXY_HOST}}',\n        proxy_port: '{{PROXY_PORT}}',\n        proxy_user: '{{PROXY_USER}}',\n        proxy_password: '{{PROXY_PASS}}'\n      } : null\n    };\n    break;\n    \n  case 'gologin':\n    requestBody = {\n      name: createConfig.name || `N3-Profile-${Date.now()}`,\n      os: fingerprint.os.toLowerCase().includes('windows') ? 'win' : 'mac',\n      navigator: {\n        userAgent: `Mozilla/5.0 (${fingerprint.os}) AppleWebKit/537.36 (KHTML, like Gecko) ${fingerprint.browser}`,\n        resolution: fingerprint.screen_resolution,\n        language: fingerprint.language,\n        platform: fingerprint.os.includes('Windows') ? 'Win32' : 'MacIntel',\n        hardwareConcurrency: fingerprint.hardware_concurrency,\n        deviceMemory: fingerprint.device_memory\n      },\n      webGL: {\n        mode: 'noise',\n        vendor: fingerprint.webgl_vendor,\n        renderer: fingerprint.webgl_renderer\n      },\n      canvas: { mode: 'noise' },\n      audioContext: { mode: 'noise' },\n      timezone: { fillBasedOnIp: true }\n    };\n    break;\n    \n  case 'multilogin':\n    requestBody = {\n      name: createConfig.name || `N3-Profile-${Date.now()}`,\n      os: fingerprint.os.toLowerCase().includes('windows') ? 'win' : 'macos',\n      browser: 'mimic',\n      network: {\n        proxy: createConfig.proxy_id ? {\n          type: 'http',\n          host: '{{PROXY_HOST}}',\n          port: '{{PROXY_PORT}}',\n          username: '{{PROXY_USER}}',\n          password: '{{PROXY_PASS}}'\n        } : null\n      },\n      fingerprint: {\n        screen: { resolution: fingerprint.screen_resolution },\n        webgl: { vendor: fingerprint.webgl_vendor, renderer: fingerprint.webgl_renderer },\n        canvas: { noise: fingerprint.canvas_noise },\n        audio: { noise: fingerprint.audio_noise }\n      }\n    };\n    break;\n}\n\nreturn [{\n  json: {\n    ...config,\n    fingerprint: fingerprint,\n    request_body: requestBody,\n    request_url: apiConfig.baseUrl + apiConfig.endpoints.create\n  }\n}];"
+      },
+      "name": "🎲 指紋生成・リクエスト構築",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.request_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.request_body) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "name": "🌐 プロファイル作成API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO antidetect_profiles (provider, external_profile_id, profile_name, fingerprint_config, proxy_id, assigned_account_id, is_active) VALUES ($1, $2, $3, $4, $5, $6, TRUE) RETURNING id",
+        "options": {
+          "queryParams": "={{ [$node['🔧 初期化'].json.provider, $json.data?.id || $json.id || $json.profile_id, $node['🎲 指紋生成・リクエスト構築'].json.request_body.name, JSON.stringify($node['🎲 指紋生成・リクエスト構築'].json.fingerprint), $node['🔧 初期化'].json.create_config?.proxy_id, $node['🔧 初期化'].json.account_id] }}"
+        }
+      },
+      "name": "💾 プロファイル登録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// ブラウザ起動リクエスト構築\n// ============================================================================\n\nconst config = $input.first().json;\nconst apiConfig = config.api_config;\n\nlet startUrl = '';\nlet startMethod = 'GET';\nlet startBody = null;\n\nswitch (config.provider) {\n  case 'adspower':\n    // AdsPower: GET /api/v1/browser/start?user_id=xxx\n    startUrl = `${apiConfig.baseUrl}/api/v1/browser/start?user_id=${config.profile_id}`;\n    startMethod = 'GET';\n    break;\n    \n  case 'gologin':\n    // GoLogin: POST /browser/:id/start\n    startUrl = `${apiConfig.baseUrl}/${config.profile_id}/start`;\n    startMethod = 'POST';\n    startBody = { headless: false };\n    break;\n    \n  case 'multilogin':\n    // Multilogin: POST /v2/profiles/:id/start\n    startUrl = `${apiConfig.baseUrl}/v2/profiles/${config.profile_id}/start`;\n    startMethod = 'POST';\n    break;\n}\n\nreturn [{\n  json: {\n    ...config,\n    start_url: startUrl,\n    start_method: startMethod,\n    start_body: startBody\n  }\n}];"
+      },
+      "name": "🚀 起動リクエスト構築",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "method": "={{ $json.start_method }}",
+        "url": "={{ $json.start_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ $json.api_config.authHeader?.Authorization || '' }}"
+            }
+          ]
+        },
+        "sendBody": "={{ $json.start_body ? true : false }}",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.start_body ? JSON.stringify($json.start_body) : '{}' }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "name": "🌐 ブラウザ起動API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// 起動結果からSelenium/Puppeteer接続情報を抽出\nconst config = $node['🚀 起動リクエスト構築'].json;\nconst result = $input.first().json;\n\nlet connectionInfo = {};\n\nswitch (config.provider) {\n  case 'adspower':\n    // AdsPowerはWebSocket URLとSelenium URLを返す\n    connectionInfo = {\n      ws_endpoint: result.data?.ws?.puppeteer,\n      selenium_url: result.data?.webdriver,\n      debug_port: result.data?.debug_port\n    };\n    break;\n    \n  case 'gologin':\n    connectionInfo = {\n      ws_endpoint: result.wsUrl,\n      debug_port: result.port\n    };\n    break;\n    \n  case 'multilogin':\n    connectionInfo = {\n      ws_endpoint: result.wsUrl,\n      status: result.status\n    };\n    break;\n}\n\nreturn [{\n  json: {\n    success: !!connectionInfo.ws_endpoint,\n    provider: config.provider,\n    profile_id: config.profile_id,\n    connection_info: connectionInfo,\n    message: connectionInfo.ws_endpoint ? 'ブラウザ起動成功' : 'ブラウザ起動失敗'\n  }\n}];"
+      },
+      "name": "📋 接続情報抽出",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE antidetect_profiles SET last_used_at = NOW(), browser_status = 'running', connection_info = $2 WHERE external_profile_id = $1",
+        "options": {
+          "queryParams": "={{ [$node['🔧 初期化'].json.profile_id, JSON.stringify($json.connection_info)] }}"
+        }
+      },
+      "name": "💾 起動状態記録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ブラウザ停止リクエスト構築\nconst config = $input.first().json;\nconst apiConfig = config.api_config;\n\nlet stopUrl = '';\nlet stopMethod = 'GET';\n\nswitch (config.provider) {\n  case 'adspower':\n    stopUrl = `${apiConfig.baseUrl}/api/v1/browser/stop?user_id=${config.profile_id}`;\n    stopMethod = 'GET';\n    break;\n    \n  case 'gologin':\n    stopUrl = `${apiConfig.baseUrl}/${config.profile_id}/stop`;\n    stopMethod = 'POST';\n    break;\n    \n  case 'multilogin':\n    stopUrl = `${apiConfig.baseUrl}/v2/profiles/${config.profile_id}/stop`;\n    stopMethod = 'POST';\n    break;\n}\n\nreturn [{\n  json: {\n    ...config,\n    stop_url: stopUrl,\n    stop_method: stopMethod\n  }\n}];"
+      },
+      "name": "🛑 停止リクエスト構築",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "method": "={{ $json.stop_method }}",
+        "url": "={{ $json.stop_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $json.api_config.authHeader?.Authorization || '' }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "name": "🌐 ブラウザ停止API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE antidetect_profiles SET browser_status = 'stopped', connection_info = NULL WHERE external_profile_id = $1",
+        "options": {
+          "queryParams": "={{ [$node['🔧 初期化'].json.profile_id] }}"
+        }
+      },
+      "name": "💾 停止状態記録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// ローカルプロファイルとDB同期\n// アンチディテクトブラウザの全プロファイルをDBに同期\n// ============================================================================\n\nconst config = $input.first().json;\nconst apiConfig = config.api_config;\n\nlet listUrl = apiConfig.baseUrl + apiConfig.endpoints.list;\n\n// AdsPowerはページネーション対応\nif (config.provider === 'adspower') {\n  listUrl += '?page=1&page_size=100';\n}\n\nreturn [{\n  json: {\n    ...config,\n    list_url: listUrl\n  }\n}];"
+      },
+      "name": "🔄 同期リクエスト構築",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.list_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $json.api_config.authHeader?.Authorization || '' }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "name": "🌐 プロファイル一覧API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// 取得したプロファイルをUPSERT用に変換\nconst config = $node['🔄 同期リクエスト構築'].json;\nconst result = $input.first().json;\n\nlet profiles = [];\n\nswitch (config.provider) {\n  case 'adspower':\n    profiles = (result.data?.list || []).map(p => ({\n      provider: 'adspower',\n      external_profile_id: p.user_id,\n      profile_name: p.name,\n      fingerprint_config: JSON.stringify(p.fingerprint_config || {}),\n      browser_status: 'unknown'\n    }));\n    break;\n    \n  case 'gologin':\n    profiles = (result || []).map(p => ({\n      provider: 'gologin',\n      external_profile_id: p.id,\n      profile_name: p.name,\n      fingerprint_config: JSON.stringify(p.navigator || {}),\n      browser_status: 'unknown'\n    }));\n    break;\n    \n  case 'multilogin':\n    profiles = (result.profiles || result || []).map(p => ({\n      provider: 'multilogin',\n      external_profile_id: p.uuid || p.id,\n      profile_name: p.name,\n      fingerprint_config: JSON.stringify(p.fingerprint || {}),\n      browser_status: 'unknown'\n    }));\n    break;\n}\n\nreturn profiles.map(p => ({ json: p }));"
+      },
+      "name": "📋 同期データ変換",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO antidetect_profiles (provider, external_profile_id, profile_name, fingerprint_config, is_active) VALUES ($1, $2, $3, $4, TRUE) ON CONFLICT (provider, external_profile_id) DO UPDATE SET profile_name = EXCLUDED.profile_name, fingerprint_config = EXCLUDED.fingerprint_config, updated_at = NOW()",
+        "options": {
+          "queryParams": "={{ [$json.provider, $json.external_profile_id, $json.profile_name, $json.fingerprint_config] }}"
+        }
+      },
+      "name": "💾 UPSERT同期",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 最終レスポンス生成\nconst action = $node['🔧 初期化'].json.action;\n\nlet result = { success: true, action: action };\n\nswitch (action) {\n  case 'list':\n    result.profiles = $node['📥 プロファイル一覧取得'].json;\n    result.count = Array.isArray(result.profiles) ? result.profiles.length : 0;\n    break;\n    \n  case 'create':\n    result.message = 'プロファイル作成完了';\n    result.profile_id = $node['💾 プロファイル登録'].json?.[0]?.id;\n    result.fingerprint = $node['🎲 指紋生成・リクエスト構築'].json?.fingerprint;\n    break;\n    \n  case 'start':\n    const startResult = $node['📋 接続情報抽出']?.json || {};\n    result = { ...startResult, action: action };\n    break;\n    \n  case 'stop':\n    result.message = 'ブラウザ停止完了';\n    result.profile_id = $node['🔧 初期化'].json.profile_id;\n    break;\n    \n  case 'sync':\n    result.message = 'プロファイル同期完了';\n    result.synced_count = $items().length;\n    break;\n    \n  case 'delete':\n    result.message = 'プロファイル削除完了';\n    break;\n}\n\nreturn [{ json: result }];"
+      },
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: antidetect-manage": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "📋 API設定取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 API設定取得": {
+      "main": [
+        [
+          {
+            "node": "アクション分岐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "アクション分岐": {
+      "main": [
+        [
+          {
+            "node": "📥 プロファイル一覧取得",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🎲 指紋生成・リクエスト構築",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🚀 起動リクエスト構築",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🛑 停止リクエスト構築",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🔄 同期リクエスト構築",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📥 プロファイル一覧取得": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎲 指紋生成・リクエスト構築": {
+      "main": [
+        [
+          {
+            "node": "🌐 プロファイル作成API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🌐 プロファイル作成API": {
+      "main": [
+        [
+          {
+            "node": "💾 プロファイル登録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 プロファイル登録": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚀 起動リクエスト構築": {
+      "main": [
+        [
+          {
+            "node": "🌐 ブラウザ起動API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🌐 ブラウザ起動API": {
+      "main": [
+        [
+          {
+            "node": "📋 接続情報抽出",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 接続情報抽出": {
+      "main": [
+        [
+          {
+            "node": "💾 起動状態記録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 起動状態記録": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🛑 停止リクエスト構築": {
+      "main": [
+        [
+          {
+            "node": "🌐 ブラウザ停止API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🌐 ブラウザ停止API": {
+      "main": [
+        [
+          {
+            "node": "💾 停止状態記録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 停止状態記録": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 同期リクエスト構築": {
+      "main": [
+        [
+          {
+            "node": "🌐 プロファイル一覧API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🌐 プロファイル一覧API": {
+      "main": [
+        [
+          {
+            "node": "📋 同期データ変換",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 同期データ変換": {
+      "main": [
+        [
+          {
+            "node": "💾 UPSERT同期",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 UPSERT同期": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 600,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Defense",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "AntiDetect",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "Phase-14",
+      "color": "#f39c12"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

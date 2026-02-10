@@ -1,0 +1,375 @@
+{
+  "name": "【通知】01_35-日次レポート-daily-report_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "毎日9時実行",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "daily-report",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: daily-report",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "daily-report"
+    },
+    {
+      "parameters": {
+        "jsCode": "// V5-PRODUCTION: crypto依存排除版\nconst body = $input.first().json.body || $input.first().json || {};\nconst headers = $input.first().json.headers || {};\nconst apiUrl = $env.N3_API_URL;\nconst secret = $env.N8N_INTERNAL_SECRET;\nif (!apiUrl) return [{ json: { error: true, message: 'N3_API_URL環境変数が未設定です', code: 'CONFIG_ERROR' } }];\nif (!secret) return [{ json: { error: true, message: 'N8N_INTERNAL_SECRET環境変数が未設定です', code: 'CONFIG_ERROR' } }];\nconst internalToken = headers['x-n3-signature'] || headers['X-N3-Signature'];\nconst tokenTimestamp = headers['x-n3-token-timestamp'] || headers['X-N3-Token-Timestamp'];\nconst userId = body.user_id || 'default';\nif (internalToken && tokenTimestamp) {\n  try {\n    const r = await fetch(`${apiUrl}/api/n8n-auth/verify-internal-token`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, timestamp: tokenTimestamp, token: internalToken }) });\n    if (!(await r.json()).valid) return [{ json: { error: true, message: '内部トークンが無効です', code: 'INVALID_TOKEN' } }];\n  } catch (e) { return [{ json: { error: true, message: 'トークン検証APIエラー', code: 'VERIFY_API_ERROR' } }]; }\n}\nconst reportDate = body.report_date || new Date().toISOString().split('T')[0];\nreturn [{ json: { user_id: userId, report_date: reportDate, is_scheduled: !$input.first().json.body, request_timestamp: new Date().toISOString() } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化 + 内部トークン検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": "={{ $json.code === 'INVALID_TOKEN' ? 403 : 500 }}"
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) as total_listed, SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active_count, SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_count FROM marketplace_listings WHERE user_id = $1 AND created_at >= $2::date AND created_at < ($2::date + INTERVAL '1 day')",
+        "options": {
+          "queryParams": "={{ [$json.user_id, $json.report_date] }}"
+        }
+      },
+      "id": "get-listing-stats",
+      "name": "📊 出品統計取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) as sync_count, SUM(CASE WHEN success = true THEN 1 ELSE 0 END) as success_count, SUM(CASE WHEN success = false THEN 1 ELSE 0 END) as error_count FROM stock_sync_logs WHERE user_id = $1 AND created_at >= $2::date AND created_at < ($2::date + INTERVAL '1 day')",
+        "options": {
+          "queryParams": "={{ [$node['🔐 初期化 + 内部トークン検証'].json.user_id, $node['🔐 初期化 + 内部トークン検証'].json.report_date] }}"
+        }
+      },
+      "id": "get-sync-stats",
+      "name": "📊 同期統計取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) as error_count FROM n8n_execution_logs WHERE user_id = $1 AND status = 'error' AND created_at >= $2::date AND created_at < ($2::date + INTERVAL '1 day')",
+        "options": {
+          "queryParams": "={{ [$node['🔐 初期化 + 内部トークン検証'].json.user_id, $node['🔐 初期化 + 内部トークン検証'].json.report_date] }}"
+        }
+      },
+      "id": "get-error-stats",
+      "name": "📊 エラー統計取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const init = $node['🔐 初期化 + 内部トークン検証'].json;\nconst listingStats = $node['📊 出品統計取得'].json || {};\nconst syncStats = $node['📊 同期統計取得'].json || {};\nconst errorStats = $node['📊 エラー統計取得'].json || {};\nreturn [{ json: { success: true, report_date: init.report_date, user_id: init.user_id, listing: { total: listingStats.total_listed || 0, active: listingStats.active_count || 0, failed: listingStats.failed_count || 0 }, sync: { total: syncStats.sync_count || 0, success: syncStats.success_count || 0, error: syncStats.error_count || 0 }, errors: errorStats.error_count || 0, generated_at: new Date().toISOString() } }];"
+      },
+      "id": "aggregate",
+      "name": "📊 レポート集計",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO daily_reports (user_id, report_date, listing_total, listing_active, listing_failed, sync_total, sync_success, sync_error, error_count, created_at) VALUES ($1, $2::date, $3, $4, $5, $6, $7, $8, $9, NOW()) ON CONFLICT (user_id, report_date) DO UPDATE SET listing_total = EXCLUDED.listing_total, listing_active = EXCLUDED.listing_active, listing_failed = EXCLUDED.listing_failed, sync_total = EXCLUDED.sync_total, sync_success = EXCLUDED.sync_success, sync_error = EXCLUDED.sync_error, error_count = EXCLUDED.error_count, created_at = NOW()",
+        "options": {
+          "queryParams": "={{ [$json.user_id, $json.report_date, $json.listing.total, $json.listing.active, $json.listing.failed, $json.sync.total, $json.sync.success, $json.sync.error, $json.errors] }}"
+        }
+      },
+      "id": "save-report",
+      "name": "💾 レポート保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($node['📊 レポート集計'].json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "毎日9時実行": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化 + 内部トークン検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook: daily-report": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化 + 内部トークン検証": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📊 出品統計取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 出品統計取得": {
+      "main": [
+        [
+          {
+            "node": "📊 同期統計取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 同期統計取得": {
+      "main": [
+        [
+          {
+            "node": "📊 エラー統計取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 エラー統計取得": {
+      "main": [
+        [
+          {
+            "node": "📊 レポート集計",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 レポート集計": {
+      "main": [
+        [
+          {
+            "node": "💾 レポート保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 レポート保存": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化 + 内部トークン検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 120,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Report",
+      "color": "#4169e1"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "No-Crypto",
+      "color": "#9932cc"
+    },
+    {
+      "name": "SQL-Safe",
+      "color": "#32cd32"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

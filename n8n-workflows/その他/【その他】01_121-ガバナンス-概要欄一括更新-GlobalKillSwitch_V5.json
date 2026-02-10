@@ -1,0 +1,575 @@
+{
+  "name": "【その他】01_121-ガバナンス-概要欄一括更新-GlobalKillSwitch_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "description-bulk-update",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: description-bulk-update",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "description-bulk-update"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 概要欄一括更新 初期化\nconst body = $input.first().json.body || $input.first().json || {};\n\nconst targetScope = body.target_scope || 'specific_videos'; // 'all_channels', 'specific_channels', 'specific_videos'\nconst targetChannelIds = body.target_channel_ids || [];\nconst targetVideoIds = body.target_video_ids || [];\nconst updateType = body.update_type || 'find_replace'; // 'replace_all', 'append', 'prepend', 'find_replace'\nconst findPattern = body.find_pattern;\nconst replacementText = body.replacement_text;\nconst reason = body.reason || '手動更新';\nconst dryRun = body.dry_run !== false; // デフォルトはドライラン\n\n// バリデーション\nif (!replacementText && updateType !== 'find_replace') {\n  return [{ json: { error: true, message: 'replacement_text は必須です' } }];\n}\n\nif (updateType === 'find_replace' && !findPattern) {\n  return [{ json: { error: true, message: 'find_replace モードでは find_pattern が必須です' } }];\n}\n\nif (targetScope === 'specific_videos' && targetVideoIds.length === 0) {\n  return [{ json: { error: true, message: 'specific_videos モードでは target_video_ids が必須です' } }];\n}\n\nif (targetScope === 'specific_channels' && targetChannelIds.length === 0) {\n  return [{ json: { error: true, message: 'specific_channels モードでは target_channel_ids が必須です' } }];\n}\n\nconst jobId = 'desc_' + Date.now();\n\nreturn [{\n  json: {\n    job_id: jobId,\n    target_scope: targetScope,\n    target_channel_ids: targetChannelIds,\n    target_video_ids: targetVideoIds,\n    update_type: updateType,\n    find_pattern: findPattern,\n    replacement_text: replacementText,\n    reason: reason,\n    dry_run: dryRun\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO description_bulk_update_jobs (id, status, target_scope, target_channel_ids, target_video_ids, update_type, find_pattern, replacement_text, reason, created_at) VALUES (gen_random_uuid(), 'pending', $1, $2, $3, $4, $5, $6, $7, NOW()) RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.target_scope, JSON.stringify($json.target_channel_ids), JSON.stringify($json.target_video_ids), $json.update_type, $json.find_pattern, $json.replacement_text, $json.reason] }}"
+        }
+      },
+      "id": "save-job",
+      "name": "💾 ジョブ登録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 対象動画リスト取得用クエリ生成\nconst config = $node['🔧 初期化'].json;\nconst dbResult = $input.first().json;\n\nlet query = '';\nlet params = [];\n\nswitch (config.target_scope) {\n  case 'all_channels':\n    query = 'SELECT mc.video_id, mc.channel_id, mc.youtube_video_id, yt.access_token FROM media_content mc JOIN youtube_tokens yt ON mc.channel_id = yt.channel_id WHERE mc.youtube_video_id IS NOT NULL AND mc.status = \\'published\\' LIMIT 1000';\n    break;\n  case 'specific_channels':\n    query = 'SELECT mc.video_id, mc.channel_id, mc.youtube_video_id, yt.access_token FROM media_content mc JOIN youtube_tokens yt ON mc.channel_id = yt.channel_id WHERE mc.channel_id = ANY($1::text[]) AND mc.youtube_video_id IS NOT NULL LIMIT 1000';\n    params = ['{' + config.target_channel_ids.join(',') + '}'];\n    break;\n  case 'specific_videos':\n    query = 'SELECT mc.video_id, mc.channel_id, mc.youtube_video_id, yt.access_token FROM media_content mc JOIN youtube_tokens yt ON mc.channel_id = yt.channel_id WHERE mc.youtube_video_id = ANY($1::text[])';\n    params = ['{' + config.target_video_ids.join(',') + '}'];\n    break;\n}\n\nreturn [{ json: { ...config, db_id: dbResult[0]?.id, fetch_query: query, fetch_params: params } }];"
+      },
+      "id": "build-query",
+      "name": "📝 クエリ生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.fetch_query }}",
+        "options": {
+          "queryParams": "={{ $json.fetch_params }}"
+        }
+      },
+      "id": "fetch-videos",
+      "name": "📥 対象動画取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 動画リストを処理用に変換\nconst config = $node['📝 クエリ生成'].json;\nconst videos = $input.first().json || [];\n\nif (videos.length === 0) {\n  return [{ json: { skip: true, reason: '対象動画なし', db_id: config.db_id } }];\n}\n\n// ジョブ合計数を更新\nconst updateResult = { total_targets: videos.length };\n\nreturn videos.map(v => ({\n  json: {\n    ...v,\n    update_type: config.update_type,\n    find_pattern: config.find_pattern,\n    replacement_text: config.replacement_text,\n    dry_run: config.dry_run,\n    db_id: config.db_id\n  }\n}));"
+      },
+      "id": "prepare-videos",
+      "name": "📦 動画準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "batchSize": 10,
+        "options": {}
+      },
+      "id": "batch-videos",
+      "name": "📦 バッチ処理",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "notes": "\n[PATCHER] WARNING: SplitInBatches直後にWaitノードがありません。API制限に注意してください。"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://www.googleapis.com/youtube/v3/videos?part=snippet&id=' + $json.youtube_video_id }}",
+        "authentication": "oAuth2Api",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "fetch-description",
+      "name": "📄 現在の概要欄取得",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "oAuth2Api": {
+          "id": "youtube-oauth",
+          "name": "YouTube OAuth"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// 概要欄の更新処理\nconst config = $input.item.json;\nconst videoData = $input.first().json;\n\nif (!videoData.items || videoData.items.length === 0) {\n  return [{ json: { ...config, skip: true, reason: '動画情報取得失敗' } }];\n}\n\nconst snippet = videoData.items[0].snippet;\nlet currentDescription = snippet.description || '';\nlet newDescription = '';\n\nswitch (config.update_type) {\n  case 'replace_all':\n    newDescription = config.replacement_text;\n    break;\n  case 'append':\n    newDescription = currentDescription + '\\n\\n' + config.replacement_text;\n    break;\n  case 'prepend':\n    newDescription = config.replacement_text + '\\n\\n' + currentDescription;\n    break;\n  case 'find_replace':\n    const regex = new RegExp(config.find_pattern, 'g');\n    newDescription = currentDescription.replace(regex, config.replacement_text);\n    break;\n}\n\nconst changed = currentDescription !== newDescription;\n\nreturn [{\n  json: {\n    ...config,\n    snippet: snippet,\n    current_description: currentDescription,\n    new_description: newDescription,\n    changed: changed\n  }\n}];"
+      },
+      "id": "process-description",
+      "name": "📝 概要欄処理",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "not-dry-run",
+              "leftValue": "={{ !$json.dry_run && $json.changed && !$json.skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-update",
+      "name": "更新実行？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "https://www.googleapis.com/youtube/v3/videos?part=snippet",
+        "authentication": "oAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ id: $json.youtube_video_id, snippet: { ...($json.snippet), description: $json.new_description } }) }}",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "update-description",
+      "name": "📤 概要欄更新",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "oAuth2Api": {
+          "id": "youtube-oauth",
+          "name": "YouTube OAuth"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// 更新結果記録\nconst result = $input.first().json;\nconst prevData = $node['📝 概要欄処理'].json;\n\nconst success = !result.error;\nconst status = success ? 'success' : 'failed';\n\nreturn [{ json: { video_id: prevData.youtube_video_id, status: status, error: result.error?.message, db_id: prevData.db_id } }];"
+      },
+      "id": "record-result",
+      "name": "📊 結果記録",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE description_bulk_update_jobs SET success_count = success_count + CASE WHEN $2 = 'success' THEN 1 ELSE 0 END, failure_count = failure_count + CASE WHEN $2 = 'failed' THEN 1 ELSE 0 END, updated_at = NOW() WHERE id = $1",
+        "options": {
+          "queryParams": "={{ [$json.db_id, $json.status] }}"
+        }
+      },
+      "id": "update-job-stats",
+      "name": "📊 ジョブ統計更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// スキップ処理\nconst prevData = $node['📝 概要欄処理'].json;\nreturn [{ json: { video_id: prevData.youtube_video_id, status: 'skipped', reason: prevData.skip ? prevData.reason : 'ドライランまたは変更なし', db_id: prevData.db_id } }];"
+      },
+      "id": "skip-result",
+      "name": "⏭️ スキップ記録",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE description_bulk_update_jobs SET skipped_count = skipped_count + 1, updated_at = NOW() WHERE id = $1",
+        "options": {
+          "queryParams": "={{ [$json.db_id] }}"
+        }
+      },
+      "id": "update-skip-stats",
+      "name": "📊 スキップ統計更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, job_id: $node['🔧 初期化'].json.job_id, message: $node['🔧 初期化'].json.dry_run ? 'ドライラン開始' : '一括更新開始' }) }}",
+        "options": {
+          "responseCode": 202
+        }
+      },
+      "id": "respond-accepted",
+      "name": "受付応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: description-bulk-update": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💾 ジョブ登録",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "受付応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 ジョブ登録": {
+      "main": [
+        [
+          {
+            "node": "📝 クエリ生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 クエリ生成": {
+      "main": [
+        [
+          {
+            "node": "📥 対象動画取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📥 対象動画取得": {
+      "main": [
+        [
+          {
+            "node": "📦 動画準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 動画準備": {
+      "main": [
+        [
+          {
+            "node": "📦 バッチ処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 バッチ処理": {
+      "main": [
+        [
+          {
+            "node": "📄 現在の概要欄取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📄 現在の概要欄取得": {
+      "main": [
+        [
+          {
+            "node": "📝 概要欄処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 概要欄処理": {
+      "main": [
+        [
+          {
+            "node": "更新実行？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "更新実行？": {
+      "main": [
+        [
+          {
+            "node": "📤 概要欄更新",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "⏭️ スキップ記録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📤 概要欄更新": {
+      "main": [
+        [
+          {
+            "node": "📊 結果記録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 結果記録": {
+      "main": [
+        [
+          {
+            "node": "📊 ジョブ統計更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 ジョブ統計更新": {
+      "main": [
+        [
+          {
+            "node": "📦 バッチ処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⏭️ スキップ記録": {
+      "main": [
+        [
+          {
+            "node": "📊 スキップ統計更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 スキップ統計更新": {
+      "main": [
+        [
+          {
+            "node": "📦 バッチ処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "ガバナンス"
+    },
+    {
+      "name": "V5"
+    },
+    {
+      "name": "KillSwitch"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ]
+}

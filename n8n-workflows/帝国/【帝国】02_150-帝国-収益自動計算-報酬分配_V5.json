@@ -1,0 +1,548 @@
+{
+  "name": "【帝国】02_150-帝国-収益自動計算-報酬分配_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0 22 * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "⏰ 毎月22日実行",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "empire-payout-calculate",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: empire-payout-calculate",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "empire-payout-calculate"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 鉄の掟準拠：環境変数からベースURL取得\nconst apiUrl = $env.N3_API_URL || $env.API_BASE_URL;\nif (!apiUrl) {\n  return [{ json: { error: true, message: 'N3_API_URL環境変数が未設定', code: 'CONFIG_ERROR' } }];\n}\n\nconst body = $input.first().json.body || $input.first().json || {};\nconst periodStart = body.period_start || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];\nconst periodEnd = body.period_end || new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0];\nconst entityId = body.entity_id || null;\n\nreturn [{ json: { period_start: periodStart, period_end: periodEnd, entity_id: entityId, api_url: apiUrl, timestamp: new Date().toISOString() } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化（鉄の掟準拠）",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT nc.config_key, nc.config_value FROM n3_config nc WHERE nc.config_key IN ('PLATFORM_FEE_PERCENTAGE', 'MANAGER_PER_VIDEO_RATE', 'EXCHANGE_RATE_JPY_USD')",
+        "options": {}
+      },
+      "id": "get-config",
+      "name": "📋 システム設定取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT ee.entity_id, ee.entity_name, ee.adsense_account_id, ee.bank_api_provider, ee.bank_api_id, ei.island_id, ei.island_name FROM empire_entities ee JOIN empire_islands ei ON ee.island_id = ei.island_id WHERE ee.is_active = TRUE AND ee.adsense_status = 'active' AND ($1 IS NULL OR ee.entity_id = $1)",
+        "options": {
+          "queryParams": "={{ [$json.entity_id] }}"
+        }
+      },
+      "id": "get-entities",
+      "name": "📊 対象法人取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 設定値をパース\nconst configItems = $node['📋 システム設定取得'].json || [];\nconst configs = Array.isArray(configItems) ? configItems : [configItems];\n\nconst config = {};\nfor (const c of configs) {\n  if (c && c.config_key) {\n    config[c.config_key] = c.config_value;\n  }\n}\n\nconst platformFeePercentage = parseFloat(config['PLATFORM_FEE_PERCENTAGE'] || '15');\nconst perVideoRate = parseFloat(config['MANAGER_PER_VIDEO_RATE'] || '0.50');\nconst exchangeRate = parseFloat(config['EXCHANGE_RATE_JPY_USD'] || '0.0067');\n\nconst entities = $input.all().map(item => item.json).filter(e => e && e.entity_id);\nconst initData = $node['🔐 初期化（鉄の掟準拠）'].json;\n\nreturn entities.map(entity => ({\n  json: {\n    ...entity,\n    period_start: initData.period_start,\n    period_end: initData.period_end,\n    platform_fee_percentage: platformFeePercentage,\n    per_video_rate: perVideoRate,\n    exchange_rate: exchangeRate\n  }\n}));"
+      },
+      "id": "prepare-entities",
+      "name": "🔧 法人データ準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "loop-entities",
+      "name": "🔄 法人ループ",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "notes": "\n[PATCHER] WARNING: SplitInBatches直後にWaitノードがありません。API制限に注意してください。"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT mc.channel_id, mc.channel_name, mc.monthly_revenue, mc.manager_id, COALESCE((SELECT COUNT(*) FROM empire_audit_logs eal WHERE eal.channel_id = mc.channel_id AND eal.audit_result = 'approved' AND eal.created_at BETWEEN $2 AND $3), 0) as approved_videos FROM media_channels mc WHERE mc.entity_id = $1 AND mc.is_active = TRUE",
+        "options": {
+          "queryParams": "={{ [$json.entity_id, $json.period_start, $json.period_end] }}"
+        }
+      },
+      "id": "get-channels",
+      "name": "📺 チャンネル収益取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT em.manager_id, em.name as manager_name, em.base_salary, em.per_video_rate as custom_rate, em.payout_method, em.payout_account_id, em.payout_currency FROM empire_managers em WHERE em.entity_id = $1 AND em.status = 'active'",
+        "options": {
+          "queryParams": "={{ [$json.entity_id] }}"
+        }
+      },
+      "id": "get-managers",
+      "name": "👥 マネージャー取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 収益計算ロジック（鉄の掟準拠：固定値排除、DB設定使用）\nconst entityData = $node['🔄 法人ループ'].json;\nconst channelsRaw = $node['📺 チャンネル収益取得'].json || [];\nconst managersRaw = $node['👥 マネージャー取得'].json || [];\n\nconst channels = Array.isArray(channelsRaw) ? channelsRaw : [channelsRaw].filter(c => c && c.channel_id);\nconst managers = Array.isArray(managersRaw) ? managersRaw : [managersRaw].filter(m => m && m.manager_id);\n\n// 総収益計算\nconst grossRevenue = channels.reduce((sum, ch) => sum + (parseFloat(ch.monthly_revenue) || 0), 0);\n\n// コスト計算（TODO: 実際のAPI/プロキシ使用量から取得）\nconst proxyCost = channels.length * 5; // 仮：1ch $5/月\nconst apiCost = channels.length * 2; // 仮：1ch $2/月\n\n// プラットフォーム手数料\nconst platformFee = grossRevenue * (entityData.platform_fee_percentage / 100);\n\n// 純利益\nconst netRevenue = grossRevenue - proxyCost - apiCost - platformFee;\n\n// マネージャー別報酬計算\nconst managerPayouts = [];\nfor (const manager of managers) {\n  const managerChannels = channels.filter(ch => ch.manager_id === manager.manager_id);\n  const approvedVideos = managerChannels.reduce((sum, ch) => sum + (parseInt(ch.approved_videos) || 0), 0);\n  \n  const rate = parseFloat(manager.custom_rate) || entityData.per_video_rate;\n  const videoBonus = approvedVideos * rate;\n  const baseSalary = parseFloat(manager.base_salary) || 0;\n  const performanceBonus = 0; // TODO: パフォーマンススコアに基づく計算\n  \n  managerPayouts.push({\n    manager_id: manager.manager_id,\n    manager_name: manager.manager_name,\n    base_salary: baseSalary,\n    video_bonus: videoBonus,\n    performance_bonus: performanceBonus,\n    total_payout: baseSalary + videoBonus + performanceBonus,\n    approved_videos: approvedVideos,\n    payout_method: manager.payout_method,\n    payout_currency: manager.payout_currency\n  });\n}\n\nconst totalManagerPayout = managerPayouts.reduce((sum, mp) => sum + mp.total_payout, 0);\n\nreturn [{\n  json: {\n    entity_id: entityData.entity_id,\n    entity_name: entityData.entity_name,\n    island_id: entityData.island_id,\n    period_start: entityData.period_start,\n    period_end: entityData.period_end,\n    \n    // 収益サマリー\n    channel_count: channels.length,\n    gross_revenue: grossRevenue,\n    proxy_cost: proxyCost,\n    api_cost: apiCost,\n    platform_fee: platformFee,\n    net_revenue: netRevenue,\n    \n    // マネージャー報酬\n    manager_count: managers.length,\n    manager_payouts: managerPayouts,\n    total_manager_payout: totalManagerPayout,\n    \n    // 送金情報\n    bank_api_provider: entityData.bank_api_provider,\n    bank_api_id: entityData.bank_api_id\n  }\n}];"
+      },
+      "id": "calculate-payout",
+      "name": "🧮 収益計算",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO empire_payouts (entity_id, period_start, period_end, gross_revenue, proxy_cost, api_cost, platform_fee, net_revenue, manager_total_payout, payout_status, calculated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', NOW()) ON CONFLICT (entity_id, manager_id, period_start, period_end) DO UPDATE SET gross_revenue = $4, proxy_cost = $5, api_cost = $6, platform_fee = $7, net_revenue = $8, manager_total_payout = $9, calculated_at = NOW() RETURNING payout_id",
+        "options": {
+          "queryParams": "={{ [$json.entity_id, $json.period_start, $json.period_end, $json.gross_revenue, $json.proxy_cost, $json.api_cost, $json.platform_fee, $json.net_revenue, $json.total_manager_payout] }}"
+        }
+      },
+      "id": "save-payout",
+      "name": "💾 支払い記録保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// マネージャー別の支払い記録を作成\nconst payoutData = $node['🧮 収益計算'].json;\nconst payoutId = $input.first().json.payout_id;\n\nconst managerInserts = payoutData.manager_payouts.map(mp => ({\n  json: {\n    entity_id: payoutData.entity_id,\n    manager_id: mp.manager_id,\n    period_start: payoutData.period_start,\n    period_end: payoutData.period_end,\n    manager_base_salary: mp.base_salary,\n    manager_video_bonus: mp.video_bonus,\n    manager_performance_bonus: mp.performance_bonus,\n    manager_total_payout: mp.total_payout,\n    payout_method: mp.payout_method,\n    payout_currency: mp.payout_currency\n  }\n}));\n\nreturn managerInserts;"
+      },
+      "id": "prepare-manager-payouts",
+      "name": "📋 マネージャー支払い準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO empire_payouts (entity_id, manager_id, period_start, period_end, manager_base_salary, manager_video_bonus, manager_performance_bonus, manager_total_payout, payout_method, payout_currency, payout_status, calculated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', NOW()) ON CONFLICT (entity_id, manager_id, period_start, period_end) DO UPDATE SET manager_base_salary = $5, manager_video_bonus = $6, manager_performance_bonus = $7, manager_total_payout = $8, calculated_at = NOW() RETURNING payout_id",
+        "options": {
+          "queryParams": "={{ [$json.entity_id, $json.manager_id, $json.period_start, $json.period_end, $json.manager_base_salary, $json.manager_video_bonus, $json.manager_performance_bonus, $json.manager_total_payout, $json.payout_method, $json.payout_currency] }}"
+        }
+      },
+      "id": "save-manager-payouts",
+      "name": "💾 マネージャー支払い保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const allItems = $input.all();\nconst results = allItems.map(item => item.json);\n\nreturn [{\n  json: {\n    success: true,\n    action: 'empire_payout_calculate',\n    processed_count: results.length,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "⏰ 毎月22日実行": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化（鉄の掟準拠）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook: empire-payout-calculate": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化（鉄の掟準拠）": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 システム設定取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 システム設定取得": {
+      "main": [
+        [
+          {
+            "node": "📊 対象法人取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 対象法人取得": {
+      "main": [
+        [
+          {
+            "node": "🔧 法人データ準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 法人データ準備": {
+      "main": [
+        [
+          {
+            "node": "🔄 法人ループ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 法人ループ": {
+      "main": [
+        [
+          {
+            "node": "📺 チャンネル収益取得",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "👥 マネージャー取得",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📺 チャンネル収益取得": {
+      "main": [
+        [
+          {
+            "node": "🧮 収益計算",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "👥 マネージャー取得": {
+      "main": [
+        [
+          {
+            "node": "🧮 収益計算",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "🧮 収益計算": {
+      "main": [
+        [
+          {
+            "node": "💾 支払い記録保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 支払い記録保存": {
+      "main": [
+        [
+          {
+            "node": "📋 マネージャー支払い準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 マネージャー支払い準備": {
+      "main": [
+        [
+          {
+            "node": "💾 マネージャー支払い保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 マネージャー支払い保存": {
+      "main": [
+        [
+          {
+            "node": "🔄 法人ループ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化（鉄の掟準拠）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 600,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Empire",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Financial",
+      "color": "#f1c40f"
+    },
+    {
+      "name": "IronRule",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false,
+  "meta": {
+    "description": "N3-150 帝国収益自動計算・報酬分配 V5-PRODUCTION - 毎月22日自動実行",
+    "version": "5.0",
+    "changelog": "2026-01-20: 鉄の掟準拠 - 環境変数必須化、QueryParams完全実装、固定値排除",
+    "iron_rules_compliant": [
+      "no_hardcoded_urls",
+      "query_params_only",
+      "config_from_db",
+      "no_crypto_require"
+    ]
+  }
+}

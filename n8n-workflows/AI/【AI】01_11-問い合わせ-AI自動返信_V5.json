@@ -1,0 +1,497 @@
+{
+  "name": "【AI】01_11-問い合わせ-AI自動返信_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "inquiry-ai-response",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: inquiry-ai-response",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "inquiry-ai-response"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst headers = $input.first().json.headers || {};\nconst apiUrl = $env.N3_API_URL || '{{$env.GATEWAY_URL}}';\nconst secret = $env.N8N_INTERNAL_SECRET;\nif (!secret) return [{ json: { error: true, message: 'N8N_INTERNAL_SECRET未設定', code: 'CONFIG_ERROR' } }];\nconst internalToken = headers['x-n3-signature'] || headers['X-N3-Signature'];\nconst tokenTimestamp = headers['x-n3-token-timestamp'] || headers['X-N3-Token-Timestamp'];\nif (internalToken && tokenTimestamp) {\n  try {\n    const r = await fetch(`${apiUrl}/api/n8n-auth/verify-internal-token`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: 'system', timestamp: tokenTimestamp, token: internalToken }) });\n    if (!(await r.json()).valid) return [{ json: { error: true, message: '内部トークン無効', code: 'INVALID_TOKEN' } }];\n  } catch (e) { return [{ json: { error: true, message: 'トークン検証エラー', code: 'VERIFY_ERROR' } }]; }\n}\nconst platform = body.platform || 'ebay';\nconst buyerId = body.buyer_id || body.buyerId;\nconst messageContent = body.message || body.content || '';\nconst orderId = body.order_id || body.orderId || null;\nconst messageId = body.message_id || body.messageId || null;\nconst language = body.language || 'auto';\nif (!buyerId || !messageContent) return [{ json: { error: true, message: 'buyer_id と message が必要です', code: 'MISSING_PARAM' } }];\nreturn [{ json: { platform, buyer_id: buyerId, message_content: messageContent, order_id: orderId, message_id: messageId, language, api_url: apiUrl, request_timestamp: new Date().toISOString() } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT ou.order_id, ou.platform, ou.total_amount, ou.currency, ou.status, ou.items, ou.shipping_address, ou.created_at, COALESCE(ou.shipping_data->>'tracking_number', '') as tracking_number FROM orders_unified ou WHERE ou.buyer_id = $1 ORDER BY ou.created_at DESC LIMIT 10",
+        "options": {
+          "queryParams": "={{ [$json.buyer_id] }}"
+        }
+      },
+      "id": "get-buyer-history",
+      "name": "📋 購入履歴取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT sku, product_name, physical_quantity, listing_quantity FROM inventory_master WHERE sku IN (SELECT jsonb_array_elements_text(items->'skus') FROM orders_unified WHERE buyer_id = $1 LIMIT 5) LIMIT 20",
+        "options": {
+          "queryParams": "={{ [$node['🔐 初期化'].json.buyer_id] }}"
+        }
+      },
+      "id": "get-stock-status",
+      "name": "📦 在庫状況取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $node['🔐 初期化'].json;\nconst historyData = $node['📋 購入履歴取得'].json || [];\nconst stockData = $node['📦 在庫状況取得'].json || [];\nconst historyArray = Array.isArray(historyData) ? historyData : (historyData.order_id ? [historyData] : []);\nconst stockArray = Array.isArray(stockData) ? stockData : (stockData.sku ? [stockData] : []);\nconst historyText = historyArray.length > 0 ? historyArray.map(h => `- 注文${h.order_id}: ${h.status}, ${h.total_amount}${h.currency}, 追跡:${h.tracking_number || 'なし'}`).join('\\n') : '購入履歴なし';\nconst stockText = stockArray.length > 0 ? stockArray.map(s => `- ${s.sku}: 在庫${s.physical_quantity}個`).join('\\n') : '在庫情報なし';\nreturn [{ json: { ...config, buyer_history: historyText, stock_status: stockText, history_count: historyArray.length } }];"
+      },
+      "id": "prepare-context",
+      "name": "📝 コンテキスト準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.api_url }}/api/ai/analyze",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'gemini-1.5-flash', prompt: `あなたは多言語対応のプロフェッショナルなカスタマーサポート担当者です。\\n\\n【顧客からの問い合わせ】\\n${$json.message_content}\\n\\n【購入履歴】\\n${$json.buyer_history}\\n\\n【在庫状況】\\n${$json.stock_status}\\n\\n【指示】\\n1. 問い合わせ内容を分析し、適切な返信を生成してください\\n2. 顧客の言語（日本語/英語/その他）を検出し、同じ言語で返信してください\\n3. 購入履歴や在庫状況を参照して具体的な回答をしてください\\n4. 丁寧でプロフェッショナルなトーンを維持してください\\n5. 必要に応じて追跡番号や配送状況を含めてください\\n\\n以下のJSON形式で回答してください：\\n{\\n  \"detected_language\": \"言語コード(ja/en/de等)\",\\n  \"inquiry_type\": \"問い合わせ種別(shipping/return/stock/other)\",\\n  \"urgency\": \"緊急度(high/medium/low)\",\\n  \"reply_draft\": \"返信文\",\\n  \"internal_note\": \"社内メモ（日本語）\"\\n}`, max_tokens: 2000 }) }}",
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "ai-generate",
+      "name": "🤖 AI返信生成",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst config = $node['📝 コンテキスト準備'].json;\nlet aiResult = { detected_language: 'en', inquiry_type: 'other', urgency: 'medium', reply_draft: '', internal_note: '' };\ntry {\n  let content = response.result || response.content || response.text || JSON.stringify(response);\n  content = content.replace(/```json\\n?|```/g, '').trim();\n  const parsed = JSON.parse(content);\n  aiResult = { ...aiResult, ...parsed };\n} catch (e) {\n  aiResult.reply_draft = response.result || response.content || 'Thank you for your message. We will respond shortly.';\n  aiResult.internal_note = 'AI解析失敗: ' + e.message;\n}\nreturn [{ json: { ...config, ai_result: aiResult, generated_at: new Date().toISOString() } }];"
+      },
+      "id": "parse-ai",
+      "name": "📋 AI結果解析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO admin_tasks (task_type, priority, platform, reference_id, reference_type, subject, title, description, draft_reply, draft_content, action_required, status, created_at, updated_at) VALUES ('inquiry', $1, $2, $3, 'message', $4, $5, $6, $7, $8, true, 'pending', NOW(), NOW()) ON CONFLICT (email_id) DO UPDATE SET draft_reply = EXCLUDED.draft_reply, draft_content = EXCLUDED.draft_content, updated_at = NOW() RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.ai_result.urgency === 'high' ? 'high' : 'medium', $json.platform, $json.message_id || $json.buyer_id, $json.message_content.substring(0, 100), '問い合わせ: ' + $json.ai_result.inquiry_type, $json.message_content, $json.ai_result.reply_draft, JSON.stringify({ internal_note: $json.ai_result.internal_note, detected_language: $json.ai_result.detected_language, buyer_history_count: $json.history_count })] }}"
+        }
+      },
+      "id": "save-task",
+      "name": "💾 タスク保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-urgent",
+              "leftValue": "={{ $json.ai_result.urgency }}",
+              "rightValue": "high",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-urgent",
+      "name": "緊急？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=[info][title]🚨 緊急問い合わせ[/title]販路: {{ $json.platform }}\\nバイヤー: {{ $json.buyer_id }}\\n種別: {{ $json.ai_result.inquiry_type }}\\n\\n【内容】\\n{{ $json.message_content.substring(0, 200) }}\\n\\n【AI返信案】\\n{{ $json.ai_result.reply_draft.substring(0, 300) }}[/info]"
+            }
+          ]
+        },
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "notify-urgent",
+      "name": "🚨 緊急通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nreturn [{ json: { success: true, buyer_id: data.buyer_id, platform: data.platform, inquiry_type: data.ai_result.inquiry_type, urgency: data.ai_result.urgency, detected_language: data.ai_result.detected_language, reply_draft: data.ai_result.reply_draft, processed_at: data.generated_at } }];"
+      },
+      "id": "prepare-response",
+      "name": "📤 レスポンス準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: inquiry-ai-response": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 購入履歴取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 購入履歴取得": {
+      "main": [
+        [
+          {
+            "node": "📦 在庫状況取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 在庫状況取得": {
+      "main": [
+        [
+          {
+            "node": "📝 コンテキスト準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 コンテキスト準備": {
+      "main": [
+        [
+          {
+            "node": "🤖 AI返信生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 AI返信生成": {
+      "main": [
+        [
+          {
+            "node": "📋 AI結果解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 AI結果解析": {
+      "main": [
+        [
+          {
+            "node": "💾 タスク保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 タスク保存": {
+      "main": [
+        [
+          {
+            "node": "緊急？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "緊急？": {
+      "main": [
+        [
+          {
+            "node": "🚨 緊急通知",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📤 レスポンス準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚨 緊急通知": {
+      "main": [
+        [
+          {
+            "node": "📤 レスポンス準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📤 レスポンス準備": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 300,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Operations",
+      "color": "#4169e1"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "No-Crypto",
+      "color": "#9932cc"
+    },
+    {
+      "name": "SQL-Safe",
+      "color": "#32cd32"
+    },
+    {
+      "name": "AI-Powered",
+      "color": "#ff6347"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

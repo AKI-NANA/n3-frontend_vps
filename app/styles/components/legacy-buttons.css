@@ -1,0 +1,345 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Legacy Button Patterns
+   既存のeditingページで使われているボタンパターンを
+   CSS変数で統一管理するためのスタイル
+   ============================================================ */
+
+/* ============================================================
+   TAILWIND STYLE BUTTON OVERRIDES
+   h-7, px-2, rounded-md 等のパターンを変数化
+   ============================================================ */
+
+/* 高さ7 (28px) = sm */
+.h-7 {
+  height: var(--comp-height-sm) !important;
+}
+
+/* 高さ6 (24px) = xs */
+.h-6 {
+  height: var(--comp-height-xs) !important;
+}
+
+/* 高さ8 (32px) = md */
+.h-8 {
+  height: var(--comp-height-md) !important;
+}
+
+/* 高さ9 (36px) */
+.h-9 {
+  height: 36px !important;
+}
+
+/* 高さ10 (40px) = lg */
+.h-10 {
+  height: var(--comp-height-lg) !important;
+}
+
+/* パディング */
+.px-2 {
+  padding-left: var(--comp-px-sm) !important;
+  padding-right: var(--comp-px-sm) !important;
+}
+
+.px-3 {
+  padding-left: var(--comp-px-md) !important;
+  padding-right: var(--comp-px-md) !important;
+}
+
+.px-4 {
+  padding-left: var(--comp-px-lg) !important;
+  padding-right: var(--comp-px-lg) !important;
+}
+
+/* 角丸 */
+.rounded-md {
+  border-radius: var(--style-btn-radius, var(--radius-md)) !important;
+}
+
+.rounded-sm {
+  border-radius: var(--style-btn-radius, var(--radius-sm)) !important;
+}
+
+.rounded-lg {
+  border-radius: var(--style-btn-radius, var(--radius-lg)) !important;
+}
+
+.rounded-full {
+  border-radius: var(--radius-full) !important;
+}
+
+/* フォントサイズ */
+.text-\[11px\] {
+  font-size: var(--comp-font-sm) !important;
+}
+
+.text-\[10px\] {
+  font-size: var(--comp-font-xs) !important;
+}
+
+.text-\[12px\] {
+  font-size: var(--comp-font-md) !important;
+}
+
+.text-xs {
+  font-size: var(--comp-font-xs) !important;
+}
+
+.text-sm {
+  font-size: var(--comp-font-sm) !important;
+}
+
+/* ============================================================
+   ICON BUTTON PATTERNS (ToolPanel.tsxで使用)
+   ============================================================ */
+
+/* IconBtnのベーススタイル強制 */
+button.relative.h-7.px-2.rounded-md {
+  height: var(--comp-height-sm);
+  padding-left: var(--comp-px-sm);
+  padding-right: var(--comp-px-sm);
+  font-size: var(--comp-font-sm);
+  border-radius: var(--style-btn-radius, var(--radius-md));
+  gap: var(--comp-gap-sm);
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+/* Primary variant */
+button.relative.h-7.px-2.rounded-md.bg-\[var\(--accent\)\] {
+  background: var(--color-primary);
+  box-shadow: var(--style-btn-shadow, none);
+}
+
+button.relative.h-7.px-2.rounded-md.bg-\[var\(--accent\)\]:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+  box-shadow: var(--style-btn-shadow-hover, none);
+}
+
+/* ============================================================
+   FLOW STEP BUTTON
+   ============================================================ */
+
+.n3-flow-step {
+  display: flex;
+  align-items: center;
+  gap: var(--comp-gap-sm);
+  padding: 4px var(--comp-px-sm);
+  background: var(--panel);
+  border: var(--style-panel-border, 1px solid var(--panel-border));
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+  font-size: var(--comp-font-xs);
+  height: var(--comp-height-xs);
+}
+
+.n3-flow-step:hover { 
+  border-color: var(--color-primary); 
+  background: var(--highlight);
+}
+
+.n3-flow-step.active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-lighter);
+}
+
+.n3-flow-step.completed {
+  border-color: var(--color-success);
+  background: var(--color-success-lighter);
+}
+
+.n3-flow-step-num {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.n3-flow-step.completed .n3-flow-step-num {
+  background: var(--color-success);
+}
+
+.n3-flow-step-badge {
+  padding: 1px 5px;
+  font-size: 9px;
+  font-weight: 600;
+  border-radius: 9999px;
+  background: var(--color-warning);
+  color: white;
+}
+
+.n3-flow-step-badge.error {
+  background: var(--color-error);
+}
+
+.n3-flow-step-badge.success {
+  background: var(--color-success);
+}
+
+/* ============================================================
+   TOOLBAR STYLES (n3-toolbar)
+   ============================================================ */
+
+.n3-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px var(--comp-px-sm);
+  background: var(--panel);
+  border: var(--style-toolbar-border, 1px solid var(--panel-border));
+  border-radius: var(--style-toolbar-radius, var(--radius-md));
+  box-shadow: var(--style-toolbar-shadow, none);
+  margin-bottom: 6px;
+  min-height: 36px;
+}
+
+.n3-toolbar-group { 
+  display: flex; 
+  align-items: center; 
+  gap: 2px; 
+}
+
+.n3-toolbar-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--panel-border);
+  margin: 0 6px;
+}
+
+/* ============================================================
+   L2 TAB OVERRIDES
+   ============================================================ */
+
+.n3-l2-tab {
+  height: var(--comp-height-sm);
+  padding: 0 var(--comp-px-md) !important;
+  font-size: var(--comp-font-sm);
+  gap: var(--comp-gap-md);
+  border-radius: 0;
+  transition: var(--style-transition-fast, color 0.12s ease);
+}
+
+.n3-l2-tab.active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
+/* ============================================================
+   SELECTOR/TAB SELECTOR OVERRIDES
+   ============================================================ */
+
+.n3-toolbar-selector__item {
+  height: var(--comp-height-xs);
+  padding: 0 var(--comp-px-sm);
+  font-size: var(--comp-font-xs);
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+}
+
+.n3-toolbar-selector__item.active {
+  color: var(--color-primary);
+  background: var(--panel);
+  box-shadow: var(--style-shadow-sm, 0 1px 2px rgba(0,0,0,0.05));
+}
+
+/* ============================================================
+   LIST FILTER TABS (全商品, データ編集, 承認待ち等)
+   ============================================================ */
+
+/* フィルタータブのコンテナ */
+[class*="flex"][class*="items-center"][class*="gap-1"] > button[class*="px-3"][class*="py-1"] {
+  height: var(--comp-height-xs);
+  padding: 0 var(--comp-px-sm);
+  font-size: var(--comp-font-xs);
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+/* アクティブなフィルタータブ */
+[class*="flex"][class*="items-center"][class*="gap-1"] > button[class*="bg-\[var\(--accent\)\]"] {
+  background: var(--color-primary) !important;
+  box-shadow: var(--style-btn-shadow, none);
+}
+
+/* ============================================================
+   SMALL ACTION BUTTONS
+   ============================================================ */
+
+/* テーブル内のアクションボタン等 */
+button[class*="w-6"][class*="h-6"],
+button[class*="w-7"][class*="h-7"] {
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+/* ============================================================
+   DROPDOWN MENU ITEMS
+   ============================================================ */
+
+[role="menuitem"],
+.dropdown-item {
+  padding: 6px var(--comp-px-sm);
+  font-size: var(--comp-font-sm);
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+/* ============================================================
+   MODAL BUTTONS
+   ============================================================ */
+
+.n3-modal-footer button,
+[class*="modal"] button[class*="px-4"] {
+  height: var(--comp-height-sm);
+  padding: 0 var(--comp-px-md);
+  font-size: var(--comp-font-sm);
+  border-radius: var(--style-btn-radius, var(--radius-md));
+}
+
+/* ============================================================
+   PAGINATION BUTTONS
+   ============================================================ */
+
+.n3-pagination__btn {
+  min-width: var(--comp-height-sm);
+  height: var(--comp-height-sm);
+  font-size: var(--comp-font-sm);
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+}
+
+.n3-pagination__btn.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+/* ============================================================
+   CARD ACTION BUTTONS
+   ============================================================ */
+
+.n3-card-footer button {
+  height: var(--comp-height-xs);
+  padding: 0 var(--comp-px-sm);
+  font-size: var(--comp-font-xs);
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+}
+
+/* ============================================================
+   VIEW TOGGLE BUTTONS (リスト/カード切り替え)
+   ============================================================ */
+
+.n3-view-toggle button,
+button[title*="リスト"],
+button[title*="カード"] {
+  width: var(--comp-height-sm);
+  height: var(--comp-height-sm);
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+}
+
+.n3-view-toggle button.active {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}

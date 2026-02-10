@@ -1,0 +1,18 @@
+{
+  "name": "n3-sakurai-renderer",
+  "version": "2.0.0",
+  "description": "N3 Sakurai-Style HTML to PDF/PNG Renderer with Multilayer Support",
+  "main": "puppeteer-sakurai-renderer.js",
+  "scripts": {
+    "start": "node puppeteer-sakurai-renderer.js",
+    "dev": "node puppeteer-sakurai-renderer.js",
+    "legacy": "node puppeteer-service.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "puppeteer": "^22.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

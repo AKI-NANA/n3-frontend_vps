@@ -1,0 +1,53 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Theme: Dark
+   調整: 暗すぎない読みやすい配色
+   ============================================================ */
+
+[data-theme="dark"], .dark {
+  /* 背景 - 少し明るめに調整 */
+  --bg: #14141a;
+  --bg-solid: #14141a;
+  --glass: #1a1a22;
+  --glass-border: #2a2a34;
+  --panel: #1e1e28;
+  --panel-border: #32323c;
+  
+  /* テキスト - 読みやすいコントラスト */
+  --text: #f4f4f5;
+  --text-muted: #9ca3af;
+  --text-subtle: #6b7280;
+  
+  /* アクセント */
+  --accent: #818cf8;
+  --accent-bg: #818cf8;
+  --highlight: rgba(129, 140, 248, 0.08);
+  
+  /* ステータス */
+  --success: #34d399;
+  --warning: #fbbf24;
+  --error: #f87171;
+  --info: #60a5fa;
+  
+  /* 展開パネル専用 */
+  --expanded-bg: rgba(30, 30, 40, 0.8);
+  --expanded-section-bg: #22222c;
+}
+
+/* ヘッダーパネル */
+[data-theme="dark"] .n3-header-panel,
+[data-theme="dark"] .n3-header-panel-overlay {
+  background: #1e1e28;
+}
+
+/* テーブルヘッダー */
+[data-theme="dark"] .n3-table-scroll thead {
+  background: #1e1e28 !important;
+}
+
+/* インプット編集時 */
+[data-theme="dark"] input:focus,
+[data-theme="dark"] textarea:focus,
+[data-theme="dark"] select:focus {
+  background: #22222c;
+  border-color: var(--accent);
+}

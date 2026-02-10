@@ -1,0 +1,298 @@
+{
+  "name": "【出品】17_専用-詳細取得-出品用詳細データ取得_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "deep-fetch",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: 出品準備開始",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "deep-fetch"
+    },
+    {
+      "parameters": {
+        "jsCode": "// V5-PRODUCTION: 内部トークン検証（crypto依存排除版）\n// ========================================\nconst body = $input.first().json.body || $input.first().json;\nconst headers = $input.first().json.headers || {};\n\n// 環境変数必須チェック\nconst apiUrl = $env.N3_API_URL;\nconst secret = $env.N8N_INTERNAL_SECRET;\nif (!apiUrl) {\n  return [{ json: { error: true, message: 'N3_API_URL 環境変数が未設定です', code: 'CONFIG_ERROR' } }];\n}\nif (!secret) {\n  return [{ json: { error: true, message: 'N8N_INTERNAL_SECRET 環境変数が未設定です', code: 'CONFIG_ERROR' } }];\n}\n\nconst internalToken = headers['x-n3-signature'] || headers['X-N3-Signature'];\nconst tokenTimestamp = headers['x-n3-token-timestamp'] || headers['X-N3-Token-Timestamp'];\nconst userId = body.user_id || 'default';\n\n// トークン検証（外部APIへ委譲）\nif (internalToken && tokenTimestamp) {\n  try {\n    const verifyResponse = await fetch(`${apiUrl}/api/n8n-auth/verify-internal-token`, {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json' },\n      body: JSON.stringify({ userId, timestamp: tokenTimestamp, token: internalToken })\n    });\n    const verifyResult = await verifyResponse.json();\n    \n    if (!verifyResult.valid) {\n      return [{ json: { error: true, message: '内部トークンが無効です', code: 'INVALID_TOKEN' } }];\n    }\n  } catch (e) {\n    return [{ json: { error: true, message: 'トークン検証APIエラー: ' + e.message, code: 'VERIFY_API_ERROR' } }];\n  }\n}\n\n// 入力検証\nconst productId = body.product_id;\nconst marketplace = body.marketplace || 'ebay_us';\nconst limit = body.limit || 10;\nconst force = body.force || false;\n\nreturn [{ json: { \n  product_id: productId, \n  marketplace: marketplace, \n  user_id: userId,\n  limit: limit,\n  force: force,\n  request_timestamp: new Date().toISOString()\n} }];"
+      },
+      "id": "validate",
+      "name": "リクエスト検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.error }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 403
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.N3_API_URL || '{{$env.GATEWAY_URL}}' }}/api/amazon/product",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "asin",
+              "value": "={{ $json.asin }}"
+            },
+            {
+              "name": "detailed",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "fetch-amazon",
+      "name": "Amazon詳細取得（内部API）",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// V4-PRODUCTION: 出品用データ整形（圧縮）\nconst amazon = $input.first().json || {};\nconst request = $node['リクエスト検証'].json;\n\nconst primaryImage = amazon.images?.primary?.large?.url || amazon.imageUrl || amazon.image_url;\nconst variantImages = (amazon.images?.variants || amazon.additionalImages || []).map(v => v.large?.url || v).filter(Boolean);\nconst allImages = [primaryImage, ...variantImages].filter(Boolean);\nconst features = amazon.itemInfo?.features?.displayValues || amazon.features || [];\n\nreturn [{ json: {\n  user_id: request.user_id,\n  product_id: request.product_id,\n  asin: request.asin,\n  listing_data: {\n    t: amazon.title || amazon.itemInfo?.title?.displayValue || '',\n    b: amazon.brand || amazon.itemInfo?.byLineInfo?.brand?.displayValue || '',\n    imgs: allImages.slice(0, 12),\n    desc: features.slice(0, 5).join('\\n').substring(0, 2000),\n    w: amazon.weight || amazon.itemInfo?.productInfo?.weight?.displayValue || 'unknown',\n    cat: amazon.category || amazon.itemInfo?.classifications?.productGroup?.displayValue || ''\n  },\n  status: 'ready'\n} }];"
+      },
+      "id": "build-data",
+      "name": "出品データ構築",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE products_master SET sync_status = 'completed', ebay_api_data = $1::jsonb, updated_at = NOW() WHERE id = $2 AND user_id = $3",
+        "options": {
+          "queryParams": "={{ [{{ JSON.stringify($json.listing_data).replace(/'/g, \"''\") }}, {{ $json.product_id }}, {{ $json.user_id }}] }}"
+        }
+      },
+      "id": "save-data",
+      "name": "出品用データ保存（user_id検証）",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, product_id: $json.product_id, status: $json.status }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: 出品準備開始": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "リクエスト検証": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Amazon詳細取得（内部API）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Amazon詳細取得（内部API）": {
+      "main": [
+        [
+          {
+            "node": "出品データ構築",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "出品データ構築": {
+      "main": [
+        [
+          {
+            "node": "出品用データ保存（user_id検証）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "出品用データ保存（user_id検証）": {
+      "main": [
+        [
+          {
+            "node": "成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "リクエスト検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 120,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none"
+  },
+  "tags": [
+    {
+      "name": "N3-Fetch",
+      "color": "#1e90ff"
+    },
+    {
+      "name": "V4-PRODUCTION",
+      "color": "#ff0000"
+    },
+    {
+      "name": "Multi-Tenant",
+      "color": "#00bfff"
+    },
+    {
+      "name": "Internal-Auth",
+      "color": "#dc143c"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

@@ -1,0 +1,358 @@
+{
+  "name": "【V8.2.1-AUTONOMOUS】再帰的データ補完・Self-Healing",
+  "description": "N3 Empire OS V8.2.1-Autonomous: データ不足時に外部API/カタログを最大3回再帰検索して自動補完",
+  "_version": "8.2.1-autonomous",
+  "_27d_compliance": ["dim3_auth_gate", "dim13_decision_trace", "dim21_data_trust"],
+
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "self-healing-enrich",
+        "options": { "responseMode": "responseNode" }
+      },
+      "name": "Webhook: Self-Healing",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "self-healing-enrich"
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 🔐 認証 + 補完状態初期化\n// ============================================================================\nconst crypto = require('crypto');\nconst body = $input.first().json.body || $input.first().json;\nconst headers = $input.first().json.headers || {};\n\n// 内部呼び出し（再帰）の場合は認証スキップ\nconst isRecursive = body._recursive_call === true;\n\nif (!isRecursive) {\n  const signature = headers['x-n3-signature'] || headers['X-N3-Signature'];\n  const timestamp = headers['x-n3-timestamp'] || headers['X-N3-Timestamp'];\n  const secret = $env.N8N_HMAC_SECRET;\n\n  if (!secret) return [{ json: { error: true, code: 'CONFIG_ERROR', message: 'N8N_HMAC_SECRET未設定' }}];\n  if (!signature || !timestamp) return [{ json: { error: true, code: 'AUTH_REQUIRED', message: '認証ヘッダー欠落' }}];\n  if (Math.abs(Date.now() - parseInt(timestamp)) > 300000) return [{ json: { error: true, code: 'TIMESTAMP_EXPIRED', message: 'タイムスタンプ期限切れ' }}];\n\n  const computedHmac = crypto.createHmac('sha256', secret).update(timestamp + '.' + JSON.stringify(body)).digest('hex');\n  if (signature !== computedHmac) return [{ json: { error: true, code: 'HMAC_INVALID', message: 'HMAC検証失敗' }}];\n}\n\n// 補完設定\nconst CONFIDENCE_THRESHOLD = body.confidence_threshold || 75;\nconst MAX_DEPTH = 3;\n\n// 現在の補完深度\nconst currentDepth = body._enrichment_depth || 0;\nconst triedSources = body._tried_sources || [];\nconst tenantId = body.user_id || body.tenant_id || 'default';\nconst productId = body.product_id;\n\nif (!productId) return [{ json: { error: true, code: 'MISSING_PARAM', message: 'product_id必須' }}];\n\nreturn [{ json: {\n  product_id: productId,\n  tenant_id: tenantId,\n  current_depth: currentDepth,\n  max_depth: MAX_DEPTH,\n  tried_sources: triedSources,\n  confidence_threshold: CONFIDENCE_THRESHOLD,\n  product_data: body.product_data || null,\n  _auth_verified: true\n}}];"
+      },
+      "name": "🔐 認証 + 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [{ "id": "error", "leftValue": "={{ $json.error }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" }}]
+        }
+      },
+      "name": "エラー？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": { "responseCode": "={{ $json.code === 'AUTH_REQUIRED' || $json.code === 'HMAC_INVALID' ? 403 : 400 }}" }
+      },
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT pm.id, pm.sku, pm.title, pm.title_en, pm.description, pm.item_specifics, pm.hts_code, pm.origin_country, pm.ebay_category_id, pm.sm_confidence_score, im.weight_grams, im.dimension_cm_l, im.dimension_cm_w, im.dimension_cm_h FROM products_master pm LEFT JOIN inventory_master im ON im.product_master_id = pm.id WHERE pm.id = $1 LIMIT 1",
+        "options": { "queryParams": "={{ [$json.product_id] }}" }
+      },
+      "name": "📦 商品データ取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" }}
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 📊 データ品質評価 + 欠損フィールド特定\n// ============================================================================\nconst prevData = $node['🔐 認証 + 初期化'].json;\nconst productArr = Array.isArray($input.first().json) ? $input.first().json : [$input.first().json];\nconst product = productArr[0] || prevData.product_data;\n\nif (!product || !product.id) {\n  return [{ json: { error: true, code: 'PRODUCT_NOT_FOUND', message: '商品が見つかりません' }}];\n}\n\n// 欠損フィールドチェック\nconst missingFields = [];\nconst fieldWeights = {\n  hts_code: 20,\n  weight_grams: 15,\n  origin_country: 10,\n  item_specifics: 15,\n  title_en: 10,\n  ebay_category_id: 10,\n  dimension_cm_l: 5,\n  dimension_cm_w: 5,\n  dimension_cm_h: 5\n};\n\nlet qualityScore = 100;\n\nif (!product.hts_code || product.hts_code === '9999.99.99') {\n  missingFields.push('hts_code');\n  qualityScore -= fieldWeights.hts_code;\n}\nif (!product.weight_grams || product.weight_grams === 500) {\n  missingFields.push('weight_grams');\n  qualityScore -= fieldWeights.weight_grams;\n}\nif (!product.origin_country) {\n  missingFields.push('origin_country');\n  qualityScore -= fieldWeights.origin_country;\n}\nif (!product.item_specifics || Object.keys(product.item_specifics || {}).length < 3) {\n  missingFields.push('item_specifics');\n  qualityScore -= fieldWeights.item_specifics;\n}\nif (!product.title_en) {\n  missingFields.push('title_en');\n  qualityScore -= fieldWeights.title_en;\n}\nif (!product.ebay_category_id) {\n  missingFields.push('ebay_category_id');\n  qualityScore -= fieldWeights.ebay_category_id;\n}\nif (!product.dimension_cm_l || !product.dimension_cm_w || !product.dimension_cm_h) {\n  missingFields.push('dimensions');\n  qualityScore -= (fieldWeights.dimension_cm_l + fieldWeights.dimension_cm_w + fieldWeights.dimension_cm_h);\n}\n\n// 信頼度 = 既存SM信頼度 × データ品質係数\nconst baseConfidence = product.sm_confidence_score || 50;\nconst adjustedConfidence = Math.round(baseConfidence * (qualityScore / 100));\n\nreturn [{ json: {\n  ...prevData,\n  product: product,\n  quality_score: qualityScore,\n  missing_fields: missingFields,\n  adjusted_confidence: adjustedConfidence,\n  needs_enrichment: missingFields.length > 0 && adjustedConfidence < prevData.confidence_threshold\n}}];"
+      },
+      "name": "📊 データ品質評価",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [{ "id": "needs-enrich", "leftValue": "={{ $json.needs_enrichment }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" }}]
+        }
+      },
+      "name": "補完必要？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// 補完不要 → 完了応答準備\nconst data = $input.first().json;\nreturn [{ json: {\n  ...data,\n  enrichment_status: 'complete',\n  enrichment_message: `データ品質スコア ${data.quality_score}点、信頼度 ${data.adjusted_confidence}点で基準クリア`\n}}];"
+      },
+      "name": "補完不要",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [{ "id": "max-depth", "leftValue": "={{ $json.current_depth }}", "rightValue": "={{ $json.max_depth }}", "operator": { "type": "number", "operation": "gte" }}]
+        }
+      },
+      "name": "最大深度到達？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// 最大深度到達 → 警告付きで完了\nconst data = $input.first().json;\nreturn [{ json: {\n  ...data,\n  enrichment_status: 'max_depth_reached',\n  enrichment_message: `最大再帰深度(${data.max_depth})到達。品質スコア ${data.quality_score}点で処理続行`,\n  warning: `欠損フィールド: ${data.missing_fields.join(', ')}`\n}}];"
+      },
+      "name": "最大深度到達",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 🔄 次の補完ソース選択\n// ============================================================================\nconst data = $input.first().json;\n\nconst SOURCES = [\n  { name: 'eBay Browse API', priority: 1, fields: ['item_specifics', 'ebay_category_id', 'title_en'] },\n  { name: 'Amazon Catalog', priority: 2, fields: ['weight_grams', 'dimensions', 'origin_country'] },\n  { name: 'Gemini AI Inference', priority: 3, fields: ['hts_code', 'item_specifics', 'origin_country'] }\n];\n\n// 未試行かつ欠損フィールドをカバーするソースを選択\nconst nextSource = SOURCES.find(s => \n  !data.tried_sources.includes(s.name) && \n  s.fields.some(f => data.missing_fields.includes(f))\n);\n\nif (!nextSource) {\n  return [{ json: {\n    ...data,\n    enrichment_status: 'all_sources_exhausted',\n    enrichment_message: '全ソース試行済み。品質スコア ' + data.quality_score + '点で処理続行',\n    warning: '欠損フィールド: ' + data.missing_fields.join(', ')\n  }}];\n}\n\nreturn [{ json: {\n  ...data,\n  next_source: nextSource.name,\n  next_source_fields: nextSource.fields\n}}];"
+      },
+      "name": "🔄 ソース選択",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.next_source }}",
+        "rules": {
+          "rules": [
+            { "value2": "eBay Browse API", "output": 0 },
+            { "value2": "Amazon Catalog", "output": 1 },
+            { "value2": "Gemini AI Inference", "output": 2 }
+          ]
+        },
+        "fallbackOutput": 3
+      },
+      "name": "ソース分岐",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3
+    },
+
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.N3_API_URL }}/api/ebay/browse-search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "q", "value": "={{ $json.product?.title || $json.product?.sku }}" },
+            { "name": "limit", "value": "5" }
+          ]
+        },
+        "options": { "timeout": 30000 }
+      },
+      "name": "📡 eBay Browse API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N3_API_URL }}/api/amazon/catalog-lookup",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ query: $json.product?.title || $json.product?.sku, marketplace: 'US' }) }}",
+        "options": { "timeout": 30000 }
+      },
+      "name": "📡 Amazon Catalog API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "x-goog-api-key", "value": "={{ $env.GEMINI_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: '## 商品データ補完タスク\\n\\n商品情報:\\n- タイトル: ' + ($json.product?.title || '') + '\\n- SKU: ' + ($json.product?.sku || '') + '\\n- 既存Item Specifics: ' + JSON.stringify($json.product?.item_specifics || {}) + '\\n\\n欠損フィールド: ' + $json.missing_fields.join(', ') + '\\n\\n以下のJSON形式で補完データを推測してください:\\n```json\\n{\\n  \"hts_code\": \"HSコード（例: 8471.30.00）\",\\n  \"origin_country\": \"原産国（ISO 2文字コード）\",\\n  \"weight_grams\": 数値,\\n  \"item_specifics\": { \"Brand\": \"\", \"MPN\": \"\", \"Model\": \"\" },\\n  \"confidence\": 0-100,\\n  \"reasoning\": \"推測根拠\"\\n}\\n```' }] }], generationConfig: { temperature: 0.3, maxOutputTokens: 1024 } }) }}",
+        "options": { "timeout": 60000 }
+      },
+      "name": "🧠 Gemini AI推論",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// ソースなし → 完了\nconst data = $input.first().json;\nreturn [{ json: {\n  ...data,\n  enrichment_status: 'no_source_available',\n  enrichment_message: '利用可能な補完ソースがありません'\n}}];"
+      },
+      "name": "ソースなし",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 📊 eBay結果マージ\n// ============================================================================\nconst prevData = $node['🔄 ソース選択'].json;\nconst apiResult = $input.first().json;\n\nconst enriched = { ...prevData.product };\nlet enrichedFields = [];\n\ntry {\n  const items = apiResult.itemSummaries || apiResult.items || [];\n  const bestMatch = items[0];\n  \n  if (bestMatch) {\n    // Item Specifics補完\n    if (prevData.missing_fields.includes('item_specifics') && bestMatch.localizedAspects) {\n      const specs = bestMatch.localizedAspects.reduce((acc, asp) => {\n        acc[asp.name] = asp.value;\n        return acc;\n      }, {});\n      enriched.item_specifics = { ...(enriched.item_specifics || {}), ...specs };\n      enrichedFields.push('item_specifics');\n    }\n    \n    // カテゴリ補完\n    if (prevData.missing_fields.includes('ebay_category_id') && bestMatch.categoryId) {\n      enriched.ebay_category_id = bestMatch.categoryId;\n      enrichedFields.push('ebay_category_id');\n    }\n    \n    // 英語タイトル補完\n    if (prevData.missing_fields.includes('title_en') && bestMatch.title) {\n      enriched.title_en = bestMatch.title;\n      enrichedFields.push('title_en');\n    }\n  }\n} catch (e) {\n  // 補完失敗は警告のみ\n}\n\nreturn [{ json: {\n  ...prevData,\n  product: enriched,\n  enriched_by: 'eBay Browse API',\n  enriched_fields: enrichedFields,\n  _enrichment_depth: prevData.current_depth + 1,\n  _tried_sources: [...prevData.tried_sources, 'eBay Browse API']\n}}];"
+      },
+      "name": "📊 eBay結果マージ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 📊 Amazon結果マージ\n// ============================================================================\nconst prevData = $node['🔄 ソース選択'].json;\nconst apiResult = $input.first().json;\n\nconst enriched = { ...prevData.product };\nlet enrichedFields = [];\n\ntry {\n  const item = apiResult.items?.[0] || apiResult;\n  \n  if (item) {\n    // 重量補完\n    if (prevData.missing_fields.includes('weight_grams') && item.packageWeight) {\n      const weightKg = parseFloat(item.packageWeight.value || item.packageWeight);\n      enriched.weight_grams = Math.round(weightKg * 1000);\n      enrichedFields.push('weight_grams');\n    }\n    \n    // 寸法補完\n    if (prevData.missing_fields.includes('dimensions') && item.packageDimensions) {\n      enriched.dimension_cm_l = parseFloat(item.packageDimensions.length || 0);\n      enriched.dimension_cm_w = parseFloat(item.packageDimensions.width || 0);\n      enriched.dimension_cm_h = parseFloat(item.packageDimensions.height || 0);\n      enrichedFields.push('dimensions');\n    }\n    \n    // 原産国補完\n    if (prevData.missing_fields.includes('origin_country') && item.countryOfOrigin) {\n      enriched.origin_country = item.countryOfOrigin;\n      enrichedFields.push('origin_country');\n    }\n  }\n} catch (e) {\n  // 補完失敗は警告のみ\n}\n\nreturn [{ json: {\n  ...prevData,\n  product: enriched,\n  enriched_by: 'Amazon Catalog',\n  enriched_fields: enrichedFields,\n  _enrichment_depth: prevData.current_depth + 1,\n  _tried_sources: [...prevData.tried_sources, 'Amazon Catalog']\n}}];"
+      },
+      "name": "📊 Amazon結果マージ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 📊 Gemini AI結果マージ（信頼スコア付き）\n// ============================================================================\nconst prevData = $node['🔄 ソース選択'].json;\nconst apiResult = $input.first().json;\n\nconst enriched = { ...prevData.product };\nlet enrichedFields = [];\nlet aiConfidence = 50;\n\ntry {\n  const text = apiResult.candidates?.[0]?.content?.parts?.[0]?.text || '{}';\n  const match = text.match(/```json\\n?([\\s\\S]*?)\\n?```/) || text.match(/\\{[\\s\\S]*\\}/);\n  \n  if (match) {\n    const parsed = JSON.parse(match[1] || match[0]);\n    aiConfidence = parsed.confidence || 50;\n    \n    // 27次元-21: データ信頼スコアチェック\n    if (aiConfidence >= 60) {\n      // HSコード補完\n      if (prevData.missing_fields.includes('hts_code') && parsed.hts_code) {\n        enriched.hts_code = parsed.hts_code;\n        enrichedFields.push('hts_code');\n      }\n      \n      // 原産国補完\n      if (prevData.missing_fields.includes('origin_country') && parsed.origin_country) {\n        enriched.origin_country = parsed.origin_country;\n        enrichedFields.push('origin_country');\n      }\n      \n      // 重量補完\n      if (prevData.missing_fields.includes('weight_grams') && parsed.weight_grams) {\n        enriched.weight_grams = parsed.weight_grams;\n        enrichedFields.push('weight_grams');\n      }\n      \n      // Item Specifics補完\n      if (prevData.missing_fields.includes('item_specifics') && parsed.item_specifics) {\n        enriched.item_specifics = { ...(enriched.item_specifics || {}), ...parsed.item_specifics };\n        enrichedFields.push('item_specifics');\n      }\n    }\n  }\n} catch (e) {\n  // AI推論失敗は警告のみ\n}\n\nreturn [{ json: {\n  ...prevData,\n  product: enriched,\n  enriched_by: 'Gemini AI Inference',\n  enriched_fields: enrichedFields,\n  ai_confidence: aiConfidence,\n  _enrichment_depth: prevData.current_depth + 1,\n  _tried_sources: [...prevData.tried_sources, 'Gemini AI Inference']\n}}];"
+      },
+      "name": "📊 Gemini結果マージ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 🔄 再帰呼び出し判定\n// ============================================================================\nconst data = $input.first().json;\n\n// 補完されたフィールド数をチェック\nconst enrichedCount = data.enriched_fields?.length || 0;\nconst remainingMissing = data.missing_fields.filter(f => !data.enriched_fields?.includes(f));\n\n// まだ欠損があり、深度に余裕があれば再帰\nif (remainingMissing.length > 0 && data._enrichment_depth < data.max_depth) {\n  return [{ json: {\n    ...data,\n    _needs_recursion: true,\n    missing_fields: remainingMissing\n  }}];\n}\n\nreturn [{ json: {\n  ...data,\n  _needs_recursion: false,\n  enrichment_status: enrichedCount > 0 ? 'enriched' : 'unchanged',\n  enrichment_message: enrichedCount > 0 ? \n    `${data.enriched_by}から${enrichedCount}フィールド補完完了` : \n    '補完データなし'\n}}];"
+      },
+      "name": "🔄 再帰判定",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [{ "id": "needs-recursion", "leftValue": "={{ $json._needs_recursion }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" }}]
+        }
+      },
+      "name": "再帰必要？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_BASE_URL || $env.N8N_WEBHOOK_URL }}/webhook/self-healing-enrich",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ product_id: $json.product_id, user_id: $json.tenant_id, product_data: $json.product, _enrichment_depth: $json._enrichment_depth, _tried_sources: $json._tried_sources, _recursive_call: true, confidence_threshold: $json.confidence_threshold }) }}",
+        "options": { "timeout": 120000 }
+      },
+      "name": "🔄 再帰呼び出し",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// 再帰結果を最終結果として返す\nconst recursiveResult = $input.first().json;\nreturn [{ json: recursiveResult }];"
+      },
+      "name": "再帰結果パススルー",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE products_master SET item_specifics = COALESCE($1::jsonb, item_specifics), hts_code = COALESCE($2, hts_code), origin_country = COALESCE($3, origin_country), title_en = COALESCE($4, title_en), ebay_category_id = COALESCE($5, ebay_category_id), enrichment_depth = $6, enrichment_source = $7, updated_at = NOW() WHERE id = $8",
+        "options": { "queryParams": "={{ [JSON.stringify($json.product?.item_specifics || null), $json.product?.hts_code, $json.product?.origin_country, $json.product?.title_en, $json.product?.ebay_category_id, $json._enrichment_depth || 0, $json.enriched_by || 'none', $json.product_id] }}" }
+      },
+      "name": "💾 products_master更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" }},
+      "continueOnFail": true
+    },
+
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO enrichment_tracking (tenant_id, product_id, enrichment_depth, sources_tried, final_source, initial_confidence, final_confidence, missing_fields_before, missing_fields_after, status, completed_at, execution_time_ms) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), $11)",
+        "options": { "queryParams": "={{ [$json.tenant_id, $json.product_id, $json._enrichment_depth || 0, $json._tried_sources || [], $json.enriched_by, $json.adjusted_confidence || 50, $json.quality_score || 50, $json.missing_fields || [], $json.missing_fields?.filter(f => !($json.enriched_fields || []).includes(f)) || [], $json.enrichment_status || 'complete', Date.now() - $execution.startedAt.getTime()] }}" }
+      },
+      "name": "📊 補完履歴記録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" }},
+      "continueOnFail": true
+    },
+
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, product_id: $json.product_id, status: $json.enrichment_status, message: $json.enrichment_message, warning: $json.warning, enriched_fields: $json.enriched_fields || [], enriched_by: $json.enriched_by, depth: $json._enrichment_depth || 0, quality_score: $json.quality_score, final_confidence: $json.adjusted_confidence }) }}",
+        "options": { "responseCode": 200 }
+      },
+      "name": "✅ 最終応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    }
+  ],
+
+  "connections": {
+    "Webhook: Self-Healing": { "main": [[{ "node": "🔐 認証 + 初期化", "type": "main", "index": 0 }]] },
+    "🔐 認証 + 初期化": { "main": [[{ "node": "エラー？", "type": "main", "index": 0 }]] },
+    "エラー？": { "main": [[{ "node": "エラー応答", "type": "main", "index": 0 }], [{ "node": "📦 商品データ取得", "type": "main", "index": 0 }]] },
+    "📦 商品データ取得": { "main": [[{ "node": "📊 データ品質評価", "type": "main", "index": 0 }]] },
+    "📊 データ品質評価": { "main": [[{ "node": "補完必要？", "type": "main", "index": 0 }]] },
+    "補完必要？": { "main": [[{ "node": "最大深度到達？", "type": "main", "index": 0 }], [{ "node": "補完不要", "type": "main", "index": 0 }]] },
+    "補完不要": { "main": [[{ "node": "💾 products_master更新", "type": "main", "index": 0 }]] },
+    "最大深度到達？": { "main": [[{ "node": "最大深度到達", "type": "main", "index": 0 }], [{ "node": "🔄 ソース選択", "type": "main", "index": 0 }]] },
+    "最大深度到達": { "main": [[{ "node": "💾 products_master更新", "type": "main", "index": 0 }]] },
+    "🔄 ソース選択": { "main": [[{ "node": "ソース分岐", "type": "main", "index": 0 }]] },
+    "ソース分岐": { "main": [[{ "node": "📡 eBay Browse API", "type": "main", "index": 0 }], [{ "node": "📡 Amazon Catalog API", "type": "main", "index": 0 }], [{ "node": "🧠 Gemini AI推論", "type": "main", "index": 0 }], [{ "node": "ソースなし", "type": "main", "index": 0 }]] },
+    "📡 eBay Browse API": { "main": [[{ "node": "📊 eBay結果マージ", "type": "main", "index": 0 }]] },
+    "📡 Amazon Catalog API": { "main": [[{ "node": "📊 Amazon結果マージ", "type": "main", "index": 0 }]] },
+    "🧠 Gemini AI推論": { "main": [[{ "node": "📊 Gemini結果マージ", "type": "main", "index": 0 }]] },
+    "ソースなし": { "main": [[{ "node": "💾 products_master更新", "type": "main", "index": 0 }]] },
+    "📊 eBay結果マージ": { "main": [[{ "node": "🔄 再帰判定", "type": "main", "index": 0 }]] },
+    "📊 Amazon結果マージ": { "main": [[{ "node": "🔄 再帰判定", "type": "main", "index": 0 }]] },
+    "📊 Gemini結果マージ": { "main": [[{ "node": "🔄 再帰判定", "type": "main", "index": 0 }]] },
+    "🔄 再帰判定": { "main": [[{ "node": "再帰必要？", "type": "main", "index": 0 }]] },
+    "再帰必要？": { "main": [[{ "node": "🔄 再帰呼び出し", "type": "main", "index": 0 }], [{ "node": "💾 products_master更新", "type": "main", "index": 0 }]] },
+    "🔄 再帰呼び出し": { "main": [[{ "node": "再帰結果パススルー", "type": "main", "index": 0 }]] },
+    "再帰結果パススルー": { "main": [[{ "node": "✅ 最終応答", "type": "main", "index": 0 }]] },
+    "💾 products_master更新": { "main": [[{ "node": "📊 補完履歴記録", "type": "main", "index": 0 }]] },
+    "📊 補完履歴記録": { "main": [[{ "node": "✅ 最終応答", "type": "main", "index": 0 }]] }
+  },
+
+  "settings": {
+    "executionTimeout": 300,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+
+  "tags": [
+    { "name": "V8.2.1-Autonomous", "color": "#dc143c" },
+    { "name": "Self-Healing", "color": "#27ae60" },
+    { "name": "Recursive", "color": "#e74c3c" },
+    { "name": "Data-Quality", "color": "#9b59b6" }
+  ],
+
+  "active": false
+}

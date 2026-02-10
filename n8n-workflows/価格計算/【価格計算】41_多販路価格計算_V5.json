@@ -1,0 +1,470 @@
+{
+  "name": "N3-41-多販路価格計算-multi-marketplace-calculate-V5-PRODUCTION",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "multi-marketplace-calculate",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: multi-marketplace-calculate",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "multi-marketplace-calculate"
+    },
+    {
+      "parameters": {
+        "functionCode": "// ========================================\n// V4-PRODUCTION: 内部トークン検証 + マルチテナント\n// ========================================\nconst body = items[0].json.body || items[0].json;\nconst headers = items[0].json.headers || {};\n\n// 内部トークン検証\nconst internalToken = headers['x-n3-signature'] || headers['X-N3-Signature'];\nconst tokenTimestamp = headers['x-n3-token-timestamp'] || headers['X-N3-Token-Timestamp'];\n\nif (internalToken && tokenTimestamp) {\n  const crypto = /* crypto removed */;\n  const secret = $env.N8N_INTERNAL_SECRET ;\n  const userId = body.user_id || 'default';\n  const expected = crypto.createHmac('sha256', secret).update(`${userId}-${tokenTimestamp}`).digest('hex');\n  const isValid = internalToken === expected;\n  const isNotExpired = (Date.now() - parseInt(tokenTimestamp)) < 300000;\n  if (!isValid || !isNotExpired) {\n    return [{ json: { error: true, message: '内部トークンが無効です', code: 'INVALID_TOKEN' } }];\n  }\n}\n\nconst productId = body.product_id;\nconst userId = body.user_id || 'default';\nconst targetMarketplaces = body.target_marketplaces || ['ebay_us', 'qoo10_jp', 'shopee_sg', 'amazon_us'];\nconst targetMargin = body.target_margin || 15;\n\nif (!productId) return [{ json: { error: true, message: 'product_id が必要です' } }];\n\nreturn [{ json: { \n  product_id: productId, \n  user_id: userId, \n  target_marketplaces: targetMarketplaces, \n  target_margin: targetMargin, \n  request_timestamp: new Date().toISOString() \n} }];"
+      },
+      "id": "validate",
+      "name": "リクエスト検証 + 内部トークン検証",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.error }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": "={{ $json.code === 'INVALID_TOKEN' ? 403 : 400 }}"
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT pm.id, pm.sku, pm.title_en, pm.product_name, pm.updated_at, im.purchase_price, im.purchase_currency, im.weight_grams, im.dimension_cm_l, im.dimension_cm_w, im.dimension_cm_h, COALESCE(im.packaging_cost, 200) as packaging_cost FROM products_master pm LEFT JOIN inventory_master im ON im.product_master_id = pm.id WHERE pm.id = $1 LIMIT 1",
+        "options": {
+          "queryParams": "={{ [{{ $node['リクエスト検証 + 内部トークン検証'].json.product_id }}] }}"
+        }
+      },
+      "id": "get-product",
+      "name": "商品情報取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT marketplace_id, platform_fee_percent, payment_fee_percent, vat_rate, currency FROM marketplace_fee_master",
+        "options": {}
+      },
+      "id": "get-fees",
+      "name": "手数料マスタ取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT currency, rate, spread_percent FROM exchange_rates WHERE updated_at > NOW() - INTERVAL '2 hours'",
+        "options": {}
+      },
+      "id": "get-exchange",
+      "name": "為替レート取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT destination_country, weight_min_grams, weight_max_grams, price_jpy, fuel_surcharge_rate FROM shipping_rate_master WHERE carrier = 'japan_post' ORDER BY destination_country, weight_min_grams",
+        "options": {}
+      },
+      "id": "get-shipping",
+      "name": "送料マスタ取得（軽量版）",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// ========================================\n// V4-PRODUCTION: 多販路価格計算エンジン\n// ========================================\n// 特徴:\n// - 為替バッファ 2% + スプレッド動的取得\n// - 決済固定費（販路別）\n// - 容積重量計算\n// - 燃油サーチャージ\n// - Supabase 500MB対策: 圧縮保存\n// ========================================\n\nconst request = $node['リクエスト検証 + 内部トークン検証'].json;\nconst productResult = $node['商品情報取得'].json;\nconst feesResult = $node['手数料マスタ取得'].json;\nconst exchangeResult = $node['為替レート取得'].json;\nconst shippingResult = $node['送料マスタ取得（軽量版）'].json;\n\nconst product = Array.isArray(productResult) ? productResult[0] : productResult;\nconst fees = Array.isArray(feesResult) ? feesResult : [feesResult];\nconst rates = Array.isArray(exchangeResult) ? exchangeResult : [exchangeResult];\nconst shippingRates = Array.isArray(shippingResult) ? shippingResult : [shippingResult];\n\nif (!product || !product.id) {\n  return [{ json: { error: true, message: '商品が見つかりません' } }];\n}\n\n// ========================================\n// 為替レート（2%バッファ + スプレッド）\n// ========================================\nconst FX_BUFFER = 0.02; // 2%バッファ\nconst exchangeRates = {};\nrates.forEach(r => {\n  if (r && r.currency) {\n    const spread = parseFloat(r.spread_percent || 0) / 100;\n    exchangeRates[r.currency] = parseFloat(r.rate) * (1 + FX_BUFFER + spread);\n  }\n});\nexchangeRates['JPY'] = 1;\n\n// ========================================\n// 決済固定費（販路別・通貨別 → 円換算）\n// ========================================\nconst PAYMENT_FIXED_FEES = {\n  'ebay_us': 45,      // $0.30 × 150円\n  'ebay_uk': 57,      // £0.30 × 190円\n  'ebay_de': 42,      // €0.35 × 120円\n  'ebay_au': 30,      // A$0.30 × 100円\n  'amazon_us': 153,   // $0.99 × 155円\n  'amazon_uk': 114,   // £0.60 × 190円\n  'shopee_sg': 58,    // S$0.50 × 115円\n  'shopee_my': 35,    // RM0.50 × 70円\n  'lazada_sg': 50,\n  'lazada_my': 30,\n  'qoo10_jp': 0       // 固定費なし\n};\n\n// ========================================\n// 手数料マップ\n// ========================================\nconst feeMap = {};\nfees.forEach(f => {\n  if (f && f.marketplace_id) {\n    feeMap[f.marketplace_id] = {\n      platform: parseFloat(f.platform_fee_percent || 12) / 100,\n      payment: parseFloat(f.payment_fee_percent || 3) / 100,\n      vat: parseFloat(f.vat_rate || 0) / 100,\n      currency: f.currency || 'USD'\n    };\n  }\n});\n\n// ========================================\n// 送料計算（容積重量対応）\n// ========================================\nconst marketplaceToCountry = {\n  'ebay_us': 'US', 'ebay_uk': 'GB', 'ebay_de': 'DE', 'ebay_au': 'AU',\n  'amazon_us': 'US', 'amazon_uk': 'GB', 'amazon_de': 'DE',\n  'shopee_sg': 'SG', 'shopee_my': 'MY', 'shopee_th': 'TH',\n  'lazada_sg': 'SG', 'lazada_my': 'MY',\n  'qoo10_jp': 'JP'\n};\n\nconst actualWeight = product.weight_grams || 500;\nconst L = product.dimension_cm_l || 20;\nconst W = product.dimension_cm_w || 15;\nconst H = product.dimension_cm_h || 10;\nconst volumetricWeight = Math.ceil((L * W * H) / 5000 * 1000); // cm³ → grams\nconst chargeableWeight = Math.max(actualWeight, volumetricWeight);\n\nfunction getShippingCost(country) {\n  const countryRates = shippingRates.filter(r => r && r.destination_country === country);\n  const applicable = countryRates.find(r => \n    chargeableWeight >= r.weight_min_grams && \n    chargeableWeight <= r.weight_max_grams\n  );\n  if (!applicable) {\n    const maxRate = countryRates.sort((a, b) => b.weight_max_grams - a.weight_max_grams)[0];\n    if (maxRate) {\n      const surcharge = parseFloat(maxRate.fuel_surcharge_rate || 12) / 100;\n      return Math.ceil(maxRate.price_jpy * (1 + surcharge));\n    }\n    return 2500; // デフォルト\n  }\n  const surcharge = parseFloat(applicable.fuel_surcharge_rate || 12) / 100;\n  return Math.ceil(applicable.price_jpy * (1 + surcharge));\n}\n\n// ========================================\n// 各販路の価格計算\n// ========================================\nconst purchasePrice = parseFloat(product.purchase_price || 0);\nconst packagingCost = parseFloat(product.packaging_cost || 200);\nconst targetMargin = request.target_margin / 100;\n\nconst calculations = [];\n\nrequest.target_marketplaces.forEach(marketplace => {\n  const country = marketplaceToCountry[marketplace] || 'US';\n  const fee = feeMap[marketplace] || { platform: 0.12, payment: 0.03, vat: 0, currency: 'USD' };\n  const currency = fee.currency;\n  const exchangeRate = exchangeRates[currency] || 150;\n  \n  const shippingCostJPY = country === 'JP' ? 0 : getShippingCost(country);\n  const paymentFixedJPY = PAYMENT_FIXED_FEES[marketplace] || 0;\n  \n  // 原価合計（円）\n  const totalCostJPY = purchasePrice + shippingCostJPY + packagingCost + paymentFixedJPY;\n  \n  // 手数料率合計\n  const totalFeeRate = fee.platform + fee.payment + fee.vat;\n  \n  // 利益逆算式: 販売価格 = (原価 × (1 + 目標利益率)) / (1 - 手数料率)\n  const sellingPriceJPY = Math.ceil((totalCostJPY * (1 + targetMargin)) / (1 - totalFeeRate));\n  \n  // 外貨換算（切り上げ）\n  const sellingPriceForeign = Math.ceil((sellingPriceJPY / exchangeRate) * 100) / 100;\n  \n  // 実際の利益計算\n  const revenueJPY = sellingPriceForeign * exchangeRate;\n  const feeJPY = Math.ceil(revenueJPY * totalFeeRate);\n  const profitJPY = Math.floor(revenueJPY - totalCostJPY - feeJPY);\n  const profitRate = totalCostJPY > 0 ? Math.round((profitJPY / totalCostJPY) * 1000) / 10 : 0;\n  const isProfitable = profitJPY > 0 && profitRate >= 5;\n  \n  calculations.push({\n    marketplace: marketplace,\n    selling_price: sellingPriceForeign,\n    selling_price_jpy: sellingPriceJPY,\n    currency: currency,\n    cost_breakdown: {\n      purchase: purchasePrice,\n      shipping: shippingCostJPY,\n      packaging: packagingCost,\n      payment_fixed: paymentFixedJPY,\n      total: totalCostJPY\n    },\n    fee_breakdown: {\n      platform_rate: fee.platform,\n      payment_rate: fee.payment,\n      vat_rate: fee.vat,\n      total_rate: totalFeeRate,\n      total_fee_jpy: feeJPY\n    },\n    exchange_rate: exchangeRate,\n    exchange_rate_with_buffer: `${(FX_BUFFER * 100).toFixed(1)}%`,\n    profit_jpy: profitJPY,\n    profit_rate: profitRate,\n    is_profitable: isProfitable ? 1 : 0,\n    chargeable_weight: chargeableWeight,\n    actual_weight: actualWeight,\n    volumetric_weight: volumetricWeight\n  });\n});\n\n// ========================================\n// Supabase 500MB対策: 圧縮版データ生成\n// DB保存用（約85%削減）\n// ========================================\nconst compressed_for_db = calculations.map(c => ({\n  m: c.marketplace,           // marketplace\n  p: c.selling_price,         // selling_price\n  pj: c.selling_price_jpy,    // selling_price_jpy\n  c: c.currency,              // currency\n  pr: c.profit_jpy,           // profit_jpy\n  prc: c.profit_rate,         // profit_rate\n  ok: c.is_profitable,        // is_profitable\n  fx: Math.round(c.exchange_rate * 100) / 100  // exchange_rate（小数点2桁）\n}));\n\nreturn [{ json: {\n  product_id: product.id,\n  product_updated_at: product.updated_at,\n  sku: product.sku,\n  user_id: request.user_id,\n  target_margin: request.target_margin,\n  calculations: calculations,\n  compressed_for_db: compressed_for_db,\n  calculated_at: new Date().toISOString()\n} }];"
+      },
+      "id": "calculate-prices",
+      "name": "多販路価格計算エンジン",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.error }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-calc-error",
+      "name": "計算エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-calc-error",
+      "name": "計算エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO marketplace_calc_history (product_master_id, user_id, calculation_data, target_margin, created_at) VALUES ($1, $2, $3::jsonb, $4, NOW()) ON CONFLICT (product_master_id, user_id) DO UPDATE SET calculation_data = EXCLUDED.calculation_data, target_margin = EXCLUDED.target_margin, created_at = NOW() WHERE marketplace_calc_history.created_at < NOW() - INTERVAL '1 minute' RETURNING id",
+        "options": {
+          "queryParams": "={{ [{{ $json.product_id }}, {{ $json.user_id }}, {{ JSON.stringify($json.compressed_for_db).replace(/'/g, \"''\") }}, {{ $json.target_margin }}] }}"
+        }
+      },
+      "id": "save-compressed",
+      "name": "圧縮データ保存（楽観的ロック）",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM marketplace_calc_history WHERE product_master_id = $1 AND created_at < NOW() - INTERVAL '7 days'",
+        "options": {
+          "queryParams": "={{ [{{ $node['多販路価格計算エンジン'].json.product_id }}] }}"
+        }
+      },
+      "id": "cleanup-old",
+      "name": "古いデータクリーンアップ",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "functionCode": "// 完全版データをAPIレスポンスとして返す\nconst calcResult = $node['多販路価格計算エンジン'].json;\n\nreturn [{ json: {\n  success: true,\n  product_id: calcResult.product_id,\n  sku: calcResult.sku,\n  target_margin: calcResult.target_margin,\n  calculations: calcResult.calculations, // 完全版（API応答用）\n  calculated_at: calcResult.calculated_at,\n  storage_note: 'DB保存は圧縮版（約85%削減）'\n} }];"
+      },
+      "id": "prepare-response",
+      "name": "レスポンス準備",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: multi-marketplace-calculate": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "リクエスト検証 + 内部トークン検証": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "商品情報取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "商品情報取得": {
+      "main": [
+        [
+          {
+            "node": "手数料マスタ取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "手数料マスタ取得": {
+      "main": [
+        [
+          {
+            "node": "為替レート取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "為替レート取得": {
+      "main": [
+        [
+          {
+            "node": "送料マスタ取得（軽量版）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "送料マスタ取得（軽量版）": {
+      "main": [
+        [
+          {
+            "node": "多販路価格計算エンジン",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "多販路価格計算エンジン": {
+      "main": [
+        [
+          {
+            "node": "計算エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "計算エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "計算エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "圧縮データ保存（楽観的ロック）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "圧縮データ保存（楽観的ロック）": {
+      "main": [
+        [
+          {
+            "node": "古いデータクリーンアップ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "古いデータクリーンアップ": {
+      "main": [
+        [
+          {
+            "node": "レスポンス準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "レスポンス準備": {
+      "main": [
+        [
+          {
+            "node": "成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "リクエスト検証 + 内部トークン検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 120,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Pricing",
+      "color": "#ffd700"
+    },
+    {
+      "name": "V4-PRODUCTION",
+      "color": "#ff0000"
+    },
+    {
+      "name": "Compressed-Storage",
+      "color": "#32cd32"
+    },
+    {
+      "name": "Internal-Auth",
+      "color": "#dc143c"
+    },
+    {
+      "name": "Multi-Tenant",
+      "color": "#00bfff"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

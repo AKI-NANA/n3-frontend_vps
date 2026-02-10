@@ -1,0 +1,634 @@
+{
+  "name": "N3-V8-POLICY-VALIDATOR: コンテンツ検閲・ポリシーチェック",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// ========================================\n// N3 V8 Policy-Validator: 入力検証\n// ========================================\n\nconst input = $input.first().json;\n\n// 必須パラメータ\nif (!input.tenant_id || !input.content) {\n  return [{\n    json: {\n      allowed: false,\n      action: 'stop',\n      error: 'MISSING_REQUIRED_FIELDS',\n      required: ['tenant_id', 'content'],\n      timestamp: new Date().toISOString()\n    }\n  }];\n}\n\n// 次のノードへ\nreturn [{\n  json: {\n    tenant_id: input.tenant_id,\n    content: input.content,\n    content_type: input.content_type || 'text',\n    url: input.url || null,\n    context: input.context || {},\n    skip_robots_check: input.skip_robots_check || false,\n    skip_ai_check: input.skip_ai_check || false,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "validate-input",
+      "name": "1. 入力検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/rpc/validate_content",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"p_tenant_id\": \"{{$json.tenant_id}}\",\n  \"p_content\": {{JSON.stringify($json.content)}},\n  \"p_content_type\": \"{{$json.content_type}}\",\n  \"p_context\": {{JSON.stringify($json.context)}}\n}",
+        "options": {
+          "timeout": 15000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "db-validate",
+      "name": "2. DBポリシーチェック",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        650,
+        300
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {},
+          "conditions": [
+            {
+              "id": "has-url",
+              "leftValue": "={{$node['1. 入力検証'].json.url}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "skip-robots",
+              "leftValue": "={{$node['1. 入力検証'].json.skip_robots_check}}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-url-check",
+      "name": "URLチェック必要?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        850,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/rpc/check_robots_txt",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"p_url\": \"{{$node['1. 入力検証'].json.url}}\"\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "robots-check",
+      "name": "3a. robots.txtチェック",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1050,
+        200
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {},
+          "conditions": [
+            {
+              "id": "needs-fetch",
+              "leftValue": "={{$json.needs_fetch}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-needs-fetch",
+      "name": "robots.txt取得必要?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1250,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://{{$json.domain}}/robots.txt",
+        "options": {
+          "timeout": 5000,
+          "redirect": {
+            "redirect": {
+              "followRedirects": true,
+              "maxRedirects": 3
+            }
+          },
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "fetch-robots",
+      "name": "robots.txt取得",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1450,
+        100
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "functionCode": "// ========================================\n// robots.txt解析・キャッシュ保存\n// ========================================\n\nconst robotsTxt = $input.first();\nconst prevNode = $node['robots.txt取得必要?'].json;\nconst domain = prevNode.domain;\nconst path = prevNode.path;\n\nlet disallowPaths = [];\nlet allowPaths = [];\nlet crawlDelay = null;\nlet isAllowed = true;\n\n// robots.txt取得成功時\nif (robotsTxt && !robotsTxt.json.error) {\n  const content = typeof robotsTxt.json === 'string' \n    ? robotsTxt.json \n    : robotsTxt.json.data || '';\n  \n  // パース\n  const lines = content.split('\\n');\n  let currentAgent = '';\n  \n  for (const line of lines) {\n    const trimmed = line.trim().toLowerCase();\n    \n    if (trimmed.startsWith('user-agent:')) {\n      currentAgent = trimmed.replace('user-agent:', '').trim();\n    } else if (currentAgent === '*' || currentAgent === 'googlebot') {\n      if (trimmed.startsWith('disallow:')) {\n        const p = line.split(':')[1]?.trim();\n        if (p) disallowPaths.push(p);\n      } else if (trimmed.startsWith('allow:')) {\n        const p = line.split(':')[1]?.trim();\n        if (p) allowPaths.push(p);\n      } else if (trimmed.startsWith('crawl-delay:')) {\n        crawlDelay = parseInt(line.split(':')[1]?.trim()) || null;\n      }\n    }\n  }\n  \n  // パスチェック\n  for (const disallow of disallowPaths) {\n    if (path.startsWith(disallow)) {\n      isAllowed = false;\n      break;\n    }\n  }\n  \n  // allowで上書き\n  for (const allow of allowPaths) {\n    if (path.startsWith(allow)) {\n      isAllowed = true;\n      break;\n    }\n  }\n}\n\nreturn [{\n  json: {\n    domain,\n    path,\n    allowed: isAllowed,\n    disallow_paths: disallowPaths,\n    allow_paths: allowPaths,\n    crawl_delay: crawlDelay,\n    reason: isAllowed ? null : 'disallowed_by_robots_txt'\n  }\n}];"
+      },
+      "id": "parse-robots",
+      "name": "robots.txt解析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1650,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/core.robots_txt_cache",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"domain\": \"{{$json.domain}}\",\n  \"disallow_paths\": {{JSON.stringify($json.disallow_paths)}},\n  \"allow_paths\": {{JSON.stringify($json.allow_paths)}},\n  \"crawl_delay\": {{$json.crawl_delay || 'null'}},\n  \"fetched_at\": \"{{$now.toISO()}}\",\n  \"expires_at\": \"{{$now.plus({hours: 24}).toISO()}}\"\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "cache-robots",
+      "name": "キャッシュ保存",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1850,
+        100
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {},
+          "conditions": [
+            {
+              "id": "ai-check",
+              "leftValue": "={{$node['1. 入力検証'].json.skip_ai_check}}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "need-ai",
+              "leftValue": "={{$node['2. DBポリシーチェック'].json.max_severity}}",
+              "rightValue": "warning",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-ai-check",
+      "name": "AI追加チェック?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1050,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{$env.ANTHROPIC_API_KEY}}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-3-5-haiku-20241022\",\n  \"max_tokens\": 500,\n  \"messages\": [{\n    \"role\": \"user\",\n    \"content\": \"以下のテキストを分析し、JSONで回答してください。\\n\\n【分析対象】\\n{{$node['1. 入力検証'].json.content.replace(/\"/g, '\\\\\"').substring(0, 2000)}}\\n\\n【チェック項目】\\n1. 法的リスク（断定的な投資助言、医療アドバイス、保証表現）\\n2. 利用規約違反の可能性（スパム、誇大広告）\\n3. 不適切な表現\\n\\n【回答形式（JSON）】\\n{\\n  \\\"has_legal_risk\\\": boolean,\\n  \\\"legal_risk_details\\\": string or null,\\n  \\\"has_tos_violation\\\": boolean,\\n  \\\"tos_violation_details\\\": string or null,\\n  \\\"risk_level\\\": \\\"low\\\" | \\\"medium\\\" | \\\"high\\\",\\n  \\\"recommendation\\\": \\\"allow\\\" | \\\"flag\\\" | \\\"wait_approval\\\" | \\\"stop\\\"\\n}\"\n  }]\n}",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "ai-analyze",
+      "name": "4. AI分析（Claude）",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1250,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// ========================================\n// AI分析結果パース\n// ========================================\n\nconst aiResponse = $input.first().json;\n\ntry {\n  // Claudeのレスポンスからテキスト抽出\n  const text = aiResponse.content?.[0]?.text || '';\n  \n  // JSON抽出（コードブロック対応）\n  let jsonStr = text;\n  if (text.includes('```json')) {\n    jsonStr = text.split('```json')[1].split('```')[0].trim();\n  } else if (text.includes('```')) {\n    jsonStr = text.split('```')[1].split('```')[0].trim();\n  }\n  \n  const analysis = JSON.parse(jsonStr);\n  \n  return [{\n    json: {\n      ai_analyzed: true,\n      has_legal_risk: analysis.has_legal_risk || false,\n      legal_risk_details: analysis.legal_risk_details,\n      has_tos_violation: analysis.has_tos_violation || false,\n      tos_violation_details: analysis.tos_violation_details,\n      risk_level: analysis.risk_level || 'low',\n      ai_recommendation: analysis.recommendation || 'allow'\n    }\n  }];\n  \n} catch (e) {\n  return [{\n    json: {\n      ai_analyzed: false,\n      ai_error: e.message,\n      risk_level: 'medium',\n      ai_recommendation: 'flag'\n    }\n  }];\n}"
+      },
+      "id": "parse-ai",
+      "name": "AI結果パース",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1450,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// ========================================\n// N3 V8 Policy-Validator: 最終判定\n// ========================================\n\nconst input = $node['1. 入力検証'].json;\nconst dbResult = $node['2. DBポリシーチェック'].json;\n\n// robots.txt結果（存在する場合）\nlet robotsResult = null;\nlet robotsAllowed = true;\ntry {\n  const robotsNode = $node['robots.txt解析']?.json || $node['3a. robots.txtチェック']?.json;\n  if (robotsNode) {\n    robotsAllowed = robotsNode.allowed !== false;\n    robotsResult = robotsNode;\n  }\n} catch (e) {}\n\n// AI分析結果（存在する場合）\nlet aiResult = null;\ntry {\n  aiResult = $node['AI結果パース']?.json;\n} catch (e) {}\n\n// 最終判定ロジック\nlet finalAction = dbResult.action || 'allow';\nlet finalRiskLevel = dbResult.max_severity || 'info';\nlet violations = dbResult.violations || [];\nlet requiresApproval = false;\nlet requiresDisclaimer = false;\nlet disclaimerType = null;\n\n// robots.txt違反\nif (!robotsAllowed) {\n  finalAction = 'stop';\n  violations.push({\n    type: 'robots_txt',\n    severity: 'error',\n    reason: robotsResult?.reason || 'robots.txt violation'\n  });\n}\n\n// AI分析結果を統合\nif (aiResult && aiResult.ai_analyzed) {\n  if (aiResult.has_legal_risk) {\n    requiresApproval = true;\n    requiresDisclaimer = true;\n    disclaimerType = 'financial';\n    violations.push({\n      type: 'ai_legal_risk',\n      severity: 'warning',\n      details: aiResult.legal_risk_details\n    });\n  }\n  \n  if (aiResult.has_tos_violation) {\n    violations.push({\n      type: 'ai_tos_violation',\n      severity: 'warning',\n      details: aiResult.tos_violation_details\n    });\n  }\n  \n  // AIの推奨がより厳しい場合は採用\n  const actionPriority = ['allow', 'flag', 'wait_approval', 'stop'];\n  if (actionPriority.indexOf(aiResult.ai_recommendation) > actionPriority.indexOf(finalAction)) {\n    finalAction = aiResult.ai_recommendation;\n  }\n  \n  // リスクレベル更新\n  const riskPriority = ['info', 'warning', 'error', 'critical'];\n  if (riskPriority.indexOf(aiResult.risk_level) > riskPriority.indexOf(finalRiskLevel)) {\n    finalRiskLevel = aiResult.risk_level;\n  }\n}\n\n// HitL承認が必要な場合\nif (finalAction === 'wait_approval' || requiresApproval) {\n  finalAction = 'wait_approval';\n}\n\nreturn [{\n  json: {\n    // 最終判定\n    allowed: finalAction === 'allow' || finalAction === 'flag',\n    action: finalAction,\n    risk_level: finalRiskLevel,\n    \n    // 違反情報\n    violation_count: violations.length,\n    violations: violations,\n    \n    // HitL関連\n    requires_approval: finalAction === 'wait_approval',\n    requires_disclaimer: requiresDisclaimer,\n    disclaimer_type: disclaimerType,\n    \n    // robots.txt情報\n    robots_txt: robotsResult ? {\n      checked: true,\n      allowed: robotsAllowed,\n      crawl_delay: robotsResult.crawl_delay\n    } : { checked: false },\n    \n    // AI分析情報\n    ai_analysis: aiResult ? {\n      analyzed: aiResult.ai_analyzed,\n      recommendation: aiResult.ai_recommendation,\n      risk_level: aiResult.risk_level\n    } : { analyzed: false },\n    \n    // トレース\n    validator_trace_id: `val-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "final-decision",
+      "name": "5. 最終判定",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1850,
+        350
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/core.audit_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{$env.SUPABASE_SERVICE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"tenant_id\": \"{{$node['1. 入力検証'].json.tenant_id}}\",\n  \"event_type\": \"policy.validation_completed\",\n  \"event_category\": \"system\",\n  \"severity\": \"{{$json.risk_level === 'critical' ? 'error' : $json.risk_level === 'error' ? 'warning' : 'info'}}\",\n  \"action\": \"{{$json.action}}\",\n  \"metadata\": {\n    \"violation_count\": {{$json.violation_count}},\n    \"requires_approval\": {{$json.requires_approval}},\n    \"ai_analyzed\": {{$json.ai_analysis?.analyzed || false}},\n    \"robots_checked\": {{$json.robots_txt?.checked || false}},\n    \"trace_id\": \"{{$json.validator_trace_id}}\"\n  }\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "log-audit",
+      "name": "6. 監査ログ記録",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2050,
+        350
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// 最終出力\nconst result = $node['5. 最終判定'].json;\n\nreturn [{ json: result }];"
+      },
+      "id": "output",
+      "name": "✅ 出力",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2250,
+        350
+      ]
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "1. 入力検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "1. 入力検証": {
+      "main": [
+        [
+          {
+            "node": "2. DBポリシーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. DBポリシーチェック": {
+      "main": [
+        [
+          {
+            "node": "URLチェック必要?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "URLチェック必要?": {
+      "main": [
+        [
+          {
+            "node": "3a. robots.txtチェック",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI追加チェック?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3a. robots.txtチェック": {
+      "main": [
+        [
+          {
+            "node": "robots.txt取得必要?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "robots.txt取得必要?": {
+      "main": [
+        [
+          {
+            "node": "robots.txt取得",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI追加チェック?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "robots.txt取得": {
+      "main": [
+        [
+          {
+            "node": "robots.txt解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "robots.txt解析": {
+      "main": [
+        [
+          {
+            "node": "キャッシュ保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "キャッシュ保存": {
+      "main": [
+        [
+          {
+            "node": "AI追加チェック?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI追加チェック?": {
+      "main": [
+        [
+          {
+            "node": "4. AI分析（Claude）",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "5. 最終判定",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4. AI分析（Claude）": {
+      "main": [
+        [
+          {
+            "node": "AI結果パース",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI結果パース": {
+      "main": [
+        [
+          {
+            "node": "5. 最終判定",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5. 最終判定": {
+      "main": [
+        [
+          {
+            "node": "6. 監査ログ記録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6. 監査ログ記録": {
+      "main": [
+        [
+          {
+            "node": "✅ 出力",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    "v8-fortress",
+    "policy-validator",
+    "shared-workflow"
+  ],
+  "meta": {
+    "description": "コンテンツのポリシー違反・法的リスクを検査する共有ワークフロー",
+    "input": {
+      "tenant_id": "UUID - テナントID（必須）",
+      "content": "string - チェック対象テキスト（必須）",
+      "content_type": "string - コンテンツ種別（オプション）",
+      "url": "string - URLチェック対象（オプション）",
+      "skip_robots_check": "boolean - robots.txtチェックをスキップ",
+      "skip_ai_check": "boolean - AIチェックをスキップ"
+    },
+    "output": {
+      "allowed": "boolean - 許可/拒否",
+      "action": "string - 推奨アクション（allow/flag/wait_approval/stop）",
+      "violations": "array - 検出された違反リスト",
+      "requires_approval": "boolean - HitL承認が必要か"
+    }
+  }
+}

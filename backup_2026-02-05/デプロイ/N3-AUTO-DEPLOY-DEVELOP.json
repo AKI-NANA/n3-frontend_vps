@@ -1,0 +1,167 @@
+{
+  "name": "N3-AUTO-DEPLOY-DEVELOP",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "毎日午前3時",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "command": "={{ $env.N3_DEPLOY_SCRIPT || '~/n3-frontend_new/scripts/n3-auto-deploy.sh' }}"
+      },
+      "id": "execute-deploy",
+      "name": "自動デプロイ実行",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-success",
+              "leftValue": "={{ $json.exitCode }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-success",
+      "name": "成功?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/={{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "=body=[info][title]✅ N3 自動デプロイ完了（develop）[/title]日時: {{ $now.format('yyyy-MM-dd HH:mm:ss') }}\nブランチ: develop\n\n■ 次のアクション\n1. VPSで動作確認: {{ $env.NEXT_PUBLIC_APP_URL || 'https://arita-and.com' }}\n2. 問題なければ本番昇格: n3-promote-to-main.sh[/info]",
+        "options": {}
+      },
+      "id": "chatwork-success",
+      "name": "ChatWork通知（成功）",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/={{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "=body=[info][title]⚠️ N3 自動デプロイ失敗[/title]日時: {{ $now.format('yyyy-MM-dd HH:mm:ss') }}\nブランチ: develop\n\n■ エラー内容\n{{ $('自動デプロイ実行').item.json.stderr || '詳細不明' }}\n\n■ 対応\n1. ログ確認: tail -100 ~/n3-deploy.log\n2. 手動でリトライ: bash ~/n3-frontend_new/scripts/n3-auto-deploy.sh[/info]",
+        "options": {}
+      },
+      "id": "chatwork-error",
+      "name": "ChatWork通知（失敗）",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 400]
+    }
+  ],
+  "connections": {
+    "毎日午前3時": {
+      "main": [
+        [
+          {
+            "node": "自動デプロイ実行",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "自動デプロイ実行": {
+      "main": [
+        [
+          {
+            "node": "成功?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "成功?": {
+      "main": [
+        [
+          {
+            "node": "ChatWork通知（成功）",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "ChatWork通知（失敗）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "N3"
+    },
+    {
+      "name": "Deploy"
+    },
+    {
+      "name": "Cron"
+    }
+  ],
+  "pinData": {}
+}

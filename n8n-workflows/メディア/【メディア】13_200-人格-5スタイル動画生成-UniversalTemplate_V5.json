@@ -1,0 +1,515 @@
+{
+  "name": "【メディア】13_200-人格-5スタイル動画生成-UniversalTemplate_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "style-video-generate",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: style-video-generate",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "style-video-generate"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// フェーズ1: 5つの人格テンプレート・エンジン初期化\n// Style A: アカデミック（社会部部長風）\n// Style B: エンタメ解説（レバニキ風）\n// Style C: チュートリアル（こにし風）\n// Style D: 没入型ツアー（だいまつ風）\n// Style E: キッズ/初心者向け\n// ============================================================================\n\nconst body = $input.first().json.body || $input.first().json || {};\n\nconst productId = body.product_id;\nconst atomicDataId = body.atomic_data_id;\nconst styleId = body.style_id || 'B'; // デフォルトはエンタメ\nconst channelId = body.channel_id;\nconst videoType = body.video_type || 'youtube_short';\nconst autoPublish = body.auto_publish || false;\nconst language = body.language || 'ja';\n\n// スタイルID検証\nconst validStyles = ['A', 'B', 'C', 'D', 'E'];\nif (!validStyles.includes(styleId)) {\n  return [{ json: { error: true, message: `無効なスタイルID: ${styleId}. 有効: A, B, C, D, E`, code: 'INVALID_STYLE' } }];\n}\n\nif (!productId && !atomicDataId) {\n  return [{ json: { error: true, message: 'product_id または atomic_data_id は必須です', code: 'MISSING_PARAM' } }];\n}\n\nreturn [{\n  json: {\n    product_id: productId,\n    atomic_data_id: atomicDataId,\n    style_id: styleId,\n    channel_id: channelId,\n    video_type: videoType,\n    auto_publish: autoPublish,\n    language: language,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🎭 人格エンジン初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT sp.*, els.stability, els.similarity_boost, els.style_exaggeration, els.use_speaker_boost, els.breath_frequency, els.pause_frequency, els.default_voice_id, els.model_id, spt.system_prompt, spt.hook_instruction, spt.tone_instruction, spt.structure_instruction, spt.closing_instruction FROM style_profiles sp LEFT JOIN elevenlabs_style_settings els ON sp.style_id = els.style_id LEFT JOIN script_prompt_templates spt ON sp.style_id = spt.style_id AND spt.template_type = 'default' WHERE sp.style_id = $1",
+        "options": {
+          "queryParams": "={{ [$json.style_id] }}"
+        }
+      },
+      "id": "get-style-profile",
+      "name": "🎨 スタイルプロファイル取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT pm.*, im.purchase_price, im.image_url AS inv_image_url, si.original_insight, si.insight_type, si.contributor_name FROM products_master pm LEFT JOIN inventory_master im ON pm.id = im.product_id LEFT JOIN supervisor_insights si ON pm.id = si.product_id AND si.is_active = TRUE WHERE pm.id = $1",
+        "options": {
+          "queryParams": "={{ [$node['🎭 人格エンジン初期化'].json.product_id] }}"
+        }
+      },
+      "id": "get-product",
+      "name": "📦 商品＋インサイト取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// スタイル別脚本生成プロンプト構築\n// ============================================================================\n\nconst initData = $node['🎭 人格エンジン初期化'].json;\nconst styleProfile = $node['🎨 スタイルプロファイル取得'].json;\nconst productData = $input.first().json;\n\nconst style = Array.isArray(styleProfile) ? styleProfile[0] : styleProfile;\nconst product = Array.isArray(productData) ? productData[0] : productData;\n\nif (!style) {\n  return [{ json: { error: true, message: 'スタイルプロファイルが見つかりません' } }];\n}\n\n// 監修者インサイトの組み込み指示\nlet insightInstruction = '';\nif (product?.original_insight) {\n  insightInstruction = `\\n\\n【最優先】以下の監修者の実体験を必ず脚本の最初の15秒以内に「${product.contributor_name || '専門家'}によると」という形で組み込んでください：\\n「${product.original_insight}」`;\n}\n\n// スタイル別の追加指示\nconst styleSpecificInstructions = {\n  'A': '・事実関係の出典を必ず明示してください\\n・感情的な表現は避け、客観的に述べてください\\n・専門用語は正確に使用してください',\n  'B': '・冒頭で視聴者を煽るような過激なフックを入れてください\\n・「やばい」「マジで」などの強調語を使ってください\\n・テンポよく、次々と新情報を出してください',\n  'C': '・操作手順をステップバイステップで説明してください\\n・「まず」「次に」「最後に」などの接続詞を使ってください\\n・専門用語は噛み砕いて説明してください',\n  'D': '・ナレーションは最小限にしてください\\n・映像の美しさを引き立てる詩的な表現を使ってください\\n・静寂や環境音を活かす「間」を意識してください',\n  'E': '・子供でも分かる簡単な言葉を使ってください\\n・擬音語や擬態語を積極的に使ってください\\n・楽しく、飽きさせない工夫をしてください'\n};\n\nconst fullPrompt = `${style.system_prompt}\\n\\n${style.hook_instruction}\\n\\n${style.tone_instruction}\\n\\n【スタイル固有の指示】\\n${styleSpecificInstructions[initData.style_id]}${insightInstruction}\\n\\n【商品/テーマ情報】\\nタイトル: ${product?.title || '未設定'}\\n説明: ${product?.description || '未設定'}\\n\\n【出力形式】\\n脚本のみを出力してください。説明は不要です。\\n長さ: ${initData.video_type === 'youtube_short' ? '60秒以内' : '3-5分'}`;\n\nreturn [{\n  json: {\n    ...initData,\n    style_profile: style,\n    product: product,\n    script_prompt: fullPrompt,\n    has_insight: !!product?.original_insight\n  }\n}];"
+      },
+      "id": "build-prompt",
+      "name": "📝 スタイル別プロンプト構築",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-goog-api-key",
+              "value": "={{ $env.GEMINI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: $json.script_prompt }] }], generationConfig: { temperature: $json.style_id === 'B' ? 0.8 : ($json.style_id === 'D' ? 0.3 : 0.5), maxOutputTokens: 2048 } }) }}",
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "gemini-script",
+      "name": "🤖 Gemini脚本生成",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 脚本パース＋ElevenLabs設定準備\n// ============================================================================\n\nconst prevData = $node['📝 スタイル別プロンプト構築'].json;\nconst geminiResult = $input.first().json;\n\nlet script = '';\ntry {\n  script = geminiResult?.candidates?.[0]?.content?.parts?.[0]?.text || '';\n  script = script.trim();\n} catch (e) {\n  script = `${prevData.product?.title || 'このテーマ'}についてご紹介します。`;\n}\n\n// スタイルプロファイルからElevenLabs設定を取得\nconst style = prevData.style_profile;\n\nreturn [{\n  json: {\n    ...prevData,\n    script: script,\n    elevenlabs_settings: {\n      voice_id: style.default_voice_id || 'EXAVITQu4vr4xnSDxMaL',\n      model_id: style.model_id || 'eleven_multilingual_v2',\n      stability: style.stability || 0.5,\n      similarity_boost: style.similarity_boost || 0.75,\n      style: style.style_exaggeration || 0.2,\n      use_speaker_boost: style.use_speaker_boost !== false,\n      breath_frequency: style.breath_frequency || 0.3,\n      pause_frequency: style.pause_frequency || 0.2\n    }\n  }\n}];"
+      },
+      "id": "parse-script",
+      "name": "📋 脚本パース",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// バイオノイズ挿入（人格別調整）\n// ============================================================================\n\nconst data = $input.first().json;\nlet text = data.script;\nconst settings = data.elevenlabs_settings;\n\n// 息継ぎ挿入（確率ベース）\ntext = text.replace(/([。！？])/g, (match) => {\n  if (Math.random() < settings.breath_frequency) {\n    return '...' + match;\n  }\n  return match;\n});\n\n// 溜め挿入（確率ベース）\ntext = text.replace(/([、])/g, (match) => {\n  if (Math.random() < settings.pause_frequency) {\n    return match + '...';\n  }\n  return match;\n});\n\nreturn [{ json: { ...data, processed_script: text } }];"
+      },
+      "id": "add-breath",
+      "name": "🫁 バイオノイズ挿入",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.elevenlabs.io/v1/text-to-speech/{{ $json.elevenlabs_settings.voice_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "audio/mpeg"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $json.processed_script, model_id: $json.elevenlabs_settings.model_id, voice_settings: { stability: $json.elevenlabs_settings.stability, similarity_boost: $json.elevenlabs_settings.similarity_boost, style: $json.elevenlabs_settings.style, use_speaker_boost: $json.elevenlabs_settings.use_speaker_boost } }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "timeout": 180000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "elevenlabs-api",
+      "name": "🎙️ ElevenLabs API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "elevenlabs-auth",
+          "name": "ElevenLabs API Key"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// Remotion Props構築（スタイル別）\n// ============================================================================\n\nconst prevData = $node['🫁 バイオノイズ挿入'].json;\nconst voiceResult = $input.first();\nconst style = prevData.style_profile;\n\n// 音声URLを仮設定（実際はSupabase Storageへアップロード後に更新）\nconst audioUrl = voiceResult.binary?.data ? 'pending_upload' : null;\n\n// スタイル別Remotion Props\nconst remotionProps = {\n  compositionId: prevData.video_type === 'youtube_short' ? 'ShortVideo' : 'LongVideo',\n  inputProps: {\n    // コンテンツ\n    title: prevData.product?.title || 'N3 Content',\n    script: prevData.script,\n    audioUrl: audioUrl,\n    \n    // スタイル設定\n    styleId: prevData.style_id,\n    fontFamily: style.font_family || 'Noto Sans JP',\n    colorPalette: typeof style.color_palette === 'string' ? JSON.parse(style.color_palette) : style.color_palette,\n    \n    // アニメーション設定\n    spring: {\n      stiffness: style.spring_stiffness || 260,\n      damping: style.spring_damping || 20,\n      mass: parseFloat(style.spring_mass) || 1.0\n    },\n    \n    // タイミング\n    timing: {\n      sceneTransitionMs: style.scene_transition_ms || 400,\n      captionFadeMs: style.caption_fade_ms || 250,\n      emphasisPauseMs: style.emphasis_pause_ms || 600\n    },\n    \n    // ビジュアルエフェクト\n    effects: {\n      shakeMagnitude: style.shake_magnitude || 8,\n      flashOpacity: parseFloat(style.flash_opacity) || 0.15,\n      zoomPulseScale: parseFloat(style.zoom_pulse_scale) || 1.03,\n      particleEnabled: style.particle_enabled || false\n    },\n    \n    // 字幕\n    subtitle: {\n      opacity: parseFloat(style.subtitle_opacity) || 1.0,\n      position: style.subtitle_position || 'bottom',\n      style: style.subtitle_style || 'standard'\n    },\n    \n    // オーディオ\n    audio: {\n      bgmType: style.bgm_type || 'corporate',\n      bgmDuckDepth: parseFloat(style.bgm_duck_depth) || 0.25,\n      seVolume: parseFloat(style.se_volume_relative) || 1.0\n    },\n    \n    // シード値（同一スタイルでもユニーク化）\n    seed: prevData.product_id || Date.now()\n  },\n  codec: 'h264',\n  imageFormat: 'jpeg'\n};\n\nreturn [{\n  json: {\n    ...prevData,\n    audio_binary: voiceResult.binary?.data ? true : false,\n    remotion_props: remotionProps\n  },\n  binary: voiceResult.binary\n}];"
+      },
+      "id": "build-remotion-props",
+      "name": "🎬 Remotion Props構築",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO media_content (product_id, content_type, title, script, style_id, channel_id, publish_status, render_status, remotion_props, metadata) VALUES ($1, $2, $3, $4, $5, $6, 'pending', 'queued', $7, $8) RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.product_id, $json.video_type, $json.product?.title || 'N3 Content', $json.script, $json.style_id, $json.channel_id, JSON.stringify($json.remotion_props), JSON.stringify({ style_name: $json.style_profile?.style_name, has_insight: $json.has_insight })] }}"
+        }
+      },
+      "id": "save-content",
+      "name": "💾 コンテンツ保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $node['🎬 Remotion Props構築'].json;\nconst saveResult = $input.first().json;\n\nreturn [{\n  json: {\n    success: true,\n    action: 'style_video_generate',\n    content_id: saveResult?.id || saveResult?.[0]?.id,\n    product_id: data.product_id,\n    style_id: data.style_id,\n    style_name: data.style_profile?.style_name,\n    video_type: data.video_type,\n    has_insight: data.has_insight,\n    audio_generated: data.audio_binary,\n    remotion_props: data.remotion_props\n  }\n}];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: style-video-generate": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎭 人格エンジン初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🎨 スタイルプロファイル取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎨 スタイルプロファイル取得": {
+      "main": [
+        [
+          {
+            "node": "📦 商品＋インサイト取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 商品＋インサイト取得": {
+      "main": [
+        [
+          {
+            "node": "📝 スタイル別プロンプト構築",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 スタイル別プロンプト構築": {
+      "main": [
+        [
+          {
+            "node": "🤖 Gemini脚本生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 Gemini脚本生成": {
+      "main": [
+        [
+          {
+            "node": "📋 脚本パース",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 脚本パース": {
+      "main": [
+        [
+          {
+            "node": "🫁 バイオノイズ挿入",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🫁 バイオノイズ挿入": {
+      "main": [
+        [
+          {
+            "node": "🎙️ ElevenLabs API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎙️ ElevenLabs API": {
+      "main": [
+        [
+          {
+            "node": "🎬 Remotion Props構築",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎬 Remotion Props構築": {
+      "main": [
+        [
+          {
+            "node": "💾 コンテンツ保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 コンテンツ保存": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🎭 人格エンジン初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 600,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "5-Personalities",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "Phase-1",
+      "color": "#3498db"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

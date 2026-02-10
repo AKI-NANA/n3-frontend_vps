@@ -1,0 +1,579 @@
+{
+  "_metadata": {
+    "version": "1.0.0",
+    "generatedAt": "2026-01-23",
+    "totalTools": 142,
+    "description": "N3 Empire OS - 全ツール定義マスター"
+  },
+
+  "categories": {
+    "listing": { "name": "出品", "color": "#3b82f6", "icon": "upload" },
+    "inventory": { "name": "在庫", "color": "#10b981", "icon": "package" },
+    "research": { "name": "リサーチ", "color": "#8b5cf6", "icon": "search" },
+    "media": { "name": "メディア", "color": "#ec4899", "icon": "video" },
+    "empire": { "name": "帝国", "color": "#f59e0b", "icon": "castle" },
+    "defense": { "name": "防衛", "color": "#ef4444", "icon": "shield" },
+    "orders": { "name": "受注", "color": "#06b6d4", "icon": "shopping-cart" },
+    "shipping": { "name": "出荷", "color": "#84cc16", "icon": "truck" },
+    "pricing": { "name": "価格計算", "color": "#f97316", "icon": "calculator" },
+    "translation": { "name": "翻訳", "color": "#6366f1", "icon": "globe" },
+    "sync": { "name": "同期", "color": "#14b8a6", "icon": "refresh-cw" },
+    "image": { "name": "画像", "color": "#a855f7", "icon": "image" },
+    "notification": { "name": "通知", "color": "#eab308", "icon": "bell" },
+    "ai": { "name": "AI", "color": "#0ea5e9", "icon": "brain" },
+    "approval": { "name": "承認", "color": "#22c55e", "icon": "check-circle" },
+    "outsourcing": { "name": "外注", "color": "#64748b", "icon": "users" },
+    "accounting": { "name": "経理", "color": "#059669", "icon": "receipt" },
+    "system": { "name": "システム", "color": "#475569", "icon": "settings" }
+  },
+
+  "tools": {
+    "listing-ebay": {
+      "id": "listing-ebay",
+      "name": "01_eBay出品処理",
+      "category": "listing",
+      "webhookPath": "listing/ebay-listing",
+      "description": "eBayへの商品出品を自動実行",
+      "fields": [
+        { "name": "product_ids", "type": "textarea", "label": "商品ID（カンマ区切り）", "required": true, "placeholder": "123, 456, 789" },
+        { "name": "account", "type": "select", "label": "eBayアカウント", "options": ["mjt", "green"], "default": "mjt" },
+        { "name": "marketplace", "type": "select", "label": "マーケットプレイス", "options": ["EBAY_US", "EBAY_UK", "EBAY_DE", "EBAY_AU"], "default": "EBAY_US" },
+        { "name": "draft_mode", "type": "checkbox", "label": "下書きモード", "default": false }
+      ],
+      "actions": [
+        { "id": "execute", "label": "出品実行", "variant": "primary" },
+        { "id": "preview", "label": "プレビュー", "variant": "secondary" }
+      ]
+    },
+
+    "listing-error-recovery": {
+      "id": "listing-error-recovery",
+      "name": "02_出品エラー復旧Agent",
+      "category": "listing",
+      "webhookPath": "listing/error-recovery",
+      "description": "出品エラーを自動検知し、AIが復旧を試行",
+      "fields": [
+        { "name": "error_type", "type": "select", "label": "エラータイプ", "options": ["all", "policy", "image", "category", "price"], "default": "all" },
+        { "name": "auto_fix", "type": "checkbox", "label": "自動修正", "default": true },
+        { "name": "max_retries", "type": "number", "label": "最大リトライ回数", "default": 3, "min": 1, "max": 10 }
+      ],
+      "actions": [
+        { "id": "scan", "label": "エラースキャン", "variant": "primary" },
+        { "id": "fix_all", "label": "一括修正", "variant": "destructive" }
+      ]
+    },
+
+    "listing-multi-channel": {
+      "id": "listing-multi-channel",
+      "name": "03_多販路出品ゲートウェイ",
+      "category": "listing",
+      "webhookPath": "listing/multi-channel",
+      "description": "複数販路（eBay, Amazon, Qoo10, Shopify）への同時出品",
+      "fields": [
+        { "name": "product_ids", "type": "textarea", "label": "商品ID", "required": true },
+        { "name": "channels", "type": "multiselect", "label": "出品先", "options": ["ebay_us", "ebay_uk", "amazon_us", "amazon_jp", "qoo10", "shopify"], "default": ["ebay_us"] },
+        { "name": "price_adjustment", "type": "number", "label": "価格調整（%）", "default": 0 }
+      ],
+      "actions": [
+        { "id": "dispatch", "label": "出品開始", "variant": "primary" }
+      ]
+    },
+
+    "listing-china": {
+      "id": "listing-china",
+      "name": "04_中国越境EC出品",
+      "category": "listing",
+      "webhookPath": "listing/china-gateway",
+      "description": "AliExpress, Taobao向け越境EC出品",
+      "fields": [
+        { "name": "product_ids", "type": "textarea", "label": "商品ID", "required": true },
+        { "name": "platform", "type": "select", "label": "プラットフォーム", "options": ["aliexpress", "taobao", "tmall"], "default": "aliexpress" },
+        { "name": "translate", "type": "checkbox", "label": "中国語自動翻訳", "default": true }
+      ],
+      "actions": [
+        { "id": "list", "label": "出品実行", "variant": "primary" }
+      ]
+    },
+
+    "listing-amazon": {
+      "id": "listing-amazon",
+      "name": "05_Amazon出品",
+      "category": "listing",
+      "webhookPath": "listing/amazon-listing",
+      "description": "Amazon US/JP への商品出品",
+      "fields": [
+        { "name": "product_ids", "type": "textarea", "label": "商品ID", "required": true },
+        { "name": "marketplace", "type": "select", "label": "マーケットプレイス", "options": ["AMAZON_US", "AMAZON_JP", "AMAZON_UK", "AMAZON_DE"], "default": "AMAZON_US" },
+        { "name": "fulfillment", "type": "select", "label": "フルフィルメント", "options": ["FBA", "MFN"], "default": "MFN" }
+      ],
+      "actions": [
+        { "id": "list", "label": "出品実行", "variant": "primary" }
+      ]
+    },
+
+    "listing-qoo10": {
+      "id": "listing-qoo10",
+      "name": "06_Qoo10出品",
+      "category": "listing",
+      "webhookPath": "listing/qoo10-listing",
+      "description": "Qoo10への商品出品",
+      "fields": [
+        { "name": "product_ids", "type": "textarea", "label": "商品ID", "required": true },
+        { "name": "shipping_type", "type": "select", "label": "配送タイプ", "options": ["standard", "express", "rocket"], "default": "standard" }
+      ],
+      "actions": [
+        { "id": "list", "label": "出品実行", "variant": "primary" }
+      ]
+    },
+
+    "inventory-global-sync": {
+      "id": "inventory-global-sync",
+      "name": "01_グローバル在庫同期",
+      "category": "inventory",
+      "webhookPath": "inventory/global-sync",
+      "description": "全販路の在庫を一括同期（GlobalStockKiller）",
+      "fields": [
+        { "name": "channels", "type": "multiselect", "label": "同期対象", "options": ["ebay", "amazon", "qoo10", "shopify"], "default": ["ebay"] },
+        { "name": "sync_mode", "type": "select", "label": "同期モード", "options": ["full", "delta", "zero_only"], "default": "delta" }
+      ],
+      "actions": [
+        { "id": "sync", "label": "同期開始", "variant": "primary" },
+        { "id": "check", "label": "差分確認", "variant": "secondary" }
+      ]
+    },
+
+    "inventory-monitoring": {
+      "id": "inventory-monitoring",
+      "name": "02_在庫監視",
+      "category": "inventory",
+      "webhookPath": "inventory/monitoring",
+      "description": "仕入先の在庫状況を監視し、在庫切れを検知",
+      "fields": [
+        { "name": "supplier", "type": "select", "label": "仕入先", "options": ["yahoo_auction", "amazon_jp", "rakuten", "all"], "default": "all" },
+        { "name": "threshold", "type": "number", "label": "アラート閾値（個）", "default": 3 }
+      ],
+      "actions": [
+        { "id": "check", "label": "在庫チェック", "variant": "primary" },
+        { "id": "alert", "label": "アラート送信", "variant": "secondary" }
+      ]
+    },
+
+    "inventory-price-defense": {
+      "id": "inventory-price-defense",
+      "name": "03_インテリジェント価格防衛",
+      "category": "inventory",
+      "webhookPath": "inventory/price-defense",
+      "description": "AIが競合価格を分析し、自動で価格調整",
+      "fields": [
+        { "name": "product_ids", "type": "textarea", "label": "対象商品ID", "placeholder": "空欄で全商品" },
+        { "name": "min_margin", "type": "number", "label": "最低利益率（%）", "default": 15 },
+        { "name": "auto_adjust", "type": "checkbox", "label": "自動調整", "default": false }
+      ],
+      "actions": [
+        { "id": "analyze", "label": "分析開始", "variant": "primary" },
+        { "id": "adjust", "label": "価格調整", "variant": "destructive" }
+      ]
+    },
+
+    "inventory-supplier-switch": {
+      "id": "inventory-supplier-switch",
+      "name": "04_仕入先スイッチング",
+      "category": "inventory",
+      "webhookPath": "inventory/supplier-switch",
+      "description": "在庫切れ時に自動で代替仕入先を探索",
+      "fields": [
+        { "name": "product_id", "type": "text", "label": "商品ID", "required": true },
+        { "name": "priority", "type": "select", "label": "優先順位", "options": ["price", "delivery", "reliability"], "default": "price" }
+      ],
+      "actions": [
+        { "id": "search", "label": "代替探索", "variant": "primary" },
+        { "id": "switch", "label": "切り替え実行", "variant": "destructive" }
+      ]
+    },
+
+    "research-agent": {
+      "id": "research-agent",
+      "name": "01_自律型リサーチAgent",
+      "category": "research",
+      "webhookPath": "research/autonomous-agent",
+      "description": "AIが自律的に市場調査を実行し、有望商品を発見",
+      "fields": [
+        { "name": "keyword", "type": "text", "label": "検索キーワード", "required": true },
+        { "name": "category", "type": "select", "label": "カテゴリ", "options": ["trading_cards", "electronics", "collectibles", "all"], "default": "all" },
+        { "name": "depth", "type": "number", "label": "調査深度", "default": 3, "min": 1, "max": 10 },
+        { "name": "min_profit", "type": "number", "label": "最低利益（円）", "default": 1000 }
+      ],
+      "actions": [
+        { "id": "start", "label": "調査開始", "variant": "primary" },
+        { "id": "stop", "label": "停止", "variant": "destructive" }
+      ]
+    },
+
+    "research-trend-agent": {
+      "id": "research-trend-agent",
+      "name": "02_AIトレンドAgent",
+      "category": "research",
+      "webhookPath": "research/trend-agent",
+      "description": "SNS/ニュースからトレンド商品を自動検出",
+      "fields": [
+        { "name": "sources", "type": "multiselect", "label": "情報源", "options": ["twitter", "instagram", "tiktok", "news", "reddit"], "default": ["twitter"] },
+        { "name": "region", "type": "select", "label": "地域", "options": ["global", "us", "jp", "eu"], "default": "global" }
+      ],
+      "actions": [
+        { "id": "scan", "label": "トレンドスキャン", "variant": "primary" }
+      ]
+    },
+
+    "research-arbitrage": {
+      "id": "research-arbitrage",
+      "name": "03_クロスリージョンアービトラージ",
+      "category": "research",
+      "webhookPath": "research/cross-region-arbitrage",
+      "description": "各国間の価格差を分析し、アービトラージ機会を発見",
+      "fields": [
+        { "name": "source_region", "type": "select", "label": "仕入れ地域", "options": ["JP", "US", "EU", "CN"], "default": "JP" },
+        { "name": "target_regions", "type": "multiselect", "label": "販売地域", "options": ["US", "UK", "DE", "AU"], "default": ["US"] },
+        { "name": "min_margin", "type": "number", "label": "最低マージン（%）", "default": 20 }
+      ],
+      "actions": [
+        { "id": "analyze", "label": "分析開始", "variant": "primary" }
+      ]
+    },
+
+    "media-video-gen": {
+      "id": "media-video-gen",
+      "name": "M01_Remotion動画生成",
+      "category": "media",
+      "webhookPath": "media/video-gen",
+      "description": "Remotionで4K動画を生成し、YouTubeに自動投稿",
+      "fields": [
+        { "name": "channel_id", "type": "select", "label": "チャンネル", "options": [], "dynamic": true, "required": true },
+        { "name": "script", "type": "textarea", "label": "脚本（JSON）", "required": true, "rows": 10 },
+        { "name": "output_quality", "type": "select", "label": "画質", "options": ["720p", "1080p", "4K"], "default": "1080p" },
+        { "name": "auto_publish", "type": "checkbox", "label": "自動公開", "default": false }
+      ],
+      "actions": [
+        { "id": "generate", "label": "動画生成", "variant": "primary" },
+        { "id": "preview", "label": "プレビュー", "variant": "secondary" }
+      ]
+    },
+
+    "media-audio-gen": {
+      "id": "media-audio-gen",
+      "name": "M02_ElevenLabs音声生成",
+      "category": "media",
+      "webhookPath": "media/audio-gen",
+      "description": "ElevenLabsで感情豊かなナレーション音声を生成",
+      "fields": [
+        { "name": "text", "type": "textarea", "label": "テキスト", "required": true, "rows": 5 },
+        { "name": "voice_id", "type": "select", "label": "ボイス", "options": ["rachel", "josh", "bella", "custom"], "default": "rachel" },
+        { "name": "emotion", "type": "select", "label": "感情", "options": ["neutral", "happy", "serious", "excited"], "default": "neutral" },
+        { "name": "stability", "type": "number", "label": "安定性", "default": 0.5, "min": 0, "max": 1, "step": 0.1 }
+      ],
+      "actions": [
+        { "id": "generate", "label": "音声生成", "variant": "primary" }
+      ]
+    },
+
+    "media-live-encoder": {
+      "id": "media-live-encoder",
+      "name": "M03_24時間ライブエンコーダー",
+      "category": "media",
+      "webhookPath": "media/live-encoder",
+      "description": "FFmpegで24時間ライブ配信を自動運用",
+      "fields": [
+        { "name": "channel_id", "type": "select", "label": "チャンネル", "options": [], "dynamic": true, "required": true },
+        { "name": "playlist_mode", "type": "select", "label": "プレイリスト", "options": ["sequential", "random", "trending"], "default": "sequential" }
+      ],
+      "actions": [
+        { "id": "start", "label": "配信開始", "variant": "primary" },
+        { "id": "stop", "label": "配信停止", "variant": "destructive" }
+      ]
+    },
+
+    "media-comment-reply": {
+      "id": "media-comment-reply",
+      "name": "M04_AIコメント自動返信",
+      "category": "media",
+      "webhookPath": "media/comment-reply",
+      "description": "AIが視聴者コメントに自動で返信",
+      "fields": [
+        { "name": "channel_ids", "type": "multiselect", "label": "対象チャンネル", "options": [], "dynamic": true },
+        { "name": "reply_mode", "type": "select", "label": "返信モード", "options": ["all", "questions_only", "positive_only"], "default": "questions_only" },
+        { "name": "tone", "type": "select", "label": "トーン", "options": ["friendly", "professional", "casual"], "default": "friendly" }
+      ],
+      "actions": [
+        { "id": "enable", "label": "自動返信ON", "variant": "primary" },
+        { "id": "disable", "label": "自動返信OFF", "variant": "secondary" }
+      ]
+    },
+
+    "media-thumbnail": {
+      "id": "media-thumbnail",
+      "name": "M05_サムネイル自動生成",
+      "category": "media",
+      "webhookPath": "media/thumbnail-gen",
+      "description": "AIでクリック率の高いサムネイルを自動生成",
+      "fields": [
+        { "name": "video_id", "type": "text", "label": "動画ID", "required": true },
+        { "name": "style", "type": "select", "label": "スタイル", "options": ["impact", "minimal", "text_heavy", "face_focus"], "default": "impact" },
+        { "name": "variations", "type": "number", "label": "バリエーション数", "default": 3, "min": 1, "max": 10 }
+      ],
+      "actions": [
+        { "id": "generate", "label": "生成", "variant": "primary" }
+      ]
+    },
+
+    "empire-revenue-calc": {
+      "id": "empire-revenue-calc",
+      "name": "E01_収益自動計算・報酬分配",
+      "category": "empire",
+      "webhookPath": "empire/revenue-calc",
+      "description": "全チャンネルの収益を集計し、報酬を自動計算",
+      "fields": [
+        { "name": "period", "type": "select", "label": "集計期間", "options": ["daily", "weekly", "monthly"], "default": "monthly" },
+        { "name": "include_pending", "type": "checkbox", "label": "保留収益含む", "default": false }
+      ],
+      "actions": [
+        { "id": "calculate", "label": "収益計算", "variant": "primary" },
+        { "id": "distribute", "label": "報酬分配実行", "variant": "destructive" }
+      ]
+    },
+
+    "empire-manager-panel": {
+      "id": "empire-manager-panel",
+      "name": "E02_マネージャー監査パネル",
+      "category": "empire",
+      "webhookPath": "empire/manager-panel",
+      "description": "外注マネージャー向けの監査データを提供",
+      "fields": [
+        { "name": "manager_id", "type": "text", "label": "マネージャーID", "required": true },
+        { "name": "data_scope", "type": "select", "label": "データ範囲", "options": ["assigned_only", "team", "all"], "default": "assigned_only" }
+      ],
+      "actions": [
+        { "id": "fetch", "label": "データ取得", "variant": "primary" }
+      ]
+    },
+
+    "empire-auto-payment": {
+      "id": "empire-auto-payment",
+      "name": "E03_Airwallex自動送金",
+      "category": "empire",
+      "webhookPath": "empire/auto-payment",
+      "description": "Airwallexで外注への報酬を自動送金",
+      "fields": [
+        { "name": "payment_batch_id", "type": "text", "label": "支払いバッチID" },
+        { "name": "dry_run", "type": "checkbox", "label": "テストモード", "default": true }
+      ],
+      "actions": [
+        { "id": "preview", "label": "支払いプレビュー", "variant": "secondary" },
+        { "id": "execute", "label": "送金実行", "variant": "destructive" }
+      ]
+    },
+
+    "defense-c2pa-removal": {
+      "id": "defense-c2pa-removal",
+      "name": "D01_C2PAメタデータ除去",
+      "category": "defense",
+      "webhookPath": "defense/c2pa-removal",
+      "description": "AI生成ウォーターマーク（C2PA）を完全除去",
+      "fields": [
+        { "name": "file_url", "type": "text", "label": "ファイルURL", "required": true },
+        { "name": "output_format", "type": "select", "label": "出力形式", "options": ["mp4", "webm", "mov"], "default": "mp4" }
+      ],
+      "actions": [
+        { "id": "process", "label": "除去実行", "variant": "primary" }
+      ]
+    },
+
+    "defense-account-warming": {
+      "id": "defense-account-warming",
+      "name": "D02_アカウント温め自動化",
+      "category": "defense",
+      "webhookPath": "defense/account-warming",
+      "description": "新規アカウントを人間らしい挙動で温める",
+      "fields": [
+        { "name": "account_id", "type": "text", "label": "アカウントID", "required": true },
+        { "name": "duration_days", "type": "number", "label": "温め期間（日）", "default": 14, "min": 7, "max": 30 },
+        { "name": "activity_level", "type": "select", "label": "活動レベル", "options": ["low", "medium", "high"], "default": "medium" }
+      ],
+      "actions": [
+        { "id": "start", "label": "温め開始", "variant": "primary" },
+        { "id": "stop", "label": "停止", "variant": "destructive" }
+      ]
+    },
+
+    "defense-post-randomizer": {
+      "id": "defense-post-randomizer",
+      "name": "D03_投稿時間ランダム化",
+      "category": "defense",
+      "webhookPath": "defense/post-randomizer",
+      "description": "シャドウバン対策のため投稿時間をランダム化",
+      "fields": [
+        { "name": "base_time", "type": "text", "label": "基準時刻", "placeholder": "09:00" },
+        { "name": "variance_minutes", "type": "number", "label": "変動幅（分）", "default": 30, "min": 5, "max": 120 }
+      ],
+      "actions": [
+        { "id": "configure", "label": "設定保存", "variant": "primary" }
+      ]
+    },
+
+    "defense-fingerprint": {
+      "id": "defense-fingerprint",
+      "name": "D04_デジタル指紋エミュレーション",
+      "category": "defense",
+      "webhookPath": "defense/fingerprint-emulation",
+      "description": "動画のデジタル指紋を毎回ユニークに生成",
+      "fields": [
+        { "name": "video_url", "type": "text", "label": "動画URL", "required": true },
+        { "name": "entropy_level", "type": "select", "label": "エントロピーレベル", "options": ["low", "medium", "high", "max"], "default": "high" }
+      ],
+      "actions": [
+        { "id": "process", "label": "指紋生成", "variant": "primary" }
+      ]
+    },
+
+    "orders-unified-hub": {
+      "id": "orders-unified-hub",
+      "name": "O01_受注統合ハブ",
+      "category": "orders",
+      "webhookPath": "orders/unified-hub",
+      "description": "全モールの受注を一元管理",
+      "fields": [
+        { "name": "marketplaces", "type": "multiselect", "label": "マーケットプレイス", "options": ["ebay", "amazon", "qoo10", "shopify"], "default": ["ebay", "amazon"] },
+        { "name": "status_filter", "type": "select", "label": "ステータス", "options": ["all", "pending", "shipped", "completed"], "default": "pending" }
+      ],
+      "actions": [
+        { "id": "fetch", "label": "受注取得", "variant": "primary" },
+        { "id": "export", "label": "エクスポート", "variant": "secondary" }
+      ]
+    },
+
+    "orders-ai-cs": {
+      "id": "orders-ai-cs",
+      "name": "O02_AI問い合わせ対応",
+      "category": "orders",
+      "webhookPath": "orders/ai-cs",
+      "description": "AIが問い合わせ返信案を生成",
+      "fields": [
+        { "name": "inquiry_id", "type": "text", "label": "問い合わせID" },
+        { "name": "tone", "type": "select", "label": "トーン", "options": ["formal", "friendly", "apologetic"], "default": "friendly" },
+        { "name": "language", "type": "select", "label": "言語", "options": ["en", "ja", "de", "auto"], "default": "auto" }
+      ],
+      "actions": [
+        { "id": "generate", "label": "返信案生成", "variant": "primary" },
+        { "id": "send", "label": "送信", "variant": "destructive" }
+      ]
+    },
+
+    "shipping-manager": {
+      "id": "shipping-manager",
+      "name": "S01_出荷管理",
+      "category": "shipping",
+      "webhookPath": "shipping/manager",
+      "description": "出荷待ち商品の管理と発送処理",
+      "fields": [
+        { "name": "order_ids", "type": "textarea", "label": "注文ID（カンマ区切り）" },
+        { "name": "carrier", "type": "select", "label": "配送業者", "options": ["japan_post", "fedex", "dhl", "ups"], "default": "japan_post" }
+      ],
+      "actions": [
+        { "id": "ship", "label": "発送処理", "variant": "primary" },
+        { "id": "print_label", "label": "ラベル印刷", "variant": "secondary" }
+      ]
+    },
+
+    "pricing-calculator": {
+      "id": "pricing-calculator",
+      "name": "P01_価格計算エンジン",
+      "category": "pricing",
+      "webhookPath": "pricing/calculator",
+      "description": "仕入れ価格から最適な販売価格を計算",
+      "fields": [
+        { "name": "product_id", "type": "text", "label": "商品ID", "required": true },
+        { "name": "target_margin", "type": "number", "label": "目標利益率（%）", "default": 25 },
+        { "name": "include_fees", "type": "checkbox", "label": "手数料込み", "default": true }
+      ],
+      "actions": [
+        { "id": "calculate", "label": "計算", "variant": "primary" }
+      ]
+    },
+
+    "translation-multi": {
+      "id": "translation-multi",
+      "name": "T01_多言語翻訳",
+      "category": "translation",
+      "webhookPath": "translation/multi",
+      "description": "商品情報を11言語に自動翻訳",
+      "fields": [
+        { "name": "text", "type": "textarea", "label": "翻訳テキスト", "required": true },
+        { "name": "target_languages", "type": "multiselect", "label": "翻訳先", "options": ["en", "zh", "ko", "es", "fr", "de", "pt", "ru", "ar", "hi", "ja"], "default": ["en"] },
+        { "name": "glossary_id", "type": "text", "label": "用語集ID" }
+      ],
+      "actions": [
+        { "id": "translate", "label": "翻訳実行", "variant": "primary" }
+      ]
+    },
+
+    "ai-improvement": {
+      "id": "ai-improvement",
+      "name": "A01_AI改善提案",
+      "category": "ai",
+      "webhookPath": "ai/improvement",
+      "description": "AIが商品データの改善点を提案",
+      "fields": [
+        { "name": "product_ids", "type": "textarea", "label": "対象商品ID" },
+        { "name": "focus", "type": "select", "label": "改善フォーカス", "options": ["title", "description", "images", "price", "all"], "default": "all" }
+      ],
+      "actions": [
+        { "id": "analyze", "label": "分析開始", "variant": "primary" },
+        { "id": "apply", "label": "改善適用", "variant": "destructive" }
+      ]
+    },
+
+    "notification-chatwork": {
+      "id": "notification-chatwork",
+      "name": "N01_ChatWork通知",
+      "category": "notification",
+      "webhookPath": "notification/chatwork",
+      "description": "ChatWorkへ通知を送信",
+      "fields": [
+        { "name": "message", "type": "textarea", "label": "メッセージ", "required": true },
+        { "name": "room_id", "type": "text", "label": "ルームID" },
+        { "name": "mention", "type": "text", "label": "メンション" }
+      ],
+      "actions": [
+        { "id": "send", "label": "送信", "variant": "primary" }
+      ]
+    },
+
+    "approval-workflow": {
+      "id": "approval-workflow",
+      "name": "AP01_承認ワークフロー",
+      "category": "approval",
+      "webhookPath": "approval/workflow",
+      "description": "出品前の人間による最終承認",
+      "fields": [
+        { "name": "item_ids", "type": "textarea", "label": "承認対象ID" },
+        { "name": "approval_type", "type": "select", "label": "承認タイプ", "options": ["listing", "price_change", "content"], "default": "listing" }
+      ],
+      "actions": [
+        { "id": "approve", "label": "承認", "variant": "primary" },
+        { "id": "reject", "label": "却下", "variant": "destructive" }
+      ]
+    },
+
+    "system-health": {
+      "id": "system-health",
+      "name": "SYS01_システムヘルスチェック",
+      "category": "system",
+      "webhookPath": "system/health",
+      "description": "全システムの稼働状況を確認",
+      "fields": [
+        { "name": "components", "type": "multiselect", "label": "チェック対象", "options": ["n8n", "supabase", "ebay_api", "youtube_api", "elevenlabs"], "default": ["n8n", "supabase"] }
+      ],
+      "actions": [
+        { "id": "check", "label": "ヘルスチェック", "variant": "primary" }
+      ]
+    }
+  }
+}

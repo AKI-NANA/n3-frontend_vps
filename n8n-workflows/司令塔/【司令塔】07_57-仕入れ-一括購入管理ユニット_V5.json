@@ -1,0 +1,445 @@
+{
+  "name": "【司令塔】07_57-仕入れ-一括購入管理ユニット_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "purchase-cart",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: purchase-cart",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "purchase-cart"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst action = body.action || 'list'; // list, add, approve, purchase, cancel\nconst cartIds = body.cart_ids || [];\nconst productId = body.product_id;\nconst sourceUrl = body.source_url;\nconst sourcePrice = body.source_price;\nconst sourceCurrency = body.source_currency || 'USD';\nreturn [{ json: { action, cart_ids: cartIds, product_id: productId, source_url: sourceUrl, source_price: sourcePrice, source_currency: sourceCurrency } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "rules": [
+            {
+              "outputKey": "list",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "list",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "add",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "add",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "approve",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "approve",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "purchase",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "purchase",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "fallbackOutput": "list"
+        }
+      },
+      "id": "switch-action",
+      "name": "🔀 アクション分岐",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT pc.*, pm.title, pm.sku FROM purchase_carts pc LEFT JOIN products_master pm ON pc.product_id = pm.id WHERE pc.cart_status = 'pending' ORDER BY pc.priority DESC, pc.estimated_margin DESC LIMIT 100",
+        "options": {}
+      },
+      "id": "list-carts",
+      "name": "📋 カート一覧",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT setting_key, setting_value FROM global_settings WHERE setting_key LIKE 'exchange_rate_%'",
+        "options": {}
+      },
+      "id": "get-rates",
+      "name": "💱 為替取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $node['🔐 初期化'].json;\nconst ratesRaw = $input.first().json;\nconst rates = {};\nconst ratesArray = Array.isArray(ratesRaw) ? ratesRaw : [ratesRaw];\nratesArray.forEach(r => { if (r && r.setting_key) rates[r.setting_key] = parseFloat(r.setting_value); });\n\nconst usdJpy = rates.exchange_rate_usd_jpy || 150;\nconst eurJpy = rates.exchange_rate_eur_jpy || 165;\nconst rateMap = { 'USD': usdJpy, 'EUR': eurJpy, 'JPY': 1 };\n\nconst sourcePrice = parseFloat(config.source_price) || 0;\nconst rate = rateMap[config.source_currency] || usdJpy;\nconst sourcePriceJpy = Math.round(sourcePrice * rate);\n\n// 利益予測（簡易）\nconst estimatedSellPrice = Math.round(sourcePriceJpy * 1.8);\nconst estimatedShipping = 2000;\nconst estimatedDuty = Math.round(sourcePriceJpy * 0.05);\nconst estimatedProfit = estimatedSellPrice - sourcePriceJpy - estimatedShipping - estimatedDuty;\nconst estimatedMargin = estimatedSellPrice > 0 ? estimatedProfit / estimatedSellPrice : 0;\n\nreturn [{ json: { product_id: config.product_id, source_url: config.source_url, source_price: sourcePrice, source_currency: config.source_currency, source_price_jpy: sourcePriceJpy, estimated_sell_price_jpy: estimatedSellPrice, estimated_shipping_cost: estimatedShipping, estimated_duty_tax: estimatedDuty, estimated_profit: estimatedProfit, estimated_margin: Math.round(estimatedMargin * 1000) / 1000 } }];"
+      },
+      "id": "calc-profit",
+      "name": "💰 利益計算",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO purchase_carts (product_id, source_url, source_price, source_currency, source_price_jpy, estimated_sell_price_jpy, estimated_shipping_cost, estimated_duty_tax, estimated_profit, estimated_margin, cart_status, priority) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', CASE WHEN $9 > 10000 THEN 'high' ELSE 'normal' END) RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.product_id, $json.source_url, $json.source_price, $json.source_currency, $json.source_price_jpy, $json.estimated_sell_price_jpy, $json.estimated_shipping_cost, $json.estimated_duty_tax, $json.estimated_profit, $json.estimated_margin] }}"
+        }
+      },
+      "id": "add-cart",
+      "name": "➕ カート追加",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE purchase_carts SET cart_status = 'approved', approved_at = NOW(), approved_by = 'owner' WHERE id = ANY($1::uuid[]) AND cart_status = 'pending' RETURNING id",
+        "options": {
+          "queryParams": "={{ [$node['🔐 初期化'].json.cart_ids] }}"
+        }
+      },
+      "id": "approve-carts",
+      "name": "✅ 承認",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE purchase_carts SET cart_status = 'purchased', purchased_at = NOW(), purchase_order_id = 'PO-' || TO_CHAR(NOW(), 'YYYYMMDD') || '-' || SUBSTR(MD5(RANDOM()::TEXT), 1, 6) WHERE id = ANY($1::uuid[]) AND cart_status = 'approved' RETURNING id, purchase_order_id",
+        "options": {
+          "queryParams": "={{ [$node['🔐 初期化'].json.cart_ids] }}"
+        }
+      },
+      "id": "execute-purchase",
+      "name": "🛒 購入実行",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const action = $node['🔐 初期化'].json.action;\nlet result = { success: true, action };\n\nif (action === 'list') {\n  const carts = $node['📋 カート一覧'].json;\n  result.carts = Array.isArray(carts) ? carts : (carts?.id ? [carts] : []);\n  result.count = result.carts.length;\n} else if (action === 'add') {\n  const added = $node['➕ カート追加'].json;\n  result.cart_id = added?.id;\n  result.estimated_profit = $node['💰 利益計算'].json.estimated_profit;\n} else if (action === 'approve') {\n  const approved = $node['✅ 承認'].json;\n  result.approved = Array.isArray(approved) ? approved.length : (approved?.id ? 1 : 0);\n} else if (action === 'purchase') {\n  const purchased = $node['🛒 購入実行'].json;\n  result.purchased = Array.isArray(purchased) ? purchased : (purchased?.id ? [purchased] : []);\n}\n\nreturn [{ json: result }];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: purchase-cart": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "🔀 アクション分岐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 アクション分岐": {
+      "main": [
+        [
+          {
+            "node": "📋 カート一覧",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💱 為替取得",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "✅ 承認",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🛒 購入実行",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 カート一覧": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💱 為替取得": {
+      "main": [
+        [
+          {
+            "node": "💰 利益計算",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💰 利益計算": {
+      "main": [
+        [
+          {
+            "node": "➕ カート追加",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "➕ カート追加": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ 承認": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🛒 購入実行": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 180,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Purchase",
+      "color": "#e67e22"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

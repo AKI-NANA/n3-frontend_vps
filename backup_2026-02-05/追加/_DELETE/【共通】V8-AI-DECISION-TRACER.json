@@ -1,0 +1,76 @@
+{
+  "name": "【共通】V8-AI-DECISION-TRACER",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "ai-trace-start",
+      "name": "AI Trace Start",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// AI判断トレース V8.2.1\nconst input = $input.first().json;\n\n// 入力パラメータ\nconst tenantId = input.tenantId || 'default';\nconst workflowName = input.workflowName || 'unknown';\nconst requestId = input.requestId || `req_${Date.now()}`;\nconst nodeName = input.nodeName || 'AI Node';\nconst aiProvider = input.aiProvider || 'openai';  // openai, gemini, claude, elevenlabs, deepseek\nconst modelName = input.modelName || 'gpt-4';\n\n// AI入出力の要約（PIIマスク）\nconst inputSummary = typeof input.inputData === 'string' \n  ? input.inputData.substring(0, 500) \n  : JSON.stringify(input.inputData || {}).substring(0, 500);\n\nconst outputSummary = typeof input.outputData === 'string'\n  ? input.outputData.substring(0, 500)\n  : JSON.stringify(input.outputData || {}).substring(0, 500);\n\n// AI判断理由（reasoning）\nconst reasoning = input.reasoning || input.outputData?.reasoning || 'No reasoning provided';\n\n// メトリクス\nconst confidenceScore = input.confidenceScore || null;\nconst tokensUsed = input.tokensUsed || input.usage?.total_tokens || null;\nconst costUsd = input.costUsd || null;\nconst latencyMs = input.latencyMs || null;\n\nreturn {\n  json: {\n    tenantId,\n    workflowName,\n    requestId,\n    nodeName,\n    aiProvider,\n    modelName,\n    inputSummary: inputSummary.replace(/'/g, \"''\"),  // SQLエスケープ\n    outputSummary: outputSummary.replace(/'/g, \"''\"),\n    reasoning: (reasoning || '').replace(/'/g, \"''\"),\n    confidenceScore,\n    tokensUsed,\n    costUsd,\n    latencyMs,\n    originalPayload: input\n  }\n};"
+      },
+      "id": "ai-trace-prepare",
+      "name": "Prepare Trace Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT record_ai_decision(\n  '{{ $json.tenantId }}',\n  '{{ $json.workflowName }}',\n  '{{ $json.requestId }}',\n  '{{ $json.nodeName }}',\n  '{{ $json.aiProvider }}',\n  '{{ $json.modelName }}',\n  '{{ $json.inputSummary }}',\n  '{{ $json.outputSummary }}',\n  '{{ $json.reasoning }}',\n  {{ $json.confidenceScore || 'NULL' }},\n  {{ $json.tokensUsed || 'NULL' }},\n  {{ $json.costUsd || 'NULL' }},\n  {{ $json.latencyMs || 'NULL' }}\n) as trace_id;",
+        "options": {}
+      },
+      "id": "ai-trace-db-insert",
+      "name": "Record AI Decision",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [650, 300],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-postgres",
+          "name": "Supabase PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 結果を返す\nconst input = $input.first().json;\nconst prevData = $('Prepare Trace Data').first().json;\n\nreturn {\n  json: {\n    traceRecorded: true,\n    traceId: input.trace_id,\n    tenantId: prevData.tenantId,\n    requestId: prevData.requestId,\n    workflowName: prevData.workflowName,\n    nodeName: prevData.nodeName,\n    aiProvider: prevData.aiProvider,\n    recordedAt: new Date().toISOString(),\n    // 元のペイロードを維持\n    ...prevData.originalPayload\n  }\n};"
+      },
+      "id": "ai-trace-complete",
+      "name": "Trace Complete",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    }
+  ],
+  "connections": {
+    "AI Trace Start": {
+      "main": [
+        [{ "node": "Prepare Trace Data", "type": "main", "index": 0 }]
+      ]
+    },
+    "Prepare Trace Data": {
+      "main": [
+        [{ "node": "Record AI Decision", "type": "main", "index": 0 }]
+      ]
+    },
+    "Record AI Decision": {
+      "main": [
+        [{ "node": "Trace Complete", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": ["V8", "AI-Trace", "Audit", "共通モジュール"],
+  "triggerCount": 0,
+  "updatedAt": "2026-01-24T00:00:00.000Z",
+  "versionId": "v8.2.1"
+}

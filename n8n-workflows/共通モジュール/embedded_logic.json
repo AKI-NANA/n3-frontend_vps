@@ -1,0 +1,193 @@
+{
+  "name": "【共通】embedded_logic - 帝国OS共通ロジック集",
+  "description": "N3 Empire OS V6: 全ワークフローで共有する埋め込みロジック定義",
+  "version": "6.0.0",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "embedded-logic",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "name": "Webhook: embedded-logic",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "embedded-logic"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// N3 Empire OS V6: 共通埋め込みロジック\n// ============================================================================\n\nconst body = $input.first().json.body || $input.first().json || {};\nconst action = body.action || 'get_logic';\n\n// 共通ロジック定義\nconst EMBEDDED_LOGIC = {\n  // 価格計算共通式\n  price_calculation: {\n    profit_margin_min: 0.15,\n    profit_margin_target: 0.25,\n    shipping_buffer: 1.1,\n    fx_buffer: 1.02\n  },\n  \n  // 在庫しきい値\n  stock_thresholds: {\n    low_stock: 3,\n    out_of_stock: 0,\n    reorder_point: 5\n  },\n  \n  // AIモデル優先順位\n  ai_priority: [\n    { model: 'gemini-1.5-flash', cost: 'low', speed: 'fast' },\n    { model: 'gpt-4o-mini', cost: 'medium', speed: 'medium' },\n    { model: 'claude-3-haiku', cost: 'medium', speed: 'fast' }\n  ],\n  \n  // リトライ設定\n  retry_config: {\n    max_attempts: 3,\n    initial_delay_ms: 1000,\n    backoff_multiplier: 2\n  },\n  \n  // レート制限\n  rate_limits: {\n    ebay_api: { requests_per_minute: 100 },\n    gemini_api: { requests_per_minute: 60 },\n    youtube_api: { requests_per_day: 10000 }\n  }\n};\n\nswitch (action) {\n  case 'get_logic':\n    return [{ json: { success: true, logic: EMBEDDED_LOGIC } }];\n  \n  case 'get_price_calc':\n    return [{ json: { success: true, config: EMBEDDED_LOGIC.price_calculation } }];\n  \n  case 'get_ai_model':\n    const tier = body.tier || 'low';\n    const model = EMBEDDED_LOGIC.ai_priority.find(m => m.cost === tier) || EMBEDDED_LOGIC.ai_priority[0];\n    return [{ json: { success: true, model: model.model, config: model } }];\n  \n  default:\n    return [{ json: { success: false, error: `Unknown action: ${action}` } }];\n}\n"
+      },
+      "name": "⚙️ 共通ロジック処理",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] 共通ロジック定義"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($node['⚙️ 共通ロジック処理'].json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "id": "n3_core_88ce41d6",
+      "name": "[V8.3] CORE-Dispatcher",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        450,
+        300
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": "={{ $vars.CORE_DISPATCHER_ID }}",
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "notes": "V8.3: Auth/Circuit-Breaker/Burn-Limit/Queue"
+    }
+  ],
+  "connections": {
+    "Webhook: embedded-logic": {
+      "main": [
+        [
+          {
+            "node": "[V8.3] CORE-Dispatcher",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "⚙️ 共通ロジック処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚙️ 共通ロジック処理": {
+      "main": [
+        [
+          {
+            "node": "📊 実行ログ送信",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 実行ログ送信": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[V8.3] CORE-Dispatcher": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 60,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Core",
+      "color": "#2563eb"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    },
+    {
+      "name": "Shared-Logic",
+      "color": "#16a34a"
+    }
+  ],
+  "active": false,
+  "meta": {
+    "n3_version": "V8.3",
+    "transformed_at": "2026-01-25T13:02:58.690594"
+  }
+}

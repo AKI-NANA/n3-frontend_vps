@@ -1,0 +1,100 @@
+{
+  "listing_publish": {
+    "description": "eBay出品処理",
+    "priority": 1,
+    "files": [
+      "app/tools/listing-n3/components/tab-final.tsx",
+      "app/api/ebay/publish/route.ts",
+      "lib/services/n8n/listing-service.ts"
+    ],
+    "rules": [
+      "dry_run_default"
+    ],
+    "aliases": [
+      "出品",
+      "listing",
+      "publish",
+      "出品バグ"
+    ]
+  },
+  "inventory_sync": {
+    "description": "在庫同期処理",
+    "priority": 1,
+    "files": [
+      "app/tools/operations-n3/components/inventory-tab.tsx",
+      "app/api/inventory/sync/route.ts",
+      "lib/services/inventory-service.ts"
+    ],
+    "rules": [
+      "dry_run_default"
+    ],
+    "aliases": [
+      "在庫",
+      "inventory",
+      "sync",
+      "在庫同期"
+    ]
+  },
+  "research_scoring": {
+    "description": "リサーチスコアリング",
+    "priority": 2,
+    "files": [
+      "app/tools/research-n3/components/scoring-tab.tsx",
+      "app/api/research/scoring/route.ts",
+      "lib/research/scoring-engine.ts"
+    ],
+    "rules": [
+      "no_schema_change"
+    ],
+    "aliases": [
+      "リサーチ",
+      "research",
+      "scoring"
+    ]
+  },
+  "product_edit": {
+    "description": "商品編集",
+    "priority": 2,
+    "files": [
+      "app/tools/editing-n3/page.tsx",
+      "app/api/products/update/route.ts",
+      "lib/services/product-service.ts"
+    ],
+    "rules": [],
+    "aliases": [
+      "商品編集",
+      "editing",
+      "product"
+    ]
+  },
+  "n8n_workflow": {
+    "description": "n8nワークフロー修正",
+    "priority": 3,
+    "files": [
+      "n8n-workflows/*.json",
+      "lib/services/n8n/"
+    ],
+    "rules": [
+      "dry_run_default"
+    ],
+    "aliases": [
+      "n8n",
+      "workflow"
+    ]
+  },
+  "cron_jobs": {
+    "description": "Cronジョブ修正",
+    "priority": 3,
+    "files": [
+      "app/api/cron/*/route.ts"
+    ],
+    "rules": [
+      "dry_run_default",
+      "no_new_files"
+    ],
+    "aliases": [
+      "cron",
+      "定期実行"
+    ]
+  }
+}

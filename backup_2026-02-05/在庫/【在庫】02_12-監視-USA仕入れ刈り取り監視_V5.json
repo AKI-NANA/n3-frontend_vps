@@ -1,0 +1,598 @@
+{
+  "name": "【在庫】02_12-監視-USA仕入れ刈り取り監視_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "usa-harvest-monitor",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: usa-harvest-monitor",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "usa-harvest-monitor"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "30分ごと監視",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst headers = $input.first().json.headers || {};\nconst apiUrl = $env.N3_API_URL || '{{$env.GATEWAY_URL}}';\nconst secret = $env.N8N_INTERNAL_SECRET;\nif (!secret) return [{ json: { error: true, message: 'N8N_INTERNAL_SECRET未設定', code: 'CONFIG_ERROR' } }];\nconst internalToken = headers['x-n3-signature'] || headers['X-N3-Signature'];\nconst tokenTimestamp = headers['x-n3-token-timestamp'] || headers['X-N3-Token-Timestamp'];\nif (internalToken && tokenTimestamp) {\n  try {\n    const r = await fetch(`${apiUrl}/api/n8n-auth/verify-internal-token`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: 'system', timestamp: tokenTimestamp, token: internalToken }) });\n    if (!(await r.json()).valid) return [{ json: { error: true, message: '内部トークン無効', code: 'INVALID_TOKEN' } }];\n  } catch (e) { return [{ json: { error: true, message: 'トークン検証エラー', code: 'VERIFY_ERROR' } }]; }\n}\nconst targetAsins = body.asins || [];\nconst priceDropThreshold = body.threshold || 0.15;\nconst isScheduled = !$input.first().json.body;\nreturn [{ json: { target_asins: targetAsins, price_drop_threshold: priceDropThreshold, is_scheduled: isScheduled, api_url: apiUrl, request_timestamp: new Date().toISOString() } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, sku, product_name, supplier_url, supplier_data->>'asin' as asin, cost_price, (supplier_data->>'target_price')::numeric as target_price, (supplier_data->>'last_checked_price')::numeric as last_price FROM products_master WHERE supplier_data->>'source' = 'amazon_usa' AND supplier_data->>'harvest_enabled' = 'true' AND status = 'active' LIMIT 100",
+        "options": {}
+      },
+      "id": "get-harvest-targets",
+      "name": "📋 刈り取り対象取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "no-targets",
+              "leftValue": "={{ Array.isArray($json) ? $json.length : ($json.id ? 1 : 0) }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-targets",
+      "name": "対象あり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { success: true, message: '刈り取り対象なし', checked_count: 0, alerts: [] } }];"
+      },
+      "id": "no-targets",
+      "name": "対象なし",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const targets = $input.all().map(item => item.json);\nconst targetsArray = Array.isArray(targets[0]) ? targets[0] : targets;\nconst config = $node['🔐 初期化'].json;\nreturn targetsArray.filter(t => t && t.asin).map(target => ({ json: { id: target.id, sku: target.sku, product_name: target.product_name, asin: target.asin, supplier_url: target.supplier_url, cost_price: parseFloat(target.cost_price) || 0, target_price: parseFloat(target.target_price) || 0, last_price: parseFloat(target.last_price) || 0, threshold: config.price_drop_threshold } }));"
+      },
+      "id": "expand-targets",
+      "name": "📦 対象展開",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $node['🔐 初期化'].json.api_url }}/api/amazon/price-check",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "asin",
+              "value": "={{ $json.asin }}"
+            },
+            {
+              "name": "marketplace",
+              "value": "US"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "check-price",
+      "name": "💰 価格チェック",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst target = $node['📦 対象展開'].json;\nconst currentPrice = parseFloat(response.price || response.currentPrice || response.lowestPrice || 0);\nconst targetPrice = target.target_price || 0;\nconst lastPrice = target.last_price || currentPrice;\nconst priceDropPercent = lastPrice > 0 ? ((lastPrice - currentPrice) / lastPrice) : 0;\nconst isUnderTarget = targetPrice > 0 && currentPrice > 0 && currentPrice <= targetPrice;\nconst isSignificantDrop = priceDropPercent >= target.threshold;\nconst shouldAlert = isUnderTarget || isSignificantDrop;\nreturn [{ json: { ...target, current_price: currentPrice, price_drop_percent: priceDropPercent, is_under_target: isUnderTarget, is_significant_drop: isSignificantDrop, should_alert: shouldAlert, check_success: currentPrice > 0, checked_at: new Date().toISOString() } }];"
+      },
+      "id": "analyze-price",
+      "name": "📊 価格分析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE products_master SET supplier_data = supplier_data || $1::jsonb, updated_at = NOW() WHERE id = $2",
+        "options": {
+          "queryParams": "={{ [JSON.stringify({ last_checked_price: $json.current_price, last_checked_at: $json.checked_at }), $json.id] }}"
+        }
+      },
+      "id": "update-price",
+      "name": "💾 価格記録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "should-alert",
+              "leftValue": "={{ $json.should_alert }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-alert",
+      "name": "アラート要？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=[info][title]🎯 刈り取りチャンス！[/title]商品: {{ $json.product_name }}\\nASIN: {{ $json.asin }}\\nSKU: {{ $json.sku }}\\n\\n💰 現在価格: ${{ $json.current_price }}\\n🎯 目標価格: ${{ $json.target_price }}\\n📉 値下げ率: {{ Math.round($json.price_drop_percent * 100) }}%\\n\\n{{ $json.supplier_url }}[/info]"
+            }
+          ]
+        }
+      },
+      "id": "send-alert",
+      "name": "🚨 刈り取りアラート",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO admin_tasks (task_type, priority, platform, reference_id, reference_type, title, description, action_required, status, created_at) VALUES ('harvest', 'high', 'amazon_usa', $1, 'product', $2, $3, true, 'pending', NOW())",
+        "options": {
+          "queryParams": "={{ [$json.sku, '刈り取りチャンス: ' + $json.product_name.substring(0, 50), JSON.stringify({ asin: $json.asin, current_price: $json.current_price, target_price: $json.target_price, drop_percent: $json.price_drop_percent })] }}"
+        }
+      },
+      "id": "create-task",
+      "name": "📝 タスク作成",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "return items;"
+      },
+      "id": "pass-no-alert",
+      "name": "アラート不要",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all().map(i => i.json);\nconst checkedCount = results.filter(r => r.check_success).length;\nconst alertCount = results.filter(r => r.should_alert).length;\nconst alerts = results.filter(r => r.should_alert).map(r => ({ sku: r.sku, asin: r.asin, current_price: r.current_price, target_price: r.target_price }));\nreturn [{ json: { success: true, checked_count: checkedCount, alert_count: alertCount, alerts: alerts, checked_at: new Date().toISOString() } }];"
+      },
+      "id": "aggregate",
+      "name": "📊 結果集計",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: usa-harvest-monitor": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "30分ごと監視": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 刈り取り対象取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 刈り取り対象取得": {
+      "main": [
+        [
+          {
+            "node": "対象あり？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "対象あり？": {
+      "main": [
+        [
+          {
+            "node": "対象なし",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📦 対象展開",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "対象なし": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 対象展開": {
+      "main": [
+        [
+          {
+            "node": "💰 価格チェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💰 価格チェック": {
+      "main": [
+        [
+          {
+            "node": "📊 価格分析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 価格分析": {
+      "main": [
+        [
+          {
+            "node": "💾 価格記録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 価格記録": {
+      "main": [
+        [
+          {
+            "node": "アラート要？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "アラート要？": {
+      "main": [
+        [
+          {
+            "node": "🚨 刈り取りアラート",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📝 タスク作成",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "アラート不要",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚨 刈り取りアラート": {
+      "main": [
+        [
+          {
+            "node": "📊 結果集計",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 タスク作成": {
+      "main": [
+        [
+          {
+            "node": "📊 結果集計",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "アラート不要": {
+      "main": [
+        [
+          {
+            "node": "📊 結果集計",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 結果集計": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 600,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Sync",
+      "color": "#1e90ff"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "No-Crypto",
+      "color": "#9932cc"
+    },
+    {
+      "name": "SQL-Safe",
+      "color": "#32cd32"
+    },
+    {
+      "name": "Harvest",
+      "color": "#ffd700"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

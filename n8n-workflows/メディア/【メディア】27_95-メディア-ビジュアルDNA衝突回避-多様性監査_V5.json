@@ -1,0 +1,331 @@
+{
+  "name": "【メディア】27_95-メディア-ビジュアルDNA衝突回避-多様性監査_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "visual-dna-audit",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: visual-dna-audit",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "visual-dna-audit"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nreturn [{ json: { channel_id: body.channel_id, proposed_colors: body.proposed_colors, proposed_avatar: body.proposed_avatar, action: body.action || 'audit', timestamp: new Date().toISOString() } }];"
+      },
+      "id": "init",
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT channel_id, primary_color_hsl, secondary_color_hsl, avatar_style, avatar_hash, color_space_hash FROM channel_visual_dna WHERE channel_id != $1 ORDER BY created_at DESC LIMIT 100",
+        "options": {
+          "queryParams": "={{ [$json.channel_id || 'NEW'] }}"
+        }
+      },
+      "id": "get-existing-dna",
+      "name": "🧬 既存DNA取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const initData = $node['🔧 初期化'].json;\nconst existingDna = $input.first().json || [];\nconst dnaList = Array.isArray(existingDna) ? existingDna : [existingDna].filter(d => d && d.channel_id);\n\n// 提案された配色\nconst proposedColors = initData.proposed_colors || { primary: { h: 200, s: 70, l: 50 } };\n\n// 色相距離計算（0-180、180が最も遠い）\nfunction hueDistance(h1, h2) {\n  const diff = Math.abs(h1 - h2);\n  return Math.min(diff, 360 - diff);\n}\n\n// 類似度チェック\nconst collisions = [];\nfor (const dna of dnaList) {\n  if (!dna.primary_color_hsl) continue;\n  const existingHsl = typeof dna.primary_color_hsl === 'string' ? JSON.parse(dna.primary_color_hsl) : dna.primary_color_hsl;\n  const hueDist = hueDistance(proposedColors.primary.h, existingHsl.h);\n  const satDist = Math.abs(proposedColors.primary.s - existingHsl.s);\n  const lightDist = Math.abs(proposedColors.primary.l - existingHsl.l);\n  \n  // 類似度スコア（0-1、1が完全一致）\n  const similarity = 1 - ((hueDist / 180) * 0.6 + (satDist / 100) * 0.2 + (lightDist / 100) * 0.2);\n  \n  if (similarity > 0.7) {\n    collisions.push({ channel_id: dna.channel_id, similarity: similarity.toFixed(3), avatar_style: dna.avatar_style });\n  }\n}\n\n// 衝突がある場合、補色を提案\nlet suggestion = null;\nif (collisions.length > 0) {\n  const complementaryHue = (proposedColors.primary.h + 180) % 360;\n  const analogousHue1 = (proposedColors.primary.h + 30) % 360;\n  const analogousHue2 = (proposedColors.primary.h - 30 + 360) % 360;\n  \n  suggestion = {\n    recommended_action: 'change_colors',\n    alternatives: [\n      { type: 'complementary', h: complementaryHue, s: proposedColors.primary.s, l: proposedColors.primary.l },\n      { type: 'analogous_1', h: analogousHue1, s: proposedColors.primary.s, l: proposedColors.primary.l },\n      { type: 'analogous_2', h: analogousHue2, s: proposedColors.primary.s, l: proposedColors.primary.l }\n    ]\n  };\n}\n\nreturn [{ json: { channel_id: initData.channel_id, proposed_colors: proposedColors, collision_detected: collisions.length > 0, collision_count: collisions.length, collisions: collisions.slice(0, 5), suggestion, diversity_score: collisions.length > 0 ? (1 - collisions[0].similarity) : 1.0 } }];"
+      },
+      "id": "analyze-collision",
+      "name": "🔍 衝突分析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.collision_detected }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-collision",
+      "name": "衝突あり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-goog-api-key",
+              "value": "={{ $env.GEMINI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: `既存チャンネルと視覚的に類似しています。以下の代替案から最適なものを選び、理由を説明してください。\n\n【衝突チャンネル】\n${JSON.stringify($json.collisions)}\n\n【代替案】\n${JSON.stringify($json.suggestion?.alternatives)}\n\n【出力形式】JSONのみ\n{\n  \"recommended_alternative\": \"complementary/analogous_1/analogous_2\",\n  \"recommended_avatar_style\": \"anime/photorealistic/cartoon/minimalist\",\n  \"reasoning\": \"理由\"\n}` }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 512 } }) }}",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "ai-recommendation",
+      "name": "🤖 AI推奨",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const analysisData = $node['🔍 衝突分析'].json;\nconst aiResult = $input.first().json;\n\nlet recommendation = { recommended_alternative: 'complementary', reasoning: 'デフォルト推奨' };\ntry {\n  const content = aiResult?.candidates?.[0]?.content?.parts?.[0]?.text || '';\n  const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) recommendation = JSON.parse(jsonMatch[0]);\n} catch (e) {}\n\nconst finalColors = analysisData.suggestion?.alternatives?.find(a => a.type === recommendation.recommended_alternative) || analysisData.proposed_colors.primary;\n\nreturn [{ json: { success: true, action: 'visual_dna_audit', channel_id: analysisData.channel_id, collision_detected: true, collision_count: analysisData.collision_count, original_colors: analysisData.proposed_colors, recommended_colors: finalColors, recommended_avatar_style: recommendation.recommended_avatar_style, reasoning: recommendation.reasoning, diversity_score: analysisData.diversity_score } }];"
+      },
+      "id": "format-collision-response",
+      "name": "📋 衝突応答",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "jsCode": "const analysisData = $node['🔍 衝突分析'].json;\nreturn [{ json: { success: true, action: 'visual_dna_audit', channel_id: analysisData.channel_id, collision_detected: false, approved_colors: analysisData.proposed_colors, diversity_score: analysisData.diversity_score, message: '視覚的衝突なし。このカラーパレットは使用可能です。' } }];"
+      },
+      "id": "format-ok-response",
+      "name": "📋 OK応答",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: visual-dna-audit": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "🧬 既存DNA取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧬 既存DNA取得": {
+      "main": [
+        [
+          {
+            "node": "🔍 衝突分析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 衝突分析": {
+      "main": [
+        [
+          {
+            "node": "衝突あり？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "衝突あり？": {
+      "main": [
+        [
+          {
+            "node": "🤖 AI推奨",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 OK応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 AI推奨": {
+      "main": [
+        [
+          {
+            "node": "📋 衝突応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 衝突応答": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 OK応答": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 120
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "VisualDNA",
+      "color": "#3498db"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

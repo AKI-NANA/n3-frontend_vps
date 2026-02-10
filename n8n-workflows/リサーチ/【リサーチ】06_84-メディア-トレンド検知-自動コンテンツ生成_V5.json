@@ -1,0 +1,471 @@
+{
+  "name": "【リサーチ】06_84-メディア-トレンド検知-自動コンテンツ生成_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "⏰ 6時間ごと実行",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "trend-detect",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: trend-detect",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "trend-detect"
+    },
+    {
+      "parameters": {
+        "jsCode": "// トレンド検知カテゴリ\nconst categories = [\n  { category: 'travel', keywords: ['旅行 トレンド', '人気 観光地', '旅行先 おすすめ'] },\n  { category: 'tech', keywords: ['ガジェット 新製品', 'AI 最新', 'スマホ トレンド'] },\n  { category: 'finance', keywords: ['投資 トレンド', '株 注目', '仮想通貨 最新'] },\n  { category: 'lifestyle', keywords: ['生活 便利', '時短 グッズ', 'トレンド 商品'] }\n];\n\nreturn categories.map(c => ({ json: c }));"
+      },
+      "id": "init-categories",
+      "name": "📋 カテゴリ初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.perplexity.ai/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.PERPLEXITY_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'llama-3.1-sonar-small-128k-online', messages: [{ role: 'user', content: `${$json.category}分野で今日トレンドになっているトピックを5つ、JSON形式で教えてください。\n\n検索キーワード: ${$json.keywords.join(', ')}\n\n出力形式（JSONのみ）:\n[\n  {\"topic\": \"トピック名\", \"description\": \"概要\", \"trend_score\": 85, \"source\": \"情報源\"}\n]` }] }) }}",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "perplexity-search",
+      "name": "🔍 Perplexityトレンド検索",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const category = $node['📋 カテゴリ初期化'].json;\nconst perplexityResult = $input.first().json;\n\nlet trends = [];\n\ntry {\n  const content = perplexityResult?.choices?.[0]?.message?.content || '';\n  const jsonMatch = content.match(/\\[([\\s\\S]*?)\\]/);\n  if (jsonMatch) {\n    trends = JSON.parse(`[${jsonMatch[1]}]`);\n  }\n} catch (e) {\n  console.log('Parse error:', e.message);\n}\n\nreturn trends.map(t => ({\n  json: {\n    trend_type: 'topic',\n    trend_category: category.category,\n    trend_value: t.topic,\n    description: t.description,\n    trend_score: t.trend_score || 50,\n    source: 'perplexity',\n    source_url: t.source,\n    detected_at: new Date().toISOString()\n  }\n}));"
+      },
+      "id": "parse-trends",
+      "name": "📋 トレンドパース",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO trend_detection (trend_type, trend_category, trend_value, source, source_url, trend_score, detected_at) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT DO NOTHING RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.trend_type, $json.trend_category, $json.trend_value, $json.source, $json.source_url, $json.trend_score, $json.detected_at] }}"
+        }
+      },
+      "id": "save-trend",
+      "name": "💾 トレンド保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM trend_detection WHERE action_status = 'new' AND trend_score >= 70 ORDER BY trend_score DESC LIMIT 5",
+        "options": {}
+      },
+      "id": "get-high-trends",
+      "name": "🔥 高スコアトレンド取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const trends = $input.first().json || [];\nconst trendList = Array.isArray(trends) ? trends : [trends].filter(t => t && t.id);\n\nif (trendList.length === 0) {\n  return [{ json: { has_trends: false, message: '新しい高スコアトレンドはありません' } }];\n}\n\nreturn [{\n  json: {\n    has_trends: true,\n    trend_count: trendList.length,\n    trends: trendList.map(t => ({\n      id: t.id,\n      category: t.trend_category,\n      topic: t.trend_value,\n      score: t.trend_score\n    }))\n  }\n}];"
+      },
+      "id": "check-trends",
+      "name": "📊 トレンド確認",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.has_trends }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "has-trends",
+      "name": "トレンドあり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.CHATWORK_WEBHOOK_URL || 'https://api.chatwork.com/v2/rooms/' + $env.CHATWORK_ROOM_ID + '/messages' }}",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "🔥 【トレンド検知】高スコアトレンド {{ $json.trend_count }}件\n\n{{ $json.trends.map(t => `• [${t.category}] ${t.topic} (スコア: ${t.score})`).join('\\n') }}\n\nコンテンツ生成キューに追加しました。"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "notify-chatwork",
+      "name": "📢 ChatWork通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE trend_detection SET action_status = 'queued' WHERE id = ANY($1::int[])",
+        "options": {
+          "queryParams": "={{ ['{' + $node['📊 トレンド確認'].json.trends.map(t => t.id).join(',') + '}'] }}"
+        }
+      },
+      "id": "update-status",
+      "name": "💾 ステータス更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $node['📊 トレンド確認'].json;\nreturn [{ json: { success: true, action: 'trend_detect', trend_count: data.trend_count || 0, message: data.has_trends ? `${data.trend_count}件のトレンドを検知しました` : '新しいトレンドはありません' } }];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "⏰ 6時間ごと実行": {
+      "main": [
+        [
+          {
+            "node": "📋 カテゴリ初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook: trend-detect": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 カテゴリ初期化": {
+      "main": [
+        [
+          {
+            "node": "🔍 Perplexityトレンド検索",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 Perplexityトレンド検索": {
+      "main": [
+        [
+          {
+            "node": "📋 トレンドパース",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 トレンドパース": {
+      "main": [
+        [
+          {
+            "node": "💾 トレンド保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 トレンド保存": {
+      "main": [
+        [
+          {
+            "node": "🔥 高スコアトレンド取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔥 高スコアトレンド取得": {
+      "main": [
+        [
+          {
+            "node": "📊 トレンド確認",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 トレンド確認": {
+      "main": [
+        [
+          {
+            "node": "トレンドあり？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "トレンドあり？": {
+      "main": [
+        [
+          {
+            "node": "📢 ChatWork通知",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📢 ChatWork通知": {
+      "main": [
+        [
+          {
+            "node": "💾 ステータス更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 ステータス更新": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "📋 カテゴリ初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 180,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Trend",
+      "color": "#f39c12"
+    },
+    {
+      "name": "Auto",
+      "color": "#27ae60"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

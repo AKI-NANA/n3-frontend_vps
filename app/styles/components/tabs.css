@@ -1,0 +1,454 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Tabs
+   統一サイズシステム対応版
+   
+   サイズ変数: --comp-height-*, --comp-font-*
+   ============================================================ */
+
+/* ============================================================
+   L2 TABS - メインページナビゲーション
+   ============================================================ */
+
+.n3-l2-tabs-container {
+  background: transparent;
+  border-bottom: none;
+  padding: 0 8px;
+}
+
+.n3-l2-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  height: 28px;
+}
+
+.n3-l2-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 28px;
+  padding: 0 10px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+  position: relative;
+  white-space: nowrap;
+}
+
+.n3-l2-tab:hover {
+  color: var(--text);
+  background: var(--highlight);
+}
+
+.n3-l2-tab.active {
+  color: var(--color-primary);
+  background: var(--color-primary-lighter);
+}
+
+.n3-l2-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--color-primary);
+  border-radius: 1px 1px 0 0;
+}
+
+.n3-l2-tab svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   L3 TABS - サブナビゲーション（フィルター等）
+   ============================================================ */
+
+.n3-l3-tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.n3-l3-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--comp-gap-xs);
+  height: var(--comp-height-xs);
+  padding: 0 var(--comp-px-sm);
+  font-size: var(--comp-font-xs);
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--style-btn-radius, var(--radius-md));
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+  white-space: nowrap;
+}
+
+.n3-l3-tab:hover {
+  color: var(--text);
+  background: var(--highlight);
+  border-color: var(--panel-border);
+}
+
+.n3-l3-tab.active {
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+  border-color: var(--color-primary);
+}
+
+.n3-l3-tab svg {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+/* Tab Badge */
+.n3-l3-tab-badge {
+  padding: 0 5px;
+  height: 16px;
+  min-width: 16px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  background: var(--color-primary);
+  color: white;
+  border-radius: 8px;
+  margin-left: 2px;
+}
+
+.n3-l3-tab.active .n3-l3-tab-badge {
+  background: white;
+  color: var(--color-primary);
+}
+
+/* ============================================================
+   FILTER TABS - テーブル上のフィルターボタン
+   ============================================================ */
+
+.n3-filter-tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+
+.n3-filter-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 22px;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+  white-space: nowrap;
+}
+
+.n3-filter-tab:hover {
+  color: var(--text);
+  border-color: var(--color-primary);
+  background: var(--highlight);
+}
+
+.n3-filter-tab.active {
+  color: white;
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.n3-filter-tab-count {
+  padding: 0 4px;
+  font-size: 9px;
+  font-weight: 700;
+  background: rgba(255,255,255,0.2);
+  border-radius: 4px;
+}
+
+.n3-filter-tab:not(.active) .n3-filter-tab-count {
+  background: var(--highlight);
+}
+
+/* ============================================================
+   SEGMENT TABS - セグメントコントロール風
+   ============================================================ */
+
+.n3-segment-tabs {
+  display: inline-flex;
+  align-items: center;
+  background: var(--highlight);
+  border-radius: var(--style-btn-radius, var(--radius-md));
+  padding: 2px;
+}
+
+.n3-segment-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--comp-gap-xs);
+  height: var(--comp-height-xs);
+  padding: 0 var(--comp-px-sm);
+  font-size: var(--comp-font-xs);
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: calc(var(--style-btn-radius, var(--radius-md)) - 2px);
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+  white-space: nowrap;
+}
+
+.n3-segment-tab:hover:not(.active) {
+  color: var(--text);
+}
+
+.n3-segment-tab.active {
+  color: var(--text);
+  background: var(--panel);
+  box-shadow: var(--shadow-sm);
+}
+
+.n3-segment-tab svg {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   UNDERLINE TABS - 下線スタイル
+   ============================================================ */
+
+.n3-underline-tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.n3-underline-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--comp-gap-sm);
+  padding: var(--space-2) 0;
+  font-size: var(--comp-font-sm);
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: var(--style-transition-fast, color 0.12s ease);
+  position: relative;
+  white-space: nowrap;
+}
+
+.n3-underline-tab:hover {
+  color: var(--text);
+}
+
+.n3-underline-tab.active {
+  color: var(--color-primary);
+}
+
+.n3-underline-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--color-primary);
+  border-radius: 1px 1px 0 0;
+}
+
+.n3-underline-tab svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   PILL TABS - カプセル型
+   ============================================================ */
+
+.n3-pill-tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+
+.n3-pill-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--comp-gap-xs);
+  height: var(--comp-height-sm);
+  padding: 0 var(--comp-px-md);
+  font-size: var(--comp-font-sm);
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+  white-space: nowrap;
+}
+
+.n3-pill-tab:hover {
+  color: var(--text);
+  background: var(--highlight);
+}
+
+.n3-pill-tab.active {
+  color: white;
+  background: var(--color-primary);
+}
+
+.n3-pill-tab svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   VERTICAL TABS - 縦型タブ
+   ============================================================ */
+
+.n3-vertical-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+}
+
+.n3-vertical-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--comp-gap-sm);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--comp-font-sm);
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--style-btn-radius, var(--radius-md));
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+  text-align: left;
+}
+
+.n3-vertical-tab:hover {
+  color: var(--text);
+  background: var(--highlight);
+}
+
+.n3-vertical-tab.active {
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+.n3-vertical-tab svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.n3-vertical-tab-label {
+  flex: 1;
+}
+
+.n3-vertical-tab-count {
+  font-size: var(--comp-font-xs);
+  color: var(--text-subtle);
+}
+
+.n3-vertical-tab.active .n3-vertical-tab-count {
+  color: var(--color-primary);
+}
+
+/* ============================================================
+   TAB PANEL - タブコンテンツ
+   ============================================================ */
+
+.n3-tab-panel {
+  padding: var(--space-4);
+}
+
+.n3-tab-panel-hidden {
+  display: none;
+}
+
+/* ============================================================
+   L3 FILTER BAR - フィルターバー全体
+   ============================================================ */
+
+.n3-l3-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 2px 8px;
+  min-height: 28px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--style-panel-radius, var(--radius-md));
+  box-shadow: none;
+  overflow-x: hidden;
+}
+
+/* ============================================================
+   VIEW SWITCH - リスト/カード切替
+   ============================================================ */
+
+.n3-view-switch {
+  display: inline-flex;
+  align-items: center;
+  background: var(--highlight);
+  border-radius: var(--style-btn-radius, var(--radius-sm));
+  padding: 1px;
+  height: 24px;
+}
+
+.n3-view-switch-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: calc(var(--style-btn-radius, var(--radius-sm)) - 1px);
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+.n3-view-switch-item:hover:not(.active) {
+  color: var(--text);
+}
+
+.n3-view-switch-item.active {
+  color: var(--text);
+  background: var(--panel);
+  box-shadow: var(--shadow-sm);
+}
+
+.n3-view-switch-item svg {
+  width: 12px;
+  height: 12px;
+}

@@ -1,0 +1,513 @@
+{
+  "name": "N3-Empire-音声生成-コストルーティング",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "voice-generate",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": "public",
+        "table": "media_channels",
+        "where": {
+          "values": [
+            {
+              "column": "channel_id",
+              "value": "={{ $json.channel_id }}"
+            }
+          ]
+        }
+      },
+      "id": "get-channel",
+      "name": "チャンネル取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.3,
+      "position": [
+        460,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db",
+          "name": "Supabase DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// コストルーティング: 収益ランクに応じてTTSプロバイダーを選択\nconst channel = $input.first().json;\nconst text = $('Webhook').first().json.text;\nconst emotion = $('Webhook').first().json.emotion || 'neutral';\n\nconst voiceConfig = channel.voice_config || {};\nconst revenueRank = channel.revenue_rank || 'C';\n\n// 収益ランクに応じたプロバイダー選択\nlet provider, voiceId, stability, similarityBoost;\n\nswitch(revenueRank) {\n  case 'S':\n  case 'A':\n    provider = 'elevenlabs';\n    voiceId = voiceConfig.voiceId || 'pNInz6obpgDQGcFmaJgB';\n    stability = voiceConfig.stability || 0.65;\n    similarityBoost = voiceConfig.similarityBoost || 0.75;\n    break;\n  case 'B':\n    provider = voiceConfig.fallbackProvider || 'openai';\n    voiceId = voiceConfig.fallbackVoice || 'alloy';\n    break;\n  case 'C':\n  default:\n    provider = 'google';\n    voiceId = 'ja-JP-Standard-A';\n    break;\n}\n\n// 感情に応じたパラメータ調整（ElevenLabs用）\nlet styleExaggeration = 0.2;\nswitch(emotion) {\n  case 'excited':\n  case 'happy':\n    styleExaggeration = 0.5;\n    stability = Math.max(0.3, (stability || 0.65) - 0.2);\n    break;\n  case 'serious':\n    styleExaggeration = 0.1;\n    stability = Math.min(0.9, (stability || 0.65) + 0.1);\n    break;\n  case 'surprised':\n    styleExaggeration = 0.6;\n    stability = Math.max(0.2, (stability || 0.65) - 0.3);\n    break;\n}\n\n// バイオモジュレーション: 息継ぎ挿入\nlet processedText = text;\nconst words = text.split(/[。、！？\\s]+/);\nlet breathCount = 0;\nprocessedText = words.map((word, i) => {\n  if (i > 0 && i % 8 === 0) {\n    breathCount++;\n    return '... ' + word;\n  }\n  return word;\n}).join('');\n\nreturn {\n  provider,\n  voiceId,\n  stability,\n  similarityBoost,\n  styleExaggeration,\n  text: processedText,\n  originalText: text,\n  emotion,\n  channel_id: channel.channel_id,\n  revenueRank,\n  breathCount\n};"
+      },
+      "id": "cost-routing",
+      "name": "コストルーティング",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.provider }}",
+              "operation": "equals",
+              "value2": "elevenlabs"
+            }
+          ]
+        }
+      },
+      "id": "switch-provider",
+      "name": "プロバイダー分岐",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.elevenlabs.io/v1/text-to-speech/{{ $json.voiceId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "xi-api-key",
+              "value": "={{ $credentials.token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"{{ $json.text }}\",\n  \"model_id\": \"eleven_multilingual_v2\",\n  \"voice_settings\": {\n    \"stability\": {{ $json.stability }},\n    \"similarity_boost\": {{ $json.similarityBoost }},\n    \"style\": {{ $json.styleExaggeration }},\n    \"use_speaker_boost\": true\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "elevenlabs-tts",
+      "name": "ElevenLabs TTS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        160
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "elevenlabs-api",
+          "name": "ElevenLabs API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/audio/speech",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $credentials.token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"tts-1\",\n  \"input\": \"{{ $json.text }}\",\n  \"voice\": \"{{ $json.voiceId }}\",\n  \"response_format\": \"mp3\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "openai-tts",
+      "name": "OpenAI TTS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "openai-api",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://texttospeech.googleapis.com/v1/text:synthesize",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "={{ $credentials.apiKey }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"input\": {\n    \"text\": \"{{ $json.text }}\"\n  },\n  \"voice\": {\n    \"languageCode\": \"ja-JP\",\n    \"name\": \"{{ $json.voiceId }}\"\n  },\n  \"audioConfig\": {\n    \"audioEncoding\": \"MP3\",\n    \"speakingRate\": 1.0,\n    \"pitch\": 0\n  }\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "google-tts",
+      "name": "Google TTS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        440
+      ],
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "google-cloud-api",
+          "name": "Google Cloud API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "toFile",
+        "sourceProperty": "data",
+        "options": {
+          "fileName": "=voice_{{ $('Webhook').first().json.content_id || 'temp' }}_{{ Date.now() }}.mp3"
+        }
+      },
+      "id": "binary-elevenlabs",
+      "name": "バイナリ変換(EL)",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1340,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toFile",
+        "sourceProperty": "data",
+        "options": {
+          "fileName": "=voice_{{ $('Webhook').first().json.content_id || 'temp' }}_{{ Date.now() }}.mp3"
+        }
+      },
+      "id": "binary-openai",
+      "name": "バイナリ変換(OA)",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Google TTSのBase64レスポンスをデコード\nconst response = $input.first().json;\nconst audioContent = response.audioContent;\n\nreturn {\n  data: Buffer.from(audioContent, 'base64'),\n  mimeType: 'audio/mpeg',\n  fileName: `voice_${'コストルーティング' ? $('コストルーティング').first().json.channel_id : 'temp'}_${Date.now()}.mp3`\n};"
+      },
+      "id": "decode-google",
+      "name": "Base64デコード",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "operation": "upload",
+        "bucketName": "media-assets",
+        "fileName": "={{ $json.fileName || 'voice_' + Date.now() + '.mp3' }}",
+        "additionalFields": {
+          "contentType": "audio/mpeg"
+        }
+      },
+      "id": "upload-storage",
+      "name": "Supabase Storage",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1560,
+        300
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-api",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "media_assets",
+        "columns": {
+          "values": [
+            {
+              "column": "asset_type",
+              "value": "narration"
+            },
+            {
+              "column": "content_id",
+              "value": "={{ $('Webhook').first().json.content_id }}"
+            },
+            {
+              "column": "channel_id",
+              "value": "={{ $('コストルーティング').first().json.channel_id }}"
+            },
+            {
+              "column": "file_url",
+              "value": "={{ $json.Key }}"
+            },
+            {
+              "column": "format",
+              "value": "mp3"
+            },
+            {
+              "column": "title",
+              "value": "=ナレーション - {{ $('Webhook').first().json.segment_index || 0 }}"
+            }
+          ]
+        },
+        "options": {
+          "returnData": true
+        }
+      },
+      "id": "save-asset",
+      "name": "アセット保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.3,
+      "position": [
+        1780,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db",
+          "name": "Supabase DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"provider\": \"{{ $('コストルーティング').first().json.provider }}\",\n  \"revenue_rank\": \"{{ $('コストルーティング').first().json.revenueRank }}\",\n  \"audio_url\": \"{{ $json.file_url || $('Supabase Storage').first().json.Key }}\",\n  \"asset_id\": \"{{ $json.asset_id }}\",\n  \"breath_insertions\": {{ $('コストルーティング').first().json.breathCount }}\n}",
+        "options": {}
+      },
+      "id": "respond",
+      "name": "レスポンス",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2000,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "チャンネル取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "チャンネル取得": {
+      "main": [
+        [
+          {
+            "node": "コストルーティング",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "コストルーティング": {
+      "main": [
+        [
+          {
+            "node": "プロバイダー分岐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "プロバイダー分岐": {
+      "main": [
+        [
+          {
+            "node": "ElevenLabs TTS",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "OpenAI TTS",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Google TTS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ElevenLabs TTS": {
+      "main": [
+        [
+          {
+            "node": "バイナリ変換(EL)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI TTS": {
+      "main": [
+        [
+          {
+            "node": "バイナリ変換(OA)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google TTS": {
+      "main": [
+        [
+          {
+            "node": "Base64デコード",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "バイナリ変換(EL)": {
+      "main": [
+        [
+          {
+            "node": "Supabase Storage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "バイナリ変換(OA)": {
+      "main": [
+        [
+          {
+            "node": "Supabase Storage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Base64デコード": {
+      "main": [
+        [
+          {
+            "node": "Supabase Storage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase Storage": {
+      "main": [
+        [
+          {
+            "node": "アセット保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "アセット保存": {
+      "main": [
+        [
+          {
+            "node": "レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "instanceId": "n3-empire-os"
+  }
+}

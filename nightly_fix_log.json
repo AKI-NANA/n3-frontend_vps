@@ -1,0 +1,98 @@
+[
+  {
+    "timestamp": "2026-02-05T08:40:48.270Z",
+    "mode": "fix",
+    "analysis": {
+      "fixable": 0,
+      "manual": 0,
+      "design": 0,
+      "unknown": 0
+    },
+    "results": {
+      "fixed": 0,
+      "skipped": 0,
+      "errors": 0
+    },
+    "verification": {
+      "totalFiles": 2979,
+      "passCount": 1005,
+      "passRate": "33.7",
+      "avgScore": "90.4",
+      "totalCritical": 876,
+      "totalErrors": 1341,
+      "totalWarnings": 2854
+    }
+  },
+  {
+    "timestamp": "2026-02-05T08:40:45.748Z",
+    "mode": "dry-run",
+    "analysis": {
+      "fixable": 0,
+      "manual": 0,
+      "design": 0,
+      "unknown": 0
+    },
+    "results": {
+      "fixed": 0,
+      "skipped": 0,
+      "errors": 0
+    },
+    "verification": {
+      "totalFiles": 2979,
+      "passCount": 1005,
+      "passRate": "33.7",
+      "avgScore": "90.4",
+      "totalCritical": 876,
+      "totalErrors": 1341,
+      "totalWarnings": 2854
+    }
+  },
+  {
+    "timestamp": "2026-02-05T08:40:44.527Z",
+    "mode": "fix",
+    "analysis": {
+      "fixable": 0,
+      "manual": 0,
+      "design": 0,
+      "unknown": 0
+    },
+    "results": {
+      "fixed": 0,
+      "skipped": 0,
+      "errors": 0
+    },
+    "verification": {
+      "totalFiles": 2974,
+      "passCount": 1005,
+      "passRate": "33.8",
+      "avgScore": "90.4",
+      "totalCritical": 873,
+      "totalErrors": 1338,
+      "totalWarnings": 2851
+    }
+  },
+  {
+    "timestamp": "2026-02-05T08:40:44.466Z",
+    "mode": "dry-run",
+    "analysis": {
+      "fixable": 0,
+      "manual": 0,
+      "design": 0,
+      "unknown": 0
+    },
+    "results": {
+      "fixed": 0,
+      "skipped": 0,
+      "errors": 0
+    },
+    "verification": {
+      "totalFiles": 2974,
+      "passCount": 1005,
+      "passRate": "33.8",
+      "avgScore": "90.4",
+      "totalCritical": 873,
+      "totalErrors": 1338,
+      "totalWarnings": 2851
+    }
+  }
+]

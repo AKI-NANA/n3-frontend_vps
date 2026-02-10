@@ -1,0 +1,429 @@
+{
+  "name": "【経理】02_58-法務-古物台帳自動生成_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "kobutsu-ledger",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: kobutsu-ledger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "kobutsu-ledger"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst action = body.action || 'list'; // list, record_purchase, record_sale, export_pdf\nconst transactionType = body.transaction_type; // 'purchase', 'sale'\nconst productId = body.product_id;\nconst orderId = body.order_id;\nconst itemData = body.item_data || {};\nconst counterpartyData = body.counterparty_data || {};\nconst dateRange = body.date_range || {};\nreturn [{ json: { action, transaction_type: transactionType, product_id: productId, order_id: orderId, item_data: itemData, counterparty_data: counterpartyData, date_range: dateRange } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "rules": [
+            {
+              "outputKey": "list",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "list",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "record",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "record_purchase",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "record",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "record_sale",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "export",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "export_pdf",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "fallbackOutput": "list"
+        }
+      },
+      "id": "switch-action",
+      "name": "🔀 アクション分岐",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM kobutsu_ledger WHERE ($1::date IS NULL OR transaction_date >= $1::date) AND ($2::date IS NULL OR transaction_date <= $2::date) ORDER BY ledger_number DESC LIMIT 200",
+        "options": {
+          "queryParams": "={{ [$node['🔐 初期化'].json.date_range.start || null, $node['🔐 初期化'].json.date_range.end || null] }}"
+        }
+      },
+      "id": "list-ledger",
+      "name": "📋 台帳一覧",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT pm.*, im.purchase_price FROM products_master pm LEFT JOIN inventory_master im ON pm.id = im.product_id WHERE pm.id = $1",
+        "options": {
+          "queryParams": "={{ [$node['🔐 初期化'].json.product_id] }}"
+        }
+      },
+      "id": "get-product",
+      "name": "📦 商品取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $node['🔐 初期化'].json;\nconst productRaw = $input.first().json;\nconst product = Array.isArray(productRaw) ? productRaw[0] : productRaw;\n\nconst item = config.item_data;\nconst counterparty = config.counterparty_data;\nconst transactionType = config.action === 'record_purchase' ? 'purchase' : 'sale';\n\nconst ledgerEntry = {\n  transaction_type: transactionType,\n  item_category: item.category || product?.category_primary || '雑貨',\n  item_name: item.name || product?.title || '',\n  item_brand: item.brand || product?.brand || '',\n  item_model: item.model || '',\n  item_serial_number: item.serial_number || '',\n  item_characteristics: item.characteristics || product?.condition_description || '',\n  quantity: item.quantity || 1,\n  unit_price: item.unit_price || product?.purchase_price || 0,\n  total_amount: (item.quantity || 1) * (item.unit_price || product?.purchase_price || 0),\n  counterparty_type: counterparty.type || 'business',\n  counterparty_name: counterparty.name || '',\n  counterparty_address: counterparty.address || '',\n  counterparty_phone: counterparty.phone || '',\n  counterparty_id_type: counterparty.id_type || '',\n  counterparty_id_number: counterparty.id_number || '',\n  product_id: config.product_id,\n  order_id: config.order_id\n};\n\nreturn [{ json: ledgerEntry }];"
+      },
+      "id": "prepare-entry",
+      "name": "📝 台帳エントリ準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO kobutsu_ledger (transaction_type, item_category, item_name, item_brand, item_model, item_serial_number, item_characteristics, quantity, unit_price, total_amount, counterparty_type, counterparty_name, counterparty_address, counterparty_phone, counterparty_id_type, counterparty_id_number, product_id, order_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18::uuid) RETURNING id, ledger_number",
+        "options": {
+          "queryParams": "={{ [$json.transaction_type, $json.item_category, $json.item_name, $json.item_brand, $json.item_model, $json.item_serial_number, $json.item_characteristics, $json.quantity, $json.unit_price, $json.total_amount, $json.counterparty_type, $json.counterparty_name, $json.counterparty_address, $json.counterparty_phone, $json.counterparty_id_type, $json.counterparty_id_number, $json.product_id, $json.order_id] }}"
+        }
+      },
+      "id": "insert-ledger",
+      "name": "💾 台帳記録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT kl.*, gs_lic.setting_value as license_number, gs_auth.setting_value as license_authority FROM kobutsu_ledger kl CROSS JOIN (SELECT setting_value FROM global_settings WHERE setting_key = 'kobutsu_license_number') gs_lic CROSS JOIN (SELECT setting_value FROM global_settings WHERE setting_key = 'kobutsu_license_authority') gs_auth WHERE ($1::date IS NULL OR kl.transaction_date >= $1::date) AND ($2::date IS NULL OR kl.transaction_date <= $2::date) ORDER BY kl.ledger_number ASC",
+        "options": {
+          "queryParams": "={{ [$node['🔐 初期化'].json.date_range.start || null, $node['🔐 初期化'].json.date_range.end || null] }}"
+        }
+      },
+      "id": "export-data",
+      "name": "📤 エクスポート取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst entries = Array.isArray(data) ? data : (data?.id ? [data] : []);\n\nif (entries.length === 0) return [{ json: { error: true, message: 'エクスポート対象なし' } }];\n\nconst licenseNumber = entries[0]?.license_number || '';\nconst licenseAuthority = entries[0]?.license_authority || '';\n\n// CSV形式で出力\nconst headers = ['台帳番号', '取引日', '取引区分', '品目', '品名', 'ブランド', '型番', '製造番号', '特徴', '数量', '単価', '金額', '取引相手区分', '取引相手名', '住所', '電話', '本人確認種類', '本人確認番号'];\nconst rows = entries.map(e => [\n  e.ledger_number,\n  e.transaction_date,\n  e.transaction_type === 'purchase' ? '仕入' : '売却',\n  e.item_category,\n  e.item_name,\n  e.item_brand || '',\n  e.item_model || '',\n  e.item_serial_number || '',\n  e.item_characteristics || '',\n  e.quantity,\n  e.unit_price,\n  e.total_amount,\n  e.counterparty_type === 'individual' ? '個人' : '法人',\n  e.counterparty_name || '',\n  e.counterparty_address || '',\n  e.counterparty_phone || '',\n  e.counterparty_id_type || '',\n  e.counterparty_id_number || ''\n].join(','));\n\nconst csv = [headers.join(','), ...rows].join('\\n');\n\nreturn [{ json: { success: true, license_number: licenseNumber, license_authority: licenseAuthority, entry_count: entries.length, csv_data: csv } }];"
+      },
+      "id": "generate-export",
+      "name": "📄 CSV生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "jsCode": "const action = $node['🔐 初期化'].json.action;\nlet result = { success: true, action };\n\nif (action === 'list') {\n  const entries = $node['📋 台帳一覧'].json;\n  result.entries = Array.isArray(entries) ? entries : (entries?.id ? [entries] : []);\n  result.count = result.entries.length;\n} else if (action === 'record_purchase' || action === 'record_sale') {\n  const inserted = $node['💾 台帳記録'].json;\n  result.ledger_id = inserted?.id;\n  result.ledger_number = inserted?.ledger_number;\n} else if (action === 'export_pdf') {\n  const exported = $node['📄 CSV生成'].json;\n  result = exported;\n}\n\nreturn [{ json: result }];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: kobutsu-ledger": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "🔀 アクション分岐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 アクション分岐": {
+      "main": [
+        [
+          {
+            "node": "📋 台帳一覧",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📦 商品取得",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📤 エクスポート取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 台帳一覧": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 商品取得": {
+      "main": [
+        [
+          {
+            "node": "📝 台帳エントリ準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 台帳エントリ準備": {
+      "main": [
+        [
+          {
+            "node": "💾 台帳記録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 台帳記録": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📤 エクスポート取得": {
+      "main": [
+        [
+          {
+            "node": "📄 CSV生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📄 CSV生成": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 120,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Legal",
+      "color": "#8e44ad"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Kobutsu",
+      "color": "#2c3e50"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

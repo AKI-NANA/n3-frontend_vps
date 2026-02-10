@@ -1,0 +1,475 @@
+{
+  "name": "【メディア】17_70-メディア-演出学習ループ-自己進化エンジン_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "⏰ 6時間ごと実行",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "evolution-trigger",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook-manual",
+      "name": "Webhook: 手動トリガー",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "evolution-trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 演出学習ループ初期化\nconst analysisWindow = 7; // 過去7日間\nconst minViews = 100; // 最低視聴数\nconst performanceThreshold = {\n  ctr: 0.05, // 5%以上\n  retention: 0.4 // 40%以上\n};\n\nreturn [{\n  json: {\n    analysis_window_days: analysisWindow,\n    min_views: minViews,\n    performance_threshold: performanceThreshold,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  rm.render_id,\n  rm.channel_id,\n  rm.video_type,\n  rm.performance_params,\n  rm.scenes,\n  ya.video_id,\n  ya.views,\n  ya.ctr,\n  ya.avg_view_duration,\n  ya.retention_rate,\n  ya.likes,\n  ya.comments,\n  (ya.likes + ya.comments * 2) / NULLIF(ya.views, 0) as engagement_score\nFROM render_metadata rm\nJOIN youtube_analytics ya ON rm.youtube_video_id = ya.video_id\nWHERE \n  ya.recorded_at > NOW() - INTERVAL '{{ $json.analysis_window_days }} days'\n  AND ya.views >= {{ $json.min_views }}\nORDER BY ya.retention_rate DESC\nLIMIT 100",
+        "options": {}
+      },
+      "id": "fetch-performance-data",
+      "name": "📊 パフォーマンスデータ取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "notes": "\n[PATCHER] WARNING: このクエリはqueryParams方式への移行が必要です。手動で修正してください。"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.all().map(item => item.json);\nconst config = $node['🔧 初期化'].json;\n\nif (!data || data.length === 0) {\n  return [{ json: { skip: true, reason: 'データなし' } }];\n}\n\n// 高パフォーマンス動画を抽出\nconst highPerformers = data.filter(d => \n  d.ctr >= config.performance_threshold.ctr &&\n  d.retention_rate >= config.performance_threshold.retention\n);\n\n// 低パフォーマンス動画を抽出\nconst lowPerformers = data.filter(d => \n  d.ctr < config.performance_threshold.ctr * 0.5 ||\n  d.retention_rate < config.performance_threshold.retention * 0.5\n);\n\n// 高パフォーマンスの演出パラメータを集計\nconst successParams = highPerformers.map(d => {\n  try {\n    return typeof d.performance_params === 'string' \n      ? JSON.parse(d.performance_params) \n      : d.performance_params;\n  } catch { return null; }\n}).filter(p => p);\n\n// 平均値を計算\nfunction avgParam(params, path) {\n  const values = params.map(p => {\n    const parts = path.split('.');\n    let val = p;\n    for (const part of parts) val = val?.[part];\n    return val;\n  }).filter(v => typeof v === 'number');\n  return values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : null;\n}\n\nconst optimizedParams = {\n  spring: {\n    stiffness: avgParam(successParams, 'spring.stiffness') || 260,\n    damping: avgParam(successParams, 'spring.damping') || 20,\n    mass: avgParam(successParams, 'spring.mass') || 1\n  },\n  timing: {\n    scene_transition_ms: avgParam(successParams, 'timing.scene_transition_ms') || 400,\n    caption_fade_ms: avgParam(successParams, 'timing.caption_fade_ms') || 250,\n    annotation_enter_ms: avgParam(successParams, 'timing.annotation_enter_ms') || 200,\n    pause_after_emphasis_ms: avgParam(successParams, 'timing.pause_after_emphasis_ms') || 600\n  },\n  visual_intensity: {\n    shake_magnitude: avgParam(successParams, 'visual_intensity.shake_magnitude') || 8,\n    flash_opacity: avgParam(successParams, 'visual_intensity.flash_opacity') || 0.15,\n    zoom_pulse_scale: avgParam(successParams, 'visual_intensity.zoom_pulse_scale') || 1.03\n  },\n  audio_balance: {\n    se_volume_relative: avgParam(successParams, 'audio_balance.se_volume_relative') || 1.0,\n    bgm_duck_depth: avgParam(successParams, 'audio_balance.bgm_duck_depth') || 0.25\n  }\n};\n\nreturn [{\n  json: {\n    skip: false,\n    analysis: {\n      total_analyzed: data.length,\n      high_performers: highPerformers.length,\n      low_performers: lowPerformers.length,\n      avg_ctr: data.reduce((a, d) => a + (d.ctr || 0), 0) / data.length,\n      avg_retention: data.reduce((a, d) => a + (d.retention_rate || 0), 0) / data.length\n    },\n    optimized_params: optimizedParams,\n    low_performer_ids: lowPerformers.map(d => d.render_id),\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "analyze-performance",
+      "name": "🧠 パフォーマンス分析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "skip-check",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-skip",
+      "name": "処理継続？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO evolution_params_history (\n  optimized_params,\n  analysis_summary,\n  applied_at\n) VALUES (\n  $1::jsonb,\n  $2::jsonb,\n  NOW()\n) RETURNING id",
+        "options": {
+          "queryParams": "={{ [JSON.stringify($json.optimized_params), JSON.stringify($json.analysis)] }}"
+        }
+      },
+      "id": "save-optimized-params",
+      "name": "💾 最適化パラメータ保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE system_config \nSET value = $1::jsonb, updated_at = NOW()\nWHERE key = 'default_performance_params'",
+        "options": {
+          "queryParams": "={{ [JSON.stringify($node['🧠 パフォーマンス分析'].json.optimized_params)] }}"
+        }
+      },
+      "id": "update-default-params",
+      "name": "⚙️ デフォルト設定更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "low-performers",
+              "leftValue": "={{ $node['🧠 パフォーマンス分析'].json.low_performer_ids.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-low-performers",
+      "name": "低パフォーマンスあり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// 低パフォーマンス動画の再生成キュー作成\nconst lowPerformerIds = $node['🧠 パフォーマンス分析'].json.low_performer_ids || [];\nconst optimizedParams = $node['🧠 パフォーマンス分析'].json.optimized_params;\n\n// 最大10件まで再生成\nconst regenerateQueue = lowPerformerIds.slice(0, 10).map(renderId => ({\n  render_id: renderId,\n  new_params: optimizedParams,\n  priority: 'low',\n  reason: 'auto_evolution'\n}));\n\nreturn regenerateQueue.map(item => ({ json: item }));"
+      },
+      "id": "create-regenerate-queue",
+      "name": "📋 再生成キュー作成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO regenerate_queue (\n  render_id,\n  new_params,\n  priority,\n  reason,\n  status,\n  queued_at\n) VALUES (\n  $1,\n  $2::jsonb,\n  $3,\n  $4,\n  'pending',\n  NOW()\n)",
+        "options": {
+          "queryParams": "={{ [$json.render_id, JSON.stringify($json.new_params), $json.priority, $json.reason] }}"
+        }
+      },
+      "id": "insert-queue",
+      "name": "💾 キュー保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "=[info][title]🧬 N3 演出学習ループ完了[/title]分析期間: {{ $node['🔧 初期化'].json.analysis_window_days }}日間\n分析動画数: {{ $node['🧠 パフォーマンス分析'].json.analysis.total_analyzed }}本\n\n📈 高パフォーマンス: {{ $node['🧠 パフォーマンス分析'].json.analysis.high_performers }}本\n📉 低パフォーマンス: {{ $node['🧠 パフォーマンス分析'].json.analysis.low_performers }}本\n\n平均CTR: {{ ($node['🧠 パフォーマンス分析'].json.analysis.avg_ctr * 100).toFixed(2) }}%\n平均維持率: {{ ($node['🧠 パフォーマンス分析'].json.analysis.avg_retention * 100).toFixed(2) }}%\n\n✅ 最適化パラメータを更新しました[/info]",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "notify-chatwork",
+      "name": "📢 ChatWork通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "chatwork-api",
+          "name": "ChatWork API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, analysis: $node['🧠 パフォーマンス分析'].json.analysis, optimized_params: $node['🧠 パフォーマンス分析'].json.optimized_params }) }}",
+        "options": {}
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, reason: $json.reason || 'スキップ' }) }}",
+        "options": {}
+      },
+      "id": "respond-skip",
+      "name": "⏭️ スキップ応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "⏰ 6時間ごと実行": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook: 手動トリガー": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "📊 パフォーマンスデータ取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 パフォーマンスデータ取得": {
+      "main": [
+        [
+          {
+            "node": "🧠 パフォーマンス分析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧠 パフォーマンス分析": {
+      "main": [
+        [
+          {
+            "node": "処理継続？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "処理継続？": {
+      "main": [
+        [
+          {
+            "node": "💾 最適化パラメータ保存",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "低パフォーマンスあり？",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "⏭️ スキップ応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 最適化パラメータ保存": {
+      "main": [
+        [
+          {
+            "node": "⚙️ デフォルト設定更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚙️ デフォルト設定更新": {
+      "main": [
+        [
+          {
+            "node": "📢 ChatWork通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "低パフォーマンスあり？": {
+      "main": [
+        [
+          {
+            "node": "📋 再生成キュー作成",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "📋 再生成キュー作成": {
+      "main": [
+        [
+          {
+            "node": "💾 キュー保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📢 ChatWork通知": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 キュー保存": {
+      "main": [
+        [
+          {
+            "node": "📊 実行ログ送信 (成功)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": "n3-empire-os"
+  },
+  "tags": [
+    {
+      "id": "media",
+      "name": "メディア"
+    },
+    {
+      "id": "evolution",
+      "name": "自己進化"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "n3_master_controls": {
+    "title": "STEP 0: MASTER CONTROL (AKI-NANA HQ)",
+    "commands": [
+      {"id": "n3-map", "label": "MAP UPDATE", "command": "n3 map", "description": "Generate AI context map."},
+      {"id": "n3-fix", "label": "FIX PATHS", "command": "n3 fix", "description": "Sanitize paths/names."},
+      {"id": "n3-push", "label": "FORCE PUSH", "command": "n3 push", "description": "Sync to GitHub."},
+      {"id": "n3-vps", "label": "VPS SYNC", "command": "n3 vps", "description": "Deploy to VPS."}
+    ]
+  },
+  "deployment_steps": {
+    "title": "STEP 1: DEPLOYMENT PIPELINE",
+    "commands": [
+      {"id": "d-1", "label": "DEV CHECK", "command": "npm run lint", "description": "Check code quality."},
+      {"id": "d-2", "label": "DEPS CHECK", "command": "npm list --depth=0", "description": "Check dependencies."},
+      {"id": "d-3", "label": "GIT SYNC", "command": "git pull origin main", "description": "Sync from remote."},
+      {"id": "d-4", "label": "BUILD TEST", "command": "npm run build", "description": "Local build test."},
+      {"id": "d-5", "label": "FINAL PUSH", "command": "n3 push", "description": "Push to production."}
+    ]
+  },
+  "utility_tools": {
+    "title": "STEP 2: UTILITIES",
+    "commands": [
+      {"id": "u-1", "label": "N8N DASH", "command": "open https://n8n.aki-nana.com", "description": "Open n8n console."},
+      {"id": "u-2", "label": "VERCEL STAT", "command": "npx vercel list", "description": "Check Vercel status."},
+      {"id": "u-3", "label": "DB BACKUP", "command": "sqlite3 lib/data/n3_local_brain.sqlite .dump", "description": "Backup local DB."}
+    ]
+  }
+}

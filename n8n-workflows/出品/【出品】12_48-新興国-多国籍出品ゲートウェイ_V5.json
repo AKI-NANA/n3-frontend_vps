@@ -1,0 +1,425 @@
+{
+  "name": "【出品】12_48-新興国-多国籍出品ゲートウェイ_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "emerging-market-listing",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: emerging-market",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "emerging-market-listing"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst apiUrl = $env.N3_API_URL || '{{$env.GATEWAY_URL}}';\nconst productId = body.product_id;\nconst marketCode = body.market_code; // 'flipkart', 'noon', 'mercado_libre', 'ozon'\nif (!productId || !marketCode) return [{ json: { error: true, message: 'product_id と market_code は必須', code: 'MISSING_PARAM' } }];\nreturn [{ json: { product_id: productId, market_code: marketCode, api_url: apiUrl } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT pm.*, im.purchase_price FROM products_master pm LEFT JOIN inventory_master im ON pm.id = im.product_id WHERE pm.id = $1",
+        "options": {
+          "queryParams": "={{ [$json.product_id] }}"
+        }
+      },
+      "id": "get-product",
+      "name": "📦 商品取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM emerging_markets WHERE market_code = $1 AND is_active = true",
+        "options": {
+          "queryParams": "={{ [$node['🔐 初期化'].json.market_code] }}"
+        }
+      },
+      "id": "get-market",
+      "name": "🌍 販路取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM logistics_providers WHERE dest_country = $1 AND is_active = true ORDER BY priority ASC LIMIT 1",
+        "options": {
+          "queryParams": "={{ [$node['🌍 販路取得'].json.country_code || $node['🌍 販路取得'].json[0]?.country_code || 'US'] }}"
+        }
+      },
+      "id": "get-forwarder",
+      "name": "🚚 代行取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $node['🔐 初期化'].json;\nconst productRaw = $node['📦 商品取得'].json;\nconst marketRaw = $node['🌍 販路取得'].json;\nconst forwarderRaw = $node['🚚 代行取得'].json;\n\nconst product = Array.isArray(productRaw) ? productRaw[0] : productRaw;\nconst market = Array.isArray(marketRaw) ? marketRaw[0] : marketRaw;\nconst forwarder = Array.isArray(forwarderRaw) ? forwarderRaw[0] : forwarderRaw;\n\nif (!product || !product.id) return [{ json: { error: true, message: '商品が見つかりません' } }];\nif (!market) return [{ json: { error: true, message: '販路が見つかりません' } }];\n\n// 為替レート（簡易）\nconst rates = { 'INR': 0.0018, 'AED': 0.041, 'BRL': 0.030, 'RUB': 0.0016, 'NGN': 0.0001 };\nconst jpyToLocal = 1 / (rates[market.currency_code] || 0.01);\n\nconst purchasePrice = parseFloat(product.purchase_price) || 0;\nconst shippingCost = forwarder ? parseFloat(forwarder.base_shipping) || 3000 : 3000;\nconst taxRate = parseFloat(market.tax_rate) || 0;\nconst commissionRate = parseFloat(market.commission_rate) || 0.15;\n\nconst totalCostJpy = purchasePrice + shippingCost;\nconst costWithTax = totalCostJpy * (1 + taxRate);\nconst targetMargin = 0.20;\nconst salePriceJpy = costWithTax / (1 - commissionRate - targetMargin);\nconst salePriceLocal = Math.round(salePriceJpy * jpyToLocal);\n\n// 言語マッピング\nconst langMap = { 'IN': 'hi', 'AE': 'ar', 'BR': 'pt', 'RU': 'ru', 'NG': 'en' };\nconst targetLang = langMap[market.country_code] || 'en';\n\nreturn [{ json: { product_id: product.id, product_title: product.title, market_code: market.market_code, market_name: market.market_name, country_code: market.country_code, currency_code: market.currency_code, target_lang: targetLang, price_local: salePriceLocal, purchase_price_jpy: purchasePrice, shipping_cost_jpy: shippingCost, tax_rate: taxRate, commission_rate: commissionRate } }];"
+      },
+      "id": "calc-price",
+      "name": "💰 価格計算",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $node['🔐 初期化'].json.api_url }}/api/ai/translate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $json.product_title, target_lang: $json.target_lang, source_lang: 'ja' }) }}",
+        "options": {
+          "timeout": 45000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "translate",
+      "name": "🌐 翻訳",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const calcData = $node['💰 価格計算'].json;\nconst translateResult = $input.first().json;\nconst titleLocal = translateResult.translated || translateResult.text || calcData.product_title;\nreturn [{ json: { ...calcData, title_local: titleLocal } }];"
+      },
+      "id": "merge",
+      "name": "📋 統合",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO emerging_market_listings (product_id, market_id, title_local, price_local, currency_code, target_language, listing_status) SELECT $1, em.id, $2, $3, $4, $5, 'draft' FROM emerging_markets em WHERE em.market_code = $6 RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.product_id, $json.title_local, $json.price_local, $json.currency_code, $json.target_lang, $json.market_code] }}"
+        }
+      },
+      "id": "save-listing",
+      "name": "💾 保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $node['📋 統合'].json;\nconst saveResult = $input.first().json;\nreturn [{ json: { success: true, listing_id: saveResult?.id, product_id: data.product_id, market: data.market_name, title_local: data.title_local, price: data.price_local, currency: data.currency_code } }];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: emerging-market": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📦 商品取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 商品取得": {
+      "main": [
+        [
+          {
+            "node": "🌍 販路取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🌍 販路取得": {
+      "main": [
+        [
+          {
+            "node": "🚚 代行取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚚 代行取得": {
+      "main": [
+        [
+          {
+            "node": "💰 価格計算",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💰 価格計算": {
+      "main": [
+        [
+          {
+            "node": "🌐 翻訳",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🌐 翻訳": {
+      "main": [
+        [
+          {
+            "node": "📋 統合",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 統合": {
+      "main": [
+        [
+          {
+            "node": "💾 保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 保存": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 180,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Emerging",
+      "color": "#ff6b35"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Multi-Market",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

@@ -1,0 +1,113 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Theme: Cyber Dark
+   ============================================================ */
+
+[data-theme="cyber"] {
+  --bg: #050505;
+  --bg-solid: #050505;
+  --glass: rgba(17,17,17,0.85);
+  --glass-border: rgba(255,255,255,0.1);
+  --panel: #0A0A0A;
+  --panel-border: rgba(255,255,255,0.1);
+  --text: #f1f5f9;
+  --text-muted: #64748b;
+  --text-subtle: #475569;
+  --accent: #3b82f6;
+  --accent-bg: #2563eb;
+  --accent-text: #ffffff;
+  --highlight: rgba(255,255,255,0.05);
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --info: #3b82f6;
+  
+  /* Status Colors */
+  --stock: #10b981;
+  --dropship: #8b5cf6;
+  --pending: #f59e0b;
+  --ready: #3b82f6;
+  
+  /* Tailwind Bridge */
+  --background: var(--bg);
+  --foreground: var(--text);
+  --card: var(--panel);
+  --card-foreground: var(--text);
+  --primary: var(--accent);
+  --primary-foreground: var(--accent-text);
+  --secondary: var(--highlight);
+  --muted: var(--highlight);
+  --muted-foreground: var(--text-muted);
+  --border: var(--panel-border);
+  --input: var(--panel);
+  --ring: var(--accent);
+  --radius: var(--radius-md);
+  --destructive: var(--error);
+  --destructive-foreground: #ffffff;
+  --popover: var(--panel);
+  --popover-foreground: var(--text);
+}
+
+/* Cyber Dark Mode Overrides */
+[data-theme="cyber"] .text-gray-900 {
+  color: var(--text) !important;
+}
+
+[data-theme="cyber"] .text-gray-500 {
+  color: var(--text-muted) !important;
+}
+
+[data-theme="cyber"] .text-gray-400 {
+  color: var(--text-subtle) !important;
+}
+
+[data-theme="cyber"] .bg-gray-50 {
+  background: rgba(255,255,255,0.05) !important;
+}
+
+[data-theme="cyber"] .bg-gray-100 {
+  background: rgba(255,255,255,0.08) !important;
+}
+
+[data-theme="cyber"] .hover\:bg-gray-50:hover {
+  background: rgba(255,255,255,0.05) !important;
+}
+
+[data-theme="cyber"] .hover\:bg-gray-200:hover {
+  background: rgba(255,255,255,0.08) !important;
+}
+
+[data-theme="cyber"] svg {
+  color: var(--text-muted);
+}
+
+[data-theme="cyber"] .text-indigo-700 {
+  color: var(--accent) !important;
+}
+
+[data-theme="cyber"] .bg-indigo-100 {
+  background: rgba(59, 130, 246, 0.15) !important;
+}
+
+[data-theme="cyber"] tbody tr {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="cyber"] .n3-top-tools-container,
+[data-theme="cyber"] .n3-l2-tab-bar,
+[data-theme="cyber"] .n3-top-tools-container .n3-tools-nav-bar,
+[data-theme="cyber"] .n3-tools-panel {
+  background: var(--bg-solid);
+}
+
+[data-theme="cyber"] .n3-tools-panel-overlay {
+  background: var(--bg-solid) !important;
+}
+
+[data-theme="cyber"] .n3-header-panel,
+[data-theme="cyber"] .n3-header-panel-overlay {
+  background: #0A0A0A;
+}
+
+[data-theme="cyber"] .n3-table-scroll thead {
+  background: #0A0A0A !important;
+}

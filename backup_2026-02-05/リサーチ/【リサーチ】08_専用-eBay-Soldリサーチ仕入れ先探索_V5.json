@@ -1,0 +1,653 @@
+{
+  "name": "【リサーチ】08_専用-eBay-Soldリサーチ仕入れ先探索_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 24
+            }
+          ]
+        }
+      },
+      "id": "scout-trigger",
+      "name": "夜間バッチ実行",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ebay-sold-research",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: ebay-sold-research",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "ebay-sold-research"
+    },
+    {
+      "parameters": {
+        "jsCode": "// V5-PRODUCTION: 内部トークン検証（crypto依存排除版）\n// ========================================\nconst body = $input.first().json.body || $input.first().json;\nconst headers = $input.first().json.headers || {};\n\n// 環境変数必須チェック\nconst apiUrl = $env.N3_API_URL;\nconst secret = $env.N8N_INTERNAL_SECRET;\nif (!apiUrl) {\n  return [{ json: { error: true, message: 'N3_API_URL 環境変数が未設定です', code: 'CONFIG_ERROR' } }];\n}\nif (!secret) {\n  return [{ json: { error: true, message: 'N8N_INTERNAL_SECRET 環境変数が未設定です', code: 'CONFIG_ERROR' } }];\n}\n\nconst internalToken = headers['x-n3-signature'] || headers['X-N3-Signature'];\nconst tokenTimestamp = headers['x-n3-token-timestamp'] || headers['X-N3-Token-Timestamp'];\nconst userId = body.user_id || 'default';\n\n// トークン検証（外部APIへ委譲）\nif (internalToken && tokenTimestamp) {\n  try {\n    const verifyResponse = await fetch(`${apiUrl}/api/n8n-auth/verify-internal-token`, {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json' },\n      body: JSON.stringify({ userId, timestamp: tokenTimestamp, token: internalToken })\n    });\n    const verifyResult = await verifyResponse.json();\n    \n    if (!verifyResult.valid) {\n      return [{ json: { error: true, message: '内部トークンが無効です', code: 'INVALID_TOKEN' } }];\n    }\n  } catch (e) {\n    return [{ json: { error: true, message: 'トークン検証APIエラー: ' + e.message, code: 'VERIFY_API_ERROR' } }];\n  }\n}\n\n// 入力検証\nconst productId = body.product_id;\nconst marketplace = body.marketplace || 'ebay_us';\nconst limit = body.limit || 10;\nconst force = body.force || false;\n\nreturn [{ json: { \n  product_id: productId, \n  marketplace: marketplace, \n  user_id: userId,\n  limit: limit,\n  force: force,\n  request_timestamp: new Date().toISOString()\n} }];"
+      },
+      "id": "validate",
+      "name": "リクエスト検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.error }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 403
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.N3_API_URL || '{{$env.GATEWAY_URL}}' }}/api/ebay/sold-items",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "keyword",
+              "value": "={{ $json.keyword }}"
+            },
+            {
+              "name": "limit",
+              "value": "={{ $json.limit }}"
+            },
+            {
+              "name": "min_price",
+              "value": "={{ $json.min_price }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "fetch-sold",
+      "name": "eBay Sold取得",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const soldItems = $input.first().json.items || $input.first().json || [];\nconst request = $node['リクエスト検証'].json;\n\nif (!Array.isArray(soldItems) || soldItems.length === 0) {\n  return [{ json: { no_items: true, user_id: request.user_id } }];\n}\n\nreturn soldItems.slice(0, 20).map(item => ({ json: {\n  user_id: request.user_id,\n  title: item.title || '',\n  sold_price: item.price?.value || item.soldPrice || 0,\n  currency: item.price?.currency || 'USD',\n  item_id: item.itemId || item.legacyItemId || '',\n  category: item.categoryPath || '',\n  image_url: item.image?.imageUrl || item.imageUrl || ''\n} }));"
+      },
+      "id": "expand-items",
+      "name": "商品展開",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.no_items }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-empty",
+      "name": "結果有無",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { message: 'Sold商品なし' } }];"
+      },
+      "id": "no-items",
+      "name": "対象なし",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "batchSize": 3,
+        "options": {}
+      },
+      "id": "batch",
+      "name": "バッチ分割",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N3_API_URL || '{{$env.GATEWAY_URL}}' }}/api/ai/analyze",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'gemini-1.5-flash', prompt: 'このeBay商品タイトルから「型番」「JAN/UPC」「ブランド」を抽出してJSONで返して。\\n形式: {\"model_number\": \"ABC-123\", \"jan_code\": \"4901234567890\", \"brand\": \"Sony\"}\\nわからない場合はnull\\n\\nタイトル: ' + $json.title }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "ai-extract",
+      "name": "Gemini: 型番/JAN抽出",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// AI結果解析\nlet ai = {};\ntry {\n  const text = $input.first().json.text || $input.first().json.response || '{}';\n  ai = JSON.parse(text.replace(/```json\\n?|```/g, ''));\n} catch (e) { ai = {}; }\n\nconst item = $node['バッチ分割'].json;\n\nreturn [{ json: {\n  ...item,\n  model_number: ai.model_number || null,\n  jan_code: ai.jan_code || null,\n  brand: ai.brand || null\n} }];"
+      },
+      "id": "parse-ai",
+      "name": "AI結果解析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.N3_API_URL || '{{$env.GATEWAY_URL}}' }}/api/amazon/search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "keyword",
+              "value": "={{ $json.model_number || $json.jan_code || $json.title.substring(0, 50) }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "search-amazon",
+      "name": "Amazon仕入先検索",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================\n// V4-PRODUCTION: 利益計算エンジン（圧縮ログ）\n// ========================================\nconst amazon = $input.first().json || {};\nconst item = $node['AI結果解析'].json;\n\nconst supplyPrice = amazon.price || amazon.items?.[0]?.price || 0;\nconst asin = amazon.asin || amazon.items?.[0]?.asin || null;\nconst soldPrice = item.sold_price || 0;\nconst exchangeRate = 148.5;\nconst shippingFee = 3000;\nconst ebayFeeRate = 0.15;\n\nconst revenueJpy = soldPrice * exchangeRate;\nconst costJpy = (supplyPrice + shippingFee) / (1 - ebayFeeRate);\nconst profit = revenueJpy - costJpy;\nconst profitRate = revenueJpy > 0 ? (profit / revenueJpy) * 100 : 0;\n\nconst score = Math.min(100, Math.max(0, Math.round(\n  (profitRate > 20 ? 40 : profitRate > 10 ? 30 : profitRate > 5 ? 20 : 10) +\n  (profit > 5000 ? 30 : profit > 2000 ? 20 : profit > 1000 ? 10 : 0) +\n  (asin ? 20 : 0) +\n  (item.model_number ? 10 : 0)\n)));\n\nreturn [{ json: {\n  user_id: item.user_id,\n  title: item.title.substring(0, 100),\n  sold_price: soldPrice,\n  supply_price: supplyPrice,\n  asin: asin,\n  model_number: item.model_number,\n  jan_code: item.jan_code,\n  brand: item.brand,\n  profit: Math.round(profit),\n  profit_rate: Math.round(profitRate * 10) / 10,\n  score: score,\n  image_url: item.image_url\n} }];"
+      },
+      "id": "calc-profit",
+      "name": "利益計算",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.score }}",
+              "operation": "largerEqual",
+              "value2": 50
+            }
+          ]
+        }
+      },
+      "id": "check-score",
+      "name": "スコア50以上？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO potential_items (user_id, title, sold_price_usd, supply_price_jpy, asin, model_number, jan_code, brand, profit_jpy, profit_rate, score, image_url, status, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'pending', NOW()) ON CONFLICT DO NOTHING",
+        "options": {
+          "queryParams": "={{ [{{ $json.user_id }}, {{ $json.title.replace(/'/g, \"''\") }}, {{ $json.sold_price }}, {{ $json.supply_price }}, {{ $json.asin ? \"'\" + $json.asin + \"'\" : 'NULL' }}, {{ $json.model_number ? \"'\" + $json.model_number + \"'\" : 'NULL' }}, {{ $json.jan_code ? \"'\" + $json.jan_code + \"'\" : 'NULL' }}, {{ $json.brand ? \"'\" + $json.brand.replace(/'/g, \"''\") + \"'\" : 'NULL' }}, {{ $json.profit }}, {{ $json.profit_rate }}, {{ $json.score }}, {{ $json.image_url ? \"'\" + $json.image_url + \"'\" : 'NULL' }}] }}"
+        }
+      },
+      "id": "save-potential",
+      "name": "候補商品保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// スコア低→スキップ\nreturn items;"
+      },
+      "id": "skip-low",
+      "name": "スキップ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all().map(i => i.json);\nconst saved = results.filter(r => r.score >= 50).length;\nconst skipped = results.filter(r => r.score < 50).length;\nconst avgScore = results.length > 0 ? Math.round(results.reduce((s, r) => s + (r.score || 0), 0) / results.length) : 0;\nreturn [{ json: { total: results.length, saved, skipped, avgScore, ts: new Date().toISOString() } }];"
+      },
+      "id": "aggregate",
+      "name": "結果集約",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM potential_items WHERE created_at < NOW() - INTERVAL '30 days' AND status = 'rejected'",
+        "options": {}
+      },
+      "id": "purge",
+      "name": "🗑️ 古い候補削除",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=[info][title]🔍 eBay Soldリサーチ完了[/title]分析: {{ $node['結果集約'].json.total }}件\\n保存: {{ $node['結果集約'].json.saved }}件\\nスキップ: {{ $node['結果集約'].json.skipped }}件\\n平均スコア: {{ $node['結果集約'].json.avgScore }}点[/info]"
+            }
+          ]
+        }
+      },
+      "id": "notify",
+      "name": "ChatWork通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($node['結果集約'].json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "夜間バッチ実行": {
+      "main": [
+        [
+          {
+            "node": "リクエスト検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook: ebay-sold-research": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "リクエスト検証": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "eBay Sold取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "eBay Sold取得": {
+      "main": [
+        [
+          {
+            "node": "商品展開",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "商品展開": {
+      "main": [
+        [
+          {
+            "node": "結果有無",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "結果有無": {
+      "main": [
+        [
+          {
+            "node": "対象なし",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "バッチ分割",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "バッチ分割": {
+      "main": [
+        [
+          {
+            "node": "Gemini: 型番/JAN抽出",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini: 型番/JAN抽出": {
+      "main": [
+        [
+          {
+            "node": "AI結果解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI結果解析": {
+      "main": [
+        [
+          {
+            "node": "Amazon仕入先検索",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Amazon仕入先検索": {
+      "main": [
+        [
+          {
+            "node": "利益計算",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "利益計算": {
+      "main": [
+        [
+          {
+            "node": "スコア50以上？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "スコア50以上？": {
+      "main": [
+        [
+          {
+            "node": "候補商品保存",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "スキップ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "候補商品保存": {
+      "main": [
+        [
+          {
+            "node": "結果集約",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "スキップ": {
+      "main": [
+        [
+          {
+            "node": "結果集約",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "結果集約": {
+      "main": [
+        [
+          {
+            "node": "🗑️ 古い候補削除",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🗑️ 古い候補削除": {
+      "main": [
+        [
+          {
+            "node": "ChatWork通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ChatWork通知": {
+      "main": [
+        [
+          {
+            "node": "成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "リクエスト検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "対象なし": {
+      "main": [
+        [
+          {
+            "node": "📊 実行ログ送信 (成功)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 900,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none"
+  },
+  "tags": [
+    {
+      "name": "N3-Research",
+      "color": "#0066ff"
+    },
+    {
+      "name": "V4-PRODUCTION",
+      "color": "#ff0000"
+    },
+    {
+      "name": "AI-Powered",
+      "color": "#9932cc"
+    },
+    {
+      "name": "Multi-Tenant",
+      "color": "#00bfff"
+    },
+    {
+      "name": "500MB-Safe",
+      "color": "#32cd32"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

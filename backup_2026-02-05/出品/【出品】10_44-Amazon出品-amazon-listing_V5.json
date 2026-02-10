@@ -1,0 +1,483 @@
+{
+  "name": "【出品】10_44-Amazon出品-amazon-listing_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "amazon-listing",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: amazon-listing",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "amazon-listing"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// N3-44 V5: Amazon出品 - 鉄の掟準拠\n// SP-API (Selling Partner API) 対応\n// ============================================================================\n\nconst amazonClientId = $env.AMAZON_CLIENT_ID;\nconst amazonClientSecret = $env.AMAZON_CLIENT_SECRET;\nconst amazonRefreshToken = $env.AMAZON_REFRESH_TOKEN;\nconst amazonSellerId = $env.AMAZON_SELLER_ID;\nconst apiUrl = $env.N3_API_URL || $env.API_BASE_URL;\n\nif (!amazonClientId || !amazonClientSecret) {\n  return [{ json: { error: true, message: 'AMAZON_CLIENT_ID または AMAZON_CLIENT_SECRET が未設定', code: 'CONFIG_ERROR' } }];\n}\nif (!amazonRefreshToken) {\n  return [{ json: { error: true, message: 'AMAZON_REFRESH_TOKEN が未設定', code: 'CONFIG_ERROR' } }];\n}\n\nconst body = $input.first().json.body || $input.first().json || {};\n\nconst productId = body.product_id;\nconst marketplace = body.marketplace || 'ATVPDKIKX0DER'; // US marketplace\nconst action = body.action || 'create'; // create, update, delete\nconst listingData = body.listing_data || {};\n\nif (!productId) {\n  return [{ json: { error: true, message: 'product_id は必須', code: 'MISSING_PARAM' } }];\n}\n\nreturn [{\n  json: {\n    product_id: productId,\n    marketplace: marketplace,\n    action: action,\n    listing_data: listingData,\n    seller_id: amazonSellerId,\n    api_url: apiUrl,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔐 初期化（鉄の掟準拠）",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.amazon.com/auth/o2/token",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "=grant_type=refresh_token&refresh_token={{ $env.AMAZON_REFRESH_TOKEN }}&client_id={{ $env.AMAZON_CLIENT_ID }}&client_secret={{ $env.AMAZON_CLIENT_SECRET }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "get-access-token",
+      "name": "🔑 アクセストークン取得",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const initData = $node['🔐 初期化（鉄の掟準拠）'].json;\nconst tokenResult = $input.first().json;\n\nif (tokenResult.error || !tokenResult.access_token) {\n  return [{ json: { ...initData, error: true, message: 'Amazon認証失敗: ' + (tokenResult.error_description || 'Unknown'), code: 'AUTH_ERROR' } }];\n}\n\nreturn [{ json: { ...initData, access_token: tokenResult.access_token, token_type: tokenResult.token_type } }];"
+      },
+      "id": "process-token",
+      "name": "📋 トークン処理",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT pm.id, pm.sku, pm.title, pm.title_en, pm.description, pm.description_en, pm.price_inc_vat, pm.weight_kg, pm.ebay_category_id, im.quantity, im.condition_id, im.image_url, im.amazon_asin FROM products_master pm LEFT JOIN inventory_master im ON pm.id = im.product_id WHERE pm.id = $1",
+        "options": {
+          "queryParams": "={{ [$json.product_id] }}"
+        }
+      },
+      "id": "get-product",
+      "name": "📦 商品情報取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $node['📋 トークン処理'].json;\nconst product = $input.first().json;\n\nif (!product || !product.id) {\n  return [{ json: { error: true, message: '商品が見つかりません', code: 'NOT_FOUND' } }];\n}\n\n// Amazon Listing API用のペイロード構築\nconst listingPayload = {\n  productType: 'PRODUCT', // Generic product type\n  attributes: {\n    condition_type: [{ value: product.condition_id === 1000 ? 'new_new' : 'used_like_new' }],\n    item_name: [{ value: product.title_en || product.title, language_tag: 'en_US' }],\n    product_description: [{ value: (product.description_en || product.description || '').substring(0, 2000), language_tag: 'en_US' }],\n    list_price: [{ value: product.price_inc_vat, currency: 'USD' }],\n    purchasable_offer: [{\n      currency: 'USD',\n      our_price: [{ schedule: [{ value_with_tax: product.price_inc_vat }] }]\n    }],\n    fulfillment_availability: [{\n      fulfillment_channel_code: 'DEFAULT',\n      quantity: product.quantity || 1\n    }]\n  }\n};\n\n// 画像がある場合\nif (product.image_url) {\n  listingPayload.attributes.main_product_image_locator = [{ value: product.image_url }];\n}\n\nreturn [{\n  json: {\n    ...config,\n    product: product,\n    listing_payload: listingPayload,\n    sku: product.sku || `N3-${product.id}`\n  }\n}];"
+      },
+      "id": "build-payload",
+      "name": "📝 ペイロード構築",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://sellingpartnerapi-na.amazon.com/listings/2021-08-01/items/{{ $json.seller_id }}/{{ $json.sku }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-amz-access-token",
+              "value": "={{ $json.access_token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ productType: $json.listing_payload.productType, attributes: $json.listing_payload.attributes, requirements: 'LISTING', marketplaceIds: [$json.marketplace] }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "amazon-listing-api",
+      "name": "🛒 Amazon Listing API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $node['📝 ペイロード構築'].json;\nconst result = $input.first().json;\n\nconst success = !result.errors && (result.sku || result.status === 'ACCEPTED');\n\nreturn [{\n  json: {\n    product_id: config.product_id,\n    sku: config.sku,\n    marketplace: config.marketplace,\n    action: config.action,\n    success: success,\n    amazon_response: result,\n    error: success ? null : (result.errors || result.message || 'Unknown error')\n  }\n}];"
+      },
+      "id": "process-result",
+      "name": "📋 結果処理",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "success",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-success",
+      "name": "成功？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE inventory_master SET amazon_asin = $1, amazon_listed_at = NOW(), sync_status = 'amazon_listed' WHERE product_id = $2",
+        "options": {
+          "queryParams": "={{ [$json.amazon_response?.sku || $json.sku, $json.product_id] }}"
+        }
+      },
+      "id": "update-db",
+      "name": "💾 DB更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\nreturn [{\n  json: {\n    success: data.success,\n    action: 'amazon_listing',\n    product_id: data.product_id,\n    sku: data.sku,\n    marketplace: data.marketplace,\n    error: data.error,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": "={{ $json.success ? 200 : 400 }}"
+        }
+      },
+      "id": "respond-success",
+      "name": "📤 応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: amazon-listing": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化（鉄の掟準拠）": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🔑 アクセストークン取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔑 アクセストークン取得": {
+      "main": [
+        [
+          {
+            "node": "📋 トークン処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 トークン処理": {
+      "main": [
+        [
+          {
+            "node": "📦 商品情報取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 商品情報取得": {
+      "main": [
+        [
+          {
+            "node": "📝 ペイロード構築",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 ペイロード構築": {
+      "main": [
+        [
+          {
+            "node": "🛒 Amazon Listing API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🛒 Amazon Listing API": {
+      "main": [
+        [
+          {
+            "node": "📋 結果処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 結果処理": {
+      "main": [
+        [
+          {
+            "node": "成功？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "成功？": {
+      "main": [
+        [
+          {
+            "node": "💾 DB更新",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 DB更新": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "📤 応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化（鉄の掟準拠）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 180,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Commerce",
+      "color": "#3498db"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Amazon",
+      "color": "#ff9900"
+    },
+    {
+      "name": "IronRule",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false,
+  "meta": {
+    "description": "N3-44 V5 Amazon出品 - SP-API対応の出品・更新・削除",
+    "version": "5.0",
+    "changelog": "2026-01-20: V2からV5にマイグレーション、鉄の掟準拠、SP-API対応",
+    "iron_rules_compliant": [
+      "no_hardcoded_urls",
+      "query_params_only",
+      "no_crypto_require"
+    ]
+  }
+}

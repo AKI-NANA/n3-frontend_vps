@@ -1,0 +1,404 @@
+{
+  "name": "【防衛】04_146-防衛-投稿時間ランダム化-シャドウバン対策-非等間隔スケジューリング_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "randomize-schedule",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "name": "Webhook: randomize-schedule",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "randomize-schedule"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 投稿時間ランダム化 初期化\n// シャドウバン対策：正確すぎる投稿時間を「ゆらぎ」で人間化\n// ============================================================================\n\nconst body = $input.first().json.body || $input.first().json || {};\n\n// action: 'randomize', 'schedule', 'get_optimal_time', 'simulate_human'\nconst action = body.action || 'randomize';\nconst accountId = body.account_id;\nconst channelId = body.channel_id;\nconst baseTime = body.base_time; // 基準投稿時間（ISO形式）\nconst contentId = body.content_id;\nconst contentType = body.content_type || 'video'; // 'video', 'short', 'community'\n\n// ランダム化パラメータ\nconst randomizeConfig = body.randomize_config || {\n  min_offset_minutes: -15, // 最小オフセット（分）\n  max_offset_minutes: 15,  // 最大オフセット（分）\n  prefer_human_hours: true, // 人間が起きている時間帯を優先\n  avoid_round_minutes: true // :00, :30 などのキリの良い時間を避ける\n};\n\nreturn [{\n  json: {\n    action: action,\n    account_id: accountId,\n    channel_id: channelId,\n    base_time: baseTime,\n    content_id: contentId,\n    content_type: contentType,\n    randomize_config: randomizeConfig,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true
+          },
+          "conditions": [
+            {
+              "id": "action",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ]
+        }
+      },
+      "name": "アクション分岐",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "options": {
+        "fallbackOutput": "none",
+        "rules": [
+          {
+            "output": 0,
+            "value": "randomize"
+          },
+          {
+            "output": 1,
+            "value": "get_optimal_time"
+          },
+          {
+            "output": 2,
+            "value": "schedule_batch"
+          }
+        ]
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 投稿時間ランダム化\n// 人間らしい「ゆらぎ」を加えた投稿時間を生成\n// ============================================================================\n\nconst config = $input.first().json;\nconst baseTime = config.base_time ? new Date(config.base_time) : new Date();\nconst randomizeConfig = config.randomize_config;\n\n// ランダムオフセット生成（正規分布に近い分布）\nfunction gaussianRandom(mean, stdDev) {\n  let u = 0, v = 0;\n  while (u === 0) u = Math.random();\n  while (v === 0) v = Math.random();\n  const num = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);\n  return num * stdDev + mean;\n}\n\n// オフセット計算（分単位）\nconst minOffset = randomizeConfig.min_offset_minutes;\nconst maxOffset = randomizeConfig.max_offset_minutes;\nconst range = maxOffset - minOffset;\nconst mean = (minOffset + maxOffset) / 2;\nconst stdDev = range / 4; // 95%が範囲内に収まる\n\nlet offsetMinutes = Math.round(gaussianRandom(mean, stdDev));\noffsetMinutes = Math.max(minOffset, Math.min(maxOffset, offsetMinutes));\n\n// キリの良い時間を避ける\nif (randomizeConfig.avoid_round_minutes) {\n  const minutes = (baseTime.getMinutes() + offsetMinutes) % 60;\n  if (minutes === 0 || minutes === 30 || minutes === 15 || minutes === 45) {\n    offsetMinutes += Math.random() > 0.5 ? Math.floor(Math.random() * 7) + 1 : -(Math.floor(Math.random() * 7) + 1);\n  }\n}\n\n// 人間が起きている時間帯チェック\nif (randomizeConfig.prefer_human_hours) {\n  const adjustedTime = new Date(baseTime.getTime() + offsetMinutes * 60000);\n  const hour = adjustedTime.getHours();\n  \n  // 深夜2時〜6時は避ける（その国のタイムゾーンで）\n  if (hour >= 2 && hour < 6) {\n    // 朝7時にずらす\n    offsetMinutes += (7 - hour) * 60;\n  }\n}\n\n// 最終投稿時間計算\nconst randomizedTime = new Date(baseTime.getTime() + offsetMinutes * 60000);\n\n// 秒もランダム化（0〜59秒）\nconst randomSeconds = Math.floor(Math.random() * 60);\nrandomizedTime.setSeconds(randomSeconds);\n\nreturn [{\n  json: {\n    success: true,\n    action: 'randomize',\n    original_time: baseTime.toISOString(),\n    randomized_time: randomizedTime.toISOString(),\n    offset_minutes: offsetMinutes,\n    offset_seconds: randomSeconds,\n    content_id: config.content_id,\n    content_type: config.content_type,\n    human_readable: {\n      original: baseTime.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }),\n      randomized: randomizedTime.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }),\n      difference: `${offsetMinutes >= 0 ? '+' : ''}${offsetMinutes}分${randomSeconds}秒`\n    }\n  }\n}];"
+      },
+      "name": "🎲 時間ランダム化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT mc.id, mc.channel_id, mc.country_code, mc.timezone, cs.best_posting_hours, cs.worst_posting_hours, cs.avg_views_by_hour FROM media_channels mc LEFT JOIN channel_statistics cs ON mc.id = cs.channel_id WHERE mc.id = $1 OR mc.youtube_channel_id = $2",
+        "options": {
+          "queryParams": "={{ [$json.channel_id, $json.channel_id] }}"
+        }
+      },
+      "name": "📥 チャンネル統計取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 最適投稿時間計算\n// チャンネル統計とターゲット地域に基づく最適時間\n// ============================================================================\n\nconst config = $node['🔧 初期化'].json;\nconst channelData = $input.first().json?.[0];\n\n// デフォルトの最適時間帯（UTC）\nconst defaultBestHours = {\n  'US': [14, 15, 16, 17, 18, 19], // 米国東部 10AM-3PM\n  'JP': [7, 8, 9, 19, 20, 21],    // 日本 7-9AM, 7-9PM\n  'GB': [12, 13, 14, 17, 18, 19], // 英国 12-2PM, 5-7PM\n  'DE': [11, 12, 13, 17, 18, 19], // ドイツ\n  'default': [14, 15, 16, 17, 18, 19, 20, 21]\n};\n\nconst countryCode = channelData?.country_code || 'default';\nconst timezone = channelData?.timezone || 'UTC';\n\n// 統計ベースの最適時間帯、またはデフォルト\nlet bestHours = channelData?.best_posting_hours;\nif (!bestHours || !Array.isArray(bestHours) || bestHours.length === 0) {\n  bestHours = defaultBestHours[countryCode] || defaultBestHours['default'];\n}\n\n// 避けるべき時間帯\nconst worstHours = channelData?.worst_posting_hours || [0, 1, 2, 3, 4, 5];\n\n// 現在時刻から最も近い最適時間を計算\nconst now = new Date();\nlet optimalTime = null;\nlet minDiff = Infinity;\n\n// 今日と明日の最適時間を検索\nfor (let dayOffset = 0; dayOffset <= 1; dayOffset++) {\n  for (const hour of bestHours) {\n    const candidate = new Date(now);\n    candidate.setDate(candidate.getDate() + dayOffset);\n    candidate.setHours(hour, 0, 0, 0);\n    \n    // ランダムな分・秒を追加\n    candidate.setMinutes(Math.floor(Math.random() * 45) + 7); // 7-52分\n    candidate.setSeconds(Math.floor(Math.random() * 60));\n    \n    const diff = candidate.getTime() - now.getTime();\n    if (diff > 0 && diff < minDiff) {\n      minDiff = diff;\n      optimalTime = candidate;\n    }\n  }\n}\n\n// 見つからなければ次の日の最初の最適時間\nif (!optimalTime) {\n  optimalTime = new Date(now);\n  optimalTime.setDate(optimalTime.getDate() + 1);\n  optimalTime.setHours(bestHours[0], Math.floor(Math.random() * 45) + 7, Math.floor(Math.random() * 60), 0);\n}\n\nreturn [{\n  json: {\n    success: true,\n    action: 'get_optimal_time',\n    channel_id: config.channel_id,\n    country_code: countryCode,\n    timezone: timezone,\n    optimal_time: optimalTime.toISOString(),\n    best_hours: bestHours,\n    worst_hours: worstHours,\n    human_readable: optimalTime.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }),\n    time_until_post_minutes: Math.round(minDiff / 60000)\n  }\n}];"
+      },
+      "name": "📊 最適時間計算",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT cq.id, cq.channel_id, cq.content_id, cq.content_type, cq.scheduled_time, mc.country_code, mc.timezone FROM content_queue cq JOIN media_channels mc ON cq.channel_id = mc.id WHERE cq.status = 'pending' AND cq.scheduled_time IS NOT NULL ORDER BY cq.scheduled_time ASC LIMIT 50"
+      },
+      "name": "📥 スケジュール待機取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// バッチスケジュールランダム化\n// 複数コンテンツの投稿時間を一括でランダム化\n// ============================================================================\n\nconst items = $input.first().json || [];\nconst config = $node['🔧 初期化'].json.randomize_config;\n\nif (!Array.isArray(items) || items.length === 0) {\n  return [{ json: { action: 'schedule_batch', count: 0, message: 'スケジュール対象なし' } }];\n}\n\n// 正規分布ランダム\nfunction gaussianRandom(mean, stdDev) {\n  let u = 0, v = 0;\n  while (u === 0) u = Math.random();\n  while (v === 0) v = Math.random();\n  return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v) * stdDev + mean;\n}\n\nconst randomizedSchedules = items.map(item => {\n  const baseTime = new Date(item.scheduled_time);\n  \n  // オフセット計算\n  const minOffset = config?.min_offset_minutes || -15;\n  const maxOffset = config?.max_offset_minutes || 15;\n  let offsetMinutes = Math.round(gaussianRandom(0, (maxOffset - minOffset) / 4));\n  offsetMinutes = Math.max(minOffset, Math.min(maxOffset, offsetMinutes));\n  \n  // キリの良い時間を避ける\n  const adjustedMinutes = (baseTime.getMinutes() + offsetMinutes) % 60;\n  if (adjustedMinutes === 0 || adjustedMinutes === 30) {\n    offsetMinutes += Math.random() > 0.5 ? 3 : -3;\n  }\n  \n  const randomizedTime = new Date(baseTime.getTime() + offsetMinutes * 60000);\n  randomizedTime.setSeconds(Math.floor(Math.random() * 60));\n  \n  return {\n    queue_id: item.id,\n    content_id: item.content_id,\n    channel_id: item.channel_id,\n    content_type: item.content_type,\n    original_time: baseTime.toISOString(),\n    randomized_time: randomizedTime.toISOString(),\n    offset_minutes: offsetMinutes\n  };\n});\n\nreturn randomizedSchedules.map(s => ({ json: s }));"
+      },
+      "name": "🎲 バッチランダム化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE content_queue SET scheduled_time = $2, randomization_applied = TRUE, randomization_offset_min = $3 WHERE id = $1",
+        "options": {
+          "queryParams": "={{ [$json.queue_id, $json.randomized_time, $json.offset_minutes] }}"
+        }
+      },
+      "name": "💾 スケジュール更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO randomization_logs (content_id, channel_id, original_time, randomized_time, offset_minutes, applied_at) VALUES ($1, $2, $3, $4, $5, NOW())",
+        "options": {
+          "queryParams": "={{ [$json.content_id, $json.channel_id, $json.original_time, $json.randomized_time, $json.offset_minutes] }}"
+        }
+      },
+      "name": "💾 ランダム化ログ",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// レスポンス生成\nconst action = $node['🔧 初期化'].json.action;\n\nlet result = { success: true, action: action };\n\nswitch (action) {\n  case 'randomize':\n    result = $node['🎲 時間ランダム化'].json;\n    break;\n  case 'get_optimal_time':\n    result = $node['📊 最適時間計算'].json;\n    break;\n  case 'schedule_batch':\n    result.message = 'バッチスケジュール更新完了';\n    result.updated_count = $items().length;\n    result.schedules = $items().map(i => i.json);\n    break;\n}\n\nreturn [{ json: result }];"
+      },
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: randomize-schedule": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "アクション分岐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "アクション分岐": {
+      "main": [
+        [
+          {
+            "node": "🎲 時間ランダム化",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📥 チャンネル統計取得",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📥 スケジュール待機取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎲 時間ランダム化": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📥 チャンネル統計取得": {
+      "main": [
+        [
+          {
+            "node": "📊 最適時間計算",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 最適時間計算": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📥 スケジュール待機取得": {
+      "main": [
+        [
+          {
+            "node": "🎲 バッチランダム化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎲 バッチランダム化": {
+      "main": [
+        [
+          {
+            "node": "💾 スケジュール更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 スケジュール更新": {
+      "main": [
+        [
+          {
+            "node": "💾 ランダム化ログ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 ランダム化ログ": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 300,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Defense",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Scheduling",
+      "color": "#1abc9c"
+    },
+    {
+      "name": "Phase-14",
+      "color": "#f39c12"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

@@ -1,0 +1,610 @@
+{
+  "name": "【経理】04_66-経理-銀行明細自動収集-保存エンジン_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "bank-statement",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: bank-statement",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "bank-statement"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "毎週月曜6時",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst action = body.action || 'upload_csv'; // upload_csv, list_statements, reconcile, create_archive\nconst bankCode = body.bank_code;\nconst accountNumber = body.account_number;\nconst csvData = body.csv_data;\nconst periodMonth = body.period_month; // '2026-01'\nconst isScheduled = !$input.first().json.body;\nreturn [{ json: { action: isScheduled ? 'create_archive' : action, bank_code: bankCode, account_number: accountNumber, csv_data: csvData, period_month: periodMonth, is_scheduled: isScheduled } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "rules": [
+            {
+              "outputKey": "upload",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "upload_csv",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "list",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "list_statements",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "reconcile",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "reconcile",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "archive",
+              "conditions": {
+                "combinator": "or",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "create_archive",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  },
+                  {
+                    "leftValue": "={{ $json.is_scheduled }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "fallbackOutput": "upload"
+        }
+      },
+      "id": "switch-action",
+      "name": "🔀 アクション分岐",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $node['🔐 初期化'].json;\nconst csvData = config.csv_data;\n\nif (!csvData) return [{ json: { error: true, message: 'CSVデータなし' } }];\n\n// CSVパース（簡易版）\nconst lines = csvData.trim().split('\\n');\nconst headers = lines[0].split(',');\n\nconst bankNameMap = {\n  '0001': '三菱UFJ銀行',\n  '0005': '三井住友銀行',\n  '0009': 'みずほ銀行',\n  '0033': 'PayPay銀行',\n  '0038': '住信SBIネット銀行',\n  '0042': '楽天銀行'\n};\n\nconst statements = [];\nfor (let i = 1; i < lines.length; i++) {\n  const values = lines[i].split(',');\n  if (values.length < 4) continue;\n  \n  // 日付, 摘要, 入金, 出金, 残高 形式を想定\n  const date = values[0];\n  const description = values[1];\n  const deposit = parseFloat(values[2].replace(/,/g, '')) || 0;\n  const withdrawal = parseFloat(values[3].replace(/,/g, '')) || 0;\n  const balance = values.length > 4 ? parseFloat(values[4].replace(/,/g, '')) : 0;\n  \n  // 取引先抽出（摘要から）\n  let counterparty = '';\n  const nameMatch = description.match(/(?:振込|入金|支払)[\\s　]*(.+?)(?:[\\s　]|$)/);\n  if (nameMatch) counterparty = nameMatch[1];\n  \n  // カテゴリ判定\n  let category = 'other';\n  if (description.includes('売上') || description.includes('入金')) category = 'sales';\n  else if (description.includes('仕入') || description.includes('支払')) category = 'purchase';\n  else if (description.includes('手数料')) category = 'fee';\n  else if (description.includes('振替') || description.includes('振込')) category = 'transfer';\n  else if (description.includes('税') || description.includes('源泉')) category = 'tax';\n  \n  statements.push({\n    bank_code: config.bank_code || '0001',\n    bank_name: bankNameMap[config.bank_code] || '銀行',\n    account_number: config.account_number || '',\n    transaction_date: date,\n    description: description,\n    counterparty_name: counterparty,\n    deposit_amount: deposit,\n    withdrawal_amount: withdrawal,\n    balance: balance,\n    category: category,\n    source_type: 'csv',\n    source_row_number: i,\n    search_text: `${description} ${counterparty} ${deposit} ${withdrawal}`\n  });\n}\n\nreturn statements.map(s => ({ json: s }));"
+      },
+      "id": "parse-csv",
+      "name": "📄 CSV解析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO bank_statements (bank_code, bank_name, account_number, transaction_date, description, counterparty_name, deposit_amount, withdrawal_amount, balance, category, source_type, source_row_number, search_text) VALUES ($1, $2, $3, $4::date, $5, $6, $7, $8, $9, $10, $11, $12, $13) ON CONFLICT DO NOTHING RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.bank_code, $json.bank_name, $json.account_number, $json.transaction_date, $json.description, $json.counterparty_name, $json.deposit_amount, $json.withdrawal_amount, $json.balance, $json.category, $json.source_type, $json.source_row_number, $json.search_text] }}"
+        }
+      },
+      "id": "save-statement",
+      "name": "💾 明細保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM bank_statements WHERE ($1::text IS NULL OR bank_code = $1) AND ($2::text IS NULL OR account_number = $2) ORDER BY transaction_date DESC LIMIT 100",
+        "options": {
+          "queryParams": "={{ [$node['🔐 初期化'].json.bank_code || null, $node['🔐 初期化'].json.account_number || null] }}"
+        }
+      },
+      "id": "list-statements",
+      "name": "📋 明細一覧",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT bs.id as statement_id, bs.deposit_amount, bs.withdrawal_amount, bs.description, bs.transaction_date, ps.id as settlement_id, ps.gross_revenue, ABS(bs.deposit_amount - ps.gross_revenue) as diff FROM bank_statements bs CROSS JOIN profit_settlements ps WHERE bs.is_reconciled = false AND bs.deposit_amount > 0 AND ABS(bs.deposit_amount - ps.gross_revenue) < 100 AND ABS(bs.transaction_date - ps.settled_at::date) <= 5 ORDER BY diff ASC LIMIT 50",
+        "options": {}
+      },
+      "id": "find-reconcile",
+      "name": "🔍 消込候補検索",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const matches = $input.first().json;\nconst matchList = Array.isArray(matches) ? matches : (matches?.statement_id ? [matches] : []);\nif (matchList.length === 0) return [{ json: { no_matches: true, message: '消込候補なし' } }];\nreturn matchList.map(m => ({ json: m }));"
+      },
+      "id": "prepare-reconcile",
+      "name": "📋 消込準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE bank_statements SET is_reconciled = true, payment_id = $1::uuid WHERE id = $2::uuid RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.settlement_id, $json.statement_id] }}"
+        }
+      },
+      "id": "apply-reconcile",
+      "name": "🔗 消込適用",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = new Date();\nconst lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);\nconst periodMonth = lastMonth.toISOString().slice(0, 7); // '2026-01'\n\nreturn [{ json: { period_month: periodMonth, period_start: lastMonth.toISOString().split('T')[0], period_end: new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0] } }];"
+      },
+      "id": "calc-archive-period",
+      "name": "📅 アーカイブ期間計算",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) as receipt_count, SUM(amount) as receipt_total FROM receipts WHERE transaction_date >= $1::date AND transaction_date <= $2::date",
+        "options": {
+          "queryParams": "={{ [$json.period_start, $json.period_end] }}"
+        }
+      },
+      "id": "count-receipts",
+      "name": "📊 領収書カウント",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) as statement_count, SUM(deposit_amount) as deposit_total, SUM(withdrawal_amount) as withdrawal_total FROM bank_statements WHERE transaction_date >= $1::date AND transaction_date <= $2::date",
+        "options": {
+          "queryParams": "={{ [$node['📅 アーカイブ期間計算'].json.period_start, $node['📅 アーカイブ期間計算'].json.period_end] }}"
+        }
+      },
+      "id": "count-statements",
+      "name": "📊 明細カウント",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const period = $node['📅 アーカイブ期間計算'].json;\nconst receipts = $node['📊 領収書カウント'].json;\nconst statements = $input.first().json;\n\nconst receiptData = Array.isArray(receipts) ? receipts[0] : receipts;\nconst statementData = Array.isArray(statements) ? statements[0] : statements;\n\nconst totalDocs = (parseInt(receiptData?.receipt_count) || 0) + (parseInt(statementData?.statement_count) || 0);\nconst totalAmount = (parseFloat(receiptData?.receipt_total) || 0) + (parseFloat(statementData?.deposit_total) || 0);\n\nconst archiveUrl = `archives/${period.period_month}/all_documents.zip`;\n\nreturn [{ json: { archive_type: 'all', archive_period: period.period_month, archive_url: archiveUrl, document_count: totalDocs, total_amount: totalAmount, backup_locations: ['supabase-storage', 's3-backup'] } }];"
+      },
+      "id": "prepare-archive",
+      "name": "📦 アーカイブ準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO document_archives (archive_type, archive_period, archive_url, document_count, total_amount, backup_locations) VALUES ($1, $2, $3, $4, $5, $6::jsonb) ON CONFLICT DO NOTHING RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.archive_type, $json.archive_period, $json.archive_url, $json.document_count, $json.total_amount, JSON.stringify($json.backup_locations)] }}"
+        }
+      },
+      "id": "save-archive",
+      "name": "💾 アーカイブ保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const action = $node['🔐 初期化'].json.action;\nlet result = { success: true, action };\n\nif (action === 'upload_csv') {\n  const saved = $input.all().map(i => i.json).filter(r => r.id);\n  result.imported = saved.length;\n} else if (action === 'list_statements') {\n  const statements = $node['📋 明細一覧'].json;\n  result.statements = Array.isArray(statements) ? statements : (statements?.id ? [statements] : []);\n  result.count = result.statements.length;\n} else if (action === 'reconcile') {\n  const reconciled = $input.all().map(i => i.json).filter(r => r.id);\n  result.reconciled = reconciled.length;\n} else {\n  const archive = $node['📦 アーカイブ準備'].json;\n  result.archive_period = archive.archive_period;\n  result.document_count = archive.document_count;\n}\n\nreturn [{ json: result }];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: bank-statement": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "毎週月曜6時": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "🔀 アクション分岐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 アクション分岐": {
+      "main": [
+        [
+          {
+            "node": "📄 CSV解析",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 明細一覧",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🔍 消込候補検索",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📅 アーカイブ期間計算",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📄 CSV解析": {
+      "main": [
+        [
+          {
+            "node": "💾 明細保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 明細保存": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 明細一覧": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 消込候補検索": {
+      "main": [
+        [
+          {
+            "node": "📋 消込準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 消込準備": {
+      "main": [
+        [
+          {
+            "node": "🔗 消込適用",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔗 消込適用": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📅 アーカイブ期間計算": {
+      "main": [
+        [
+          {
+            "node": "📊 領収書カウント",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 領収書カウント": {
+      "main": [
+        [
+          {
+            "node": "📊 明細カウント",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 明細カウント": {
+      "main": [
+        [
+          {
+            "node": "📦 アーカイブ準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 アーカイブ準備": {
+      "main": [
+        [
+          {
+            "node": "💾 アーカイブ保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 アーカイブ保存": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 300,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Finance",
+      "color": "#27ae60"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Bank",
+      "color": "#3498db"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

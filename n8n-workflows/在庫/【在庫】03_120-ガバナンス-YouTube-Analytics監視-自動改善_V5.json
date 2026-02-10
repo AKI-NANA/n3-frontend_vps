@@ -1,0 +1,525 @@
+{
+  "name": "【在庫】03_120-ガバナンス-YouTube-Analytics監視-自動改善_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "cron",
+      "name": "⏰ 6時間ごと実行",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT DISTINCT channel_id FROM media_channels WHERE is_active = true AND youtube_channel_id IS NOT NULL LIMIT 100"
+      },
+      "id": "fetch-channels",
+      "name": "📥 アクティブチャンネル取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// チャンネルリストを処理用に変換\nconst channels = $input.first().json || [];\nreturn channels.map(c => ({ json: c }));"
+      },
+      "id": "split-channels",
+      "name": "🔀 チャンネル分割",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "batchSize": 5,
+        "options": {}
+      },
+      "id": "batch-channels",
+      "name": "📦 バッチ処理",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "notes": "\n[PATCHER] WARNING: SplitInBatches直後にWaitノードがありません。API制限に注意してください。"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT yt.access_token, yt.refresh_token, yt.expires_at, mc.youtube_channel_id FROM youtube_tokens yt JOIN media_channels mc ON yt.channel_id = mc.channel_id WHERE mc.channel_id = $1",
+        "options": {
+          "queryParams": "={{ [$json.channel_id] }}"
+        }
+      },
+      "id": "fetch-token",
+      "name": "🔑 トークン取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// トークンリフレッシュ判定\nconst tokenData = $input.first().json[0];\nif (!tokenData) return [{ json: { skip: true, reason: 'トークンなし' } }];\n\nconst expiresAt = new Date(tokenData.expires_at);\nconst now = new Date();\nconst needsRefresh = expiresAt <= now;\n\nreturn [{ json: { ...tokenData, needs_refresh: needsRefresh, channel_id: $node['📦 バッチ処理'].json.channel_id } }];"
+      },
+      "id": "check-token",
+      "name": "🔍 トークン確認",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "skip",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-skip",
+      "name": "スキップ？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://youtubeanalytics.googleapis.com/v2/reports",
+        "authentication": "oAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "ids",
+              "value": "={{ 'channel==' + $json.youtube_channel_id }}"
+            },
+            {
+              "name": "startDate",
+              "value": "={{ new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] }}"
+            },
+            {
+              "name": "endDate",
+              "value": "={{ new Date().toISOString().split('T')[0] }}"
+            },
+            {
+              "name": "metrics",
+              "value": "views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained,subscribersLost"
+            },
+            {
+              "name": "dimensions",
+              "value": "video"
+            },
+            {
+              "name": "sort",
+              "value": "-views"
+            },
+            {
+              "name": "maxResults",
+              "value": "50"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "fetch-analytics",
+      "name": "📊 Analytics取得",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "oAuth2Api": {
+          "id": "youtube-oauth",
+          "name": "YouTube OAuth"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Analytics結果を解析してパフォーマンス判定\nconst channelId = $node['🔍 トークン確認'].json.channel_id;\nconst analyticsData = $input.first().json;\n\nif (!analyticsData.rows || analyticsData.rows.length === 0) {\n  return [{ json: { channel_id: channelId, videos: [], error: 'データなし' } }];\n}\n\nconst videos = analyticsData.rows.map(row => {\n  const [videoId, views, watchTime, avgDuration, avgPercentage, subsGained, subsLost] = row;\n  \n  // パフォーマンス判定\n  let tier = 'average';\n  if (avgPercentage >= 50 && views >= 1000) tier = 'excellent';\n  else if (avgPercentage >= 40 && views >= 500) tier = 'good';\n  else if (avgPercentage < 25 || views < 100) tier = 'poor';\n  if (avgPercentage < 15) tier = 'critical';\n  \n  // 改善提案の生成\n  const suggestions = [];\n  if (avgPercentage < 30) suggestions.push({ type: 'hook', suggestion: '冒頭5秒のフック強化' });\n  if (avgPercentage < 40) suggestions.push({ type: 'pacing', suggestion: 'テンポアップ、間延びポイント削除' });\n  if (views < 100) suggestions.push({ type: 'thumbnail', suggestion: 'サムネイル改善（コントラスト強調）' });\n  if (subsLost > subsGained) suggestions.push({ type: 'content', suggestion: 'コンテンツ方針の見直し' });\n  \n  return {\n    video_id: videoId,\n    views: views,\n    watch_time_minutes: watchTime,\n    average_view_duration_seconds: avgDuration,\n    average_view_percentage: avgPercentage,\n    subscribers_gained: subsGained,\n    subscribers_lost: subsLost,\n    performance_tier: tier,\n    improvement_suggestions: suggestions\n  };\n});\n\n// critical/poorの動画を優先\nconst criticalVideos = videos.filter(v => v.performance_tier === 'critical' || v.performance_tier === 'poor');\n\nreturn [{ json: { channel_id: channelId, videos: videos, critical_videos: criticalVideos, snapshot_date: new Date().toISOString().split('T')[0] } }];"
+      },
+      "id": "analyze-performance",
+      "name": "📈 パフォーマンス分析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "jsCode": "// DB保存用データ準備\nconst data = $input.first().json;\n\nreturn data.videos.map(v => ({\n  json: {\n    channel_id: data.channel_id,\n    video_id: v.video_id,\n    views: v.views,\n    watch_time_minutes: v.watch_time_minutes,\n    average_view_duration_seconds: v.average_view_duration_seconds,\n    average_view_percentage: v.average_view_percentage,\n    subscribers_gained: v.subscribers_gained,\n    subscribers_lost: v.subscribers_lost,\n    performance_tier: v.performance_tier,\n    improvement_suggestions: JSON.stringify(v.improvement_suggestions),\n    snapshot_date: data.snapshot_date\n  }\n}));"
+      },
+      "id": "prepare-save",
+      "name": "📦 保存準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO youtube_analytics_snapshots (id, channel_id, video_id, views, watch_time_minutes, average_view_duration_seconds, average_view_percentage, subscribers_gained, subscribers_lost, performance_tier, improvement_suggestions, snapshot_date) VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT (channel_id, video_id, snapshot_date) DO UPDATE SET views = EXCLUDED.views, watch_time_minutes = EXCLUDED.watch_time_minutes, average_view_percentage = EXCLUDED.average_view_percentage, performance_tier = EXCLUDED.performance_tier, improvement_suggestions = EXCLUDED.improvement_suggestions, updated_at = NOW()",
+        "options": {
+          "queryParams": "={{ [$json.channel_id, $json.video_id, $json.views, $json.watch_time_minutes, $json.average_view_duration_seconds, $json.average_view_percentage, $json.subscribers_gained, $json.subscribers_lost, $json.performance_tier, $json.improvement_suggestions, $json.snapshot_date] }}"
+        }
+      },
+      "id": "save-snapshot",
+      "name": "💾 スナップショット保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-critical",
+              "leftValue": "={{ $node['📈 パフォーマンス分析'].json.critical_videos.length > 0 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-critical",
+      "name": "改善必要？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "url": "={{ process.env.N8N_WEBHOOK_URL || '{{$env.N8N_BASE_URL}}' }}/webhook/chatwork-notify",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ message: '⚠️ YouTube改善アラート\\n\\nチャンネル: ' + $node['📈 パフォーマンス分析'].json.channel_id + '\\n要改善動画数: ' + $node['📈 パフォーマンス分析'].json.critical_videos.length + '本\\n\\n' + $node['📈 パフォーマンス分析'].json.critical_videos.slice(0, 3).map(v => '・' + v.video_id + ' (維持率' + v.average_view_percentage + '%)').join('\\n'), room_id: process.env.CHATWORK_ROOM_ID }) }}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "notify-critical",
+      "name": "📱 改善アラート",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// 自動改善トリガー（サムネイル再生成キューへ投入）\nconst criticalVideos = $node['📈 パフォーマンス分析'].json.critical_videos || [];\n\nconst improvementTasks = criticalVideos.slice(0, 5).map(v => ({\n  video_id: v.video_id,\n  channel_id: $node['📈 パフォーマンス分析'].json.channel_id,\n  improvement_type: v.improvement_suggestions[0]?.type || 'thumbnail',\n  current_metrics: {\n    views: v.views,\n    avg_percentage: v.average_view_percentage\n  }\n}));\n\nreturn improvementTasks.map(t => ({ json: t }));"
+      },
+      "id": "create-improvement-tasks",
+      "name": "🔧 改善タスク生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO improvement_queue (id, video_id, channel_id, improvement_type, current_metrics, status, created_at) VALUES (gen_random_uuid(), $1, $2, $3, $4, 'pending', NOW())",
+        "options": {
+          "queryParams": "={{ [$json.video_id, $json.channel_id, $json.improvement_type, JSON.stringify($json.current_metrics)] }}"
+        }
+      },
+      "id": "queue-improvement",
+      "name": "📥 改善キュー投入",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "⏰ 6時間ごと実行": {
+      "main": [
+        [
+          {
+            "node": "📥 アクティブチャンネル取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📥 アクティブチャンネル取得": {
+      "main": [
+        [
+          {
+            "node": "🔀 チャンネル分割",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 チャンネル分割": {
+      "main": [
+        [
+          {
+            "node": "📦 バッチ処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 バッチ処理": {
+      "main": [
+        [
+          {
+            "node": "🔑 トークン取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔑 トークン取得": {
+      "main": [
+        [
+          {
+            "node": "🔍 トークン確認",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 トークン確認": {
+      "main": [
+        [
+          {
+            "node": "スキップ？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "スキップ？": {
+      "main": [
+        [
+          {
+            "node": "📦 バッチ処理",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📊 Analytics取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Analytics取得": {
+      "main": [
+        [
+          {
+            "node": "📈 パフォーマンス分析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📈 パフォーマンス分析": {
+      "main": [
+        [
+          {
+            "node": "📦 保存準備",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "改善必要？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 保存準備": {
+      "main": [
+        [
+          {
+            "node": "💾 スナップショット保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 スナップショット保存": {
+      "main": [
+        [
+          {
+            "node": "📦 バッチ処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "改善必要？": {
+      "main": [
+        [
+          {
+            "node": "📱 改善アラート",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "📱 改善アラート": {
+      "main": [
+        [
+          {
+            "node": "🔧 改善タスク生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 改善タスク生成": {
+      "main": [
+        [
+          {
+            "node": "📥 改善キュー投入",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📥 改善キュー投入": {
+      "main": [
+        [
+          {
+            "node": "📊 実行ログ送信 (成功)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "ガバナンス"
+    },
+    {
+      "name": "V5"
+    },
+    {
+      "name": "YouTube"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ]
+}

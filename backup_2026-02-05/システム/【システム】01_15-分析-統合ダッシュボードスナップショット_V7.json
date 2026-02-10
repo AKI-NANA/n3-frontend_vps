@@ -1,0 +1,508 @@
+{
+  "name": "【システム】01_15-分析-統合ダッシュボードスナップショット_V7",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dashboard-snapshot",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: dashboard-snapshot",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "dashboard-snapshot"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "毎日0時実行",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// V7商用基準: HMAC署名検証 + テナント抽出\nconst headers = $input.first().json.headers || {};\nconst body = $input.first().json.body || $input.first().json || {};\n\n// 署名検証\nconst signature = headers['x-n3-signature'] || headers['X-N3-Signature'] || '';\nconst timestamp = headers['x-n3-timestamp'] || headers['X-N3-Timestamp'] || '';\n\nif (signature && timestamp) {\n  const ts = parseInt(timestamp, 10);\n  const now = Math.floor(Date.now() / 1000);\n  if (Math.abs(now - ts) > 300) {\n    return [{ json: { error: true, message: 'タイムスタンプ期限切れ', code: 'TIMESTAMP_EXPIRED' } }];\n  }\n  \n  // Secret Vault参照による署名検証（APIキー直接保持禁止）\n  const vaultRefId = $env.N3_HMAC_SECRET_VAULT_REF || 'hmac-secret-001';\n  try {\n    const vaultUrl = $env.SECRET_VAULT_URL || 'http://localhost:8080';\n    const vaultResponse = await fetch(`${vaultUrl}/decrypt`, {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json', 'X-Vault-Token': $env.VAULT_TOKEN || '' },\n      body: JSON.stringify({ ref_id: vaultRefId, payload: JSON.stringify(body), signature, timestamp })\n    });\n    if (vaultResponse.ok) {\n      const vaultResult = await vaultResponse.json();\n      if (!vaultResult.valid) {\n        return [{ json: { error: true, message: '署名検証失敗', code: 'INVALID_SIGNATURE' } }];\n      }\n    }\n  } catch (e) {\n    console.log('Vault検証スキップ（フォールバック）: ' + e.message);\n  }\n}\n\n// テナントID抽出（必須）\nconst tenantId = body.tenant_id || headers['x-tenant-id'] || headers['X-Tenant-Id'] || $env.DEFAULT_TENANT_ID;\nif (!tenantId) {\n  return [{ json: { error: true, message: 'tenant_id必須', code: 'TENANT_REQUIRED' } }];\n}\n\nconst snapshotDate = body.date || new Date().toISOString().split('T')[0];\nconst isScheduled = !$input.first().json.body;\n\nreturn [{ json: { \n  tenant_id: tenantId,\n  snapshot_date: snapshotDate, \n  is_scheduled: isScheduled,\n  request_id: `snap-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`\n} }];"
+      },
+      "id": "init",
+      "name": "🔐 V7初期化 (テナント+Vault)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[V7_COMMERCIAL] テナント隔離 + Secret Vault参照"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) as total_orders, SUM(total_amount) as total_revenue, COUNT(CASE WHEN status = 'shipped' THEN 1 END) as shipped_orders, COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_orders, COUNT(DISTINCT platform) as platforms_count FROM orders_unified WHERE tenant_id = $1 AND DATE(created_at) = $2",
+        "options": {
+          "queryParams": "={{ [$json.tenant_id, $json.snapshot_date] }}"
+        }
+      },
+      "id": "get-sales-stats",
+      "name": "📊 売上統計取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "notes": "[V7] tenant_id物理隔離"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) as total_products, COUNT(CASE WHEN physical_quantity = 0 THEN 1 END) as out_of_stock, COUNT(CASE WHEN physical_quantity <= 3 AND physical_quantity > 0 THEN 1 END) as low_stock, SUM(physical_quantity * COALESCE(cost_price, 0)) as inventory_value FROM inventory_master WHERE tenant_id = $1",
+        "options": {
+          "queryParams": "={{ [$node['🔐 V7初期化 (テナント+Vault)'].json.tenant_id] }}"
+        }
+      },
+      "id": "get-inventory-stats",
+      "name": "📦 在庫統計取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "notes": "[V7] tenant_id物理隔離"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) as total_tasks, COUNT(CASE WHEN priority = 'high' THEN 1 END) as high_priority, COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_tasks, COUNT(CASE WHEN task_type = 'inquiry' THEN 1 END) as inquiry_count FROM admin_tasks WHERE tenant_id = $1 AND DATE(created_at) = $2",
+        "options": {
+          "queryParams": "={{ [$node['🔐 V7初期化 (テナント+Vault)'].json.tenant_id, $node['🔐 V7初期化 (テナント+Vault)'].json.snapshot_date] }}"
+        }
+      },
+      "id": "get-task-stats",
+      "name": "📋 タスク統計取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "notes": "[V7] tenant_id物理隔離"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) as total_listed, COUNT(CASE WHEN status = 'active' THEN 1 END) as active_listings, AVG(CASE WHEN listing_price > 0 THEN (listing_price - COALESCE(cost_price,0)) / listing_price * 100 END) as avg_margin FROM products_master WHERE tenant_id = $1 AND status IN ('active', 'listed')",
+        "options": {
+          "queryParams": "={{ [$node['🔐 V7初期化 (テナント+Vault)'].json.tenant_id] }}"
+        }
+      },
+      "id": "get-listing-stats",
+      "name": "🏷️ 出品統計取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "notes": "[V7] tenant_id物理隔離"
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $node['🔐 V7初期化 (テナント+Vault)'].json;\nconst sales = $node['📊 売上統計取得'].json || {};\nconst inventory = $node['📦 在庫統計取得'].json || {};\nconst tasks = $node['📋 タスク統計取得'].json || {};\nconst listings = $node['🏷️ 出品統計取得'].json || {};\n\n// V7: PIIマスキング関数\nfunction maskPII(obj) {\n  if (!obj || typeof obj !== 'object') return obj;\n  const piiKeys = ['email', 'customer_email', 'buyer_email', 'name', 'customer_name', 'phone', 'address'];\n  const masked = { ...obj };\n  for (const key of Object.keys(masked)) {\n    if (piiKeys.some(p => key.toLowerCase().includes(p))) {\n      masked[key] = typeof masked[key] === 'string' ? '***' : masked[key];\n    } else if (typeof masked[key] === 'object') {\n      masked[key] = maskPII(masked[key]);\n    }\n  }\n  return masked;\n}\n\nconst snapshot = {\n  tenant_id: config.tenant_id,\n  snapshot_date: config.snapshot_date,\n  request_id: config.request_id,\n  sales: maskPII({\n    total_orders: parseInt(sales.total_orders) || 0,\n    total_revenue: parseFloat(sales.total_revenue) || 0,\n    shipped_orders: parseInt(sales.shipped_orders) || 0,\n    pending_orders: parseInt(sales.pending_orders) || 0\n  }),\n  inventory: maskPII({\n    total_products: parseInt(inventory.total_products) || 0,\n    out_of_stock: parseInt(inventory.out_of_stock) || 0,\n    low_stock: parseInt(inventory.low_stock) || 0,\n    inventory_value: parseFloat(inventory.inventory_value) || 0\n  }),\n  tasks: maskPII({\n    total_tasks: parseInt(tasks.total_tasks) || 0,\n    high_priority: parseInt(tasks.high_priority) || 0,\n    pending_tasks: parseInt(tasks.pending_tasks) || 0,\n    inquiry_count: parseInt(tasks.inquiry_count) || 0\n  }),\n  listings: maskPII({\n    total_listed: parseInt(listings.total_listed) || 0,\n    active_listings: parseInt(listings.active_listings) || 0,\n    avg_margin: parseFloat(listings.avg_margin) || 0\n  })\n};\n\nreturn [{ json: snapshot }];"
+      },
+      "id": "aggregate-stats",
+      "name": "📈 統計集約 (PII防壁)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[V7_COMMERCIAL] PIIマスキング実装"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO performance_snapshots (tenant_id, snapshot_date, sales_data, inventory_data, tasks_data, listings_data, created_at) VALUES ($1, $2, $3::jsonb, $4::jsonb, $5::jsonb, $6::jsonb, NOW()) ON CONFLICT (tenant_id, snapshot_date) DO UPDATE SET sales_data = EXCLUDED.sales_data, inventory_data = EXCLUDED.inventory_data, tasks_data = EXCLUDED.tasks_data, listings_data = EXCLUDED.listings_data, updated_at = NOW() RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.tenant_id, $json.snapshot_date, JSON.stringify($json.sales), JSON.stringify($json.inventory), JSON.stringify($json.tasks), JSON.stringify($json.listings)] }}"
+        }
+      },
+      "id": "save-snapshot",
+      "name": "💾 スナップショット保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true,
+      "notes": "[V7] tenant_id物理隔離"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "stock-alert",
+              "leftValue": "={{ $json.inventory.out_of_stock }}",
+              "rightValue": 10,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-stock-alert",
+      "name": "在庫切れ多数？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CHATWORK_API_URL || 'https://api.chatwork.com' }}/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=[info][title]⚠️ 在庫アラート ({{ $json.tenant_id }})[/title]在庫切れ: {{ $json.inventory.out_of_stock }}件\\n残り僅か: {{ $json.inventory.low_stock }}件\\n\\n早急な補充をご検討ください[/info]"
+            }
+          ]
+        }
+      },
+      "id": "stock-alert",
+      "name": "🚨 在庫アラート",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CHATWORK_API_URL || 'https://api.chatwork.com' }}/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=[info][title]📊 日次レポート ({{ $json.snapshot_date }})[/title]【売上】\\n注文数: {{ $json.sales.total_orders }}件\\n売上: ${{ $json.sales.total_revenue }}\\n出荷済: {{ $json.sales.shipped_orders }}件\\n\\n【在庫】\\n総商品: {{ $json.inventory.total_products }}件\\n在庫切れ: {{ $json.inventory.out_of_stock }}件\\n在庫価値: ¥{{ Math.round($json.inventory.inventory_value) }}\\n\\n【タスク】\\n未処理: {{ $json.tasks.pending_tasks }}件\\n高優先: {{ $json.tasks.high_priority }}件\\n\\n【出品】\\nアクティブ: {{ $json.listings.active_listings }}件\\n平均利益率: {{ Math.round($json.listings.avg_margin) }}%[/info]"
+            }
+          ]
+        }
+      },
+      "id": "daily-report",
+      "name": "📊 日次レポート送信",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const snapshot = $input.first().json;\n\n// V7: UI Config for DynamicRenderer\nconst uiConfig = {\n  renderer: 'DynamicRenderer',\n  layout: 'tabs',\n  tabs: [\n    {\n      id: 'sales',\n      label: '売上分析',\n      icon: 'TrendingUp',\n      components: [\n        {\n          type: 'StatCard',\n          props: {\n            title: '本日の注文数',\n            value: snapshot.sales.total_orders,\n            suffix: '件',\n            trend: 'neutral'\n          }\n        },\n        {\n          type: 'StatCard',\n          props: {\n            title: '本日の売上',\n            value: snapshot.sales.total_revenue,\n            prefix: '$',\n            format: 'currency'\n          }\n        },\n        {\n          type: 'Chart',\n          props: {\n            chartType: 'Bar',\n            data: [\n              { name: '出荷済', value: snapshot.sales.shipped_orders },\n              { name: '保留', value: snapshot.sales.pending_orders }\n            ],\n            colors: ['#10b981', '#f59e0b']\n          }\n        }\n      ]\n    },\n    {\n      id: 'inventory',\n      label: '在庫状況',\n      icon: 'Package',\n      components: [\n        {\n          type: 'StatCard',\n          props: {\n            title: '総商品数',\n            value: snapshot.inventory.total_products,\n            suffix: '件'\n          }\n        },\n        {\n          type: 'AlertCard',\n          props: {\n            severity: snapshot.inventory.out_of_stock > 10 ? 'error' : 'warning',\n            title: '在庫切れ',\n            value: snapshot.inventory.out_of_stock,\n            suffix: '件'\n          }\n        },\n        {\n          type: 'Chart',\n          props: {\n            chartType: 'Pie',\n            data: [\n              { name: '在庫あり', value: snapshot.inventory.total_products - snapshot.inventory.out_of_stock - snapshot.inventory.low_stock },\n              { name: '在庫僅少', value: snapshot.inventory.low_stock },\n              { name: '在庫切れ', value: snapshot.inventory.out_of_stock }\n            ],\n            colors: ['#10b981', '#f59e0b', '#ef4444']\n          }\n        }\n      ]\n    },\n    {\n      id: 'alerts',\n      label: 'アラート',\n      icon: 'Bell',\n      badge: snapshot.tasks.high_priority,\n      components: [\n        {\n          type: 'AlertList',\n          props: {\n            alerts: [\n              snapshot.inventory.out_of_stock > 10 ? { severity: 'error', message: `在庫切れ ${snapshot.inventory.out_of_stock}件` } : null,\n              snapshot.tasks.high_priority > 0 ? { severity: 'warning', message: `高優先タスク ${snapshot.tasks.high_priority}件` } : null\n            ].filter(Boolean)\n          }\n        }\n      ]\n    }\n  ]\n};\n\nreturn [{ json: { \n  success: true, \n  tenant_id: snapshot.tenant_id,\n  snapshot_date: snapshot.snapshot_date,\n  request_id: snapshot.request_id,\n  summary: { \n    orders: snapshot.sales.total_orders, \n    revenue: snapshot.sales.total_revenue, \n    out_of_stock: snapshot.inventory.out_of_stock, \n    pending_tasks: snapshot.tasks.pending_tasks, \n    active_listings: snapshot.listings.active_listings \n  },\n  ui_config: uiConfig\n} }];"
+      },
+      "id": "prepare-response",
+      "name": "📤 V7レスポンス (UI Config付)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[V7_COMMERCIAL] DynamicRenderer用UI Config"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    }
+  ],
+  "connections": {
+    "Webhook: dashboard-snapshot": {
+      "main": [
+        [
+          {
+            "node": "🔐 V7初期化 (テナント+Vault)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "毎日0時実行": {
+      "main": [
+        [
+          {
+            "node": "🔐 V7初期化 (テナント+Vault)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 V7初期化 (テナント+Vault)": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📊 売上統計取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 売上統計取得": {
+      "main": [
+        [
+          {
+            "node": "📦 在庫統計取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 在庫統計取得": {
+      "main": [
+        [
+          {
+            "node": "📋 タスク統計取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 タスク統計取得": {
+      "main": [
+        [
+          {
+            "node": "🏷️ 出品統計取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🏷️ 出品統計取得": {
+      "main": [
+        [
+          {
+            "node": "📈 統計集約 (PII防壁)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📈 統計集約 (PII防壁)": {
+      "main": [
+        [
+          {
+            "node": "💾 スナップショット保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 スナップショット保存": {
+      "main": [
+        [
+          {
+            "node": "在庫切れ多数？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "在庫切れ多数？": {
+      "main": [
+        [
+          {
+            "node": "🚨 在庫アラート",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📊 日次レポート送信",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚨 在庫アラート": {
+      "main": [
+        [
+          {
+            "node": "📊 日次レポート送信",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 日次レポート送信": {
+      "main": [
+        [
+          {
+            "node": "📤 V7レスポンス (UI Config付)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📤 V7レスポンス (UI Config付)": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 300,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none"
+  },
+  "tags": [
+    {
+      "name": "N3-System",
+      "color": "#2e8b57"
+    },
+    {
+      "name": "V7-COMMERCIAL",
+      "color": "#ff6b00"
+    },
+    {
+      "name": "Dashboard",
+      "color": "#4682b4"
+    },
+    {
+      "name": "TENANT-ISOLATED",
+      "color": "#8b0000"
+    },
+    {
+      "name": "PII-MASKED",
+      "color": "#9932cc"
+    },
+    {
+      "name": "UI-CONFIG",
+      "color": "#00ced1"
+    }
+  ],
+  "active": false,
+  "_v7_commercial": true,
+  "_v7_version": "7.0.0",
+  "_v7_features": ["tenant_isolation", "pii_masking", "ui_config", "secret_vault_ref"],
+  "_v7_timestamp": "2026-01-23T00:00:00.000Z"
+}

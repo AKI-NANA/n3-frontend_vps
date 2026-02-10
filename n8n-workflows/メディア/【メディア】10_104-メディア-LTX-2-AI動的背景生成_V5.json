@@ -1,0 +1,655 @@
+{
+  "name": "【メディア】10_104-メディア-LTX-2-AI動的背景生成_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ltx-generate",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: ltx-generate",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "ltx-generate"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// LTX-Video 2.0 AI動的背景生成 初期化\n// テキスト→動画 / 画像→動画の自動背景生成\n// ============================================================================\n\nconst body = $input.first().json.body || $input.first().json || {};\n\nconst mode = body.mode || 'text2video'; // 'text2video', 'image2video'\nconst prompt = body.prompt; // 背景の説明\nconst negativePrompt = body.negative_prompt || 'blurry, low quality, distorted';\nconst sourceImageUrl = body.source_image_url; // image2videoモード用\nconst duration = body.duration_seconds || 5; // 1-10秒\nconst fps = body.fps || 24;\nconst width = body.width || 768;\nconst height = body.height || 512;\nconst seed = body.seed; // 再現性用\nconst channelId = body.channel_id;\nconst contentId = body.content_id;\nconst backgroundType = body.background_type || 'abstract'; // 'abstract', 'nature', 'urban', 'space', 'custom'\n\n// バリデーション\nif (!prompt && mode === 'text2video') {\n  return [{ json: { error: true, message: 'text2video モードでは prompt が必須です', code: 'MISSING_PARAM' } }];\n}\n\nif (!sourceImageUrl && mode === 'image2video') {\n  return [{ json: { error: true, message: 'image2video モードでは source_image_url が必須です', code: 'MISSING_PARAM' } }];\n}\n\n// 背景タイプ別のプロンプト強化\nconst bgEnhancements = {\n  abstract: 'abstract geometric patterns, flowing colors, smooth gradients, ',\n  nature: 'serene nature scene, gentle wind, soft lighting, ',\n  urban: 'modern city backdrop, subtle movement, ambient lighting, ',\n  space: 'cosmic backdrop, nebula, stars, slow motion, ',\n  custom: ''\n};\n\nconst enhancedPrompt = (bgEnhancements[backgroundType] || '') + prompt;\n\nconst jobId = 'ltx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);\n\nreturn [{\n  json: {\n    job_id: jobId,\n    mode: mode,\n    prompt: enhancedPrompt,\n    original_prompt: prompt,\n    negative_prompt: negativePrompt,\n    source_image_url: sourceImageUrl,\n    duration_seconds: Math.min(Math.max(duration, 1), 10),\n    fps: fps,\n    width: width,\n    height: height,\n    seed: seed || Math.floor(Math.random() * 2147483647),\n    background_type: backgroundType,\n    channel_id: channelId,\n    content_id: contentId,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO video_generation_jobs (id, job_type, status, prompt, negative_prompt, source_image_url, duration_seconds, fps, width, height, seed, channel_id, content_id, metadata) VALUES (gen_random_uuid(), $1, 'processing', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.mode, $json.prompt, $json.negative_prompt, $json.source_image_url, $json.duration_seconds, $json.fps, $json.width, $json.height, $json.seed, $json.channel_id, $json.content_id, JSON.stringify({ background_type: $json.background_type, original_prompt: $json.original_prompt })] }}"
+        }
+      },
+      "id": "save-job",
+      "name": "💾 ジョブ登録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// LTX-Video 2.0 API呼び出し準備\n// Replicate API / Fal.ai / RunPod などのエンドポイント\n// ============================================================================\n\nconst config = $node['🔧 初期化'].json;\nconst dbResult = $input.first().json;\n\n// LTX-Video 2.0 用のペイロード（Replicate形式）\nlet apiPayload = {};\n\nif (config.mode === 'text2video') {\n  apiPayload = {\n    version: 'lightricks/ltx-video', // 実際のモデルID\n    input: {\n      prompt: config.prompt,\n      negative_prompt: config.negative_prompt,\n      num_frames: config.duration_seconds * config.fps,\n      fps: config.fps,\n      width: config.width,\n      height: config.height,\n      seed: config.seed,\n      guidance_scale: 7.5,\n      num_inference_steps: 50\n    }\n  };\n} else if (config.mode === 'image2video') {\n  apiPayload = {\n    version: 'lightricks/ltx-video-i2v', // 画像→動画モデル\n    input: {\n      image: config.source_image_url,\n      prompt: config.prompt,\n      negative_prompt: config.negative_prompt,\n      num_frames: config.duration_seconds * config.fps,\n      fps: config.fps,\n      seed: config.seed,\n      guidance_scale: 7.5,\n      motion_bucket_id: 127 // モーションの強度\n    }\n  };\n}\n\n// Fal.ai 形式への変換（代替エンドポイント）\nconst falPayload = {\n  model_name: 'fal-ai/ltx-video',\n  arguments: {\n    prompt: config.prompt,\n    negative_prompt: config.negative_prompt,\n    num_frames: config.duration_seconds * config.fps,\n    width: config.width,\n    height: config.height,\n    seed: config.seed\n  }\n};\n\nreturn [{\n  json: {\n    ...config,\n    db_id: dbResult[0]?.id,\n    replicate_payload: apiPayload,\n    fal_payload: falPayload,\n    api_type: $env.VIDEO_GEN_API || 'replicate', // 'replicate', 'fal', 'runpod'\n    api_endpoint: $env.VIDEO_GEN_API === 'fal' \n      ? 'https://fal.run/fal-ai/ltx-video'\n      : 'https://api.replicate.com/v1/predictions'\n  }\n}];"
+      },
+      "id": "prepare-api",
+      "name": "📋 API準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.api_endpoint }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.api_type === 'fal' ? $json.fal_payload : $json.replicate_payload) }}",
+        "options": {
+          "timeout": 600000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "call-api",
+      "name": "🎬 LTX-Video API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "video-gen-auth",
+          "name": "Video Gen API"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// API結果解析\n// ============================================================================\n\nconst config = $node['📋 API準備'].json;\nconst apiResult = $input.first().json;\n\nlet status = 'processing';\nlet outputUrl = null;\nlet errorMessage = null;\nlet predictionId = null;\n\n// Replicate API レスポンス解析\nif (config.api_type === 'replicate') {\n  if (apiResult.error) {\n    status = 'failed';\n    errorMessage = apiResult.error.message || JSON.stringify(apiResult.error);\n  } else if (apiResult.status === 'succeeded') {\n    status = 'completed';\n    outputUrl = Array.isArray(apiResult.output) ? apiResult.output[0] : apiResult.output;\n  } else if (apiResult.status === 'failed') {\n    status = 'failed';\n    errorMessage = apiResult.error || 'Processing failed';\n  } else if (apiResult.id) {\n    predictionId = apiResult.id;\n    status = 'processing';\n  }\n}\n// Fal.ai レスポンス解析\nelse if (config.api_type === 'fal') {\n  if (apiResult.error) {\n    status = 'failed';\n    errorMessage = apiResult.error;\n  } else if (apiResult.video && apiResult.video.url) {\n    status = 'completed';\n    outputUrl = apiResult.video.url;\n  } else if (apiResult.request_id) {\n    predictionId = apiResult.request_id;\n    status = 'processing';\n  }\n}\n\nreturn [{\n  json: {\n    job_id: config.job_id,\n    db_id: config.db_id,\n    prediction_id: predictionId,\n    status: status,\n    output_video_url: outputUrl,\n    error_message: errorMessage,\n    api_type: config.api_type,\n    channel_id: config.channel_id,\n    content_id: config.content_id,\n    needs_polling: status === 'processing' && predictionId\n  }\n}];"
+      },
+      "id": "parse-result",
+      "name": "📋 結果解析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "needs-polling",
+              "leftValue": "={{ $json.needs_polling }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-polling",
+      "name": "ポーリング必要？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "amount": 10,
+        "unit": "seconds"
+      },
+      "id": "wait-polling",
+      "name": "⏳ 10秒待機",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $node['📋 結果解析'].json.api_type === 'replicate' ? 'https://api.replicate.com/v1/predictions/' + $node['📋 結果解析'].json.prediction_id : 'https://fal.run/fal-ai/ltx-video/requests/' + $node['📋 結果解析'].json.prediction_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "poll-status",
+      "name": "🔄 ステータス確認",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "video-gen-auth",
+          "name": "Video Gen API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// ポーリング結果解析\n// ============================================================================\n\nconst prevResult = $node['📋 結果解析'].json;\nconst pollResult = $input.first().json;\n\nlet status = 'processing';\nlet outputUrl = null;\nlet errorMessage = null;\n\nif (prevResult.api_type === 'replicate') {\n  if (pollResult.status === 'succeeded') {\n    status = 'completed';\n    outputUrl = Array.isArray(pollResult.output) ? pollResult.output[0] : pollResult.output;\n  } else if (pollResult.status === 'failed') {\n    status = 'failed';\n    errorMessage = pollResult.error || 'Processing failed';\n  }\n} else if (prevResult.api_type === 'fal') {\n  if (pollResult.status === 'completed' && pollResult.video) {\n    status = 'completed';\n    outputUrl = pollResult.video.url;\n  } else if (pollResult.status === 'failed') {\n    status = 'failed';\n    errorMessage = pollResult.error || 'Processing failed';\n  }\n}\n\nreturn [{\n  json: {\n    ...prevResult,\n    status: status,\n    output_video_url: outputUrl,\n    error_message: errorMessage,\n    needs_polling: status === 'processing',\n    poll_count: (prevResult.poll_count || 0) + 1\n  }\n}];"
+      },
+      "id": "parse-poll",
+      "name": "📋 ポーリング解析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "still-processing",
+              "leftValue": "={{ $json.needs_polling && $json.poll_count < 120 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-continue",
+      "name": "継続？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE video_generation_jobs SET status = $1, output_video_url = $2, error_message = $3, completed_at = CASE WHEN $1 IN ('completed', 'failed') THEN NOW() ELSE NULL END, updated_at = NOW() WHERE id = $4",
+        "options": {
+          "queryParams": "={{ [$json.status, $json.output_video_url, $json.error_message, $json.db_id] }}"
+        }
+      },
+      "id": "update-job",
+      "name": "💾 ジョブ更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "success",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "completed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-success",
+      "name": "成功？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 成功後処理 - Supabase Storageへアップロード\n// ============================================================================\n\nconst result = $input.first().json;\n\nif (result.status === 'completed' && result.output_video_url) {\n  // Supabase Storageのパスを生成\n  const storagePath = `backgrounds/${result.channel_id || 'default'}/${result.job_id}.mp4`;\n  \n  return [{\n    json: {\n      ...result,\n      storage_path: storagePath,\n      supabase_url: `${$env.SUPABASE_URL}/storage/v1/object/public/media-assets/${storagePath}`\n    }\n  }];\n}\n\nreturn [{ json: result }];"
+      },
+      "id": "prepare-upload",
+      "name": "📤 アップロード準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "url": "={{ process.env.N8N_WEBHOOK_URL || '{{$env.N8N_BASE_URL}}' }}/webhook/chatwork-notify",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ message: '🎬 LTX-Video背景生成完了\\n\\nチャンネル: ' + $json.channel_id + '\\nタイプ: ' + ($node['🔧 初期化'].json.background_type || 'custom') + '\\n出力: ' + $json.output_video_url, room_id: process.env.CHATWORK_ROOM_ID }) }}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "notify-success",
+      "name": "📱 成功通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "url": "={{ process.env.N8N_WEBHOOK_URL || '{{$env.N8N_BASE_URL}}' }}/webhook/chatwork-notify",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ message: '❌ LTX-Video生成失敗\\n\\nジョブID: ' + $json.job_id + '\\nエラー: ' + $json.error_message, room_id: process.env.CHATWORK_ROOM_ID }) }}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "notify-error",
+      "name": "📱 エラー通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, job_id: $node['🔧 初期化'].json.job_id, message: 'LTX-Video生成開始' }) }}",
+        "options": {
+          "responseCode": 202
+        }
+      },
+      "id": "respond-accepted",
+      "name": "受付応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: ltx-generate": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💾 ジョブ登録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 ジョブ登録": {
+      "main": [
+        [
+          {
+            "node": "📋 API準備",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "受付応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 API準備": {
+      "main": [
+        [
+          {
+            "node": "🎬 LTX-Video API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎬 LTX-Video API": {
+      "main": [
+        [
+          {
+            "node": "📋 結果解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 結果解析": {
+      "main": [
+        [
+          {
+            "node": "ポーリング必要？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ポーリング必要？": {
+      "main": [
+        [
+          {
+            "node": "⏳ 10秒待機",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💾 ジョブ更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⏳ 10秒待機": {
+      "main": [
+        [
+          {
+            "node": "🔄 ステータス確認",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 ステータス確認": {
+      "main": [
+        [
+          {
+            "node": "📋 ポーリング解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 ポーリング解析": {
+      "main": [
+        [
+          {
+            "node": "継続？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "継続？": {
+      "main": [
+        [
+          {
+            "node": "⏳ 10秒待機",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💾 ジョブ更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 ジョブ更新": {
+      "main": [
+        [
+          {
+            "node": "成功？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "成功？": {
+      "main": [
+        [
+          {
+            "node": "📤 アップロード準備",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📱 エラー通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📤 アップロード準備": {
+      "main": [
+        [
+          {
+            "node": "📱 成功通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📱 成功通知": {
+      "main": [
+        [
+          {
+            "node": "📊 実行ログ送信 (成功)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📱 エラー通知": {
+      "main": [
+        [
+          {
+            "node": "📊 実行ログ送信 (成功)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "メディア"
+    },
+    {
+      "name": "V5"
+    },
+    {
+      "name": "LTX-Video"
+    },
+    {
+      "name": "背景生成"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "triggerCount": 0,
+  "updatedAt": "2026-01-20T00:00:00.000Z",
+  "versionId": "1"
+}

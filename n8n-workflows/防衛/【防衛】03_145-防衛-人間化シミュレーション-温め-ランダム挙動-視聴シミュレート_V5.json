@@ -1,0 +1,529 @@
+{
+  "name": "【防衛】03_145-防衛-人間化シミュレーション-温め-ランダム挙動-視聴シミュレート_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "humanize-simulate",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "name": "Webhook: humanize-simulate",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "humanize-simulate"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 4
+            }
+          ]
+        }
+      },
+      "name": "⏰ 4時間ごと温め実行",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 人間化シミュレーション 初期化\n// ============================================================================\n\nconst body = $input.first().json.body || $input.first().json || {};\n\nconst action = body.action || 'warm';\nconst accountId = body.account_id;\nconst targetVideoId = body.video_id;\nconst sessionDuration = body.duration_minutes || 15;\n\nreturn [{\n  json: {\n    action: action,\n    account_id: accountId,\n    video_id: targetVideoId,\n    duration_minutes: sessionDuration,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true
+          },
+          "conditions": [
+            {
+              "id": "action",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ]
+        }
+      },
+      "name": "アクション分岐",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "options": {
+        "fallbackOutput": "none",
+        "rules": [
+          {
+            "output": 0,
+            "value": "warm"
+          },
+          {
+            "output": 1,
+            "value": "watch_video"
+          },
+          {
+            "output": 2,
+            "value": "full_session"
+          }
+        ]
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT pa.id, pa.google_email, ap.external_profile_id, ap.provider FROM pva_accounts pa LEFT JOIN antidetect_profiles ap ON pa.antidetect_profile_id = ap.id WHERE pa.status = 'active' AND (pa.last_warmed_at IS NULL OR pa.last_warmed_at < NOW() - INTERVAL '4 hours') ORDER BY pa.last_warmed_at ASC NULLS FIRST LIMIT 10"
+      },
+      "name": "📥 温め対象取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// 人間らしい温めシーケンス生成\n// ============================================================================\n\nconst accounts = $input.first().json || [];\n\nif (!Array.isArray(accounts) || accounts.length === 0) {\n  return [{ json: { action: 'warm', warmed_count: 0, message: '温め対象なし' } }];\n}\n\nconst humanDelay = (min, max) => Math.floor(Math.random() * (max - min + 1) + min);\n\nconst warmingSequences = [\n  [\n    { action: 'navigate', target: 'youtube.com', delay: humanDelay(2000, 5000) },\n    { action: 'search', query: 'popular music 2024', delay: humanDelay(8000, 15000) },\n    { action: 'click_video', index: humanDelay(0, 4), delay: humanDelay(3000, 6000) },\n    { action: 'watch', duration: humanDelay(60, 180), delay: 0 },\n    { action: 'like', probability: 0.3, delay: humanDelay(1000, 3000) },\n    { action: 'scroll', direction: 'down', delay: humanDelay(2000, 4000) }\n  ],\n  [\n    { action: 'navigate', target: 'youtube.com', delay: humanDelay(2000, 4000) },\n    { action: 'scroll', direction: 'down', delay: humanDelay(3000, 6000) },\n    { action: 'click_video', index: humanDelay(0, 7), delay: humanDelay(2000, 4000) },\n    { action: 'watch', duration: humanDelay(120, 300), delay: 0 },\n    { action: 'comment_view', delay: humanDelay(5000, 10000) }\n  ],\n  [\n    { action: 'navigate', target: 'youtube.com/feed/subscriptions', delay: humanDelay(3000, 6000) },\n    { action: 'scroll', direction: 'down', delay: humanDelay(2000, 4000) },\n    { action: 'click_video', index: humanDelay(0, 5), delay: humanDelay(2000, 4000) },\n    { action: 'watch', duration: humanDelay(60, 150), delay: 0 }\n  ]\n];\n\nconst warmingTasks = accounts.map(account => {\n  const sequenceIndex = Math.floor(Math.random() * warmingSequences.length);\n  const sequence = warmingSequences[sequenceIndex].map(step => ({\n    ...step,\n    delay: Math.max((step.delay || 0) + humanDelay(-500, 500), 500)\n  }));\n  \n  return {\n    account_id: account.id,\n    google_email: account.google_email,\n    antidetect_profile_id: account.external_profile_id,\n    antidetect_provider: account.provider,\n    sequence_pattern: sequenceIndex + 1,\n    warming_sequence: sequence,\n    total_time_sec: sequence.reduce((s, a) => s + (a.delay || 0) + (a.duration || 0) * 1000, 0) / 1000\n  };\n});\n\nreturn warmingTasks.map(t => ({ json: t }));"
+      },
+      "name": "🎭 温めシーケンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "batchSize": 3,
+        "options": {}
+      },
+      "name": "📦 バッチ処理",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "notes": "\n[PATCHER] WARNING: SplitInBatches直後にWaitノードがありません。API制限に注意してください。"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "{{$env.BROWSER_API_URL}}/api/v1/browser/start",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "user_id",
+              "value": "={{ $json.antidetect_profile_id }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "name": "🌐 ブラウザ起動",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Puppeteer接続情報抽出とスクリプト生成\nconst warmingTask = $node['🎭 温めシーケンス生成'].json;\nconst browserInfo = $input.first().json;\n\nconst wsEndpoint = browserInfo.data?.ws?.puppeteer;\n\nif (!wsEndpoint) {\n  return [{ json: { success: false, account_id: warmingTask.account_id, error: 'WS接続不可' } }];\n}\n\nreturn [{\n  json: {\n    account_id: warmingTask.account_id,\n    ws_endpoint: wsEndpoint,\n    warming_sequence: warmingTask.warming_sequence,\n    estimated_time: warmingTask.total_time_sec\n  }\n}];"
+      },
+      "name": "📋 実行準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.VPS_PUPPETEER_URL || 'http://{{$env.VPS_HOST}}:3001/execute-warming' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ ws_endpoint: $json.ws_endpoint, sequence: $json.warming_sequence }) }}",
+        "options": {
+          "timeout": 600000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "name": "🌐 Puppeteer実行",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE pva_accounts SET last_warmed_at = NOW(), warming_count = COALESCE(warming_count, 0) + 1 WHERE id = $1",
+        "options": {
+          "queryParams": "={{ [$json.account_id] }}"
+        }
+      },
+      "name": "💾 温め記録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 視聴シミュレーション\nconst config = $input.first().json;\nconst videoId = config.video_id;\n\nif (!videoId) {\n  return [{ json: { success: false, error: 'video_id必須' } }];\n}\n\nconst watchBehavior = {\n  initial_delay: Math.floor(Math.random() * 3000) + 2000,\n  actions: [\n    { time_percent: 0, action: 'start' },\n    { time_percent: 15, action: 'adjust_volume' },\n    { time_percent: 35, action: 'scroll_description' },\n    { time_percent: 55, action: 'pause_brief' },\n    { time_percent: 70, action: 'scroll_comments' },\n    { time_percent: 90, action: 'scroll_back' }\n  ],\n  post_watch: [\n    { action: 'like', probability: 0.15 },\n    { action: 'subscribe', probability: 0.05 },\n    { action: 'click_related', probability: 0.4 }\n  ]\n};\n\nreturn [{\n  json: {\n    action: 'watch_video',\n    account_id: config.account_id,\n    video_id: videoId,\n    watch_behavior: watchBehavior,\n    video_url: `https://www.youtube.com/watch?v=${videoId}`\n  }\n}];"
+      },
+      "name": "📺 視聴シミュレーション",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "jsCode": "// フルセッションシミュレーション（15-30分）\nconst config = $input.first().json;\nconst duration = config.duration_minutes || 15;\n\nconst humanDelay = (min, max) => Math.floor(Math.random() * (max - min + 1) + min);\n\nconst activities = [\n  'youtube_browse', 'youtube_search', 'youtube_watch', \n  'google_search', 'news_browse', 'social_check'\n];\n\nconst sessionPlan = [];\nlet remainingTime = duration * 60;\n\nwhile (remainingTime > 60) {\n  const activity = activities[Math.floor(Math.random() * activities.length)];\n  const activityDuration = humanDelay(60, Math.min(300, remainingTime - 30));\n  \n  sessionPlan.push({\n    activity: activity,\n    duration_sec: activityDuration,\n    start_delay: humanDelay(2000, 5000)\n  });\n  \n  remainingTime -= activityDuration;\n}\n\nreturn [{\n  json: {\n    action: 'full_session',\n    account_id: config.account_id,\n    total_duration_min: duration,\n    session_plan: sessionPlan,\n    activities_count: sessionPlan.length\n  }\n}];"
+      },
+      "name": "🎬 フルセッション生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO humanization_logs (account_id, action_type, session_data, executed_at) VALUES ($1, $2, $3, NOW())",
+        "options": {
+          "queryParams": "={{ [$json.account_id, $json.action, JSON.stringify($json)] }}"
+        }
+      },
+      "name": "💾 セッションログ",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// レスポンス生成\nconst action = $node['🔧 初期化'].json.action;\n\nlet result = { success: true, action: action };\n\nswitch (action) {\n  case 'warm':\n    result.message = '温め処理完了';\n    result.warmed_count = $items().length;\n    break;\n  case 'watch_video':\n    result.message = '視聴シミュレーション完了';\n    result.video_id = $node['📺 視聴シミュレーション'].json?.video_id;\n    break;\n  case 'full_session':\n    result.message = 'フルセッション完了';\n    result.duration_min = $node['🎬 フルセッション生成'].json?.total_duration_min;\n    result.activities = $node['🎬 フルセッション生成'].json?.activities_count;\n    break;\n}\n\nreturn [{ json: result }];"
+      },
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: humanize-simulate": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⏰ 4時間ごと温め実行": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "アクション分岐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "アクション分岐": {
+      "main": [
+        [
+          {
+            "node": "📥 温め対象取得",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📺 視聴シミュレーション",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🎬 フルセッション生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📥 温め対象取得": {
+      "main": [
+        [
+          {
+            "node": "🎭 温めシーケンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎭 温めシーケンス生成": {
+      "main": [
+        [
+          {
+            "node": "📦 バッチ処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 バッチ処理": {
+      "main": [
+        [
+          {
+            "node": "🌐 ブラウザ起動",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🌐 ブラウザ起動": {
+      "main": [
+        [
+          {
+            "node": "📋 実行準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 実行準備": {
+      "main": [
+        [
+          {
+            "node": "🌐 Puppeteer実行",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🌐 Puppeteer実行": {
+      "main": [
+        [
+          {
+            "node": "💾 温め記録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 温め記録": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📺 視聴シミュレーション": {
+      "main": [
+        [
+          {
+            "node": "💾 セッションログ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎬 フルセッション生成": {
+      "main": [
+        [
+          {
+            "node": "💾 セッションログ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 セッションログ": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 900,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Defense",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Humanization",
+      "color": "#27ae60"
+    },
+    {
+      "name": "Phase-14",
+      "color": "#f39c12"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

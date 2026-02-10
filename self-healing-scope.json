@@ -1,0 +1,47 @@
+{
+  "_meta": {
+    "description": "self-healing が触っていい領域 / 触るな領域を明示する",
+    "created": "2026-02-06",
+    "rule": "C-4: 自己修復の正しすぎる復元問題への対策"
+  },
+  "allowed": {
+    "description": "self-healing が自動修復してよいファイル・パターン",
+    "files": [
+      "tsconfig.json",
+      "tailwind.config.ts",
+      "postcss.config.mjs",
+      "next.config.ts",
+      "next.config.mjs"
+    ],
+    "directories": []
+  },
+  "forbidden": {
+    "description": "self-healing が絶対に触ってはならない領域。人間の実験的変更を殺さないため",
+    "files": [
+      ".env.local",
+      ".env",
+      "package.json",
+      "package-lock.json"
+    ],
+    "directories": [
+      "02_DEV_LAB",
+      "governance/missions",
+      "governance/snapshots",
+      "governance/logs"
+    ],
+    "patterns": [
+      "*.bak.*",
+      "*.experiment.*",
+      "*_test.*",
+      "*_draft.*"
+    ]
+  },
+  "conditional": {
+    "description": "NIGHTLY_ACTIVE.lock が存在しない場合のみ修復可能",
+    "files": [
+      "eslint.config.mjs",
+      ".eslintrc.json",
+      "components.json"
+    ]
+  }
+}

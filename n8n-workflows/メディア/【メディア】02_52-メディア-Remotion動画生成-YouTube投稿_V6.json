@@ -1,0 +1,648 @@
+{
+  "name": "【メディア】02_52-メディア-Remotion動画生成-YouTube投稿_V6",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "video-generate-v6",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: video-generate-v6",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "video-generate-v6"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// N3-52 V6: Remotion動画生成 + YouTube投稿\n// Gemini指示: レンダリング直前にOAuthトークンの有効期限（5分前）をチェック\n// ============================================================================\n\nconst apiUrl = $env.N3_API_URL || $env.API_BASE_URL;\nconst remotionUrl = $env.REMOTION_API_URL;\nconst n8nUrl = $env.N8N_WEBHOOK_URL;\n\nif (!apiUrl) {\n  return [{ json: { error: true, message: 'N3_API_URL環境変数が未設定', code: 'CONFIG_ERROR' } }];\n}\n\nconst body = $input.first().json.body || $input.first().json || {};\n\nconst contentId = body.content_id;\nconst productId = body.product_id;\nconst channelId = body.channel_id;\nconst videoType = body.video_type || 'youtube_short';\nconst autoPublish = body.auto_publish || false;\nconst generateVoice = body.generate_voice !== false;\nconst genre = body.genre || 'general';\nconst useV6BioNoise = body.use_v6_bio_noise !== false; // V6バイオノイズ使用\n\nif (!contentId && !productId) {\n  return [{ json: { error: true, message: 'content_id または product_id は必須', code: 'MISSING_PARAM' } }];\n}\n\nreturn [{\n  json: {\n    content_id: contentId,\n    product_id: productId,\n    channel_id: channelId,\n    video_type: videoType,\n    auto_publish: autoPublish,\n    generate_voice: generateVoice,\n    genre: genre,\n    use_v6_bio_noise: useV6BioNoise,\n    api_url: apiUrl,\n    remotion_url: remotionUrl || `${apiUrl}/api/remotion`,\n    n8n_url: n8nUrl,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔐 初期化（鉄の掟準拠）",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT channel_id, youtube_channel_id, access_token, refresh_token, expires_at, token_type FROM youtube_oauth_tokens WHERE channel_id = $1 OR channel_id = (SELECT channel_id FROM content_master WHERE content_id = $2 LIMIT 1) LIMIT 1",
+        "options": {
+          "queryParams": "={{ [$json.channel_id || '', $json.content_id || ''] }}"
+        }
+      },
+      "id": "get-oauth-token",
+      "name": "🔑 OAuthトークン取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// OAuthトークン有効期限チェック（Gemini指示: 5分前にリフレッシュ）\n// ============================================================================\n\nconst initData = $node['🔐 初期化（鉄の掟準拠）'].json;\nconst tokenData = $input.first().json;\n\nif (!tokenData || !tokenData.access_token) {\n  return [{\n    json: {\n      ...initData,\n      oauth_status: 'no_token',\n      needs_refresh: false,\n      skip_youtube_upload: true,\n      message: 'YouTubeトークンが設定されていません。動画生成のみ実行します。'\n    }\n  }];\n}\n\nconst expiresAt = new Date(tokenData.expires_at);\nconst now = new Date();\nconst fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);\n\n// 有効期限が5分以内かチェック\nconst needsRefresh = expiresAt <= fiveMinutesFromNow;\nconst isExpired = expiresAt <= now;\n\nreturn [{\n  json: {\n    ...initData,\n    channel_id: tokenData.channel_id,\n    youtube_channel_id: tokenData.youtube_channel_id,\n    access_token: tokenData.access_token,\n    refresh_token: tokenData.refresh_token,\n    expires_at: tokenData.expires_at,\n    oauth_status: isExpired ? 'expired' : (needsRefresh ? 'refresh_needed' : 'valid'),\n    needs_refresh: needsRefresh,\n    skip_youtube_upload: false,\n    time_until_expiry_seconds: Math.floor((expiresAt - now) / 1000)\n  }\n}];"
+      },
+      "id": "check-oauth-expiry",
+      "name": "⏰ 有効期限チェック（5分前）",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "needs-refresh",
+              "leftValue": "={{ $json.needs_refresh }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-needs-refresh",
+      "name": "リフレッシュ必要？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://oauth2.googleapis.com/token",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "=client_id={{ $env.YOUTUBE_CLIENT_ID }}&client_secret={{ $env.YOUTUBE_CLIENT_SECRET }}&refresh_token={{ $json.refresh_token }}&grant_type=refresh_token",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "refresh-oauth-token",
+      "name": "🔄 トークンリフレッシュ",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// リフレッシュ結果処理 & DB更新準備\n// ============================================================================\n\nconst prevData = $node['⏰ 有効期限チェック（5分前）'].json;\nconst refreshResult = $input.first().json;\n\nif (refreshResult.error || !refreshResult.access_token) {\n  return [{\n    json: {\n      ...prevData,\n      oauth_status: 'refresh_failed',\n      refresh_error: refreshResult.error_description || refreshResult.error || 'Token refresh failed',\n      skip_youtube_upload: true\n    }\n  }];\n}\n\n// 新しい有効期限を計算（通常1時間）\nconst expiresInSeconds = refreshResult.expires_in || 3600;\nconst newExpiresAt = new Date(Date.now() + expiresInSeconds * 1000);\n\nreturn [{\n  json: {\n    ...prevData,\n    access_token: refreshResult.access_token,\n    new_expires_at: newExpiresAt.toISOString(),\n    oauth_status: 'refreshed',\n    needs_db_update: true\n  }\n}];"
+      },
+      "id": "process-refresh",
+      "name": "📋 リフレッシュ結果処理",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE youtube_oauth_tokens SET access_token = $1, expires_at = $2, updated_at = NOW() WHERE channel_id = $3",
+        "options": {
+          "queryParams": "={{ [$json.access_token, $json.new_expires_at, $json.channel_id] }}"
+        }
+      },
+      "id": "update-token-db",
+      "name": "💾 トークンDB更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "output": "single"
+      },
+      "id": "merge-token-paths",
+      "name": "🔀 トークンパス統合",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT cm.content_id, cm.title, cm.script_data, cm.audio_url, cm.thumbnail_url, pm.title_en, pm.description_en, pm.image_url FROM content_master cm LEFT JOIN products_master pm ON cm.product_id = pm.id WHERE cm.content_id = $1 OR pm.id = $2 LIMIT 1",
+        "options": {
+          "queryParams": "={{ [$json.content_id || '', $json.product_id || 0] }}"
+        }
+      },
+      "id": "get-content-data",
+      "name": "📦 コンテンツデータ取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// Remotionレンダリングパラメータ生成\n// ============================================================================\n\nconst config = $node['🔀 トークンパス統合'].json || $node['⏰ 有効期限チェック（5分前）'].json;\nconst contentData = $input.first().json;\n\nconst remotionParams = {\n  compositionId: config.video_type === 'youtube_short' ? 'ShortVideo' : 'LongVideo',\n  inputProps: {\n    title: contentData.title || contentData.title_en,\n    description: contentData.description_en || '',\n    imageUrl: contentData.image_url || contentData.thumbnail_url,\n    audioUrl: contentData.audio_url,\n    scriptData: contentData.script_data,\n    genre: config.genre,\n    // バイオノイズ設定\n    bioNoiseEnabled: config.use_v6_bio_noise\n  },\n  codec: 'h264',\n  outputFormat: 'mp4',\n  fps: 30,\n  width: config.video_type === 'youtube_short' ? 1080 : 1920,\n  height: config.video_type === 'youtube_short' ? 1920 : 1080\n};\n\nreturn [{\n  json: {\n    ...config,\n    content: contentData,\n    remotion_params: remotionParams,\n    ready_for_render: true\n  }\n}];"
+      },
+      "id": "prepare-remotion",
+      "name": "🎬 Remotionパラメータ準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.remotion_url }}/render",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.remotion_params) }}",
+        "options": {
+          "timeout": 600000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "remotion-render",
+      "name": "🎥 Remotionレンダリング",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "auto-publish",
+              "leftValue": "={{ $node['🔀 トークンパス統合'].json.auto_publish }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "not-skip",
+              "leftValue": "={{ $node['🔀 トークンパス統合'].json.skip_youtube_upload }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "check-auto-publish",
+      "name": "自動投稿？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $node['🔀 トークンパス統合'].json.access_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ snippet: { title: $node['🎬 Remotionパラメータ準備'].json.content.title, description: $node['🎬 Remotionパラメータ準備'].json.content.description_en || '', tags: ['N3', 'auto-generated'], categoryId: '22' }, status: { privacyStatus: 'private', selfDeclaredMadeForKids: false } }) }}",
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "youtube-upload-init",
+      "name": "📤 YouTube投稿開始",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $node['🔀 トークンパス統合'].json || $node['⏰ 有効期限チェック（5分前）'].json;\nconst renderResult = $node['🎥 Remotionレンダリング'].json;\nconst uploadResult = $input.first()?.json;\n\nreturn [{\n  json: {\n    success: true,\n    action: 'video_generated',\n    content_id: config.content_id,\n    product_id: config.product_id,\n    video_type: config.video_type,\n    oauth_status: config.oauth_status,\n    render_result: {\n      success: !renderResult?.error,\n      video_url: renderResult?.outputUrl || renderResult?.url\n    },\n    youtube_upload: config.auto_publish && !config.skip_youtube_upload ? {\n      initiated: !!uploadResult?.location,\n      upload_url: uploadResult?.location\n    } : null,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: video-generate-v6": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化（鉄の掟準拠）": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🔑 OAuthトークン取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔑 OAuthトークン取得": {
+      "main": [
+        [
+          {
+            "node": "⏰ 有効期限チェック（5分前）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⏰ 有効期限チェック（5分前）": {
+      "main": [
+        [
+          {
+            "node": "リフレッシュ必要？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "リフレッシュ必要？": {
+      "main": [
+        [
+          {
+            "node": "🔄 トークンリフレッシュ",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🔀 トークンパス統合",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "🔄 トークンリフレッシュ": {
+      "main": [
+        [
+          {
+            "node": "📋 リフレッシュ結果処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 リフレッシュ結果処理": {
+      "main": [
+        [
+          {
+            "node": "💾 トークンDB更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 トークンDB更新": {
+      "main": [
+        [
+          {
+            "node": "🔀 トークンパス統合",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 トークンパス統合": {
+      "main": [
+        [
+          {
+            "node": "📦 コンテンツデータ取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 コンテンツデータ取得": {
+      "main": [
+        [
+          {
+            "node": "🎬 Remotionパラメータ準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎬 Remotionパラメータ準備": {
+      "main": [
+        [
+          {
+            "node": "🎥 Remotionレンダリング",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎥 Remotionレンダリング": {
+      "main": [
+        [
+          {
+            "node": "自動投稿？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "自動投稿？": {
+      "main": [
+        [
+          {
+            "node": "📤 YouTube投稿開始",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📤 YouTube投稿開始": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化（鉄の掟準拠）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 900,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "V6-OAuthPreCheck",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Remotion",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "YouTube",
+      "color": "#ff0000"
+    },
+    {
+      "name": "IronRule",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false,
+  "meta": {
+    "description": "N3-52 V6 Remotion動画生成 + YouTube投稿 - OAuthトークン事前チェック実装",
+    "version": "6.0",
+    "changelog": "2026-01-20: Gemini指示実装 - レンダリング直前にOAuthトークン有効期限（5分前）チェック＆自動リフレッシュ",
+    "iron_rules_compliant": [
+      "no_hardcoded_urls",
+      "query_params_only",
+      "no_crypto_require"
+    ],
+    "gemini_instructions": [
+      "oauth_precheck_5min",
+      "auto_refresh_token"
+    ]
+  }
+}

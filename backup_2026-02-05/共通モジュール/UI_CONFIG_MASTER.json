@@ -1,0 +1,744 @@
+{
+  "version": "1.0.0",
+  "last_updated": "2026-01-22T10:00:00Z",
+  "description": "N3 editing-n3 UI完全制御マスターJSON",
+  "page": {
+    "id": "editing-n3",
+    "title": "Editing N3",
+    "title_ja": "編集N3",
+    "icon": "Edit3"
+  },
+  "l2_main_tabs": [
+    {
+      "id": "basic-edit",
+      "label": "基本編集",
+      "label_en": "Basic",
+      "icon": "Edit3",
+      "visible": true,
+      "order": 1,
+      "default_active": true
+    },
+    {
+      "id": "logistics",
+      "label": "ロジスティクス",
+      "label_en": "Logistics",
+      "icon": "Truck",
+      "visible": true,
+      "order": 2
+    },
+    {
+      "id": "compliance",
+      "label": "関税・法令",
+      "label_en": "Compliance",
+      "icon": "Shield",
+      "visible": true,
+      "order": 3
+    },
+    {
+      "id": "media",
+      "label": "メディア",
+      "label_en": "Media",
+      "icon": "Image",
+      "visible": true,
+      "order": 4
+    },
+    {
+      "id": "history",
+      "label": "履歴・監査",
+      "label_en": "History",
+      "icon": "History",
+      "visible": true,
+      "order": 5
+    }
+  ],
+  "l3_sub_tabs": {
+    "basic-edit": [
+      {
+        "id": "all",
+        "label": "全商品",
+        "visible": true,
+        "order": 1,
+        "query": "SELECT * FROM products_master WHERE deleted_at IS NULL",
+        "count_query": "SELECT COUNT(*) as count FROM products_master WHERE deleted_at IS NULL",
+        "filter_condition": {}
+      },
+      {
+        "id": "data-edit",
+        "label": "データ編集",
+        "visible": true,
+        "order": 2,
+        "query": "SELECT * FROM products_master WHERE status IN ('draft', 'editing') AND deleted_at IS NULL",
+        "count_query": "SELECT COUNT(*) as count FROM products_master WHERE status IN ('draft', 'editing') AND deleted_at IS NULL",
+        "filter_condition": {
+          "status": [
+            "draft",
+            "editing"
+          ]
+        }
+      },
+      {
+        "id": "listed",
+        "label": "出品中",
+        "visible": true,
+        "order": 3,
+        "query": "SELECT * FROM products_master WHERE listing_status = 'published' AND deleted_at IS NULL",
+        "count_query": "SELECT COUNT(*) as count FROM products_master WHERE listing_status = 'published' AND deleted_at IS NULL",
+        "filter_condition": {
+          "listing_status": "published"
+        }
+      },
+      {
+        "id": "master",
+        "label": "マスター",
+        "visible": true,
+        "order": 4,
+        "query": "SELECT * FROM products_master WHERE status = 'master' AND deleted_at IS NULL",
+        "count_query": "SELECT COUNT(*) as count FROM products_master WHERE status = 'master' AND deleted_at IS NULL",
+        "filter_condition": {
+          "status": "master"
+        }
+      },
+      {
+        "id": "stock-zero",
+        "label": "在庫0",
+        "visible": true,
+        "order": 5,
+        "query": "SELECT * FROM products_master WHERE stock_quantity = 0 AND deleted_at IS NULL",
+        "count_query": "SELECT COUNT(*) as count FROM products_master WHERE stock_quantity = 0 AND deleted_at IS NULL",
+        "filter_condition": {
+          "stock_quantity": 0
+        }
+      },
+      {
+        "id": "in-stock",
+        "label": "有在庫",
+        "visible": true,
+        "order": 6,
+        "query": "SELECT * FROM products_master WHERE product_type = 'stock' AND stock_quantity > 0 AND deleted_at IS NULL",
+        "count_query": "SELECT COUNT(*) as count FROM products_master WHERE product_type = 'stock' AND stock_quantity > 0 AND deleted_at IS NULL",
+        "filter_condition": {
+          "product_type": "stock",
+          "stock_quantity": {
+            "operator": ">",
+            "value": 0
+          }
+        }
+      },
+      {
+        "id": "variation",
+        "label": "バリエーション",
+        "visible": true,
+        "order": 7,
+        "query": "SELECT * FROM products_master WHERE variation_type = 'child' AND deleted_at IS NULL",
+        "count_query": "SELECT COUNT(*) as count FROM products_master WHERE variation_type = 'child' AND deleted_at IS NULL",
+        "filter_condition": {
+          "variation_type": "child"
+        }
+      },
+      {
+        "id": "set",
+        "label": "セット品",
+        "visible": true,
+        "order": 8,
+        "query": "SELECT * FROM products_master WHERE product_type = 'set' AND deleted_at IS NULL",
+        "count_query": "SELECT COUNT(*) as count FROM products_master WHERE product_type = 'set' AND deleted_at IS NULL",
+        "filter_condition": {
+          "product_type": "set"
+        }
+      },
+      {
+        "id": "dropship",
+        "label": "無在庫",
+        "visible": true,
+        "order": 9,
+        "query": "SELECT * FROM products_master WHERE product_type = 'dropship' AND deleted_at IS NULL",
+        "count_query": "SELECT COUNT(*) as count FROM products_master WHERE product_type = 'dropship' AND deleted_at IS NULL",
+        "filter_condition": {
+          "product_type": "dropship"
+        }
+      },
+      {
+        "id": "stopped",
+        "label": "出品停止中",
+        "visible": true,
+        "order": 10,
+        "query": "SELECT * FROM products_master WHERE listing_status = 'stopped' AND deleted_at IS NULL",
+        "count_query": "SELECT COUNT(*) as count FROM products_master WHERE listing_status = 'stopped' AND deleted_at IS NULL",
+        "filter_condition": {
+          "listing_status": "stopped"
+        }
+      },
+      {
+        "id": "archive",
+        "label": "アーカイブ",
+        "visible": true,
+        "order": 11,
+        "query": "SELECT * FROM products_master WHERE archived = true",
+        "count_query": "SELECT COUNT(*) as count FROM products_master WHERE archived = true",
+        "filter_condition": {
+          "archived": true
+        }
+      }
+    ]
+  },
+  "l4_global_filters": [
+    {
+      "id": "storageLocation",
+      "label": "保管場所",
+      "type": "select",
+      "visible": true,
+      "order": 1,
+      "options": [
+        {
+          "value": null,
+          "label": "すべて"
+        },
+        {
+          "value": "env",
+          "label": "env"
+        },
+        {
+          "value": "plus1",
+          "label": "plus1"
+        }
+      ],
+      "default": null
+    },
+    {
+      "id": "attrL1",
+      "label": "L1属性",
+      "type": "select",
+      "visible": true,
+      "order": 2,
+      "cascade": true,
+      "cascade_target": "attrL2",
+      "options_query": "SELECT DISTINCT attr_l1 FROM products_master WHERE attr_l1 IS NOT NULL ORDER BY attr_l1"
+    },
+    {
+      "id": "attrL2",
+      "label": "L2属性",
+      "type": "select",
+      "visible": true,
+      "order": 3,
+      "cascade": true,
+      "cascade_target": "attrL3",
+      "cascade_parent": "attrL1",
+      "options_query": "SELECT DISTINCT attr_l2 FROM products_master WHERE attr_l1 = $1 AND attr_l2 IS NOT NULL ORDER BY attr_l2"
+    },
+    {
+      "id": "attrL3",
+      "label": "L3属性",
+      "type": "select",
+      "visible": true,
+      "order": 4,
+      "cascade_parent": "attrL2",
+      "options_query": "SELECT DISTINCT attr_l3 FROM products_master WHERE attr_l1 = $1 AND attr_l2 = $2 AND attr_l3 IS NOT NULL ORDER BY attr_l3"
+    },
+    {
+      "id": "priceL4",
+      "label": "L4価格",
+      "type": "select",
+      "visible": true,
+      "order": 5,
+      "options_query": "SELECT DISTINCT pricing_type FROM products_master WHERE pricing_type IS NOT NULL ORDER BY pricing_type"
+    },
+    {
+      "id": "stockFilter",
+      "label": "在庫",
+      "type": "select",
+      "visible": true,
+      "order": 6,
+      "options": [
+        {
+          "value": "all",
+          "label": "すべて"
+        },
+        {
+          "value": "in_stock",
+          "label": "在庫あり"
+        },
+        {
+          "value": "low_stock",
+          "label": "少量"
+        },
+        {
+          "value": "out_of_stock",
+          "label": "在庫切れ"
+        }
+      ]
+    },
+    {
+      "id": "locationFilter",
+      "label": "場所",
+      "type": "select",
+      "visible": true,
+      "order": 7,
+      "options_query": "SELECT DISTINCT storage_location FROM products_master WHERE storage_location IS NOT NULL ORDER BY storage_location"
+    }
+  ],
+  "l5_master_type_filters": [
+    {
+      "type": null,
+      "label": "すべて",
+      "short_label": "すべて",
+      "icon": "Package",
+      "dot_color": "#6b7280",
+      "bg_color": "rgba(107, 114, 128, 0.08)",
+      "active_bg_color": "rgba(107, 114, 128, 0.15)",
+      "visible": true,
+      "order": 1,
+      "query": "SELECT * FROM products_master WHERE status = 'master'",
+      "count_query": "SELECT COUNT(*) as count FROM products_master WHERE status = 'master'"
+    },
+    {
+      "type": "regular",
+      "label": "通常品",
+      "short_label": "通常",
+      "icon": "FileBox",
+      "dot_color": "#3b82f6",
+      "bg_color": "rgba(59, 130, 246, 0.08)",
+      "active_bg_color": "rgba(59, 130, 246, 0.15)",
+      "visible": true,
+      "order": 2,
+      "query": "SELECT * FROM products_master WHERE status = 'master' AND inventory_type = 'regular'",
+      "count_query": "SELECT COUNT(*) as count FROM products_master WHERE status = 'master' AND inventory_type = 'regular'"
+    },
+    {
+      "type": "set",
+      "label": "セット品",
+      "short_label": "セット",
+      "icon": "Layers",
+      "dot_color": "#8b5cf6",
+      "bg_color": "rgba(139, 92, 246, 0.08)",
+      "active_bg_color": "rgba(139, 92, 246, 0.15)",
+      "visible": true,
+      "order": 3,
+      "query": "SELECT * FROM products_master WHERE status = 'master' AND inventory_type = 'set'",
+      "count_query": "SELECT COUNT(*) as count FROM products_master WHERE status = 'master' AND inventory_type = 'set'"
+    },
+    {
+      "type": "mu",
+      "label": "無在庫(MU)",
+      "short_label": "MU",
+      "icon": "RefreshCw",
+      "dot_color": "#f59e0b",
+      "bg_color": "rgba(245, 158, 11, 0.08)",
+      "active_bg_color": "rgba(245, 158, 11, 0.15)",
+      "visible": true,
+      "order": 4,
+      "query": "SELECT * FROM products_master WHERE status = 'master' AND inventory_type = 'mu'",
+      "count_query": "SELECT COUNT(*) as count FROM products_master WHERE status = 'master' AND inventory_type = 'mu'"
+    },
+    {
+      "type": "parts",
+      "label": "構成パーツ",
+      "short_label": "パーツ",
+      "icon": "Puzzle",
+      "dot_color": "#22c55e",
+      "bg_color": "rgba(34, 197, 94, 0.08)",
+      "active_bg_color": "rgba(34, 197, 94, 0.15)",
+      "visible": true,
+      "order": 5,
+      "query": "SELECT * FROM products_master WHERE status = 'master' AND inventory_type = 'parts'",
+      "count_query": "SELECT COUNT(*) as count FROM products_master WHERE status = 'master' AND inventory_type = 'parts'"
+    }
+  ],
+  "l6_workflow_status_filters": [
+    {
+      "phase": "TRANSLATE",
+      "number": 1,
+      "label": "翻訳",
+      "short_label": "翻訳",
+      "icon": "Languages",
+      "dot_color": "#ef4444",
+      "bg_color": "rgba(239, 68, 68, 0.08)",
+      "active_bg_color": "rgba(239, 68, 68, 0.15)",
+      "visible": true,
+      "order": 1,
+      "tooltip": "英語タイトルが未設定。「一括翻訳」で自動翻訳。",
+      "bulk_action_label": "一括翻訳",
+      "query": "SELECT * FROM products_master WHERE phase = 'TRANSLATE'",
+      "count_query": "SELECT COUNT(*) as count FROM products_master WHERE phase = 'TRANSLATE'"
+    },
+    {
+      "phase": "SCOUT",
+      "number": 2,
+      "label": "検索",
+      "short_label": "検索",
+      "icon": "Search",
+      "dot_color": "#f59e0b",
+      "bg_color": "rgba(245, 158, 11, 0.08)",
+      "active_bg_color": "rgba(245, 158, 11, 0.15)",
+      "visible": true,
+      "order": 2,
+      "tooltip": "SM候補を検索。「一括SM分析」で類似商品を検索。",
+      "bulk_action_label": "一括SM",
+      "query": "SELECT * FROM products_master WHERE phase = 'SCOUT'",
+      "count_query": "SELECT COUNT(*) as count FROM products_master WHERE phase = 'SCOUT'"
+    },
+    {
+      "phase": "SELECT_SM",
+      "number": 3,
+      "label": "選択",
+      "short_label": "選択",
+      "icon": "MousePointer",
+      "dot_color": "#3b82f6",
+      "bg_color": "rgba(59, 130, 246, 0.08)",
+      "active_bg_color": "rgba(59, 130, 246, 0.15)",
+      "visible": true,
+      "order": 3,
+      "tooltip": "SM候補から1つ選択してください（手動）。",
+      "bulk_action_label": null,
+      "query": "SELECT * FROM products_master WHERE phase = 'SELECT_SM'",
+      "count_query": "SELECT COUNT(*) as count FROM products_master WHERE phase = 'SELECT_SM'"
+    },
+    {
+      "phase": "FETCH_DETAILS",
+      "number": 3.5,
+      "label": "詳細",
+      "short_label": "詳細",
+      "icon": "Package",
+      "dot_color": "#06b6d4",
+      "bg_color": "rgba(6, 182, 212, 0.08)",
+      "active_bg_color": "rgba(6, 182, 212, 0.15)",
+      "visible": true,
+      "order": 4,
+      "tooltip": "SM選択済み。「一括詳細」でItem Specificsを取得。",
+      "bulk_action_label": "一括詳細",
+      "query": "SELECT * FROM products_master WHERE phase = 'FETCH_DETAILS'",
+      "count_query": "SELECT COUNT(*) as count FROM products_master WHERE phase = 'FETCH_DETAILS'"
+    },
+    {
+      "phase": "ENRICH",
+      "number": 4,
+      "label": "補完",
+      "short_label": "補完",
+      "icon": "Sparkles",
+      "dot_color": "#8b5cf6",
+      "bg_color": "rgba(139, 92, 246, 0.08)",
+      "active_bg_color": "rgba(139, 92, 246, 0.15)",
+      "visible": true,
+      "order": 5,
+      "tooltip": "AIでデータを補完。",
+      "bulk_action_label": "一括補完",
+      "query": "SELECT * FROM products_master WHERE phase = 'ENRICH'",
+      "count_query": "SELECT COUNT(*) as count FROM products_master WHERE phase = 'ENRICH'"
+    },
+    {
+      "phase": "APPROVAL",
+      "number": 5,
+      "label": "承認",
+      "short_label": "承認",
+      "icon": "CheckCircle2",
+      "dot_color": "#ec4899",
+      "bg_color": "rgba(236, 72, 153, 0.08)",
+      "active_bg_color": "rgba(236, 72, 153, 0.15)",
+      "visible": true,
+      "order": 6,
+      "tooltip": "最終承認待ち。",
+      "bulk_action_label": "一括承認",
+      "query": "SELECT * FROM products_master WHERE phase = 'APPROVAL'",
+      "count_query": "SELECT COUNT(*) as count FROM products_master WHERE phase = 'APPROVAL'"
+    },
+    {
+      "phase": "LISTED",
+      "number": 6,
+      "label": "出品済",
+      "short_label": "出品済",
+      "icon": "Zap",
+      "dot_color": "#22c55e",
+      "bg_color": "rgba(34, 197, 94, 0.08)",
+      "active_bg_color": "rgba(34, 197, 94, 0.15)",
+      "visible": true,
+      "order": 7,
+      "tooltip": "出品完了。",
+      "bulk_action_label": null,
+      "query": "SELECT * FROM products_master WHERE phase = 'LISTED'",
+      "count_query": "SELECT COUNT(*) as count FROM products_master WHERE phase = 'LISTED'"
+    },
+    {
+      "phase": "OTHERS",
+      "label": "その他",
+      "short_label": "その他",
+      "icon": "AlertTriangle",
+      "dot_color": "#64748b",
+      "bg_color": "rgba(100, 116, 139, 0.08)",
+      "active_bg_color": "rgba(100, 116, 139, 0.15)",
+      "visible": true,
+      "order": 8,
+      "tooltip": "その他の状態。",
+      "bulk_action_label": null,
+      "query": "SELECT * FROM products_master WHERE phase NOT IN ('TRANSLATE', 'SCOUT', 'SELECT_SM', 'FETCH_DETAILS', 'ENRICH', 'APPROVAL', 'LISTED') AND archived = false",
+      "count_query": "SELECT COUNT(*) as count FROM products_master WHERE phase NOT IN ('TRANSLATE', 'SCOUT', 'SELECT_SM', 'FETCH_DETAILS', 'ENRICH', 'APPROVAL', 'LISTED') AND archived = false"
+    },
+    {
+      "phase": "ARCHIVE",
+      "label": "アーカイブ",
+      "short_label": "アーカイブ",
+      "icon": "Archive",
+      "dot_color": "#9ca3af",
+      "bg_color": "rgba(156, 163, 175, 0.08)",
+      "active_bg_color": "rgba(156, 163, 175, 0.15)",
+      "visible": true,
+      "order": 9,
+      "tooltip": "アーカイブ済み。",
+      "bulk_action_label": null,
+      "query": "SELECT * FROM products_master WHERE archived = true",
+      "count_query": "SELECT COUNT(*) as count FROM products_master WHERE archived = true"
+    }
+  ],
+  "modals": [
+    {
+      "id": "multi-marketplace-listing",
+      "label": "多販路一括出品",
+      "visible": true,
+      "trigger": "button",
+      "webhook": "/webhook/multi-marketplace-publish"
+    },
+    {
+      "id": "bulk-image-upload",
+      "label": "画像一括アップロード",
+      "visible": true,
+      "trigger": "button",
+      "webhook": "/webhook/bulk-image-upload"
+    },
+    {
+      "id": "bundle-composition",
+      "label": "セット品構成",
+      "visible": true,
+      "trigger": "row_action",
+      "webhook": "/webhook/set-product-create"
+    },
+    {
+      "id": "ebay-csv-export",
+      "label": "eBay CSV出力",
+      "visible": true,
+      "trigger": "button",
+      "webhook": "/webhook/ebay-csv-export"
+    },
+    {
+      "id": "image-attach",
+      "label": "画像アタッチ",
+      "visible": true,
+      "trigger": "row_action",
+      "webhook": "/webhook/image-attach"
+    },
+    {
+      "id": "inventory-detail",
+      "label": "在庫詳細",
+      "visible": true,
+      "trigger": "row_action",
+      "frontend_only": true
+    },
+    {
+      "id": "listing-destination",
+      "label": "出品先選択",
+      "visible": true,
+      "trigger": "row_action",
+      "frontend_only": true
+    },
+    {
+      "id": "listing-preview",
+      "label": "出品前プレビュー",
+      "visible": true,
+      "trigger": "row_action",
+      "frontend_only": true
+    },
+    {
+      "id": "new-product",
+      "label": "新規商品登録",
+      "visible": true,
+      "trigger": "button",
+      "webhook": "/webhook/sku-generate"
+    },
+    {
+      "id": "sku-edit",
+      "label": "SKU編集",
+      "visible": true,
+      "trigger": "row_action",
+      "webhook": "/webhook/sku-generate"
+    },
+    {
+      "id": "profit-breakdown",
+      "label": "利益計算詳細",
+      "visible": true,
+      "trigger": "row_action",
+      "webhook": "/webhook/profit-calculate"
+    },
+    {
+      "id": "sm-selection",
+      "label": "SM選択",
+      "visible": true,
+      "trigger": "row_action",
+      "webhook": "/webhook/sm-select"
+    },
+    {
+      "id": "sm-selection-v2",
+      "label": "SM連続選択",
+      "visible": true,
+      "trigger": "button",
+      "webhook": "/webhook/sm-sequential-select"
+    }
+  ],
+  "panels": [
+    {
+      "id": "audit",
+      "label": "監査",
+      "position": "right",
+      "visible": true,
+      "collapsible": true
+    },
+    {
+      "id": "listing-queue",
+      "label": "出品キュー",
+      "position": "right",
+      "visible": true,
+      "collapsible": true
+    },
+    {
+      "id": "grouping",
+      "label": "グルーピング",
+      "position": "right",
+      "visible": true,
+      "collapsible": true
+    },
+    {
+      "id": "stats",
+      "label": "統計",
+      "position": "right",
+      "visible": true,
+      "collapsible": true
+    },
+    {
+      "id": "tools",
+      "label": "ツール",
+      "position": "right",
+      "visible": true,
+      "collapsible": true
+    },
+    {
+      "id": "inventory-stats",
+      "label": "在庫統計",
+      "position": "top",
+      "visible": true,
+      "collapsible": false
+    }
+  ],
+  "stats_cards": [
+    {
+      "id": "total",
+      "label": "総数",
+      "visible": true,
+      "order": 1,
+      "query": "SELECT COUNT(*) as count FROM products_master WHERE deleted_at IS NULL"
+    },
+    {
+      "id": "in-stock",
+      "label": "在庫あり",
+      "visible": true,
+      "order": 2,
+      "query": "SELECT COUNT(*) as count FROM products_master WHERE stock_quantity > 0 AND deleted_at IS NULL"
+    },
+    {
+      "id": "mjt",
+      "label": "MJT",
+      "visible": true,
+      "order": 3,
+      "query": "SELECT COUNT(*) as count FROM products_master WHERE account = 'MJT' AND deleted_at IS NULL"
+    },
+    {
+      "id": "green",
+      "label": "GREEN",
+      "visible": true,
+      "order": 4,
+      "query": "SELECT COUNT(*) as count FROM products_master WHERE account = 'GREEN' AND deleted_at IS NULL"
+    }
+  ],
+  "table_columns": [
+    {
+      "id": "checkbox",
+      "label": "",
+      "width": 40,
+      "sortable": false,
+      "visible": true,
+      "order": 1
+    },
+    {
+      "id": "sku",
+      "label": "SKU",
+      "width": 120,
+      "sortable": true,
+      "visible": true,
+      "order": 2
+    },
+    {
+      "id": "product_name",
+      "label": "商品名",
+      "width": 300,
+      "sortable": true,
+      "visible": true,
+      "order": 3
+    },
+    {
+      "id": "stock_quantity",
+      "label": "在庫数",
+      "width": 80,
+      "sortable": true,
+      "visible": true,
+      "order": 4
+    },
+    {
+      "id": "cost_jpy",
+      "label": "原価",
+      "width": 100,
+      "sortable": true,
+      "visible": true,
+      "order": 5
+    },
+    {
+      "id": "price_usd",
+      "label": "販売価格",
+      "width": 100,
+      "sortable": true,
+      "visible": true,
+      "order": 6
+    },
+    {
+      "id": "account",
+      "label": "アカウント",
+      "width": 100,
+      "sortable": true,
+      "visible": true,
+      "order": 7
+    },
+    {
+      "id": "status",
+      "label": "ステータス",
+      "width": 120,
+      "sortable": true,
+      "visible": true,
+      "order": 8
+    },
+    {
+      "id": "actions",
+      "label": "アクション",
+      "width": 100,
+      "sortable": false,
+      "visible": true,
+      "order": 9
+    }
+  ],
+  "permissions": {
+    "can_edit": true,
+    "can_delete": true,
+    "can_bulk_edit": true,
+    "can_export": true,
+    "can_import": true
+  },
+  "tags": [
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ]
+}

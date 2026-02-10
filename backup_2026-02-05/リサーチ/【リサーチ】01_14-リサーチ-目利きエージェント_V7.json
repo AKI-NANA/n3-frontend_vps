@@ -1,0 +1,328 @@
+{
+  "name": "【リサーチ】01_14-リサーチ-目利きエージェント_V7",
+  "description": "N3 Empire OS V7: AI目利きエージェント - 利益・リスク・トレンドでスコアリングし、80点以上のみ自動連携",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mekiki-agent",
+        "options": { "responseMode": "responseNode" }
+      },
+      "name": "Webhook: 目利きAgent",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "mekiki-agent"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC署名検証 (Empire OS v7)\nconst crypto = require('crypto');\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) throw new Error('🚫 N8N_HMAC_SECRET 未設定');\nif (!signature || !timestamp) throw new Error('🚫 署名/タイムスタンプ欠落');\n\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) throw new Error('🚫 タイムスタンプ期限切れ');\n\nconst computedHmac = crypto.createHmac('sha256', secret).update(timestamp + '.' + JSON.stringify($json)).digest('hex');\nif (signature !== computedHmac) throw new Error('🚫 HMAC検証失敗');\n\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// V7: 目利きAgent 初期化\nconst body = $input.first().json.body || $input.first().json || {};\n\nconst config = {\n  keyword: body.keyword || '',\n  seller_ids: body.seller_ids || [],\n  category_id: body.category_id,\n  min_profit_margin: body.min_profit_margin || 0.20,\n  max_results: body.max_results || 100,\n  auto_forward: body.auto_forward !== false,  // 80点以上を自動連携\n  score_threshold: body.score_threshold || 80,\n  user_id: body.user_id || 'default'\n};\n\nif (!config.keyword && config.seller_ids.length === 0) {\n  return [{ json: { error: true, message: 'keyword または seller_ids が必要', code: 'MISSING_PARAM' } }];\n}\n\nreturn [{ json: { ...config, timestamp: new Date().toISOString() } }];"
+      },
+      "name": "⚙️ 目利き初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [{ "id": "error-check", "leftValue": "={{ $json.error }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }]
+        }
+      },
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": { "responseCode": 400 }
+      },
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.N3_API_URL }}/api/ebay/sold-search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "keyword", "value": "={{ $json.keyword }}" },
+            { "name": "limit", "value": "={{ $json.max_results }}" },
+            { "name": "category_id", "value": "={{ $json.category_id || '' }}" }
+          ]
+        },
+        "options": { "timeout": 60000 }
+      },
+      "name": "🔍 eBay Sold検索",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// V7: 検索結果解析\nconst response = $input.first().json;\nconst config = $node['⚙️ 目利き初期化'].json;\n\nconst items = response.items || response.data || [];\nif (items.length === 0) {\n  return [{ json: { no_results: true, keyword: config.keyword } }];\n}\n\n// 各アイテムにメタデータ付与\nreturn items.slice(0, config.max_results).map((item, idx) => ({\n  json: {\n    index: idx,\n    item_id: item.itemId || item.id,\n    title: item.title || '',\n    sold_price_usd: parseFloat(item.soldPrice || item.price || 0),\n    sold_count: parseInt(item.soldCount || 1),\n    image_url: item.imageUrl || '',\n    seller_id: item.sellerId || '',\n    category_id: item.categoryId || '',\n    condition: item.condition || 'Used',\n    location: item.location || 'Unknown',\n    config: config\n  }\n}));"
+      },
+      "name": "📋 検索結果解析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [{ "id": "no-results", "leftValue": "={{ $json.no_results }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }]
+        }
+      },
+      "name": "結果有無",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { success: true, message: '検索結果なし', items: [], scores: [] } }];"
+      },
+      "name": "結果なし応答",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "batchSize": 10,
+        "options": {}
+      },
+      "name": "10件ずつバッチ処理",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "x-goog-api-key", "value": "={{ $env.GEMINI_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: '## 商品目利きスコアリング\\n\\nあなたはeBay転売の専門家「目利きエージェント」です。以下の商品を「利益性」「リスク」「トレンド」の3軸でスコアリングしてください。\\n\\n### 商品リスト\\n' + $input.all().map((item, i) => `${i+1}. タイトル: ${item.json.title}\\n   販売価格: $${item.json.sold_price_usd}\\n   販売数: ${item.json.sold_count}\\n   コンディション: ${item.json.condition}\\n   セラー位置: ${item.json.location}`).join('\\n\\n') + '\\n\\n### スコアリング基準\\n- **利益性 (0-40点)**: 予想仕入れ価格、利益率、回転率\\n- **リスク (0-30点)**: ブランドリスク、サイズ/重量、返品率\\n- **トレンド (0-30点)**: 季節性、市場成長、競合状況\\n\\n### 出力形式 (JSON配列)\\n[{\"index\": 1, \"profit_score\": 35, \"risk_score\": 25, \"trend_score\": 20, \"total_score\": 80, \"verdict\": \"BUY/WATCH/SKIP\", \"reasoning\": \"理由\", \"estimated_profit_margin\": 0.25, \"risk_factors\": [\"リスク1\"], \"recommended_price_jpy\": 5000}]' }] }], generationConfig: { temperature: 0.3, maxOutputTokens: 2048 } }) }}",
+        "options": { "timeout": 60000 }
+      },
+      "name": "🧠 AI目利きスコアリング",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// V7: AIスコア結果パース\nconst items = $node['10件ずつバッチ処理'].json;\nconst batchItems = $node['10件ずつバッチ処理'].context?.noItemsLeft ? [] : [$node['10件ずつバッチ処理'].json];\nconst allItems = $input.all().length > 1 ? $input.all().map(i => i.json) : batchItems;\nconst aiResponse = $input.first().json;\n\nlet scores = [];\ntry {\n  const text = aiResponse.candidates?.[0]?.content?.parts?.[0]?.text || '[]';\n  const match = text.match(/\\[[\\s\\S]*\\]/);\n  if (match) scores = JSON.parse(match[0]);\n} catch (e) {\n  // デフォルトスコア\n  scores = allItems.map((item, idx) => ({\n    index: idx + 1,\n    profit_score: 20,\n    risk_score: 15,\n    trend_score: 15,\n    total_score: 50,\n    verdict: 'WATCH',\n    reasoning: 'AI解析失敗',\n    estimated_profit_margin: 0.15,\n    risk_factors: ['unknown'],\n    recommended_price_jpy: Math.round(item.sold_price_usd * 150 * 0.6)\n  }));\n}\n\n// スコアをアイテムにマージ\nconst scoredItems = allItems.map((item, idx) => {\n  const score = scores.find(s => s.index === idx + 1) || scores[idx] || {};\n  return {\n    json: {\n      ...item,\n      scores: {\n        profit: score.profit_score || 20,\n        risk: score.risk_score || 15,\n        trend: score.trend_score || 15,\n        total: score.total_score || 50\n      },\n      verdict: score.verdict || 'WATCH',\n      reasoning: score.reasoning || '',\n      estimated_profit_margin: score.estimated_profit_margin || 0.15,\n      risk_factors: score.risk_factors || [],\n      recommended_price_jpy: score.recommended_price_jpy || 0\n    }\n  };\n});\n\nreturn scoredItems;"
+      },
+      "name": "📊 スコア結果パース",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "amount": 0.5,
+        "unit": "seconds"
+      },
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// V7: 結果集約\nconst allResults = $input.all().map(i => i.json);\nconst config = allResults[0]?.config || {};\n\n// 80点以上をフィルタ\nconst threshold = config.score_threshold || 80;\nconst highScoreItems = allResults.filter(item => (item.scores?.total || 0) >= threshold);\nconst watchItems = allResults.filter(item => {\n  const score = item.scores?.total || 0;\n  return score >= 60 && score < threshold;\n});\nconst skipItems = allResults.filter(item => (item.scores?.total || 0) < 60);\n\nreturn [{ json: {\n  total_analyzed: allResults.length,\n  high_score_count: highScoreItems.length,\n  watch_count: watchItems.length,\n  skip_count: skipItems.length,\n  high_score_items: highScoreItems.slice(0, 20),  // 上位20件\n  watch_items: watchItems.slice(0, 10),\n  config: config,\n  auto_forward: config.auto_forward && highScoreItems.length > 0\n} }];"
+      },
+      "name": "📈 結果集約・分類",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [{ "id": "auto-forward", "leftValue": "={{ $json.auto_forward }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }]
+        }
+      },
+      "name": "自動連携？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO research_results (user_id, keyword, item_id, title, sold_price_usd, sold_count, image_url, seller_id, profit_score, risk_score, trend_score, total_score, verdict, reasoning, estimated_profit_margin, risk_factors, recommended_price_jpy, auto_forwarded, created_at) SELECT $1, $2, (item->>'item_id')::text, (item->>'title')::text, (item->>'sold_price_usd')::numeric, (item->>'sold_count')::int, (item->>'image_url')::text, (item->>'seller_id')::text, (item->'scores'->>'profit')::int, (item->'scores'->>'risk')::int, (item->'scores'->>'trend')::int, (item->'scores'->>'total')::int, (item->>'verdict')::text, (item->>'reasoning')::text, (item->>'estimated_profit_margin')::numeric, (item->>'risk_factors')::jsonb, (item->>'recommended_price_jpy')::int, true, NOW() FROM jsonb_array_elements($3::jsonb) AS item ON CONFLICT (user_id, item_id) DO UPDATE SET total_score = EXCLUDED.total_score, verdict = EXCLUDED.verdict, updated_at = NOW()",
+        "options": { "queryParams": "={{ [$json.config.user_id, $json.config.keyword, JSON.stringify($json.high_score_items)] }}" }
+      },
+      "name": "💾 高スコア商品保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": { "postgres": { "id": "postgres-supabase", "name": "Supabase Postgres" } },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_BASE_URL }}/webhook/supplier-search",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-n3-signature", "value": "={{ require('crypto').createHmac('sha256', $env.N8N_HMAC_SECRET).update(Date.now() + '.' + JSON.stringify({ items: $json.high_score_items.slice(0, 5).map(i => ({ title: i.title, price_usd: i.sold_price_usd })) })).digest('hex') }}" },
+            { "name": "x-n3-timestamp", "value": "={{ Date.now().toString() }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ action: 'find_suppliers', user_id: $json.config.user_id, items: $json.high_score_items.slice(0, 5).map(i => ({ title: i.title, price_usd: i.sold_price_usd, item_id: i.item_id })), triggered_by: 'mekiki_agent' }) }}",
+        "options": { "timeout": 30000 }
+      },
+      "name": "🔗 仕入れ先探索連携",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[V7] 80点以上 → 自動で仕入れ先探索へ"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_BASE_URL }}/webhook/listing-hub",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-n3-signature", "value": "={{ require('crypto').createHmac('sha256', $env.N8N_HMAC_SECRET).update(Date.now() + '.' + JSON.stringify({ action: 'queue_from_research' })).digest('hex') }}" },
+            { "name": "x-n3-timestamp", "value": "={{ Date.now().toString() }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ action: 'queue_from_research', user_id: $json.config.user_id, items: $json.high_score_items.slice(0, 10).map(i => ({ title: i.title, price_usd: i.sold_price_usd, item_id: i.item_id, recommended_price_jpy: i.recommended_price_jpy, verdict: i.verdict })), triggered_by: 'mekiki_agent' }) }}",
+        "options": { "timeout": 30000 }
+      },
+      "name": "🚀 出品ハブ連携",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[V7] 80点以上 → 出品キューへ自動登録"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "X-ChatWorkToken", "value": "={{ $env.CHATWORK_API_KEY }}" }]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [{
+            "name": "body",
+            "value": "=[info][title]🔍 目利きAgent完了[/title]キーワード: {{ $json.config.keyword }}\\n分析: {{ $json.total_analyzed }}件\\n\\n✅ 80点以上(BUY): {{ $json.high_score_count }}件\\n⚠️ 60-79点(WATCH): {{ $json.watch_count }}件\\n❌ 60点未満(SKIP): {{ $json.skip_count }}件\\n\\n{{ $json.auto_forward ? '🔗 仕入れ先探索・出品ハブへ自動連携済み' : '' }}[/info]"
+          }]
+        }
+      },
+      "name": "📢 ChatWork通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "output": "single"
+      },
+      "name": "🔀 パス統合",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "jsCode": "// V7: 最終レスポンス\nconst data = $input.first().json;\n\nreturn [{ json: {\n  success: true,\n  keyword: data.config?.keyword,\n  summary: {\n    total_analyzed: data.total_analyzed,\n    high_score: data.high_score_count,\n    watch: data.watch_count,\n    skip: data.skip_count\n  },\n  top_items: (data.high_score_items || []).slice(0, 5).map(i => ({\n    title: i.title?.substring(0, 50),\n    score: i.scores?.total,\n    verdict: i.verdict,\n    margin: i.estimated_profit_margin\n  })),\n  auto_forwarded: data.auto_forward,\n  timestamp: new Date().toISOString()\n} }];"
+      },
+      "name": "📊 最終レスポンス",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{$env.SUPABASE_ANON_KEY}}" },
+            { "name": "Authorization", "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": { \"high_score_count\": {{$json.summary?.high_score || 0}} }\n}"
+      },
+      "name": "📊 実行ログ送信",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($node['📊 最終レスポンス'].json) }}",
+        "options": { "responseCode": 200 }
+      },
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    }
+  ],
+  "connections": {
+    "Webhook: 目利きAgent": { "main": [[{ "node": "🔐 HMAC署名検証", "type": "main", "index": 0 }]] },
+    "🔐 HMAC署名検証": { "main": [[{ "node": "⚙️ 目利き初期化", "type": "main", "index": 0 }]] },
+    "⚙️ 目利き初期化": { "main": [[{ "node": "エラーチェック", "type": "main", "index": 0 }]] },
+    "エラーチェック": { "main": [[{ "node": "エラー応答", "type": "main", "index": 0 }], [{ "node": "🔍 eBay Sold検索", "type": "main", "index": 0 }]] },
+    "🔍 eBay Sold検索": { "main": [[{ "node": "📋 検索結果解析", "type": "main", "index": 0 }]] },
+    "📋 検索結果解析": { "main": [[{ "node": "結果有無", "type": "main", "index": 0 }]] },
+    "結果有無": { "main": [[{ "node": "結果なし応答", "type": "main", "index": 0 }], [{ "node": "10件ずつバッチ処理", "type": "main", "index": 0 }]] },
+    "結果なし応答": { "main": [[{ "node": "✅ 成功応答", "type": "main", "index": 0 }]] },
+    "10件ずつバッチ処理": { "main": [[{ "node": "🧠 AI目利きスコアリング", "type": "main", "index": 0 }], [{ "node": "📈 結果集約・分類", "type": "main", "index": 0 }]] },
+    "🧠 AI目利きスコアリング": { "main": [[{ "node": "📊 スコア結果パース", "type": "main", "index": 0 }]] },
+    "📊 スコア結果パース": { "main": [[{ "node": "Wait", "type": "main", "index": 0 }]] },
+    "Wait": { "main": [[{ "node": "10件ずつバッチ処理", "type": "main", "index": 0 }]] },
+    "📈 結果集約・分類": { "main": [[{ "node": "自動連携？", "type": "main", "index": 0 }]] },
+    "自動連携？": { "main": [[{ "node": "💾 高スコア商品保存", "type": "main", "index": 0 }], [{ "node": "🔀 パス統合", "type": "main", "index": 1 }]] },
+    "💾 高スコア商品保存": { "main": [[{ "node": "🔗 仕入れ先探索連携", "type": "main", "index": 0 }]] },
+    "🔗 仕入れ先探索連携": { "main": [[{ "node": "🚀 出品ハブ連携", "type": "main", "index": 0 }]] },
+    "🚀 出品ハブ連携": { "main": [[{ "node": "📢 ChatWork通知", "type": "main", "index": 0 }]] },
+    "📢 ChatWork通知": { "main": [[{ "node": "🔀 パス統合", "type": "main", "index": 0 }]] },
+    "🔀 パス統合": { "main": [[{ "node": "📊 最終レスポンス", "type": "main", "index": 0 }]] },
+    "📊 最終レスポンス": { "main": [[{ "node": "📊 実行ログ送信", "type": "main", "index": 0 }]] },
+    "📊 実行ログ送信": { "main": [[{ "node": "✅ 成功応答", "type": "main", "index": 0 }]] }
+  },
+  "settings": {
+    "executionTimeout": 600,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    { "name": "N3-Research", "color": "#3498db" },
+    { "name": "Empire-OS-V7", "color": "#dc143c" },
+    { "name": "Mekiki-Agent", "color": "#ffd700" },
+    { "name": "AI-Scoring", "color": "#9b59b6" },
+    { "name": "Auto-Forward", "color": "#2ecc71" }
+  ],
+  "active": false
+}

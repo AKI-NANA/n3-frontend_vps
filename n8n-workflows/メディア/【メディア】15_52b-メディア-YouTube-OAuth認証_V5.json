@@ -1,0 +1,482 @@
+{
+  "name": "【メディア】15_52b-メディア-YouTube-OAuth認証_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "youtube-auth-callback",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "callback-webhook",
+      "name": "OAuth Callback",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "youtube-auth-callback"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// YouTube OAuth コールバック処理\n// ============================================================================\n\nconst query = $input.first().json.query || {};\nconst code = query.code;\nconst state = query.state;\nconst error = query.error;\n\nif (error) {\n  return [{ json: { error: true, message: `OAuth エラー: ${error}`, code: 'OAUTH_ERROR' } }];\n}\n\nif (!code) {\n  return [{ json: { error: true, message: '認証コードがありません', code: 'NO_CODE' } }];\n}\n\nreturn [{\n  json: {\n    code,\n    state,\n    client_id: $env.YOUTUBE_CLIENT_ID,\n    client_secret: $env.YOUTUBE_CLIENT_SECRET,\n    redirect_uri: $env.YOUTUBE_REDIRECT_URI || `${$env.N8N_URL}/webhook/youtube-auth-callback`\n  }\n}];"
+      },
+      "id": "parse-callback",
+      "name": "🔐 コールバック解析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "=<html><body><h1>❌ 認証エラー</h1><p>{{ $json.message }}</p></body></html>",
+        "options": {
+          "responseCode": 400,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html"
+              }
+            ]
+          }
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://oauth2.googleapis.com/token",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "=code={{ $json.code }}&client_id={{ $json.client_id }}&client_secret={{ $json.client_secret }}&redirect_uri={{ encodeURIComponent($json.redirect_uri) }}&grant_type=authorization_code",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "exchange-token",
+      "name": "🔑 トークン交換",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================================\n// トークン保存\n// ============================================================================\n\nconst tokenResult = $input.first().json;\n\nif (tokenResult.error) {\n  return [{ json: { error: true, message: `トークン交換エラー: ${tokenResult.error_description || tokenResult.error}` } }];\n}\n\nconst accessToken = tokenResult.access_token;\nconst refreshToken = tokenResult.refresh_token;\nconst expiresIn = tokenResult.expires_in;\nconst scope = tokenResult.scope;\n\nif (!accessToken) {\n  return [{ json: { error: true, message: 'アクセストークンが取得できませんでした' } }];\n}\n\n// 有効期限計算\nconst expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();\n\nreturn [{\n  json: {\n    access_token: accessToken,\n    refresh_token: refreshToken,\n    expires_in: expiresIn,\n    expires_at: expiresAt,\n    scope: scope,\n    token_type: 'Bearer'\n  }\n}];"
+      },
+      "id": "process-token",
+      "name": "📋 トークン処理",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO youtube_tokens (access_token, refresh_token, expires_at, scope, token_type) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO UPDATE SET access_token = EXCLUDED.access_token, refresh_token = COALESCE(EXCLUDED.refresh_token, youtube_tokens.refresh_token), expires_at = EXCLUDED.expires_at, scope = EXCLUDED.scope, updated_at = NOW() RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.access_token, $json.refresh_token, $json.expires_at, $json.scope, $json.token_type] }}"
+        }
+      },
+      "id": "save-token",
+      "name": "💾 トークン保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "=<html><head><style>body{font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;background:#0f172a;color:white;}.card{background:#1e293b;padding:40px;border-radius:16px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.5);}h1{color:#22c55e;margin-bottom:20px;}p{color:#94a3b8;}</style></head><body><div class='card'><h1>✅ YouTube認証成功！</h1><p>アクセストークンが保存されました。</p><p>このウィンドウを閉じてください。</p></div></body></html>",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html"
+              }
+            ]
+          }
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "youtube-refresh-token",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "refresh-webhook",
+      "name": "Token Refresh",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "youtube-refresh-token"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM youtube_tokens ORDER BY updated_at DESC LIMIT 1"
+      },
+      "id": "get-token",
+      "name": "📥 トークン取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://oauth2.googleapis.com/token",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "=client_id={{ $env.YOUTUBE_CLIENT_ID }}&client_secret={{ $env.YOUTUBE_CLIENT_SECRET }}&refresh_token={{ $json[0].refresh_token }}&grant_type=refresh_token",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "refresh-token",
+      "name": "🔄 トークン更新",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const result = $input.first().json;\nconst prevToken = $node['📥 トークン取得'].json[0];\n\nif (result.error) {\n  return [{ json: { success: false, error: result.error_description || result.error } }];\n}\n\nconst expiresAt = new Date(Date.now() + result.expires_in * 1000).toISOString();\n\nreturn [{\n  json: {\n    access_token: result.access_token,\n    refresh_token: result.refresh_token || prevToken.refresh_token,\n    expires_at: expiresAt,\n    scope: result.scope || prevToken.scope,\n    token_type: 'Bearer'\n  }\n}];"
+      },
+      "id": "process-refresh",
+      "name": "📋 更新処理",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE youtube_tokens SET access_token = $1, refresh_token = COALESCE($2, refresh_token), expires_at = $3, updated_at = NOW() WHERE id = (SELECT id FROM youtube_tokens ORDER BY updated_at DESC LIMIT 1) RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.access_token, $json.refresh_token, $json.expires_at] }}"
+        }
+      },
+      "id": "update-token",
+      "name": "💾 トークン更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, access_token: $json.access_token, expires_at: $json.expires_at }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-refresh",
+      "name": "✅ 更新成功",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "OAuth Callback": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 コールバック解析": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🔑 トークン交換",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔑 トークン交換": {
+      "main": [
+        [
+          {
+            "node": "📋 トークン処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 トークン処理": {
+      "main": [
+        [
+          {
+            "node": "💾 トークン保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 トークン保存": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Token Refresh": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📥 トークン取得": {
+      "main": [
+        [
+          {
+            "node": "🔄 トークン更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 トークン更新": {
+      "main": [
+        [
+          {
+            "node": "📋 更新処理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 更新処理": {
+      "main": [
+        [
+          {
+            "node": "💾 トークン更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 トークン更新": {
+      "main": [
+        [
+          {
+            "node": "✅ 更新成功",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "📥 トークン取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 60,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "YouTube",
+      "color": "#ff0000"
+    },
+    {
+      "name": "OAuth",
+      "color": "#f39c12"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

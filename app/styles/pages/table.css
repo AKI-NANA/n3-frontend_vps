@@ -1,0 +1,300 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Table Styles
+   スタイル変数対応版
+   ============================================================ */
+
+.n3-table-container {
+  background: var(--panel);
+  border: var(--style-table-border, 1px solid var(--panel-border));
+  border-radius: var(--style-table-radius, var(--style-radius-md, 6px));
+  box-shadow: var(--style-table-shadow, none);
+  overflow: hidden;
+  width: 100%;
+}
+
+.n3-table-container table {
+  width: 100%;
+  table-layout: auto;
+}
+
+.n3-table-container tbody {
+  display: table-row-group;
+}
+
+.n3-table-container tr {
+  display: table-row;
+}
+
+/* テーブルのスクロールコンテナ */
+.n3-table-scroll {
+  overflow-y: auto;
+  overflow-x: auto;
+  max-height: calc(100vh - var(--header-height) - var(--footer-height, 40px) - 180px);
+  margin-bottom: 20px !important;
+  padding-bottom: 8px !important;
+}
+
+.n3-table-scroll thead {
+  background: var(--panel) !important;
+}
+
+.n3-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.n3-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--panel);
+}
+
+.n3-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--panel) !important;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.n3-table th {
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--panel-border);
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* Sortable header */
+.n3-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.n3-table th.sortable:hover {
+  color: var(--text);
+  background: var(--highlight);
+}
+
+.n3-table th .sort-icon {
+  margin-left: 4px;
+  opacity: 0.5;
+}
+
+.n3-table th.sorted .sort-icon {
+  opacity: 1;
+  color: var(--accent);
+}
+
+.n3-table tbody tr {
+  cursor: pointer;
+  transition: background-color 0.1s ease;
+  background: transparent !important;
+}
+
+.n3-table tbody tr:hover { 
+  background: var(--highlight) !important; 
+}
+
+.n3-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--panel-border);
+  vertical-align: middle;
+  height: 48px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+/* 画像を行の高さいっぱいに */
+.n3-table td img {
+  max-height: 42px;
+  height: 42px;
+  width: auto;
+  object-fit: cover;
+  border-radius: var(--style-radius-sm, 4px);
+}
+
+.n3-table tr.selected { 
+  background: rgba(99, 102, 241, 0.08) !important; 
+}
+
+.n3-table tr.expanded { 
+  background: var(--highlight) !important; 
+}
+
+/* Striped table */
+.n3-table-striped tbody tr:nth-child(even) {
+  background: var(--highlight);
+}
+
+/* Bordered table */
+.n3-table-bordered td,
+.n3-table-bordered th {
+  border: 1px solid var(--panel-border);
+}
+
+/* Compact table */
+.n3-table-compact th,
+.n3-table-compact td {
+  padding: 4px 8px;
+  height: 36px;
+  font-size: 12px;
+}
+
+/* Expanded Row */
+.n3-table-expanded-content { 
+  background: var(--bg-solid); 
+}
+
+.n3-table-expanded-inner {
+  display: grid;
+  grid-template-columns: 100px 1fr 160px;
+  gap: 12px;
+  padding: 12px;
+}
+
+/* Table Row Styles - Transparent with hover */
+tbody tr {
+  background: transparent !important;
+  transition: background-color 0.1s ease;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+tbody tr:hover {
+  background: var(--highlight) !important;
+}
+
+/* 修正行の背景色 */
+tr.modified-row,
+tr[data-modified="true"] {
+  background: rgba(251, 191, 36, 0.08) !important;
+  border-left: none !important;
+}
+
+tr.modified-row td,
+tr[data-modified="true"] td {
+  border-left: none !important;
+}
+
+/* Error row */
+tr.error-row,
+tr[data-error="true"] {
+  background: rgba(239, 68, 68, 0.06) !important;
+}
+
+/* Success row */
+tr.success-row,
+tr[data-success="true"] {
+  background: rgba(16, 185, 129, 0.06) !important;
+}
+
+/* テーブルコンテナ - bg-whiteを上書き */
+.bg-white {
+  background: var(--panel) !important;
+}
+
+/* ボーダーカラーも調整 */
+.border {
+  border-color: var(--panel-border) !important;
+}
+
+/* Empty state */
+.n3-table-empty {
+  padding: 48px 16px;
+  text-align: center;
+}
+
+.n3-table-empty-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 16px;
+  color: var(--text-subtle);
+}
+
+.n3-table-empty-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.n3-table-empty-description {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* Loading overlay */
+.n3-table-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.8);
+  z-index: 20;
+}
+
+/* Column resize handle */
+.n3-table-resize-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+}
+
+.n3-table-resize-handle:hover {
+  background: var(--accent);
+}
+
+/* Checkbox column */
+.n3-table th.checkbox-col,
+.n3-table td.checkbox-col {
+  width: 40px;
+  padding: 0 8px;
+  text-align: center;
+}
+
+/* Actions column */
+.n3-table th.actions-col,
+.n3-table td.actions-col {
+  width: 80px;
+  text-align: right;
+}
+
+/* Data Table wrapper */
+.n3-data-table {
+  position: relative;
+  background: var(--panel);
+  border: var(--style-table-border, 1px solid var(--panel-border));
+  border-radius: var(--style-table-radius, var(--style-radius-md, 6px));
+  overflow: hidden;
+}
+
+.n3-data-table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.n3-data-table-body {
+  overflow: auto;
+}
+
+.n3-data-table-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-top: 1px solid var(--panel-border);
+}

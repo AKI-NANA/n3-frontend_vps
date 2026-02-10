@@ -1,0 +1,641 @@
+{
+  "name": "【出品】16_専用-多販路-出品ハブディスパッチャー_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "global-list",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: 出品依頼",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "global-list"
+    },
+    {
+      "parameters": {
+        "jsCode": "// V5-PRODUCTION: 内部トークン検証（crypto依存排除版）\n// ========================================\nconst body = $input.first().json.body || $input.first().json;\nconst headers = $input.first().json.headers || {};\n\n// 環境変数必須チェック\nconst apiUrl = $env.N3_API_URL;\nconst secret = $env.N8N_INTERNAL_SECRET;\nif (!apiUrl) {\n  return [{ json: { error: true, message: 'N3_API_URL 環境変数が未設定です', code: 'CONFIG_ERROR' } }];\n}\nif (!secret) {\n  return [{ json: { error: true, message: 'N8N_INTERNAL_SECRET 環境変数が未設定です', code: 'CONFIG_ERROR' } }];\n}\n\nconst internalToken = headers['x-n3-signature'] || headers['X-N3-Signature'];\nconst tokenTimestamp = headers['x-n3-token-timestamp'] || headers['X-N3-Token-Timestamp'];\nconst userId = body.user_id || 'default';\n\n// トークン検証（外部APIへ委譲）\nif (internalToken && tokenTimestamp) {\n  try {\n    const verifyResponse = await fetch(`${apiUrl}/api/n8n-auth/verify-internal-token`, {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json' },\n      body: JSON.stringify({ userId, timestamp: tokenTimestamp, token: internalToken })\n    });\n    const verifyResult = await verifyResponse.json();\n    \n    if (!verifyResult.valid) {\n      return [{ json: { error: true, message: '内部トークンが無効です', code: 'INVALID_TOKEN' } }];\n    }\n  } catch (e) {\n    return [{ json: { error: true, message: 'トークン検証APIエラー: ' + e.message, code: 'VERIFY_API_ERROR' } }];\n  }\n}\n\n// 入力検証\nconst productId = body.product_id;\nconst marketplace = body.marketplace || 'ebay_us';\nconst limit = body.limit || 10;\nconst force = body.force || false;\n\nreturn [{ json: { \n  product_id: productId, \n  marketplace: marketplace, \n  user_id: userId,\n  limit: limit,\n  force: force,\n  request_timestamp: new Date().toISOString()\n} }];"
+      },
+      "id": "validate",
+      "name": "リクエスト検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.error }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 403
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT pm.id, pm.sku, pm.title, pm.product_name, pm.description, pm.image_urls, pm.listing_price, pm.user_id, pm.updated_at, gs.value::numeric as exchange_rate FROM products_master pm LEFT JOIN global_settings gs ON gs.key = 'exchange_rate_usd_jpy' AND gs.user_id = pm.user_id WHERE pm.id = $1 AND pm.user_id = $2",
+        "options": {
+          "queryParams": "={{ [{{ $json.product_id }}, {{ $json.user_id }}] }}"
+        }
+      },
+      "id": "get-product",
+      "name": "出品データ取得（user_id検証）",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 商品データ整形\nconst products = Array.isArray($input.first().json) ? $input.first().json : [$input.first().json];\nconst product = products[0] || {};\nconst request = $node['リクエスト検証'].json;\n\nif (!product.id) return [{ json: { error: true, message: '商品が見つかりません' } }];\n\nreturn [{ json: { ...product, target_mall: request.target_mall, options: request.options } }];"
+      },
+      "id": "prepare",
+      "name": "データ準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N3_API_URL || '{{$env.GATEWAY_URL}}' }}/api/ai/analyze",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'gemini-1.5-flash', prompt: 'この商品を各販路向けに最適化してJSONで返して。\\n1. eBay: 英語タイトル（80文字以内）\\n2. Shopee: 東南アジア向け英語タイトル\\n3. Qoo10: 日本語タイトル（100文字以内）\\n形式: {\"ebay_title\":\"...\",\"shopee_title\":\"...\",\"qoo10_title\":\"...\"}\\n\\n商品名: ' + ($json.title || $json.product_name || '') + '\\n説明: ' + ($json.description || '').substring(0, 500) }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "ai-optimize",
+      "name": "Gemini: 多販路最適化",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// AI結果パース\nlet ai = {};\ntry {\n  const text = $input.first().json.text || $input.first().json.response || '{}';\n  ai = JSON.parse(text.replace(/```json\\n?|```/g, ''));\n} catch (e) { ai = {}; }\n\nconst product = $node['データ準備'].json;\n\nreturn [{ json: { ...product, optimized: ai } }];"
+      },
+      "id": "parse-ai",
+      "name": "AI結果パース",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.target_mall }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "ebay",
+              "output": 0
+            },
+            {
+              "value2": "shopee",
+              "output": 1
+            },
+            {
+              "value2": "qoo10",
+              "output": 2
+            },
+            {
+              "value2": "shopify",
+              "output": 3
+            }
+          ]
+        },
+        "fallbackOutput": 4
+      },
+      "id": "switch-mall",
+      "name": "販路分岐",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_WEBHOOK_URL || '={{ $vars.API_BASE_URL || $env.N8N_WEBHOOK_URL }}/webhook' }}/ebay-listing",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N3-Signature",
+              "value": "={{ $env.N8N_INTERNAL_TOKEN || \"\" }}"
+            },
+            {
+              "name": "X-N3-Token-Timestamp",
+              "value": "={{ Date.now() }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ user_id: $json.user_id, product_id: $json.id, title: $json.optimized.ebay_title || $json.title }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "dispatch-ebay",
+      "name": "eBay出品",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_WEBHOOK_URL || '={{ $vars.API_BASE_URL || $env.N8N_WEBHOOK_URL }}/webhook' }}/shopee-listing",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N3-Signature",
+              "value": "={{ $env.N8N_INTERNAL_TOKEN || \"\" }}"
+            },
+            {
+              "name": "X-N3-Token-Timestamp",
+              "value": "={{ Date.now() }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ user_id: $json.user_id, product_id: $json.id, title: $json.optimized.shopee_title || $json.title }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "dispatch-shopee",
+      "name": "Shopee出品",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_WEBHOOK_URL || '={{ $vars.API_BASE_URL || $env.N8N_WEBHOOK_URL }}/webhook' }}/qoo10-listing",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N3-Signature",
+              "value": "={{ $env.N8N_INTERNAL_TOKEN || \"\" }}"
+            },
+            {
+              "name": "X-N3-Token-Timestamp",
+              "value": "={{ Date.now() }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ user_id: $json.user_id, product_id: $json.id, title: $json.optimized.qoo10_title || $json.product_name }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "dispatch-qoo10",
+      "name": "Qoo10出品",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N3_API_URL || '{{$env.GATEWAY_URL}}' }}/api/shopify/create-product",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ user_id: $json.user_id, product_id: $json.id, title: $json.title }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "dispatch-shopify",
+      "name": "Shopify出品",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { error: true, message: '未対応の販路: ' + $node['販路分岐'].json.target_mall } }];"
+      },
+      "id": "unsupported",
+      "name": "未対応",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const result = $input.first().json;\nconst product = $node['AI結果パース'].json;\nreturn [{ json: { success: !result.error, product_id: product.id, target_mall: product.target_mall, result: result } }];"
+      },
+      "id": "aggregate",
+      "name": "結果集約",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO listing_history (user_id, product_id, target_mall, status, result_json, created_at) VALUES ($1, $2, $3, $4, '{{ JSON.stringify({ s: $json.success, t: new Date().toISOString().substring(0,19) }).replace(/'/g, \"''\") }}'::jsonb, NOW())",
+        "options": {
+          "queryParams": "={{ [{{ $json.product_id ? $node['AI結果パース'].json.user_id : '' }}, {{ $node['AI結果パース'].json.id || '' }}, {{ $node['AI結果パース'].json.target_mall }}, {{ $json.success ? 'success' : 'failed' }}] }}"
+        }
+      },
+      "id": "log-history",
+      "name": "出品履歴記録",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM listing_history WHERE created_at < NOW() - INTERVAL '7 days'",
+        "options": {}
+      },
+      "id": "purge",
+      "name": "🗑️ 履歴パージ",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($node['結果集約'].json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond",
+      "name": "応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: 出品依頼": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "リクエスト検証": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "出品データ取得（user_id検証）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "出品データ取得（user_id検証）": {
+      "main": [
+        [
+          {
+            "node": "データ準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "データ準備": {
+      "main": [
+        [
+          {
+            "node": "Gemini: 多販路最適化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini: 多販路最適化": {
+      "main": [
+        [
+          {
+            "node": "AI結果パース",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI結果パース": {
+      "main": [
+        [
+          {
+            "node": "販路分岐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "販路分岐": {
+      "main": [
+        [
+          {
+            "node": "eBay出品",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Shopee出品",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Qoo10出品",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Shopify出品",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "未対応",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "eBay出品": {
+      "main": [
+        [
+          {
+            "node": "結果集約",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shopee出品": {
+      "main": [
+        [
+          {
+            "node": "結果集約",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qoo10出品": {
+      "main": [
+        [
+          {
+            "node": "結果集約",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shopify出品": {
+      "main": [
+        [
+          {
+            "node": "結果集約",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "未対応": {
+      "main": [
+        [
+          {
+            "node": "結果集約",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "結果集約": {
+      "main": [
+        [
+          {
+            "node": "出品履歴記録",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "出品履歴記録": {
+      "main": [
+        [
+          {
+            "node": "🗑️ 履歴パージ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🗑️ 履歴パージ": {
+      "main": [
+        [
+          {
+            "node": "応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "リクエスト検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 300,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none"
+  },
+  "tags": [
+    {
+      "name": "N3-MultiMall",
+      "color": "#ff6600"
+    },
+    {
+      "name": "V4-PRODUCTION",
+      "color": "#ff0000"
+    },
+    {
+      "name": "AI-Powered",
+      "color": "#9932cc"
+    },
+    {
+      "name": "Multi-Tenant",
+      "color": "#00bfff"
+    },
+    {
+      "name": "Internal-Auth",
+      "color": "#dc143c"
+    },
+    {
+      "name": "500MB-Safe",
+      "color": "#32cd32"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

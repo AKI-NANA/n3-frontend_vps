@@ -1,0 +1,102 @@
+[
+  {
+    "timestamp": "2026-02-05T08:40:47.277Z",
+    "dryRun": false,
+    "verified": true,
+    "phase1": {
+      "success": false,
+      "error": "Command failed: node governance/stray-scanner-v2.js --nightly"
+    },
+    "phase2": {
+      "success": true,
+      "stats": {
+        "totalCount": 2979,
+        "passCount": 1005,
+        "passRate": "33.7",
+        "avgScore": "90.4",
+        "totalCritical": 876,
+        "totalErrors": 1341,
+        "totalWarnings": 2854,
+        "totalAutofixable": 1
+      },
+      "score": 90.4,
+      "criticalCount": 876
+    },
+    "phase3": {
+      "success": true,
+      "fixedCount": 0
+    },
+    "fixedCount": 0,
+    "phase4": {
+      "success": true,
+      "verified": true,
+      "newScore": 90.4,
+      "newCritical": 876,
+      "improvement": 0
+    },
+    "finalScore": 90.4,
+    "finalCritical": 876,
+    "improvement": 0,
+    "phase5": {
+      "success": true,
+      "commitMessage": "[NIGHTLY-AUTO-FIX] 2026-02-05 自動修正 (0件)"
+    },
+    "gitCommit": "[NIGHTLY-AUTO-FIX] 2026-02-05 自動修正 (0件)",
+    "phase6": {
+      "success": true,
+      "skipped": true,
+      "reason": "no config"
+    },
+    "duration": "109秒"
+  },
+  {
+    "timestamp": "2026-02-05T08:40:44.558Z",
+    "dryRun": true,
+    "verified": true,
+    "phase1": {
+      "success": false,
+      "error": "Command failed: node governance/stray-scanner-v2.js --dry-run"
+    },
+    "phase2": {
+      "success": true,
+      "stats": {
+        "totalCount": 2979,
+        "passCount": 1005,
+        "passRate": "33.7",
+        "avgScore": "90.4",
+        "totalCritical": 876,
+        "totalErrors": 1341,
+        "totalWarnings": 2854,
+        "totalAutofixable": 1
+      },
+      "score": 90.4,
+      "criticalCount": 876
+    },
+    "phase3": {
+      "success": true,
+      "fixedCount": 0
+    },
+    "fixedCount": 0,
+    "phase4": {
+      "success": true,
+      "verified": true,
+      "newScore": 90.4,
+      "newCritical": 876,
+      "improvement": 0
+    },
+    "finalScore": 90.4,
+    "finalCritical": 876,
+    "improvement": 0,
+    "phase5": {
+      "success": true,
+      "skipped": true,
+      "reason": "dry-run"
+    },
+    "phase6": {
+      "success": true,
+      "skipped": true,
+      "reason": "dry-run"
+    },
+    "duration": "3秒"
+  }
+]

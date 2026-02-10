@@ -1,0 +1,239 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Vercel Style Components
+   Vercel風のヘッダー・ボタン・アイコンスタイル
+   ============================================================ */
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+.vercel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  background: var(--glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+/* ============================================================
+   NAVIGATION TABS
+   ============================================================ */
+.vercel-nav {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  position: relative;
+}
+
+.vercel-nav-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 16px;
+  height: 100%;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.15s ease;
+}
+
+.vercel-nav-tab:hover {
+  color: var(--text);
+}
+
+.vercel-nav-tab.active {
+  color: var(--text);
+}
+
+/* アクティブインジケーター（下線） */
+.vercel-nav-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 16px;
+  right: 16px;
+  height: 2px;
+  background: var(--text);
+  border-radius: 2px 2px 0 0;
+}
+
+/* ============================================================
+   ICON BUTTON (丸枠)
+   ============================================================ */
+.vercel-icon-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  border-radius: 50%;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+}
+
+.vercel-icon-button:hover {
+  background: var(--highlight);
+  color: var(--text);
+  border-color: var(--text-muted);
+}
+
+/* バッジ */
+.vercel-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: var(--error);
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ============================================================
+   SEARCH BUTTON
+   ============================================================ */
+.vercel-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--highlight);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-width: 180px;
+}
+
+.vercel-search:hover {
+  background: var(--panel);
+  border-color: var(--text-muted);
+}
+
+.vercel-search kbd {
+  margin-left: auto;
+  padding: 2px 6px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: inherit;
+}
+
+/* ============================================================
+   FEEDBACK BUTTON
+   ============================================================ */
+.vercel-feedback {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.vercel-feedback:hover {
+  background: var(--highlight);
+  color: var(--text);
+  border-color: var(--text-muted);
+}
+
+/* ============================================================
+   PANEL (ホバーで展開)
+   ============================================================ */
+.vercel-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: 
+    grid-template-rows 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.15s ease;
+  overflow: hidden;
+  background: var(--glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.vercel-panel.open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.vercel-panel-content {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ============================================================
+   GRADIENT AVATAR
+   ============================================================ */
+.vercel-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f97316 0%, #ec4899 50%, #8b5cf6 100%);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.vercel-avatar:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--accent);
+}
+
+/* ============================================================
+   DARK THEME ADJUSTMENTS
+   ============================================================ */
+[data-theme="dark"] .vercel-header,
+[data-theme="cyber"] .vercel-header {
+  background: rgba(0, 0, 0, 0.8);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .vercel-icon-button,
+[data-theme="cyber"] .vercel-icon-button {
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+[data-theme="dark"] .vercel-icon-button:hover,
+[data-theme="cyber"] .vercel-icon-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+[data-theme="dark"] .vercel-search,
+[data-theme="cyber"] .vercel-search {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+[data-theme="dark"] .vercel-panel,
+[data-theme="cyber"] .vercel-panel {
+  background: rgba(0, 0, 0, 0.9);
+  border-color: rgba(255, 255, 255, 0.1);
+}

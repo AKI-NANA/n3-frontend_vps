@@ -1,0 +1,569 @@
+{
+  "name": "【その他】10_202-連結-ショートミドルロング自動総集編_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "video-concatenate",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: video-concatenate",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "video-concatenate"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst topicTag = body.topic_tag;\nconst channelId = body.channel_id;\nconst minVideos = body.min_videos || 5;\nconst maxVideos = body.max_videos || 10;\nconst targetDurationMinutes = body.target_duration_minutes || 60;\n\nif (!topicTag) {\n  return [{ json: { error: true, message: 'topic_tag は必須です', code: 'MISSING_PARAM' } }];\n}\n\nreturn [{ json: { topic_tag: topicTag, channel_id: channelId, min_videos: minVideos, max_videos: maxVideos, target_duration_minutes: targetDurationMinutes, job_id: `concat-${Date.now()}`, timestamp: new Date().toISOString() } }];"
+      },
+      "id": "init",
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT mc.id, mc.title, mc.script, mc.media_url, mc.audio_url, mc.video_type, mc.duration_seconds, ctt.topic_tag FROM media_content mc JOIN content_topic_tags ctt ON mc.id = ctt.content_id WHERE ctt.topic_tag = $1 AND mc.publish_status = 'published' AND mc.media_url IS NOT NULL AND mc.video_type IN ('youtube_middle', 'youtube_short') ORDER BY mc.created_at ASC LIMIT $2",
+        "options": {
+          "queryParams": "={{ [$json.topic_tag, $json.max_videos] }}"
+        }
+      },
+      "id": "get-videos",
+      "name": "📹 連結対象動画取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const initData = $node['🔧 初期化'].json;\nconst videosData = $input.first().json;\nconst videos = Array.isArray(videosData) ? videosData : [videosData].filter(v => v && v.id);\n\nif (videos.length < initData.min_videos) {\n  return [{ json: { error: true, message: `動画数が不足: ${videos.length}/${initData.min_videos}`, code: 'INSUFFICIENT_VIDEOS' } }];\n}\n\nconst jointPairs = [];\nfor (let i = 0; i < videos.length - 1; i++) {\n  jointPairs.push({ position: i + 1, from_video: videos[i], to_video: videos[i + 1] });\n}\n\nreturn [{ json: { ...initData, videos: videos, video_ids: videos.map(v => v.id), video_count: videos.length, total_duration_seconds: videos.reduce((sum, v) => sum + (v.duration_seconds || 0), 0), joint_pairs: jointPairs } }];"
+      },
+      "id": "prepare-joints",
+      "name": "📋 繋ぎ準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-videos-error",
+      "name": "動画数チェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO video_concatenation_jobs (job_id, topic_tag, source_content_ids, content_count, target_duration_minutes, status) VALUES ($1, $2, $3::int[], $4, $5, 'generating_joints') RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.job_id, $json.topic_tag, '{' + $json.video_ids.join(',') + '}', $json.video_count, $json.target_duration_minutes] }}"
+        }
+      },
+      "id": "create-job",
+      "name": "💾 ジョブ作成",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $node['📋 繋ぎ準備'].json;\nconst jobId = $input.first().json?.id || $input.first().json?.[0]?.id;\nreturn data.joint_pairs.map(pair => ({ json: { ...pair, job_id: data.job_id, db_job_id: jobId, topic_tag: data.topic_tag } }));"
+      },
+      "id": "split-pairs",
+      "name": "🔀 ペア分割",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-goog-api-key",
+              "value": "={{ $env.GEMINI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: '2つの動画をつなぐ自然な繋ぎナレーション（3〜5秒）を生成。前の動画: ' + $json.from_video.title + ' / 次の動画: ' + $json.to_video.title + ' / 出力: 15〜25文字の繋ぎテキストのみ' }] }], generationConfig: { temperature: 0.5, maxOutputTokens: 100 } }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "generate-joint-script",
+      "name": "🔗 繋ぎ脚本生成",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const pairData = $node['🔀 ペア分割'].json;\nconst geminiResult = $input.first().json;\nlet jointScript = 'さて、次のトピックに移りましょう。';\ntry { jointScript = geminiResult?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || jointScript; } catch (e) {}\nreturn [{ json: { ...pairData, joint_script: jointScript } }];"
+      },
+      "id": "parse-joint",
+      "name": "📋 繋ぎパース",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_WEBHOOK_URL || '{{$env.N8N_BASE_URL}}' }}/webhook/voice-generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $json.joint_script, voice_id: 'EXAVITQu4vr4xnSDxMaL', language: 'ja', genre: 'general' }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "generate-joint-voice",
+      "name": "🎙️ 繋ぎ音声生成",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO joint_narration_queue (concatenation_job_id, joint_position, from_content_id, to_content_id, generated_script, audio_url, status) VALUES ($1, $2, $3, $4, $5, $6, 'completed')",
+        "options": {
+          "queryParams": "={{ [$node['📋 繋ぎパース'].json.db_job_id, $node['📋 繋ぎパース'].json.position, $node['📋 繋ぎパース'].json.from_video.id, $node['📋 繋ぎパース'].json.to_video.id, $node['📋 繋ぎパース'].json.joint_script, $input.first().json.audio_url || null] }}"
+        }
+      },
+      "id": "save-joint",
+      "name": "💾 繋ぎ保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "id": "aggregate-joints",
+      "name": "📊 繋ぎ集約",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "// FFmpegコマンド生成\nconst initData = $node['📋 繋ぎ準備'].json;\nconst joints = $input.first().json.data || [];\n\n// 動画URLリスト作成（動画→繋ぎ→動画→繋ぎ...）\nconst inputList = [];\nconst videos = initData.videos;\n\nfor (let i = 0; i < videos.length; i++) {\n  inputList.push({ type: 'video', url: videos[i].media_url, id: videos[i].id });\n  \n  const joint = joints.find(j => j.position === i + 1);\n  if (joint && joint.audio_url) {\n    inputList.push({ type: 'joint', url: joint.audio_url, script: joint.joint_script });\n  }\n}\n\n// FFmpegコンカット用のファイルリスト\nconst concatList = inputList.filter(i => i.type === 'video').map(i => `file '${i.url}'`).join('\\n');\n\nreturn [{\n  json: {\n    job_id: initData.job_id,\n    topic_tag: initData.topic_tag,\n    video_count: videos.length,\n    joint_count: joints.length,\n    input_list: inputList,\n    concat_list: concatList,\n    ffmpeg_command: `ffmpeg -f concat -safe 0 -i concat_list.txt -c copy output_compilation.mp4`,\n    estimated_duration_seconds: initData.total_duration_seconds + (joints.length * 4)\n  }\n}];"
+      },
+      "id": "build-ffmpeg",
+      "name": "🎬 FFmpegコマンド構築",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE video_concatenation_jobs SET status = 'ready_to_concatenate', joint_scripts = $2::jsonb, processing_started_at = NOW() WHERE job_id = $1",
+        "options": {
+          "queryParams": "={{ [$json.job_id, JSON.stringify($node['📊 繋ぎ集約'].json.data || [])] }}"
+        }
+      },
+      "id": "update-job-status",
+      "name": "💾 ジョブ状態更新",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $node['🎬 FFmpegコマンド構築'].json;\nreturn [{ json: { success: true, action: 'video_concatenate', job_id: data.job_id, topic_tag: data.topic_tag, video_count: data.video_count, joint_count: data.joint_count, estimated_duration_seconds: data.estimated_duration_seconds, status: 'ready_to_concatenate', message: 'FFmpeg連結ジョブを準備しました。EC2/VPSで実行してください。', ffmpeg_command: data.ffmpeg_command } }];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-videos-error",
+      "name": "動画数エラー",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: video-concatenate": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📹 連結対象動画取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📹 連結対象動画取得": {
+      "main": [
+        [
+          {
+            "node": "📋 繋ぎ準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 繋ぎ準備": {
+      "main": [
+        [
+          {
+            "node": "動画数チェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "動画数チェック": {
+      "main": [
+        [
+          {
+            "node": "動画数エラー",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💾 ジョブ作成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 ジョブ作成": {
+      "main": [
+        [
+          {
+            "node": "🔀 ペア分割",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 ペア分割": {
+      "main": [
+        [
+          {
+            "node": "🔗 繋ぎ脚本生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔗 繋ぎ脚本生成": {
+      "main": [
+        [
+          {
+            "node": "📋 繋ぎパース",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 繋ぎパース": {
+      "main": [
+        [
+          {
+            "node": "🎙️ 繋ぎ音声生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎙️ 繋ぎ音声生成": {
+      "main": [
+        [
+          {
+            "node": "💾 繋ぎ保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 繋ぎ保存": {
+      "main": [
+        [
+          {
+            "node": "📊 繋ぎ集約",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 繋ぎ集約": {
+      "main": [
+        [
+          {
+            "node": "🎬 FFmpegコマンド構築",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎬 FFmpegコマンド構築": {
+      "main": [
+        [
+          {
+            "node": "💾 ジョブ状態更新",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 ジョブ状態更新": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 600,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Concatenation",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "Phase-3",
+      "color": "#3498db"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

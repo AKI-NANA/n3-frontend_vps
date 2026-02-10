@@ -1,0 +1,485 @@
+{
+  "name": "【出荷】03_23-物流-自動配送指示ワークフロー_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "forwarder-instruction",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: forwarder-instruction",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "forwarder-instruction"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst secret = $env.N8N_INTERNAL_SECRET;\nif (!secret) return [{ json: { error: true, message: 'N8N_INTERNAL_SECRET未設定', code: 'CONFIG_ERROR' } }];\nconst listingId = body.listing_id;\nconst instructionType = body.instruction_type || 'intake_notice';\nconst trackingNumber = body.tracking_number;\nconst carrier = body.carrier || 'unknown';\nconst shipMethod = body.ship_method || 'air';\nconst consolidationGroupId = body.consolidation_group_id;\nif (!listingId) return [{ json: { error: true, message: 'listing_id は必須', code: 'MISSING_PARAM' } }];\nif (instructionType === 'intake_notice' && !trackingNumber) return [{ json: { error: true, message: 'intake_notice には tracking_number が必須', code: 'MISSING_PARAM' } }];\nreturn [{ json: { listing_id: listingId, instruction_type: instructionType, tracking_number: trackingNumber, carrier: carrier, ship_method: shipMethod, consolidation_group_id: consolidationGroupId } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT lg.*, lp.provider_name, lp.api_support, lp.api_endpoint FROM listing_gateway lg LEFT JOIN logistics_providers lp ON lg.forwarder_id = lp.id WHERE lg.id = $1::uuid",
+        "options": {
+          "queryParams": "={{ [$json.listing_id] }}"
+        }
+      },
+      "id": "get-listing",
+      "name": "📦 出品情報取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "rules": [
+            {
+              "outputKey": "intake",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $node['🔐 初期化'].json.instruction_type }}",
+                    "rightValue": "intake_notice",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "ship",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $node['🔐 初期化'].json.instruction_type }}",
+                    "rightValue": "ship_request",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "consolidation",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $node['🔐 初期化'].json.instruction_type }}",
+                    "rightValue": "consolidation",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "fallbackOutput": "intake"
+        }
+      },
+      "id": "switch-type",
+      "name": "🔀 指示タイプ分岐",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $node['🔐 初期化'].json;\nconst listing = $node['📦 出品情報取得'].json;\nconst listingData = Array.isArray(listing) ? listing[0] : listing;\nconst forwarderName = listingData?.provider_name || 'Unknown';\nconst expectedArrival = new Date();\nexpectedArrival.setDate(expectedArrival.getDate() + 5);\nreturn [{ json: { instruction_type: 'intake_notice', listing_id: config.listing_id, forwarder_name: forwarderName, tracking_number: config.tracking_number, carrier: config.carrier, expected_arrival: expectedArrival.toISOString().split('T')[0], message: `【入庫予告】追跡番号: ${config.tracking_number} (${config.carrier}) の荷物が入庫予定です。到着予定: ${expectedArrival.toISOString().split('T')[0]}` } }];"
+      },
+      "id": "prepare-intake",
+      "name": "📥 入庫予告準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $node['🔐 初期化'].json;\nconst listing = $node['📦 出品情報取得'].json;\nconst listingData = Array.isArray(listing) ? listing[0] : listing;\nconst forwarderName = listingData?.provider_name || 'Unknown';\nconst destAddress = { country: listingData?.dest_country || 'US', city: 'To be specified', zip: '00000' };\nreturn [{ json: { instruction_type: 'ship_request', listing_id: config.listing_id, forwarder_name: forwarderName, ship_method: config.ship_method, destination: destAddress, message: `【発送指示】${config.ship_method === 'express' ? '速達' : (config.ship_method === 'air' ? '航空便' : '船便')}で発送してください。` } }];"
+      },
+      "id": "prepare-ship",
+      "name": "🚀 発送指示準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $node['🔐 初期化'].json;\nconst listing = $node['📦 出品情報取得'].json;\nconst listingData = Array.isArray(listing) ? listing[0] : listing;\nconst forwarderName = listingData?.provider_name || 'Unknown';\nreturn [{ json: { instruction_type: 'consolidation', listing_id: config.listing_id, forwarder_name: forwarderName, consolidation_group_id: config.consolidation_group_id, message: `【同梱指示】グループ ${config.consolidation_group_id} の荷物を同梱して発送してください。` } }];"
+      },
+      "id": "prepare-consolidation",
+      "name": "📦 同梱指示準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO forwarder_instructions (listing_id, forwarder_id, instruction_type, tracking_number, carrier, expected_arrival, ship_method, status, sent_at) SELECT $1::uuid, forwarder_id, $2, $3, $4, $5::date, $6, 'sent', NOW() FROM listing_gateway WHERE id = $1::uuid RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.listing_id, $json.instruction_type, $json.tracking_number || null, $json.carrier || null, $json.expected_arrival || null, $json.ship_method || null] }}"
+        }
+      },
+      "id": "save-instruction",
+      "name": "💾 指示保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=[info][title]🚚 配送指示送信[/title]代行会社: {{ $json.forwarder_name }}\\nタイプ: {{ $json.instruction_type }}\\n\\n{{ $json.message }}[/info]"
+            }
+          ]
+        },
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "notify",
+      "name": "📢 指示通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const instruction = $node['💾 指示保存'].json;\nconst config = $input.first().json;\nreturn [{ json: { success: true, instruction_id: instruction?.id || null, listing_id: config.listing_id, type: config.instruction_type, forwarder: config.forwarder_name, message: config.message } }];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス整形",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: forwarder-instruction": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📦 出品情報取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 出品情報取得": {
+      "main": [
+        [
+          {
+            "node": "🔀 指示タイプ分岐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 指示タイプ分岐": {
+      "main": [
+        [
+          {
+            "node": "📥 入庫予告準備",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🚀 発送指示準備",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📦 同梱指示準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📥 入庫予告準備": {
+      "main": [
+        [
+          {
+            "node": "💾 指示保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚀 発送指示準備": {
+      "main": [
+        [
+          {
+            "node": "💾 指示保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 同梱指示準備": {
+      "main": [
+        [
+          {
+            "node": "💾 指示保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 指示保存": {
+      "main": [
+        [
+          {
+            "node": "📢 指示通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📢 指示通知": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス整形",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス整形": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 120,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Logistics",
+      "color": "#ff8c00"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Forwarder",
+      "color": "#4682b4"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

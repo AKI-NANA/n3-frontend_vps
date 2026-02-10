@@ -1,0 +1,462 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Inputs & Form Controls
+   統一サイズシステム対応版
+   
+   基本: 全て --n3-* 変数を参照（data-sizeで自動変化）
+   個別: .n3-size-sm 等で上書き可能
+   ============================================================ */
+
+/* ============================================================
+   TEXT INPUT
+   ============================================================ */
+
+.n3-input {
+  display: block;
+  width: 100%;
+  height: var(--n3-height);
+  padding: 0 var(--n3-px);
+  font-size: var(--n3-font);
+  font-weight: 400;
+  color: var(--text);
+  background: var(--panel);
+  border: var(--style-input-border, 1px solid var(--panel-border));
+  border-radius: var(--style-input-radius, var(--n3-radius));
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+.n3-input::placeholder {
+  color: var(--text-subtle);
+}
+
+.n3-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: var(--style-input-shadow-focus, 0 0 0 2px var(--color-primary-light));
+}
+
+.n3-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--highlight);
+}
+
+/* ============================================================
+   INPUT STATES
+   ============================================================ */
+
+.n3-input-error,
+.n3-input.error {
+  border-color: var(--color-error);
+}
+
+.n3-input-error:focus,
+.n3-input.error:focus {
+  box-shadow: 0 0 0 2px var(--color-error-light);
+}
+
+.n3-input-success,
+.n3-input.success {
+  border-color: var(--color-success);
+}
+
+/* ============================================================
+   INPUT WITH ICON
+   ============================================================ */
+
+.n3-input-wrapper {
+  position: relative;
+  display: block;
+}
+
+.n3-input-wrapper .n3-input {
+  padding-left: calc(var(--n3-px) + var(--n3-icon) + 4px);
+}
+
+.n3-input-wrapper .n3-input-icon {
+  position: absolute;
+  left: var(--n3-px);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+  width: var(--n3-icon);
+  height: var(--n3-icon);
+}
+
+.n3-input-wrapper .n3-input:focus + .n3-input-icon {
+  color: var(--color-primary);
+}
+
+/* Right icon */
+.n3-input-wrapper.icon-right .n3-input {
+  padding-left: var(--n3-px);
+  padding-right: calc(var(--n3-px) + var(--n3-icon) + 4px);
+}
+
+.n3-input-wrapper.icon-right .n3-input-icon {
+  left: auto;
+  right: var(--n3-px);
+}
+
+/* ============================================================
+   INPUT GROUP
+   ============================================================ */
+
+.n3-input-group {
+  display: flex;
+  align-items: stretch;
+}
+
+.n3-input-group .n3-input {
+  border-radius: 0;
+  flex: 1;
+}
+
+.n3-input-group .n3-input:first-child {
+  border-radius: var(--n3-radius) 0 0 var(--n3-radius);
+}
+
+.n3-input-group .n3-input:last-child {
+  border-radius: 0 var(--n3-radius) var(--n3-radius) 0;
+}
+
+.n3-input-addon {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--n3-px);
+  font-size: var(--n3-font);
+  color: var(--text-muted);
+  background: var(--highlight);
+  border: 1px solid var(--panel-border);
+  white-space: nowrap;
+}
+
+/* ============================================================
+   TEXTAREA
+   ============================================================ */
+
+.n3-textarea {
+  display: block;
+  width: 100%;
+  min-height: 80px;
+  padding: var(--n3-px);
+  font-size: var(--n3-font);
+  font-weight: 400;
+  color: var(--text);
+  background: var(--panel);
+  border: var(--style-input-border, 1px solid var(--panel-border));
+  border-radius: var(--style-input-radius, var(--n3-radius));
+  transition: var(--style-transition-fast, all 0.12s ease);
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.n3-textarea::placeholder {
+  color: var(--text-subtle);
+}
+
+.n3-textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: var(--style-input-shadow-focus, 0 0 0 2px var(--color-primary-light));
+}
+
+.n3-textarea:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--highlight);
+  resize: none;
+}
+
+/* ============================================================
+   SELECT
+   ============================================================ */
+
+.n3-select {
+  display: block;
+  width: 100%;
+  height: var(--n3-height);
+  padding: 0 calc(var(--n3-px) + 16px) 0 var(--n3-px);
+  font-size: var(--n3-font);
+  font-weight: 400;
+  color: var(--text);
+  background: var(--panel);
+  border: var(--style-input-border, 1px solid var(--panel-border));
+  border-radius: var(--style-input-radius, var(--n3-radius));
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  transition: var(--style-transition-fast, all 0.12s ease);
+}
+
+.n3-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: var(--style-input-shadow-focus, 0 0 0 2px var(--color-primary-light));
+}
+
+.n3-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: var(--highlight);
+}
+
+/* ============================================================
+   CHECKBOX
+   ============================================================ */
+
+.n3-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--n3-gap);
+  cursor: pointer;
+  font-size: var(--n3-font);
+  color: var(--text);
+}
+
+.n3-checkbox-custom {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--n3-gap);
+  cursor: pointer;
+  font-size: var(--n3-font);
+}
+
+.n3-checkbox-custom input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.n3-checkbox-custom .checkmark {
+  width: var(--n3-icon);
+  height: var(--n3-icon);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--style-checkbox-radius, 3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--style-transition-fast, all 0.12s ease);
+  flex-shrink: 0;
+}
+
+.n3-checkbox-custom input:checked + .checkmark {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.n3-checkbox-custom input:checked + .checkmark::after {
+  content: '';
+  width: 4px;
+  height: 8px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) translateY(-1px);
+}
+
+.n3-checkbox-custom input:disabled + .checkmark {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============================================================
+   RADIO
+   ============================================================ */
+
+.n3-radio-custom {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--n3-gap);
+  cursor: pointer;
+  font-size: var(--n3-font);
+}
+
+.n3-radio-custom input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.n3-radio-custom .radiomark {
+  width: var(--n3-icon);
+  height: var(--n3-icon);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--style-transition-fast, all 0.12s ease);
+  flex-shrink: 0;
+}
+
+.n3-radio-custom input:checked + .radiomark {
+  border-color: var(--color-primary);
+}
+
+.n3-radio-custom input:checked + .radiomark::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  background: var(--color-primary);
+  border-radius: 50%;
+}
+
+.n3-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--n3-gap);
+}
+
+.n3-radio-group-horizontal {
+  flex-direction: row;
+  gap: calc(var(--n3-gap) * 2);
+}
+
+/* ============================================================
+   SWITCH / TOGGLE
+   ============================================================ */
+
+.n3-switch {
+  position: relative;
+  width: calc(var(--n3-height) * 1.125);
+  height: calc(var(--n3-height) * 0.625);
+  background: var(--panel-border);
+  border-radius: calc(var(--n3-height) * 0.3125);
+  cursor: pointer;
+  transition: var(--style-transition-fast, all 0.15s ease);
+  flex-shrink: 0;
+}
+
+.n3-switch::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: calc(var(--n3-height) * 0.5);
+  height: calc(var(--n3-height) * 0.5);
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  transition: var(--style-transition-fast, all 0.15s ease);
+}
+
+.n3-switch.active,
+.n3-switch:checked {
+  background: var(--color-primary);
+}
+
+.n3-switch.active::after,
+.n3-switch:checked::after {
+  left: calc(100% - var(--n3-height) * 0.5 - 2px);
+}
+
+.n3-switch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.n3-switch-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--n3-gap);
+  cursor: pointer;
+  font-size: var(--n3-font);
+  color: var(--text);
+}
+
+/* ============================================================
+   FORM GROUP
+   ============================================================ */
+
+.n3-form-group {
+  margin-bottom: calc(var(--n3-px) * 1.5);
+}
+
+.n3-form-label {
+  display: block;
+  margin-bottom: calc(var(--n3-gap));
+  font-size: var(--n3-font);
+  font-weight: 500;
+  color: var(--text);
+}
+
+.n3-form-label-required::after {
+  content: ' *';
+  color: var(--color-error);
+}
+
+.n3-form-hint {
+  margin-top: calc(var(--n3-gap) * 0.5);
+  font-size: calc(var(--n3-font) * 0.9);
+  color: var(--text-muted);
+}
+
+.n3-form-error {
+  margin-top: calc(var(--n3-gap) * 0.5);
+  font-size: calc(var(--n3-font) * 0.9);
+  color: var(--color-error);
+  display: flex;
+  align-items: center;
+  gap: calc(var(--n3-gap) * 0.5);
+}
+
+/* ============================================================
+   SEARCH INPUT
+   ============================================================ */
+
+.n3-search {
+  position: relative;
+}
+
+.n3-search .n3-input {
+  padding-left: calc(var(--n3-px) + var(--n3-icon) + 8px);
+  padding-right: calc(var(--n3-px) + var(--n3-icon) + 8px);
+}
+
+.n3-search-icon {
+  position: absolute;
+  left: var(--n3-px);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+  width: var(--n3-icon);
+  height: var(--n3-icon);
+}
+
+.n3-search-clear {
+  position: absolute;
+  right: var(--n3-px);
+  top: 50%;
+  transform: translateY(-50%);
+  width: var(--n3-icon);
+  height: var(--n3-icon);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.n3-search:hover .n3-search-clear,
+.n3-search .n3-input:focus ~ .n3-search-clear {
+  opacity: 1;
+}
+
+.n3-search-clear:hover {
+  background: var(--highlight);
+  color: var(--text);
+}

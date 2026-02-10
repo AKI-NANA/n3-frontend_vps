@@ -1,0 +1,630 @@
+{
+  "name": "【システム】04_61-分析-ダッシュボード集計API_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dashboard-metrics",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: dashboard-metrics",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "dashboard-metrics"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "毎時0分",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst action = body.action || 'get_all'; // get_all, get_sales, get_profit, get_inventory, refresh, get_alerts\nconst dateRange = body.date_range || {};\nconst platform = body.platform;\nconst isScheduled = !$input.first().json.body;\nreturn [{ json: { action: isScheduled ? 'refresh' : action, date_range: dateRange, platform, is_scheduled: isScheduled } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "rules": [
+            {
+              "outputKey": "get_all",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "get_all",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "refresh",
+              "conditions": {
+                "combinator": "or",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "refresh",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  },
+                  {
+                    "leftValue": "={{ $json.is_scheduled }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "get_alerts",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "get_alerts",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "fallbackOutput": "get_all"
+        }
+      },
+      "id": "switch-action",
+      "name": "🔀 アクション分岐",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT metric_type, metric_date, metric_data FROM dashboard_metrics WHERE metric_date >= CURRENT_DATE - INTERVAL '30 days' ORDER BY metric_date DESC",
+        "options": {}
+      },
+      "id": "get-all-metrics",
+      "name": "📊 全メトリクス取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM dashboard_alerts WHERE is_read = false ORDER BY CASE alert_severity WHEN 'critical' THEN 1 WHEN 'warning' THEN 2 ELSE 3 END, created_at DESC LIMIT 50",
+        "options": {}
+      },
+      "id": "get-alerts",
+      "name": "🚨 アラート取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT DATE(created_at) as sale_date, COUNT(*) as order_count, SUM(total_amount) as total_sales, SUM(CASE WHEN platform = 'ebay' THEN total_amount ELSE 0 END) as ebay_sales, SUM(CASE WHEN platform = 'amazon' THEN total_amount ELSE 0 END) as amazon_sales, SUM(CASE WHEN platform = 'shopee' THEN total_amount ELSE 0 END) as shopee_sales, SUM(CASE WHEN platform = 'coupang' THEN total_amount ELSE 0 END) as coupang_sales FROM orders_unified WHERE created_at >= CURRENT_DATE - INTERVAL '30 days' GROUP BY DATE(created_at) ORDER BY sale_date DESC",
+        "options": {}
+      },
+      "id": "calc-daily-sales",
+      "name": "📈 日別売上集計",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT platform, COUNT(*) as order_count, SUM(total_amount) as total_sales, AVG(total_amount) as avg_order_value FROM orders_unified WHERE created_at >= CURRENT_DATE - INTERVAL '30 days' GROUP BY platform ORDER BY total_sales DESC",
+        "options": {}
+      },
+      "id": "calc-platform-breakdown",
+      "name": "📊 販路別集計",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT DATE(settled_at) as settle_date, COUNT(*) as settlements, SUM(gross_revenue) as total_revenue, SUM(net_profit) as total_profit, AVG(profit_margin) as avg_margin FROM profit_settlements WHERE settled_at >= CURRENT_DATE - INTERVAL '30 days' GROUP BY DATE(settled_at) ORDER BY settle_date DESC",
+        "options": {}
+      },
+      "id": "calc-profit-trend",
+      "name": "💰 利益推移集計",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT pm.category_primary as category, COUNT(pm.id) as product_count, SUM(im.quantity) as total_stock, AVG(EXTRACT(DAY FROM NOW() - pm.created_at)) as avg_days_listed FROM products_master pm LEFT JOIN inventory_master im ON pm.id = im.product_id WHERE pm.status = 'active' GROUP BY pm.category_primary ORDER BY total_stock DESC LIMIT 20",
+        "options": {}
+      },
+      "id": "calc-inventory",
+      "name": "📦 在庫カテゴリ集計",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const dailySales = $node['📈 日別売上集計'].json;\nconst platformBreakdown = $node['📊 販路別集計'].json;\nconst profitTrend = $node['💰 利益推移集計'].json;\nconst inventory = $node['📦 在庫カテゴリ集計'].json;\n\nconst today = new Date().toISOString().split('T')[0];\n\nconst metrics = [\n  { metric_type: 'daily_sales', metric_date: today, metric_data: { data: Array.isArray(dailySales) ? dailySales : [dailySales] } },\n  { metric_type: 'platform_breakdown', metric_date: today, metric_data: { data: Array.isArray(platformBreakdown) ? platformBreakdown : [platformBreakdown] } },\n  { metric_type: 'profit_trend', metric_date: today, metric_data: { data: Array.isArray(profitTrend) ? profitTrend : [profitTrend] } },\n  { metric_type: 'inventory_breakdown', metric_date: today, metric_data: { data: Array.isArray(inventory) ? inventory : [inventory] } }\n];\n\nreturn metrics.map(m => ({ json: m }));"
+      },
+      "id": "prepare-metrics",
+      "name": "📋 メトリクス準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO dashboard_metrics (metric_type, metric_date, metric_data) VALUES ($1, $2::date, $3::jsonb) ON CONFLICT (user_id, metric_type, metric_date) DO UPDATE SET metric_data = $3::jsonb, calculated_at = NOW() RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.metric_type, $json.metric_date, JSON.stringify($json.metric_data)] }}"
+        }
+      },
+      "id": "save-metrics",
+      "name": "💾 メトリクス保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT setting_value::decimal FROM global_settings WHERE setting_key = 'alert_profit_drop_threshold'",
+        "options": {}
+      },
+      "id": "get-threshold",
+      "name": "⚙️ 閾値取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const profitTrend = $node['💰 利益推移集計'].json;\nconst thresholdRaw = $input.first().json;\nconst threshold = parseFloat(thresholdRaw?.setting_value) || 0.10;\n\nconst profits = Array.isArray(profitTrend) ? profitTrend : [profitTrend];\nconst alerts = [];\n\n// 利益率低下チェック\nif (profits.length >= 2) {\n  const latest = profits[0];\n  const previous = profits[1];\n  if (latest && previous && latest.avg_margin && previous.avg_margin) {\n    const drop = previous.avg_margin - latest.avg_margin;\n    if (drop > threshold) {\n      alerts.push({\n        alert_type: 'profit_drop',\n        alert_severity: drop > 0.20 ? 'critical' : 'warning',\n        alert_title: '利益率低下アラート',\n        alert_message: `利益率が${Math.round(drop * 100)}%低下しました（${Math.round(previous.avg_margin * 100)}% → ${Math.round(latest.avg_margin * 100)}%）`,\n        alert_data: { previous_margin: previous.avg_margin, current_margin: latest.avg_margin, drop: drop }\n      });\n    }\n  }\n}\n\nreturn alerts.length > 0 ? alerts.map(a => ({ json: a })) : [{ json: { no_alerts: true } }];"
+      },
+      "id": "check-alerts",
+      "name": "🚨 アラートチェック",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "no-alerts",
+              "leftValue": "={{ $json.no_alerts }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "has-alerts",
+      "name": "アラートあり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO dashboard_alerts (alert_type, alert_severity, alert_title, alert_message, alert_data) VALUES ($1, $2, $3, $4, $5::jsonb) RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.alert_type, $json.alert_severity, $json.alert_title, $json.alert_message, JSON.stringify($json.alert_data || {})] }}"
+        }
+      },
+      "id": "save-alerts",
+      "name": "💾 アラート保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const action = $node['🔐 初期化'].json.action;\nlet result = { success: true, action, timestamp: new Date().toISOString() };\n\nif (action === 'get_all') {\n  const metrics = $node['📊 全メトリクス取得'].json;\n  result.metrics = Array.isArray(metrics) ? metrics : (metrics?.metric_type ? [metrics] : []);\n} else if (action === 'get_alerts') {\n  const alerts = $node['🚨 アラート取得'].json;\n  result.alerts = Array.isArray(alerts) ? alerts : (alerts?.id ? [alerts] : []);\n} else if (action === 'refresh') {\n  result.message = 'メトリクス更新完了';\n  result.metrics_updated = 4;\n}\n\nreturn [{ json: result }];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: dashboard-metrics": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "毎時0分": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "🔀 アクション分岐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 アクション分岐": {
+      "main": [
+        [
+          {
+            "node": "📊 全メトリクス取得",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📈 日別売上集計",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🚨 アラート取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 全メトリクス取得": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚨 アラート取得": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📈 日別売上集計": {
+      "main": [
+        [
+          {
+            "node": "📊 販路別集計",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 販路別集計": {
+      "main": [
+        [
+          {
+            "node": "💰 利益推移集計",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💰 利益推移集計": {
+      "main": [
+        [
+          {
+            "node": "📦 在庫カテゴリ集計",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 在庫カテゴリ集計": {
+      "main": [
+        [
+          {
+            "node": "📋 メトリクス準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 メトリクス準備": {
+      "main": [
+        [
+          {
+            "node": "💾 メトリクス保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 メトリクス保存": {
+      "main": [
+        [
+          {
+            "node": "⚙️ 閾値取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚙️ 閾値取得": {
+      "main": [
+        [
+          {
+            "node": "🚨 アラートチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚨 アラートチェック": {
+      "main": [
+        [
+          {
+            "node": "アラートあり？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "アラートあり？": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💾 アラート保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 アラート保存": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 300,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Analytics",
+      "color": "#3498db"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Dashboard",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

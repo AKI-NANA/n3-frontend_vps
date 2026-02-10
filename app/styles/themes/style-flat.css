@@ -1,0 +1,113 @@
+/* ============================================================
+   N3 DESIGN SYSTEM - Style Theme: Flat
+   フラットデザイン。角丸なし、シャドウなし、ボーダーのみ
+   ============================================================ */
+
+[data-style="flat"] {
+  /* ===== SHAPE - 角丸なしまたは最小 ===== */
+  --style-radius-xs: 0;
+  --style-radius-sm: 2px;
+  --style-radius-md: 2px;
+  --style-radius-lg: 4px;
+  --style-radius-xl: 4px;
+  --style-radius-full: 9999px;
+  
+  /* ===== SHADOWS - なし ===== */
+  --style-shadow-xs: none;
+  --style-shadow-sm: none;
+  --style-shadow-md: none;
+  --style-shadow-lg: none;
+  --style-shadow-xl: none;
+  
+  /* ===== BORDERS - 強調 ===== */
+  --style-border-width: 2px;
+  --style-border-style: solid;
+  
+  /* ===== EFFECTS ===== */
+  --style-blur: none;
+  --style-backdrop: none;
+  --style-opacity: 1;
+  
+  /* ===== TRANSITIONS - 即座に ===== */
+  --style-transition-fast: all 0.08s ease;
+  --style-transition-normal: all 0.1s ease;
+  --style-transition-slow: all 0.15s ease;
+  
+  /* ===== COMPONENT OVERRIDES ===== */
+  
+  /* Button - ボーダーのみ */
+  --style-btn-radius: 2px;
+  --style-btn-shadow: none;
+  --style-btn-shadow-hover: none;
+  --style-btn-border: 2px solid currentColor;
+  
+  /* Card */
+  --style-card-radius: 2px;
+  --style-card-shadow: none;
+  --style-card-shadow-hover: none;
+  --style-card-border: 2px solid var(--panel-border);
+  
+  /* Input */
+  --style-input-radius: 2px;
+  --style-input-shadow: none;
+  --style-input-shadow-focus: none;
+  --style-input-border: 2px solid var(--panel-border);
+  
+  /* Badge - 角丸なし */
+  --style-badge-radius: 2px;
+}
+
+/* Flat: ボタンのホバーで背景反転 */
+[data-style="flat"] .n3-btn-primary:hover {
+  filter: brightness(1.1);
+}
+
+[data-style="flat"] .n3-btn-secondary {
+  background: transparent !important;
+  border: 2px solid var(--text-muted) !important;
+  color: var(--text) !important;
+}
+
+[data-style="flat"] .n3-btn-secondary:hover {
+  background: var(--text) !important;
+  color: var(--bg-solid) !important;
+}
+
+/* Flat: inputのフォーカスでボーダー太く */
+[data-style="flat"] .n3-input:focus,
+[data-style="flat"] .n3-select:focus {
+  border-color: var(--accent) !important;
+  outline: none;
+}
+
+/* Flat: Header系コンポーネント */
+[data-style="flat"] .n3-header-tab {
+  border-radius: 0 !important;
+}
+
+[data-style="flat"] .n3-header-tab.active {
+  border-bottom: 3px solid var(--accent) !important;
+  background: transparent !important;
+  color: var(--accent) !important;
+}
+
+[data-style="flat"] .n3-lang-switch,
+[data-style="flat"] .n3-header-search-input {
+  border-radius: 2px !important;
+  border-width: 2px !important;
+}
+
+[data-style="flat"] .n3-notification-bell,
+[data-style="flat"] .n3-pin-button {
+  border-radius: 0 !important;
+}
+
+[data-style="flat"] .n3-l2-tab__badge {
+  border-radius: 2px !important;
+}
+
+[data-style="flat"] .n3-header-tabs__panel {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  border-width: 2px !important;
+}

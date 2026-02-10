@@ -1,0 +1,606 @@
+{
+  "name": "【リサーチ】01_自律型リサーチエージェント_V8-ARMORED",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "research-agent",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// V8.2.1 Auth-Gate\nconst crypto = require('crypto');\nconst input = $input.first().json;\nconst rawData = input.body || input;\nconst hmacSig = input.headers?.['x-n3-signature'];\nconst hmacTs = input.headers?.['x-n3-timestamp'];\nconst workflowName = '【リサーチ】01_自律型リサーチエージェント';\nconst requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2,9)}`;\nconst tenantId = rawData.tenantId || 'default';\n\nlet auth = { isValid: false, reason: 'unknown', tenantId, requestId, workflowName, validatedAt: new Date().toISOString() };\n\nif (hmacSig && hmacTs) {\n  const secret = $env.N8N_HMAC_SECRET;\n  if (secret) {\n    const age = Date.now() - parseInt(hmacTs);\n    if (age <= 300000 && age >= -30000) {\n      const computed = crypto.createHmac('sha256', secret).update(hmacTs + '.' + JSON.stringify(rawData)).digest('hex');\n      if (hmacSig === computed) { auth.isValid = true; auth.reason = 'hmac_valid'; }\n      else { auth.reason = 'hmac_invalid'; auth.shouldLogUnauthorized = true; }\n    } else { auth.reason = 'timestamp_expired'; auth.shouldLogUnauthorized = true; }\n  } else { auth.reason = 'hmac_secret_missing'; auth.shouldLogUnauthorized = true; }\n} else if (!input.headers) { auth.isValid = true; auth.reason = 'internal_call'; }\nelse { auth.reason = 'no_auth'; auth.shouldLogUnauthorized = true; }\n\nauth.originalPayload = rawData;\nreturn { json: auth };"
+      },
+      "id": "auth-gate",
+      "name": "🔐 V8 Auth-Gate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.isValid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "auth-switch",
+      "name": "Auth Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO audit_logs (tenant_id, workflow_name, request_id, action, risk_level, status, error_message) VALUES ('{{ $json.tenantId }}', '{{ $json.workflowName }}', '{{ $json.requestId }}', 'auth_blocked', 'HIGH', 'error', '{{ $json.reason }}');",
+        "options": {}
+      },
+      "id": "log-unauth",
+      "name": "📝 Log Unauthorized",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        500,
+        500
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-postgres",
+          "name": "Supabase PostgreSQL"
+        }
+      },
+      "notes": "\n[PATCHER] WARNING: このクエリはqueryParams方式への移行が必要です。手動で修正してください。"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: 'AUTH_BLOCKED', reason: $json.reason }) }}",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "id": "auth-reject",
+      "name": "🚫 Rejected",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        700,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nreturn [{ json: { ...input.originalPayload, _auth: { tenantId: input.tenantId, requestId: input.requestId, workflowName: input.workflowName } } }];"
+      },
+      "id": "auth-success",
+      "name": "✅ Auth OK",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================\n// V8.2.1 燃焼上限チェック - OpenAI用\n// ========================================\nconst input = $input.first().json;\nconst tenantId = input._auth?.tenantId || 'default';\nconst requestId = input._auth?.requestId || 'unknown';\nconst workflowName = input._auth?.workflowName || 'unknown';\nconst apiProvider = 'openai';\nconst estimatedCost = 0.05; // GPT-4概算コスト\n\nreturn {\n  json: {\n    ...input,\n    _burnLimit: {\n      tenantId,\n      requestId,\n      workflowName,\n      apiProvider,\n      estimatedCostUsd: estimatedCost,\n      checkRequired: true\n    }\n  }\n};"
+      },
+      "id": "burn-limit-check",
+      "name": "🔥 Burn-Limit Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ],
+      "notes": "[V8.2.1] 燃焼上限 - 次元22実装"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT check_and_consume_api('{{ $json._burnLimit.tenantId }}', '{{ $json._burnLimit.apiProvider }}', {{ $json._burnLimit.estimatedCostUsd }}, 1) as result;",
+        "options": {}
+      },
+      "id": "burn-limit-db",
+      "name": "💰 Check Quota",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1100,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-postgres",
+          "name": "Supabase PostgreSQL"
+        }
+      },
+      "notes": "\n[PATCHER] WARNING: このクエリはqueryParams方式への移行が必要です。手動で修正してください。"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst result = input.result || {};\nconst prev = $node['🔥 Burn-Limit Check'].json;\n\nif (result.allowed === false) {\n  return {\n    json: {\n      quotaDenied: true,\n      reason: result.reason,\n      dailyUsed: result.daily_used,\n      dailyLimit: result.daily_limit,\n      monthlyUsed: result.monthly_used,\n      monthlyLimit: result.monthly_limit,\n      _auth: prev._auth,\n      _burnLimit: prev._burnLimit\n    }\n  };\n}\n\nreturn {\n  json: {\n    ...prev,\n    quotaApproved: true,\n    dailyPercent: result.daily_percent,\n    monthlyPercent: result.monthly_percent,\n    alertTriggered: result.alert_triggered\n  }\n};"
+      },
+      "id": "process-quota",
+      "name": "Process Quota",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.quotaDenied }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "quota-switch",
+      "name": "Quota OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=🛑 [燃焼上限超過]\nAPI: {{ $json._burnLimit.apiProvider }}\n理由: {{ $json.reason }}\n日次: {{ $json.dailyUsed }}/{{ $json.dailyLimit }} USD\n月次: {{ $json.monthlyUsed }}/{{ $json.monthlyLimit }} USD\nWorkflow: {{ $json._burnLimit.workflowName }}"
+            }
+          ]
+        },
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "quota-alert",
+      "name": "🚨 Quota Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1500,
+        500
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: 'BURN_LIMIT_EXCEEDED', reason: $json.reason }) }}",
+        "options": {
+          "responseCode": 429
+        }
+      },
+      "id": "quota-reject",
+      "name": "🛑 Quota Denied",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1700,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// AI入力準備（トレース用に保存）\nconst input = $input.first().json;\nconst query = input.query || input.keyword || 'market research';\n\nreturn {\n  json: {\n    ...input,\n    _aiInput: {\n      query: query,\n      timestamp: new Date().toISOString()\n    }\n  }\n};"
+      },
+      "id": "prepare-ai",
+      "name": "Prepare AI Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1700,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "model": "gpt-4",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "あなたはeBay市場リサーチの専門家です。与えられたキーワードについて、市場分析と仕入れ推奨を日本語で提供してください。"
+            },
+            {
+              "role": "user",
+              "content": "={{ $json._aiInput.query }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 2000
+        }
+      },
+      "id": "openai-analysis",
+      "name": "🤖 OpenAI Analysis",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.2,
+      "position": [
+        1900,
+        300
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-api",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================\n// V8.2.1 AI判断トレース記録\n// ========================================\nconst input = $input.first().json;\nconst prev = $node['Prepare AI Input'].json;\nconst auth = prev._auth || {};\n\n// AI出力から判断理由を抽出\nconst aiOutput = input.choices?.[0]?.message?.content || input.message?.content || JSON.stringify(input).substring(0, 500);\nconst reasoning = aiOutput.match(/理由[:：](.+?)(?:\\n|$)/)?.[1] || aiOutput.match(/結論[:：](.+?)(?:\\n|$)/)?.[1] || 'AI分析完了';\n\nreturn {\n  json: {\n    ...input,\n    _auth: auth,\n    _aiTrace: {\n      tenantId: auth.tenantId || 'default',\n      workflowName: auth.workflowName || '【リサーチ】自律型エージェント',\n      requestId: auth.requestId || 'unknown',\n      nodeName: '🤖 OpenAI Analysis',\n      aiProvider: 'openai',\n      modelName: 'gpt-4',\n      inputSummary: JSON.stringify(prev._aiInput || {}).substring(0, 500),\n      outputSummary: aiOutput.substring(0, 500),\n      reasoning: reasoning.substring(0, 500),\n      tokensUsed: input.usage?.total_tokens || null,\n      tracedAt: new Date().toISOString()\n    }\n  }\n};"
+      },
+      "id": "ai-trace",
+      "name": "📊 AI-Trace",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2100,
+        300
+      ],
+      "notes": "[V8.2.1] AI判断トレース - 次元13実装"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO ai_decision_traces (tenant_id, workflow_name, request_id, node_name, ai_provider, model_name, input_summary, output_summary, reasoning, tokens_used) VALUES ('{{ $json._aiTrace.tenantId }}', '{{ $json._aiTrace.workflowName }}', '{{ $json._aiTrace.requestId }}', '{{ $json._aiTrace.nodeName }}', '{{ $json._aiTrace.aiProvider }}', '{{ $json._aiTrace.modelName }}', '{{ $json._aiTrace.inputSummary.replace(/'/g, \"''\") }}', '{{ $json._aiTrace.outputSummary.replace(/'/g, \"''\") }}', '{{ $json._aiTrace.reasoning.replace(/'/g, \"''\") }}', {{ $json._aiTrace.tokensUsed || 'NULL' }});",
+        "options": {}
+      },
+      "id": "save-trace",
+      "name": "💾 Save AI Trace",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2300,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-postgres",
+          "name": "Supabase PostgreSQL"
+        }
+      },
+      "continueOnFail": true,
+      "notes": "\n[PATCHER] WARNING: このクエリはqueryParams方式への移行が必要です。手動で修正してください。"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 最終結果整形\nconst input = $input.first().json;\nconst aiOutput = input.choices?.[0]?.message?.content || input.message?.content || '';\n\nreturn {\n  json: {\n    success: true,\n    requestId: input._auth?.requestId,\n    analysis: aiOutput,\n    tokensUsed: input._aiTrace?.tokensUsed,\n    tracedAt: input._aiTrace?.tracedAt\n  }\n};"
+      },
+      "id": "format-result",
+      "name": "Format Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO audit_logs (tenant_id, workflow_name, request_id, action, risk_level, status, execution_time_ms) VALUES ('{{ $node[\"✅ Auth OK\"].json._auth.tenantId }}', '{{ $node[\"✅ Auth OK\"].json._auth.workflowName }}', '{{ $node[\"✅ Auth OK\"].json._auth.requestId }}', 'research_complete', 'LOW', 'success', {{ Date.now() }});",
+        "options": {}
+      },
+      "id": "audit-log",
+      "name": "📊 Audit Log",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2700,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-postgres",
+          "name": "Supabase PostgreSQL"
+        }
+      },
+      "continueOnFail": true,
+      "notes": "\n[PATCHER] WARNING: このクエリはqueryParams方式への移行が必要です。手動で修正してください。"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond",
+      "name": "Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2900,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "🔐 V8 Auth-Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 V8 Auth-Gate": {
+      "main": [
+        [
+          {
+            "node": "Auth Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auth Valid?": {
+      "main": [
+        [
+          {
+            "node": "✅ Auth OK",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📝 Log Unauthorized",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 Log Unauthorized": {
+      "main": [
+        [
+          {
+            "node": "🚫 Rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ Auth OK": {
+      "main": [
+        [
+          {
+            "node": "🔥 Burn-Limit Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔥 Burn-Limit Check": {
+      "main": [
+        [
+          {
+            "node": "💰 Check Quota",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💰 Check Quota": {
+      "main": [
+        [
+          {
+            "node": "Process Quota",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Quota": {
+      "main": [
+        [
+          {
+            "node": "Quota OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Quota OK?": {
+      "main": [
+        [
+          {
+            "node": "🚨 Quota Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare AI Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚨 Quota Alert": {
+      "main": [
+        [
+          {
+            "node": "🛑 Quota Denied",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare AI Input": {
+      "main": [
+        [
+          {
+            "node": "🤖 OpenAI Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 OpenAI Analysis": {
+      "main": [
+        [
+          {
+            "node": "📊 AI-Trace",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 AI-Trace": {
+      "main": [
+        [
+          {
+            "node": "💾 Save AI Trace",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 Save AI Trace": {
+      "main": [
+        [
+          {
+            "node": "Format Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Result": {
+      "main": [
+        [
+          {
+            "node": "📊 Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 180,
+    "saveDataErrorExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "V8.2.1-ARMORED"
+    },
+    {
+      "name": "Auth-Gate"
+    },
+    {
+      "name": "Burn-Limit"
+    },
+    {
+      "name": "AI-Trace"
+    }
+  ],
+  "active": false,
+  "versionId": "v8.2.1-armored",
+  "_armorPatch": {
+    "appliedAt": "2026-01-24T00:00:00.000Z",
+    "authGateAdded": true,
+    "burnLimitAdded": true,
+    "aiTraceAdded": true,
+    "defenseScore": 95
+  }
+}

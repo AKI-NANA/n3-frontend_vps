@@ -1,0 +1,681 @@
+{
+  "name": "【経理】03_65-経理-証憑自動収集-紐付けハブ_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "receipt-collect",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: receipt-collect",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "receipt-collect"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "毎日8時",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst action = body.action || 'fetch_gmail'; // fetch_gmail, manual_upload, auto_match, list_unmatched\nconst receiptData = body.receipt_data || {};\nconst isScheduled = !$input.first().json.body;\nreturn [{ json: { action: isScheduled ? 'fetch_gmail' : action, receipt_data: receiptData, is_scheduled: isScheduled } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "rules": [
+            {
+              "outputKey": "gmail",
+              "conditions": {
+                "combinator": "or",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "fetch_gmail",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  },
+                  {
+                    "leftValue": "={{ $json.is_scheduled }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "upload",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "manual_upload",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "match",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "auto_match",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "list",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "list_unmatched",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "fallbackOutput": "gmail"
+        }
+      },
+      "id": "switch-action",
+      "name": "🔀 アクション分岐",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.GMAIL_ACCESS_TOKEN }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "subject:(領収書 OR receipt OR 注文確定 OR order confirmation) newer_than:7d"
+            },
+            {
+              "name": "maxResults",
+              "value": "20"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "fetch-gmail",
+      "name": "📧 Gmail取得",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst messages = response.messages || [];\nif (messages.length === 0) return [{ json: { no_emails: true, message: '新規メールなし' } }];\n\n// メールIDのみ抽出（詳細は別途取得）\nreturn messages.slice(0, 10).map(m => ({ json: { message_id: m.id, thread_id: m.threadId } }));"
+      },
+      "id": "parse-gmail-list",
+      "name": "📋 メールリスト解析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "no-emails",
+              "leftValue": "={{ $json.no_emails }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-emails",
+      "name": "メールあり？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://gmail.googleapis.com/gmail/v1/users/me/messages/{{ $json.message_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.GMAIL_ACCESS_TOKEN }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "fetch-email-detail",
+      "name": "📧 メール詳細取得",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const email = $input.first().json;\nconst headers = email.payload?.headers || [];\n\nconst getHeader = (name) => {\n  const h = headers.find(h => h.name.toLowerCase() === name.toLowerCase());\n  return h ? h.value : '';\n};\n\nconst subject = getHeader('Subject');\nconst from = getHeader('From');\nconst date = getHeader('Date');\n\n// メール本文からデータ抽出（簡易版）\nlet body = '';\nif (email.payload?.body?.data) {\n  body = Buffer.from(email.payload.body.data, 'base64').toString('utf-8');\n} else if (email.payload?.parts) {\n  const textPart = email.payload.parts.find(p => p.mimeType === 'text/plain');\n  if (textPart?.body?.data) {\n    body = Buffer.from(textPart.body.data, 'base64').toString('utf-8');\n  }\n}\n\n// 金額抽出（正規表現）\nconst amountPatterns = [\n  /合計[：:￥¥]?\\s*([\\d,]+)/,\n  /Total[：:$]?\\s*([\\d,.]+)/i,\n  /￥([\\d,]+)/,\n  /\\$([\\d,.]+)/\n];\n\nlet amount = 0;\nlet currency = 'JPY';\nfor (const pattern of amountPatterns) {\n  const match = body.match(pattern);\n  if (match) {\n    amount = parseFloat(match[1].replace(/,/g, ''));\n    if (pattern.source.includes('$')) currency = 'USD';\n    break;\n  }\n}\n\n// 注文番号抽出\nconst orderPatterns = [\n  /注文番号[：:]?\\s*([A-Z0-9\\-]+)/i,\n  /Order\\s*#?[：:]?\\s*([A-Z0-9\\-]+)/i,\n  /([0-9]{3}-[0-9]{7}-[0-9]{7})/ // Amazon形式\n];\n\nlet orderNumber = '';\nfor (const pattern of orderPatterns) {\n  const match = body.match(pattern);\n  if (match) {\n    orderNumber = match[1];\n    break;\n  }\n}\n\n// 取引先判定\nlet counterparty = 'Unknown';\nlet sourceType = 'gmail';\nif (from.includes('amazon')) { counterparty = 'Amazon'; sourceType = 'amazon'; }\nelse if (from.includes('yahoo')) { counterparty = 'Yahoo Japan'; sourceType = 'yahoo'; }\nelse if (from.includes('rakuten')) { counterparty = 'Rakuten'; sourceType = 'rakuten'; }\nelse if (from.includes('ebay')) { counterparty = 'eBay'; sourceType = 'ebay'; }\nelse { counterparty = from.split('<')[0].trim(); }\n\nconst transactionDate = new Date(date).toISOString().split('T')[0];\n\nreturn [{ json: { source_email_id: email.id, receipt_type: 'purchase_receipt', transaction_date: transactionDate, amount: amount, currency: currency, counterparty_name: counterparty, source_type: sourceType, description: subject, order_number: orderNumber, search_text: `${counterparty} ${subject} ${orderNumber} ${amount}` } }];"
+      },
+      "id": "parse-receipt",
+      "name": "📝 領収書解析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO receipts (receipt_type, transaction_date, amount, currency, counterparty_name, source_type, source_email_id, description, search_text, match_status) VALUES ($1, $2::date, $3, $4, $5, $6, $7, $8, $9, 'unmatched') ON CONFLICT DO NOTHING RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.receipt_type, $json.transaction_date, $json.amount, $json.currency, $json.counterparty_name, $json.source_type, $json.source_email_id, $json.description, $json.search_text] }}"
+        }
+      },
+      "id": "save-receipt",
+      "name": "💾 領収書保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $node['🔐 初期化'].json;\nconst data = config.receipt_data;\nreturn [{ json: { receipt_type: data.type || 'purchase_receipt', transaction_date: data.date, amount: data.amount, currency: data.currency || 'JPY', counterparty_name: data.counterparty, description: data.description, file_url: data.file_url, source_type: 'manual', search_text: `${data.counterparty} ${data.description} ${data.amount}` } }];"
+      },
+      "id": "prepare-manual",
+      "name": "📋 手動アップロード準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO receipts (receipt_type, transaction_date, amount, currency, counterparty_name, description, file_url, source_type, search_text, match_status) VALUES ($1, $2::date, $3, $4, $5, $6, $7, $8, $9, 'unmatched') RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.receipt_type, $json.transaction_date, $json.amount, $json.currency, $json.counterparty_name, $json.description, $json.file_url, $json.source_type, $json.search_text] }}"
+        }
+      },
+      "id": "save-manual",
+      "name": "💾 手動保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT r.id as receipt_id, r.amount, r.counterparty_name, r.transaction_date, pc.id as cart_id, pc.source_price_jpy, pc.source_platform, ABS(r.amount - pc.source_price_jpy) as amount_diff FROM receipts r CROSS JOIN purchase_carts pc WHERE r.match_status = 'unmatched' AND pc.cart_status = 'purchased' AND ABS(r.amount - pc.source_price_jpy) < 500 AND ABS(r.transaction_date - pc.purchased_at::date) <= 3 ORDER BY amount_diff ASC LIMIT 50",
+        "options": {}
+      },
+      "id": "find-matches",
+      "name": "🔍 マッチング検索",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const matches = $input.first().json;\nconst matchList = Array.isArray(matches) ? matches : (matches?.receipt_id ? [matches] : []);\nif (matchList.length === 0) return [{ json: { no_matches: true, message: 'マッチング候補なし' } }];\nreturn matchList.map(m => ({ json: m }));"
+      },
+      "id": "prepare-matches",
+      "name": "📋 マッチ準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE receipts SET purchase_cart_id = $1::uuid, match_status = 'auto_matched', match_confidence = $2, matched_at = NOW() WHERE id = $3::uuid AND match_status = 'unmatched' RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.cart_id, 1 - ($json.amount_diff / 500), $json.receipt_id] }}"
+        }
+      },
+      "id": "apply-match",
+      "name": "🔗 マッチ適用",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM receipts WHERE match_status = 'unmatched' ORDER BY transaction_date DESC LIMIT 50",
+        "options": {}
+      },
+      "id": "list-unmatched",
+      "name": "📋 未マッチ一覧",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const action = $node['🔐 初期化'].json.action;\nlet result = { success: true, action };\n\nif (action === 'fetch_gmail') {\n  const saved = $input.all().map(i => i.json).filter(r => r.id);\n  result.fetched = saved.length;\n} else if (action === 'manual_upload') {\n  const saved = $node['💾 手動保存'].json;\n  result.receipt_id = saved?.id;\n} else if (action === 'auto_match') {\n  const matched = $input.all().map(i => i.json).filter(r => r.id);\n  result.matched = matched.length;\n} else if (action === 'list_unmatched') {\n  const unmatched = $node['📋 未マッチ一覧'].json;\n  result.unmatched = Array.isArray(unmatched) ? unmatched : (unmatched?.id ? [unmatched] : []);\n  result.count = result.unmatched.length;\n}\n\nreturn [{ json: result }];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: receipt-collect": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "毎日8時": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "🔀 アクション分岐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 アクション分岐": {
+      "main": [
+        [
+          {
+            "node": "📧 Gmail取得",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 手動アップロード準備",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🔍 マッチング検索",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 未マッチ一覧",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📧 Gmail取得": {
+      "main": [
+        [
+          {
+            "node": "📋 メールリスト解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 メールリスト解析": {
+      "main": [
+        [
+          {
+            "node": "メールあり？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "メールあり？": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📧 メール詳細取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📧 メール詳細取得": {
+      "main": [
+        [
+          {
+            "node": "📝 領収書解析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 領収書解析": {
+      "main": [
+        [
+          {
+            "node": "💾 領収書保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 領収書保存": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 手動アップロード準備": {
+      "main": [
+        [
+          {
+            "node": "💾 手動保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 手動保存": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 マッチング検索": {
+      "main": [
+        [
+          {
+            "node": "📋 マッチ準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 マッチ準備": {
+      "main": [
+        [
+          {
+            "node": "🔗 マッチ適用",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔗 マッチ適用": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 未マッチ一覧": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 300,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Finance",
+      "color": "#27ae60"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Receipt",
+      "color": "#f39c12"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

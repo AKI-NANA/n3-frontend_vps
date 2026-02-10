@@ -1,0 +1,328 @@
+{
+  "name": "【翻訳】02_170-コマース-動画商品抽出-Gemini解析_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "video-to-commerce-extract",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: video-extract",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "video-to-commerce-extract"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 鉄の掟準拠：環境変数必須チェック\nconst apiUrl = $env.N3_API_URL || $env.API_BASE_URL;\nconst geminiKey = $env.GEMINI_API_KEY;\n\nif (!apiUrl) {\n  return [{ json: { error: true, message: 'N3_API_URL環境変数が未設定', code: 'CONFIG_ERROR' } }];\n}\nif (!geminiKey) {\n  return [{ json: { error: true, message: 'GEMINI_API_KEY環境変数が未設定', code: 'CONFIG_ERROR' } }];\n}\n\nconst body = $input.first().json.body || $input.first().json || {};\nconst videoUrl = body.video_url;\nconst channelId = body.channel_id;\nconst targetPlatforms = body.target_platforms || ['ebay', 'shopify'];\n\nif (!videoUrl) {\n  return [{ json: { error: true, message: 'video_url は必須', code: 'MISSING_PARAM' } }];\n}\n\nreturn [{\n  json: {\n    video_url: videoUrl,\n    channel_id: channelId,\n    target_platforms: targetPlatforms,\n    api_url: apiUrl,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "init",
+      "name": "🔐 初期化（鉄の掟準拠）",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-goog-api-key",
+              "value": "={{ $env.GEMINI_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [{\n    \"parts\": [{\n      \"text\": \"この動画に登場する商品を分析し、EC出品用の情報を抽出してください。各商品について以下をJSON配列で回答してください：\\n\\n1. product_name: 商品名（日本語・英語両方）\\n2. category: カテゴリ（eBayカテゴリ推定）\\n3. description: 商品説明（150文字程度）\\n4. features: 特徴・利点（配列）\\n5. specifications: スペック（オブジェクト）\\n6. estimated_price_range: 推定価格帯（USD）\\n7. target_audience: ターゲット層\\n8. keywords: SEOキーワード（配列）\\n9. timestamp_appearances: 動画内で登場するタイムスタンプ（配列）\\n10. confidence_score: 情報の確信度（0-100）\\n\\nJSON配列のみで回答してください。\"\n    },\n    {\n      \"fileData\": {\n        \"mimeType\": \"video/mp4\",\n        \"fileUri\": \"{{ $json.video_url }}\"\n      }\n    }]\n  }],\n  \"generationConfig\": {\n    \"temperature\": 0.1,\n    \"maxOutputTokens\": 4096\n  }\n}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "gemini-extract",
+      "name": "🧠 Gemini商品抽出",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// 鉄の掟準拠：AIエラー耐性（正規表現でJSON抽出）\nconst initData = $node['🔐 初期化（鉄の掟準拠）'].json;\nconst geminiResponse = $input.first().json;\n\nlet products = [];\n\ntry {\n  const text = geminiResponse.candidates?.[0]?.content?.parts?.[0]?.text || '';\n  \n  // 鉄の掟：正規表現でJSON配列抽出\n  const jsonMatch = text.match(/\\[[\\s\\S]*\\]/);\n  if (jsonMatch) {\n    products = JSON.parse(jsonMatch[0]);\n  } else {\n    // 単一オブジェクトの場合\n    const objMatch = text.match(/\\{[\\s\\S]*\\}/);\n    if (objMatch) {\n      products = [JSON.parse(objMatch[0])];\n    }\n  }\n} catch (e) {\n  products = [{\n    product_name: { ja: 'パース失敗', en: 'Parse Failed' },\n    error: e.message\n  }];\n}\n\nreturn [{\n  json: {\n    ...initData,\n    products: products,\n    product_count: products.length\n  }\n}];"
+      },
+      "id": "parse-products",
+      "name": "📋 商品データパース",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO video_product_extractions (video_url, channel_id, products_data, product_count, target_platforms, created_at) VALUES ($1, $2, $3::jsonb, $4, $5, NOW()) RETURNING extraction_id",
+        "options": {
+          "queryParams": "={{ [$json.video_url, $json.channel_id, JSON.stringify($json.products), $json.product_count, $json.target_platforms.join(',')] }}"
+        }
+      },
+      "id": "save-extraction",
+      "name": "💾 抽出結果保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const parseData = $node['📋 商品データパース'].json;\nconst extractionId = $input.first().json.extraction_id;\n\nreturn [{\n  json: {\n    success: true,\n    action: 'video_products_extracted',\n    extraction_id: extractionId,\n    video_url: parseData.video_url,\n    product_count: parseData.product_count,\n    products: parseData.products,\n    target_platforms: parseData.target_platforms,\n    next_step: 'generate_listings',\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}"
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス"
+    }
+  ],
+  "connections": {
+    "Webhook: video-extract": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化（鉄の掟準拠）": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🧠 Gemini商品抽出",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧠 Gemini商品抽出": {
+      "main": [
+        [
+          {
+            "node": "📋 商品データパース",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 商品データパース": {
+      "main": [
+        [
+          {
+            "node": "💾 抽出結果保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 抽出結果保存": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化（鉄の掟準拠）",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 300,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Commerce",
+      "color": "#e67e22"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "AI-Analysis",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "IronRule",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false,
+  "meta": {
+    "description": "N3-170 動画商品抽出 V5-PRODUCTION - Gemini 1.5 Proで動画から商品情報を自動抽出",
+    "version": "5.0",
+    "changelog": "2026-01-20: 鉄の掟準拠 - 環境変数必須化、AIエラー耐性（正規表現JSON抽出）",
+    "iron_rules_compliant": [
+      "no_hardcoded_urls",
+      "query_params_only",
+      "no_crypto_require",
+      "ai_json_regex"
+    ]
+  }
+}

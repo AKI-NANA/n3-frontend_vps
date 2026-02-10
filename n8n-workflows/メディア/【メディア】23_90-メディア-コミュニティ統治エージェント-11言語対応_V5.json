@@ -1,0 +1,556 @@
+{
+  "name": "【メディア】23_90-メディア-コミュニティ統治エージェント-11言語対応_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 4
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "⏰ 4時間ごと実行",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "community-agent",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: community-agent",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "community-agent"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst action = body.action || 'full_cycle';\nconst channelId = body.channel_id;\nconst languages = body.languages || ['ja', 'en', 'es', 'fr', 'de', 'it', 'pt', 'ko', 'zh', 'ar', 'hi'];\n\nreturn [{ json: { action, channel_id: channelId, languages, timestamp: new Date().toISOString() } }];"
+      },
+      "id": "init",
+      "name": "🔧 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT mc.channel_id, mc.channel_name, mc.target_locales, mc.brand_config, yt.access_token FROM media_channels mc JOIN youtube_tokens yt ON mc.channel_id = yt.channel_id WHERE mc.is_active = TRUE AND yt.is_active = TRUE AND ($1 IS NULL OR mc.channel_id = $1) LIMIT 50",
+        "options": {
+          "queryParams": "={{ [$json.channel_id] }}"
+        }
+      },
+      "id": "get-channels",
+      "name": "📺 アクティブチャンネル取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const channels = $input.all().map(item => item.json);\nconst channelList = Array.isArray(channels[0]) ? channels[0] : channels.filter(c => c && c.channel_id);\nreturn channelList.map(c => ({ json: c }));"
+      },
+      "id": "split-channels",
+      "name": "📋 チャンネル分割",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, title, description, youtube_video_id, publish_status, category, keywords FROM media_content WHERE channel_id = $1 AND publish_status = 'published' AND youtube_video_id IS NOT NULL ORDER BY published_at DESC LIMIT 5",
+        "options": {
+          "queryParams": "={{ [$json.channel_id] }}"
+        }
+      },
+      "id": "get-recent-videos",
+      "name": "🎬 最新動画取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-goog-api-key",
+              "value": "={{ $env.GEMINI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: `あなたはYouTubeチャンネルのコミュニティ管理者です。以下の最新動画情報から、視聴者への問いかけ投稿を生成してください。\n\n【チャンネル情報】\n名前: ${$node['📋 チャンネル分割'].json.channel_name}\n対象言語: ${JSON.stringify($node['📋 チャンネル分割'].json.target_locales || ['ja'])}\n\n【最新動画】\n${($input.first().json || []).slice(0, 3).map(v => `- ${v.title}`).join('\\n')}\n\n【出力形式】JSONのみ\n{\n  \"posts\": [\n    {\n      \"type\": \"poll\",\n      \"content_ja\": \"投稿文（日本語）\",\n      \"content_en\": \"投稿文（英語）\",\n      \"poll_options\": [\"選択肢1\", \"選択肢2\", \"選択肢3\"],\n      \"engagement_hook\": \"エンゲージメントを高めるポイント\"\n    },\n    {\n      \"type\": \"text\",\n      \"content_ja\": \"通常投稿（日本語）\",\n      \"content_en\": \"通常投稿（英語）\",\n      \"call_to_action\": \"CTA\"\n    }\n  ]\n}` }] }], generationConfig: { temperature: 0.8, maxOutputTokens: 2048 } }) }}",
+        "options": {
+          "timeout": 60000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "generate-community-post",
+      "name": "✨ コミュニティ投稿生成",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const channelData = $node['📋 チャンネル分割'].json;\nconst geminiResult = $input.first().json;\n\nlet posts = [];\ntry {\n  const content = geminiResult?.candidates?.[0]?.content?.parts?.[0]?.text || '';\n  const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    const parsed = JSON.parse(jsonMatch[0]);\n    posts = parsed.posts || [];\n  }\n} catch (e) {\n  console.log('Parse error:', e.message);\n}\n\nreturn posts.map(post => ({\n  json: {\n    channel_id: channelData.channel_id,\n    channel_name: channelData.channel_name,\n    post_type: post.type,\n    content: post.content_ja,\n    content_translations: { ja: post.content_ja, en: post.content_en },\n    poll_options: post.poll_options,\n    engagement_hook: post.engagement_hook || post.call_to_action,\n    ai_generated: true,\n    ai_model: 'gemini-1.5-pro',\n    ai_confidence: 0.85\n  }\n}));"
+      },
+      "id": "parse-posts",
+      "name": "📋 投稿パース",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO community_posts (channel_id, post_type, content, content_language, ai_generated, ai_model, ai_confidence, status, scheduled_at) VALUES ($1, $2, $3, 'ja', $4, $5, $6, 'scheduled', NOW() + INTERVAL '1 hour') RETURNING id, post_id",
+        "options": {
+          "queryParams": "={{ [$json.channel_id, $json.post_type, $json.content, $json.ai_generated, $json.ai_model, $json.ai_confidence] }}"
+        }
+      },
+      "id": "save-post",
+      "name": "💾 投稿保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT ca.comment_id, ca.video_id, ca.author_name, ca.comment_text, ca.sentiment, ca.published_at FROM comment_automation ca WHERE ca.platform = 'youtube' AND ca.response_status = 'pending' AND ca.published_at > NOW() - INTERVAL '24 hours' ORDER BY ca.created_at DESC LIMIT 100",
+        "options": {}
+      },
+      "id": "get-pending-comments",
+      "name": "💬 未対応コメント取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const comments = $input.first().json || [];\nconst commentList = Array.isArray(comments) ? comments : [comments].filter(c => c && c.comment_id);\n\n// センチメント分析\nconst negativeComments = commentList.filter(c => c.sentiment === 'negative');\nconst totalComments = commentList.length;\nconst negativeRatio = totalComments > 0 ? negativeComments.length / totalComments : 0;\n\n// アラート判定\nlet alertRequired = false;\nlet alertSeverity = 'low';\nlet alertType = null;\n\nif (negativeRatio > 0.3) {\n  alertRequired = true;\n  alertType = 'negative_spike';\n  alertSeverity = negativeRatio > 0.5 ? 'high' : 'medium';\n}\n\nif (negativeComments.some(c => c.comment_text && (c.comment_text.includes('詐欺') || c.comment_text.includes('嘘') || c.comment_text.includes('最悪')))) {\n  alertRequired = true;\n  alertType = 'controversial';\n  alertSeverity = 'high';\n}\n\nreturn [{\n  json: {\n    total_comments: totalComments,\n    negative_count: negativeComments.length,\n    negative_ratio: negativeRatio,\n    alert_required: alertRequired,\n    alert_type: alertType,\n    alert_severity: alertSeverity,\n    negative_samples: negativeComments.slice(0, 5).map(c => ({ id: c.comment_id, text: c.comment_text?.substring(0, 100) }))\n  }\n}];"
+      },
+      "id": "analyze-sentiment",
+      "name": "🔍 センチメント分析",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.alert_required }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-alert",
+      "name": "アラート必要？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO sentiment_alerts (alert_type, severity, negative_ratio, negative_count, comment_count, recommended_action, status) VALUES ($1, $2, $3, $4, $5, $6, 'active') RETURNING id, alert_id",
+        "options": {
+          "queryParams": "={{ [$json.alert_type, $json.alert_severity, $json.negative_ratio, $json.negative_count, $json.total_comments, $json.alert_severity === 'high' ? 'escalate' : 'monitor'] }}"
+        }
+      },
+      "id": "save-alert",
+      "name": "🚨 アラート保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.CHATWORK_WEBHOOK_URL || 'https://api.chatwork.com/v2/rooms/' + $env.CHATWORK_ROOM_ID + '/messages' }}",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "🚨 【センチメント・アラート】\n\n重要度: {{ $node['🔍 センチメント分析'].json.alert_severity }}\nタイプ: {{ $node['🔍 センチメント分析'].json.alert_type }}\nネガティブ率: {{ ($node['🔍 センチメント分析'].json.negative_ratio * 100).toFixed(1) }}%\n\n対応推奨: {{ $node['🔍 センチメント分析'].json.alert_severity === 'high' ? '緊急確認が必要です' : '監視継続' }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000,
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          }
+        }
+      },
+      "id": "notify-alert",
+      "name": "📢 アラート通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { success: true, action: 'community_agent', posts_generated: $node['💾 投稿保存']?.json?.id ? 1 : 0, alerts_created: $node['🚨 アラート保存']?.json?.id ? 1 : 0, message: 'コミュニティ統治サイクル完了' } }];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス生成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "⏰ 4時間ごと実行": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook: community-agent": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 初期化": {
+      "main": [
+        [
+          {
+            "node": "📺 アクティブチャンネル取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📺 アクティブチャンネル取得": {
+      "main": [
+        [
+          {
+            "node": "📋 チャンネル分割",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 チャンネル分割": {
+      "main": [
+        [
+          {
+            "node": "🎬 最新動画取得",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "💬 未対応コメント取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎬 最新動画取得": {
+      "main": [
+        [
+          {
+            "node": "✨ コミュニティ投稿生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✨ コミュニティ投稿生成": {
+      "main": [
+        [
+          {
+            "node": "📋 投稿パース",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 投稿パース": {
+      "main": [
+        [
+          {
+            "node": "💾 投稿保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 投稿保存": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💬 未対応コメント取得": {
+      "main": [
+        [
+          {
+            "node": "🔍 センチメント分析",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 センチメント分析": {
+      "main": [
+        [
+          {
+            "node": "アラート必要？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "アラート必要？": {
+      "main": [
+        [
+          {
+            "node": "🚨 アラート保存",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚨 アラート保存": {
+      "main": [
+        [
+          {
+            "node": "📢 アラート通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📢 アラート通知": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス生成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス生成": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔧 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 300,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-Media",
+      "color": "#e74c3c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Community",
+      "color": "#9b59b6"
+    },
+    {
+      "name": "Sentiment",
+      "color": "#e67e22"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

@@ -1,0 +1,467 @@
+{
+  "name": "【受注】02_26-中国-受注処理-通関連携_V5",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "china-order",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook: china-order",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "china-order"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst secret = $env.N8N_INTERNAL_SECRET;\nif (!secret) return [{ json: { error: true, message: 'N8N_INTERNAL_SECRET未設定', code: 'CONFIG_ERROR' } }];\nconst listingId = body.listing_id;\nconst platformOrderId = body.platform_order_id;\nconst paymentMethod = body.payment_method || 'alipay';\nconst quantity = parseInt(body.quantity) || 1;\nconst buyerRegion = body.buyer_region || 'Unknown';\nif (!listingId || !platformOrderId) return [{ json: { error: true, message: 'listing_id と platform_order_id は必須', code: 'MISSING_PARAM' } }];\nreturn [{ json: { listing_id: listingId, platform_order_id: platformOrderId, payment_method: paymentMethod, quantity: quantity, buyer_region: buyerRegion } }];"
+      },
+      "id": "init",
+      "name": "🔐 初期化",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "エラーチェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message, code: $json.code }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT cl.*, cm.platform_code, cm.platform_name_cn, pm.title, pm.sku FROM china_listings cl JOIN china_marketplaces cm ON cl.marketplace_id = cm.id JOIN products_master pm ON cl.product_id = pm.id WHERE cl.id = $1::uuid",
+        "options": {
+          "queryParams": "={{ [$json.listing_id] }}"
+        }
+      },
+      "id": "get-listing",
+      "name": "📦 出品情報取得",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $node['🔐 初期化'].json;\nconst listingRaw = $input.first().json;\nconst listing = Array.isArray(listingRaw) ? listingRaw[0] : listingRaw;\nif (!listing || !listing.id) return [{ json: { error: true, message: '出品が見つかりません' } }];\n\nconst itemPrice = parseFloat(listing.price_cny) || 0;\nconst shippingFee = listing.shipping_model === 'bonded' ? 0 : 20;\nconst taxRate = 0.091; // 越境EC総合税\nconst taxAmount = (itemPrice * config.quantity + shippingFee) * taxRate;\nconst totalCny = (itemPrice * config.quantity) + shippingFee + taxAmount;\n\nreturn [{ json: { ...config, listing: listing, item_price_cny: itemPrice, shipping_fee_cny: shippingFee, tax_amount_cny: Math.round(taxAmount * 100) / 100, total_cny: Math.round(totalCny * 100) / 100, platform_code: listing.platform_code, marketplace_name: listing.platform_name_cn, product_title: listing.title, sku: listing.sku } }];"
+      },
+      "id": "calc-order",
+      "name": "💰 受注計算",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "calc-error",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-calc-error",
+      "name": "計算エラー？",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-calc-error",
+      "name": "計算エラー応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO china_orders (listing_id, marketplace_id, platform_order_id, order_status, item_price_cny, quantity, shipping_fee_cny, tax_amount_cny, total_cny, payment_method, buyer_region, customs_status) SELECT $1::uuid, cl.marketplace_id, $2, 'paid', $3, $4, $5, $6, $7, $8, $9, 'pending' FROM china_listings cl WHERE cl.id = $1::uuid RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.listing_id, $json.platform_order_id, $json.item_price_cny, $json.quantity, $json.shipping_fee_cny, $json.tax_amount_cny, $json.total_cny, $json.payment_method, $json.buyer_region] }}"
+        }
+      },
+      "id": "save-order",
+      "name": "💾 受注保存",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const orderData = $node['💰 受注計算'].json;\nconst saveResult = $input.first().json;\n\n// 通関申告データ生成\nconst customsDeclaration = {\n  order_id: saveResult?.id,\n  declaration_type: 'CBEC', // Cross-Border E-Commerce\n  item_name: orderData.product_title,\n  hs_code: '9999.99.99', // 要: compliance テーブルから取得\n  quantity: orderData.quantity,\n  unit_price_cny: orderData.item_price_cny,\n  total_value_cny: orderData.total_cny,\n  buyer_region: orderData.buyer_region,\n  shipping_model: orderData.listing?.shipping_model || 'direct'\n};\n\nreturn [{ json: { order_id: saveResult?.id, customs_declaration: customsDeclaration, ...orderData } }];"
+      },
+      "id": "prepare-customs",
+      "name": "📋 通関データ準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[PYTHON_MIGRATION_CANDIDATE]"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO admin_tasks (task_type, related_table, related_id, priority, status, notes, created_at) VALUES ('customs_declaration', 'china_orders', $1, 'high', 'pending', $2, NOW()) RETURNING id",
+        "options": {
+          "queryParams": "={{ [$json.order_id, JSON.stringify($json.customs_declaration)] }}"
+        }
+      },
+      "id": "create-task",
+      "name": "📋 通関タスク作成",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "postgres-supabase",
+          "name": "Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.chatwork.com/v2/rooms/{{ $env.CHATWORK_ROOM_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-ChatWorkToken",
+              "value": "={{ $env.CHATWORK_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "=[info][title]🇨🇳 中国越境EC受注[/title]販路: {{ $json.marketplace_name }}\\n注文ID: {{ $json.platform_order_id }}\\n商品: {{ $json.product_title }}\\n金額: ¥{{ $json.total_cny }} CNY\\n地域: {{ $json.buyer_region }}\\n\\n⚠️ 通関申告が必要です[/info]"
+            }
+          ]
+        },
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "notify",
+      "name": "📢 受注通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $node['📋 通関データ準備'].json;\nreturn [{ json: { success: true, order_id: data.order_id, platform_order_id: data.platform_order_id, marketplace: data.marketplace_name, total_cny: data.total_cny, customs_status: 'pending', message: '受注登録完了。通関申告タスクを作成しました。' } }];"
+      },
+      "id": "format-response",
+      "name": "📋 レスポンス整形",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "✅ 成功応答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🔐 HMAC SHA256 署名検証 (Empire OS v6)\nconst crypto = require('crypto');\n\nconst signature = $request.headers['x-n3-signature'] || $request.headers['X-N3-Signature'];\nconst timestamp = $request.headers['x-n3-timestamp'] || $request.headers['X-N3-Timestamp'];\nconst secret = $env.N8N_HMAC_SECRET;\n\nif (!secret) {\n  throw new Error('🚫 N8N_HMAC_SECRET 環境変数が未設定です');\n}\n\nif (!signature || !timestamp) {\n  throw new Error('🚫 署名またはタイムスタンプが欠落しています');\n}\n\n// タイムスタンプ有効期限チェック (5分)\nconst now = Date.now();\nconst tsAge = now - parseInt(timestamp);\nif (tsAge > 300000 || tsAge < -30000) {\n  throw new Error('🚫 タイムスタンプが期限切れまたは不正です');\n}\n\n// HMAC検証\nconst bodyString = JSON.stringify($json);\nconst computedHmac = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + bodyString)\n  .digest('hex');\n\nif (signature !== computedHmac) {\n  throw new Error('🚫 HMAC署名検証失敗: 不正なリクエスト');\n}\n\n// 検証成功 - 元データをそのまま返す\nreturn [{ json: $json }];"
+      },
+      "name": "🔐 HMAC署名検証",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "notes": "[EMPIRE_OS_V6] セキュリティ強制挿入"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/execution_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{$workflow.id}}\",\n  \"workflow_name\": \"{{$workflow.name}}\",\n  \"status\": \"success\",\n  \"execution_time_ms\": {{Date.now() - $execution.startedAt.getTime()}},\n  \"error_message\": null,\n  \"executed_at\": \"{{new Date().toISOString()}}\",\n  \"node_count\": {{$workflow.nodes.length}},\n  \"metadata\": {}\n}",
+        "options": {
+          "retry": {
+            "attempts": 3,
+            "delay": 1000,
+            "backoff": "exponential"
+          },
+          "timeout": 30000
+        }
+      },
+      "name": "📊 実行ログ送信 (成功)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "notes": "[EMPIRE_OS_V6] 中央監視パルス\n[PATCHER] WARNING: このノードはどこにも接続されていません。削除または接続してください。"
+    }
+  ],
+  "connections": {
+    "Webhook: china-order": {
+      "main": [
+        [
+          {
+            "node": "🔐 HMAC署名検証",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 初期化": {
+      "main": [
+        [
+          {
+            "node": "エラーチェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "エラーチェック": {
+      "main": [
+        [
+          {
+            "node": "エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📦 出品情報取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 出品情報取得": {
+      "main": [
+        [
+          {
+            "node": "💰 受注計算",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💰 受注計算": {
+      "main": [
+        [
+          {
+            "node": "計算エラー？",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "計算エラー？": {
+      "main": [
+        [
+          {
+            "node": "計算エラー応答",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💾 受注保存",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 受注保存": {
+      "main": [
+        [
+          {
+            "node": "📋 通関データ準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 通関データ準備": {
+      "main": [
+        [
+          {
+            "node": "📋 通関タスク作成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 通関タスク作成": {
+      "main": [
+        [
+          {
+            "node": "📢 受注通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📢 受注通知": {
+      "main": [
+        [
+          {
+            "node": "📋 レスポンス整形",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 レスポンス整形": {
+      "main": [
+        [
+          {
+            "node": "✅ 成功応答",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔐 HMAC署名検証": {
+      "main": [
+        [
+          {
+            "node": "🔐 初期化",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 120,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "N3-China",
+      "color": "#dc143c"
+    },
+    {
+      "name": "V5-PRODUCTION",
+      "color": "#00ff00"
+    },
+    {
+      "name": "Order",
+      "color": "#4169e1"
+    },
+    {
+      "name": "Empire-OS-V6",
+      "color": "#ff4500"
+    }
+  ],
+  "active": false
+}

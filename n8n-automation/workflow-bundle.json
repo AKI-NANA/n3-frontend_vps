@@ -1,0 +1,110 @@
+{
+  "name": "N3 - Complete Workflow Bundle",
+  "description": "N3システム全ワークフローバンドル",
+  "version": "1.0.0",
+  "workflows": [
+    {
+      "id": "1",
+      "name": "eBay Auto Listing",
+      "file": "01-ebay-auto-listing.json",
+      "dependencies": ["supabase", "ebay", "slack"],
+      "triggers": ["webhook", "manual"],
+      "schedule": null
+    },
+    {
+      "id": "2", 
+      "name": "Inventory Sync",
+      "file": "02-inventory-sync.json",
+      "dependencies": ["supabase", "ebay", "amazon", "slack"],
+      "triggers": ["schedule", "webhook"],
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "id": "3",
+      "name": "Amazon Research",
+      "file": "03-amazon-research.json",
+      "dependencies": ["supabase", "keepa", "amazon", "slack"],
+      "triggers": ["webhook"],
+      "schedule": null
+    },
+    {
+      "id": "4",
+      "name": "Auto Listing Schedule",
+      "file": "04-auto-listing-schedule.json",
+      "dependencies": ["supabase", "slack"],
+      "triggers": ["schedule"],
+      "schedule": "0 9,15,21 * * *"
+    }
+  ],
+  "apiEndpoints": {
+    "listing": {
+      "execute": "/api/listing/execute",
+      "batch": "/api/listing/batch",
+      "schedule": "/api/listing/schedule",
+      "status": "/api/listing/status"
+    },
+    "inventory": {
+      "sync": "/api/inventory/sync",
+      "update": "/api/inventory/update",
+      "fba": "/api/inventory/fba",
+      "history": "/api/inventory/history"
+    },
+    "research": {
+      "amazon": "/api/research/amazon-auto",
+      "ebay": "/api/research/ebay",
+      "keepa": "/api/research/keepa",
+      "yahoo": "/api/research/yahoo"
+    },
+    "n8n": {
+      "webhook": "/api/n8n",
+      "callback": "/api/n8n/callback",
+      "status": "/api/n8n/status"
+    }
+  },
+  "webhooks": {
+    "baseUrl": "http://localhost:5678/webhook",
+    "endpoints": {
+      "listing": "/listing-execute",
+      "inventory": "/inventory-sync",
+      "research": "/research-amazon",
+      "master": "/n3-master"
+    }
+  },
+  "configuration": {
+    "useN8n": true,
+    "fallbackEnabled": true,
+    "retryAttempts": 3,
+    "timeout": 30000,
+    "batchSize": 10,
+    "rateLimit": {
+      "ebay": {
+        "callsPerDay": 5000,
+        "callsPerSecond": 5
+      },
+      "amazon": {
+        "callsPerHour": 18000,
+        "callsPerSecond": 30
+      },
+      "keepa": {
+        "tokensPerMinute": 100
+      }
+    }
+  },
+  "monitoring": {
+    "slack": {
+      "channels": {
+        "listings": "#n3-listings",
+        "inventory": "#n3-inventory",
+        "research": "#n3-research",
+        "alerts": "#n3-alerts",
+        "automation": "#n3-automation"
+      },
+      "notifyOn": ["error", "success", "warning"]
+    },
+    "metrics": {
+      "enabled": true,
+      "interval": 60,
+      "dashboard": "http://localhost:5678/dashboard"
+    }
+  }
+}
